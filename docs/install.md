@@ -11,7 +11,7 @@ Linux with:
 
 | Tool | Minimum | How to get it |
 |---|---|---|
-| GNU coreutils, `flock` (util-linux), procps | — | the distribution's packages |
+| GNU coreutils (or a compatible one, such as uutils), `flock` (util-linux), procps | — | the distribution's packages |
 | bash | bash 5.0 | `apt install bash` |
 | git | git 2.30 | `apt install git` |
 | gh, logged in | — | <https://cli.github.com>, then `gh auth login` (or a project's own login: `canccu-init` prints the steps) |

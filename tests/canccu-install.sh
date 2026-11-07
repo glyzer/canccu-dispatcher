@@ -52,6 +52,19 @@ ok "… no procps" out_has "procps"
 ok "… gh without a login" out_has "gh: not logged in"
 ok "… one line per tool, each with a way to get it" eq "$(grep -c '^  ' "$E/out")" 6
 
+# coreutils by what the tool uses (date -d, stat -c, realpath -m, sort -V), not by its brand:
+# a GNU-compatible one (uutils, the default on newer distributions) passes
+inst_env check-uutils
+mkdir -p "$FAKE/bin"
+printf '#!/bin/sh\n[ "$1" = --version ] && { echo "date (uutils coreutils) 0.2.2"; exit 0; }\nexec /usr/bin/date "$@"\n' > "$FAKE/bin/date"
+chmod +x "$FAKE/bin/date"; inst "$S" --check
+ok "a GNU-compatible coreutils that brands itself otherwise: accepted" eq "$rc" 0
+inst_env check-no-gnu-date
+mkdir -p "$FAKE/bin"
+printf '#!/bin/sh\ncase "$*" in *-d*) echo "date: unrecognized option: d" >&2; exit 1 ;; esac\nexec /usr/bin/date "$@"\n' > "$FAKE/bin/date"
+chmod +x "$FAKE/bin/date"; inst "$S" --check
+ok "a date without -d: refused as no GNU coreutils" eq "$rc $(grep -c 'GNU coreutils' "$E/out")" "2 1"
+
 inst_env check-no-claude
 mkdir -p "$E/bin"; for t in "$tb"/*; do [ "${t##*/}" = claude ] || ln -s "$t" "$E/bin/"; done
 if PATH=/usr/local/bin:/usr/bin:/bin command -v claude >/dev/null; then
