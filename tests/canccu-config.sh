@@ -96,8 +96,10 @@ ok "… the fix-check prompt too" grep -qF 'cite every file as a path relative t
 # ---------------------------------------------------------------- messages point at this tool
 
 tname=pointers
+# install.sh is this repo's own installer; the old one's --canccu mode is another repo's
 ok "no message points at another repo's installer, project or docs" \
-  eq "$(grep -rnE '(echo|die|log|warn_once|exit|Text\().*(install\.sh|docs/canccu|profiles/ in the)' "$root/bin" "$root/libexec" "$root/lib" | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#')" ""
+  eq "$(grep -rnE '(echo|die|log|warn_once|exit|Text\().*(install\.sh --canccu|docs/canccu|profiles/ in the)' "$root/bin" "$root/libexec" "$root/lib" | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#')" ""
+ok "… the install.sh the messages name is this repo's" test -x "$root/install.sh"
 
 echo "canccu-config tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
