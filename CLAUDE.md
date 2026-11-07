@@ -25,7 +25,8 @@ flow below; a session started by hand follows it too.
 ### `execute` — do the work
 
 - Test first: write the failing test, watch it fail, make it pass.
-- While working, run only the tests of the files you change: `tests/run <file or pattern>`.
+- While working, run only the tests of the files you change: `tests/run <file or pattern>`, or
+  `tests/run --affected` for everything changed against `origin/main`. Never paste whole test logs.
 - Commit in small steps with clear messages. Never commit secrets, personal paths or names
   (`tests/leak-check.sh` checks).
 - To bring in main: `git merge origin/main`. Never rebase or force-push a PR branch.
