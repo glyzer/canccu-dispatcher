@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # shellcheck shell=bash disable=SC2034
-# canccu-dispatch defaults, for every project. A canccu-* command reads this file, then
+# canccu-dispatch defaults, for every project. A canccu-* command reads this file, then the host
+# profile (hosts/<HOST_PROFILE>.conf: the values that suit the Claude plan and the host), then
 # ~/.canccu/config (global: TOTAL_CAP, and a default for every project), then the project's
 # rules and last its config (~/.canccu/projects/<name>/{rules,config}): a key either of those
 # sets wins over the global one (a rules file may set every rules key). TOTAL_CAP is read from
@@ -10,6 +11,7 @@
 # Each project's config sets at least REPO and CLONE (canccu-init writes them).
 REPO=
 CLONE=
+HOST_PROFILE=               # the host profile (hosts/<name>.conf, e.g. max); ~/.canccu/config or CANCCU_HOST_PROFILE only; empty: none
 CAP=3                       # workers + reviewers + answerers of this project running at once
 TOTAL_CAP=3                 # the same over all projects together (one Claude account); ~/.canccu/config only
 MODEL=                      # every run gets --model $MODEL; empty: no --model, the account default

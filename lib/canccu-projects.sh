@@ -6,6 +6,7 @@
 # workers, reviews, digest, log, lock. Global in CANCCU_ROOT: config (TOTAL_CAP), the reviewer
 # token, default-project and the usage-limit back-off (one Claude account for all projects).
 CANCCU_ROOT=${CANCCU_ROOT:-$HOME/.canccu}
+_canccu_hosts=$(dirname "${BASH_SOURCE[0]}")/../hosts
 # canccu_profiles: the project names (a dir under projects/ with a config file)
 canccu_profiles() {
   local d
@@ -37,4 +38,31 @@ canccu_repo_clone() {
     # shellcheck source=/dev/null
     . "$1" >/dev/null 2>&1
     printf '%s\t%s\n' "$REPO" "$CLONE" )
+}
+# canccu_host_profile: the host profile's name: CANCCU_HOST_PROFILE, else HOST_PROFILE in
+# ~/.canccu/config. That file is read in a subshell: nothing else of it may be set before the
+# profile, whose values it overrides.
+canccu_host_profile() {
+  if [ -n "${CANCCU_HOST_PROFILE:-}" ]; then printf '%s\n' "$CANCCU_HOST_PROFILE"; return; fi
+  [ -f "$CANCCU_ROOT/config" ] || return 0
+  ( HOST_PROFILE=""
+    # shellcheck source=/dev/null
+    . "$CANCCU_ROOT/config" >/dev/null 2>&1
+    printf '%s\n' "$HOST_PROFILE" ) | grep .
+  return 0
+}
+# canccu_host_profiles: the shipped profiles' names, comma-separated
+canccu_host_profiles() {
+  local f out=()
+  for f in "$_canccu_hosts"/*.conf; do [ -f "$f" ] && out+=("$(basename "$f" .conf)"); done
+  local IFS=,; printf '%s\n' "${out[*]}" | sed 's/,/, /g'
+}
+# canccu_host_conf <name>: the profile's file; fails for an unknown name (or one that is a path)
+canccu_host_conf() {
+  canccu_valid_name "$1" && [ -f "$_canccu_hosts/$1.conf" ] || return 1
+  printf '%s\n' "$(realpath -m "$_canccu_hosts/$1.conf")"
+}
+# canccu_host_where: where the profile's name came from, for a message
+canccu_host_where() {
+  if [ -n "${CANCCU_HOST_PROFILE:-}" ]; then echo CANCCU_HOST_PROFILE; else echo "HOST_PROFILE in $(canccu_tilde "$CANCCU_ROOT")/config"; fi
 }

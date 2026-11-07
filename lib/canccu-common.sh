@@ -40,8 +40,17 @@ CANCCU_HOME=$CANCCU_ROOT/projects/$CANCCU_PROJECT
 # held is put aside, and only the config files below can set it
 _canccu_env_ghdir=${GH_CONFIG_DIR-} _canccu_env_ghdir_set=${GH_CONFIG_DIR+x} _canccu_env_owner=${CANCCU_GH_OWNER:-}
 unset GH_CONFIG_DIR CANCCU_GH_OWNER
+# the load order: the defaults, the host profile, ~/.canccu/config, the project's rules, its
+# config. HOST_PROFILE is fixed before any of them: neither a profile nor a later file changes it.
+_canccu_hp=$(canccu_host_profile) _canccu_hpf=""
+if [ -n "$_canccu_hp" ]; then
+  _canccu_hpf=$(canccu_host_conf "$_canccu_hp") ||
+    _canccu_die "no host profile '$_canccu_hp' ($(canccu_host_where)). Profiles: $(canccu_host_profiles)"
+fi
 # shellcheck source=canccu-config.default
 . "$_canccu_lib/canccu-config.default"
+# shellcheck source=/dev/null
+[ -n "$_canccu_hpf" ] && . "$_canccu_hpf"
 # shellcheck source=/dev/null
 [ -f "$CANCCU_ROOT/config" ] && . "$CANCCU_ROOT/config"
 _canccu_total=$TOTAL_CAP   # global only: a project cannot raise it
@@ -49,7 +58,7 @@ _canccu_total=$TOTAL_CAP   # global only: a project cannot raise it
 . "$CANCCU_HOME/rules"
 # shellcheck source=/dev/null
 . "$CANCCU_HOME/config"
-TOTAL_CAP=$_canccu_total
+TOTAL_CAP=$_canccu_total HOST_PROFILE=$_canccu_hp
 [ -n "$REPO" ] && [ -n "$CLONE" ] || _canccu_die "project '$CANCCU_PROJECT': REPO and CLONE must be set in ${CANCCU_HOME/#$HOME/\~}/config"
 
 # ---------------------------------------------------------------- the project's gh credential

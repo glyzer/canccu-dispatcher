@@ -15,9 +15,7 @@ ok "CHANGELOG.md has a section for it" grep -qE "^## \[?$V\]?" "$root/CHANGELOG.
 
 tname=version-tarball
 # a copy without .git stands for a release tarball: the version only
-S=$T/src; mkdir -p "$S"
-(cd "$root" && git ls-files -co --exclude-standard -z | xargs -0 cp --parents -t "$S" 2>/dev/null)
-echo 9.8.7 > "$S/VERSION"
+S=$T/src; src_copy "$S" 9.8.7
 out=$("$S/bin/canccu-dispatcher" --version 2>&1); rc=$?
 ok "from a tarball: the version, nothing else" eq "$rc $out" "0 canccu-dispatcher 9.8.7"
 
