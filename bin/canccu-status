@@ -21,7 +21,7 @@ state="running"
 paused && state="PAUSED (canccu-resume to continue)"
 dispatcher_running || state+=" · canccu-dispatch is NOT running (canccu-up, or run it in the window dispatch)"
 backing_off && state+=" · usage limit until $(date -d "@$(backoff_until)" '+%F %T')"
-echo "$REPO · $state"
+echo "canccu-dispatcher $CANCCU_VERSION · $REPO · $state"
 if [ -n "$REVIEWER_LOGIN" ]; then rv="reviews post as $REVIEWER_LOGIN"; else rv="reviews: REVIEWER_LOGIN is not set"; fi
 echo "model: ${MODEL:-the account default} · $rv"
 lp=$(login_problem)

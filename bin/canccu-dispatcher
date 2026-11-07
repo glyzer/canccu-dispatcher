@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# canccu-dispatcher — the installed tool itself (docs/install.md):
+#   canccu-dispatcher --version                       the version; plus the commit from a checkout
+#   canccu-dispatcher doctor [--project <name>]       one line per problem; exit 0 when clean
+#   canccu-dispatcher rollback [--prefix DIR]         current back to the previous release
+#   canccu-dispatcher uninstall [--prefix DIR] [--purge-state --yes] [--force]
+set -uo pipefail
+self=$(realpath "$0")
+here=$(dirname "$self")/..
+# shellcheck source=../lib/canccu-version.sh
+. "$here/lib/canccu-version.sh"
+
+usage() { sed -n '3,7s/^# \{0,1\}//p' "$self" >&2; exit 2; }
+case ${1:-} in
+  --version|version)
+    c=$(canccu_commit "$here")
+    echo "canccu-dispatcher $(canccu_version "$here")${c:+ (commit $c)}" ;;
+  "") usage ;;
+  *) echo "canccu-dispatcher: unknown subcommand '$1'" >&2; usage ;;
+esac

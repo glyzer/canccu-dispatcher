@@ -4,6 +4,7 @@
 # it after every pass (also a failed one), atomically: a temp file renamed over the old one. Never
 # under --dry-run. Sourced by canccu-dispatch after canccu-common.sh; never run. The schema is in
 # docs/canccu-dispatch.md, "Status snapshot"; a change to a field's meaning bumps STATUS_SCHEMA.
+# A new field is additive and keeps the number: version (the release that wrote the snapshot) is.
 STATUS_SCHEMA=2
 # shellcheck source=canccu-snapshot-steps.sh
 . "$(dirname "${BASH_SOURCE[0]}")/canccu-snapshot-steps.sh"
@@ -264,7 +265,7 @@ write_status() {
   started=${PASS_STARTED:-$(now)}
   durs=$(jq -c --arg d "$(( $(now) - started ))" '[(.pass.durations // [])[]? | numbers] + [$d | tonumber] | .[-5:]' <<<"$prev") ||
     durs="[$(( $(now) - started ))]"
-  jq -n --argjson schema "$STATUS_SCHEMA" --arg project "$CANCCU_PROJECT" --arg repo "$REPO" --arg repo_name "$REPO_NAME" --arg pid "$$" \
+  jq -n --argjson schema "$STATUS_SCHEMA" --arg version "$CANCCU_VERSION" --arg project "$CANCCU_PROJECT" --arg repo "$REPO" --arg repo_name "$REPO_NAME" --arg pid "$$" \
     --arg interval "$INTERVAL" --arg now "$(now)" --argjson ok "$ok" --arg err "$err" \
     --argjson paused "$(paused && echo true || echo false)" --arg bu "$bu" \
     --arg running_n "$(running_count)" --arg cap "$CAP" --arg total "$(total_running)" --arg tcap "$TOTAL_CAP" \
@@ -272,7 +273,7 @@ write_status() {
     --argjson running "$running" --argjson needs "$needs" --argjson queue "$queue" \
     --argjson ms "$ms" --argjson events "$events" --arg stale "${stale[*]}" --argjson steps "$steps" --argjson usage "$usage" \
     --argjson overview "${overview:-[]}" --argjson others "$others" '
-    { schema: $schema, project: $project, repo: $repo, repo_name: $repo_name, pid: ($pid | tonumber), interval: ($interval | tonumber),
+    { schema: $schema, version: $version, project: $project, repo: $repo, repo_name: $repo_name, pid: ($pid | tonumber), interval: ($interval | tonumber),
       pass: { at: ($now | tonumber), started: ($started | tonumber), duration: $durs[-1], durations: $durs, ok: $ok, error: (if $err == "" then null else $err end), paused: $paused,
               backoff_until: ($bu | tonumber? // null) },
       caps: { running: ($running_n | tonumber), cap: ($cap | tonumber), total_running: ($total | tonumber),

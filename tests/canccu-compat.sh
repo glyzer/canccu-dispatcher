@@ -68,7 +68,9 @@ printf '%s\t%s\n' 'pr view 70 *' pr70.json 'issue view 7 *' issue7.json 'api --p
 snapshot() { (cd "$C" && find . -printf '%p %m %s %T@\n' | sort && find . -type f -exec md5sum {} + | sort); }
 before=$(snapshot)
 # what the tools print, with this run's temp dir and clock taken out
-norm() { sed -e "s|$H|<home>|g" -e "s|$T|<tmp>|g"; }
+# the version too, so a release bump leaves the expected output as it is
+V=$(tr -d '[:space:]' < "$root/VERSION")
+norm() { sed -e "s|$H|<home>|g" -e "s|$T|<tmp>|g" -e "1s|^canccu-dispatcher $V · |canccu-dispatcher <version> · |"; }
 run() { TZ=UTC HOME=$H PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" COLUMNS=100 NO_COLOR=1 "$@" 2>&1 | norm; }
 out_status=$(run "$root/bin/canccu-status")
 out_tools=$(run "$root/bin/canccu-status" --project tools)

@@ -92,6 +92,7 @@ def self_test():
     fixture_checks(fx, check)
     roadmap_checks(mock, check)
     screen_checks(fx, check)
+    version_checks(mock, check)
     for f in fails:
         print("FAIL " + f)
     print("canccu-monitor self-test: %d checks failed" % len(fails) if fails else "canccu-monitor self-test: ok")
@@ -100,6 +101,23 @@ def self_test():
 
 def mock_frame(mock, w, h, no_color=False, own=None):
     return frame(own or mock["tools"], None, w, h, [("web", mock["web"])], no_color, MOCK_NOW, "tools")
+
+
+def version_checks(mock, check):
+    """The header names the release each dispatcher runs: one version when all run the same, the
+    other projects' own when they differ (a dispatcher not restarted after an upgrade), nothing
+    from a snapshot without the field (an older dispatcher)."""
+    tools, web = (copy.deepcopy(mock[n]) for n in ("tools", "web"))
+    for w, _ in SIZES:
+        what = "version at %d columns" % w
+        tools["version"] = web["version"] = "1.2.3"
+        plain = words_of(mock_frame({"tools": tools, "web": web}, w, 40)[0])
+        check("v1.2.3" in plain and "web v1.2.3" not in plain, what + ": the one version, once")
+        web["version"] = "1.2.0"
+        plain = words_of(mock_frame({"tools": tools, "web": web}, w, 40)[0])
+        check("v1.2.3" in plain and "web v1.2.0" in plain, what + ": the other project's own version")
+    plain = words_of(mock_frame(mock, 120, 40)[0])
+    check(not re.search(r"\bv\d+\.\d+", plain), "version: a snapshot without one shows none")
 
 
 def inbox_checks(mock, check):

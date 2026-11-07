@@ -5,6 +5,9 @@
 # through mut, which only prints under --dry-run (CANCCU_DRY=1).
 
 _canccu_lib=$(dirname "${BASH_SOURCE[0]}")
+# shellcheck source=canccu-version.sh
+. "$_canccu_lib/canccu-version.sh"
+CANCCU_VERSION=$(canccu_version "$_canccu_lib/..")
 # ---------------------------------------------------------------- the project (profile)
 # shellcheck source=canccu-projects.sh
 . "$_canccu_lib/canccu-projects.sh"

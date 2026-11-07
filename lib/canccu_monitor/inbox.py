@@ -2,7 +2,8 @@
 """The top of the screen ("Inbox First"): the header and the NEEDS YOU box.
 
 Header: every project with its pass age and ✓/⚠, the slots, the clock; today's spend in total and
-per project; the 5-hour and weekly usage as bars with their reset times (one line on a phone).
+per project; the 5-hour and weekly usage as bars with their reset times; the release the
+dispatchers run (one line on a phone).
 
 NEEDS YOU: one card per item of every project, oldest first. Line 1: the verb, project, issue → PR
 (PR ← issues for a package), the whole reason, since when (clock time and age) and the stage
@@ -96,6 +97,15 @@ def project_mark(name, snap, now, own, phone):
     return t
 
 
+def versions(projects):
+    """The release the dispatchers run: the own project's, then each other project's that differs
+    (its dispatcher was not restarted after an upgrade); nothing from snapshots without one."""
+    own = txt(projects[0][1], "version")
+    out = ["v" + own] if own else []
+    out += ["%s v%s" % (n, txt(s, "version")) for n, s in projects[1:] if txt(s, "version") not in ("", own)]
+    return " · ".join(out)
+
+
 def header(projects, now, width, phone):
     own = projects[0][1]
     usage = usage_of(projects)
@@ -115,6 +125,8 @@ def header(projects, now, width, phone):
             t.append(" · week %d%%" % uw)
         if throttle:
             t.append(" · " + throttle, style="bold yellow")
+        if versions(projects):
+            t.append(" · " + versions(projects), style="dim")
         return wrap(t, width, 2)
     for gap in ("  │  ", " │ "):
         sep = (gap, "dim")
@@ -144,6 +156,8 @@ def header(projects, now, width, phone):
             t2.append(" → " + time.strftime("%a %H:%M", time.localtime(num(usage, "weekly_resets_at"))), style="dim")
     if throttle:
         t2.append(*sep).append(throttle, style="bold yellow")
+    if versions(projects):
+        t2.append(*sep).append(versions(projects), style="dim")
     return wrap(t, width, 2) + wrap(t2, width, 2)
 
 
