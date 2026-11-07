@@ -72,7 +72,8 @@ canccu_in_use() {
   {
     find /proc/[0-9]*/fd/ /proc/[0-9]*/cwd /proc/[0-9]*/exe -maxdepth 1 -lname "$rb*" -printf '%p %l\n' 2>/dev/null
     for f in $(grep -lsaF "$rb" /proc/[0-9]*/cmdline); do
-      tr '\0' '\n' < "$f" 2>/dev/null | grep -F "$rb" | sed "s|^|$f |"
+      # a process may end between the grep and this read (the grep itself does)
+      { tr '\0' '\n' < "$f"; } 2>/dev/null | grep -F "$rb" | sed "s|^|$f |"
     done
   } | while read -r f l; do
     x=${f#/proc/}; x=${x%%/*}

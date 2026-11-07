@@ -20,6 +20,10 @@ here=$(dirname "$self")/..
 . "$here/lib/canccu-engine.sh"
 # shellcheck source=../lib/canccu-install-cmds.sh
 . "$here/lib/canccu-install-cmds.sh"
+# shellcheck source=../lib/canccu-deps.sh
+. "$here/lib/canccu-deps.sh"
+# shellcheck source=../lib/canccu-doctor.sh
+. "$here/lib/canccu-doctor.sh"
 
 usage() { sed -n '3,8s/^# \{0,1\}//p' "$self" >&2; exit 2; }
 cmd=${1:-}; [ $# -gt 0 ] && shift
@@ -40,6 +44,17 @@ case $cmd in
   --version|version)
     c=$(canccu_commit "$here")
     echo "canccu-dispatcher $(canccu_version "$here")${c:+ (commit $c)}" ;;
+  doctor)
+    only=""
+    case ${1:-} in
+      --project) [ $# -eq 2 ] && [ -n "$2" ] || usage; only=$2 ;;
+      "") ;;
+      *) usage ;;
+    esac
+    if [ -n "$only" ] && ! canccu_profiles | grep -qxF -- "$only"; then
+      _cmd_die "no project '$only'. Projects: $(canccu_profiles | tr '\n' ' ' | sed 's/ $//')"
+    fi
+    canccu_doctor "$here" "$only" ;;
   rollback) opts "$@"; canccu_rollback "$prefix" ;;
   uninstall) opts "$@"; canccu_uninstall "$prefix" "$purge" "$yes" "$force" ;;
   "") usage ;;

@@ -19,7 +19,8 @@ cd "$root" || exit 2
 # tests_for <file>: the test files (and "monitor") that cover a source file; "all" for the harness
 tests_for() {
   case $1 in
-    tests/lib/*|tests/fixtures/rules/*) echo all ;;
+    tests/lib/harness.sh|tests/fixtures/rules/*) echo all ;;
+    tests/lib/install.sh) echo tests/canccu-install.sh tests/canccu-install2.sh tests/canccu-doctor.sh ;;
     tests/run) echo tests/canccu-cost.sh ;;
     tests/fixtures/compat/*) echo tests/canccu-compat.sh ;;
     tests/leak-check.sh) echo tests/leak.sh tests/leak-check.sh ;;
@@ -29,10 +30,13 @@ tests_for() {
     tests/fixtures/plans/*|lib/canccu-plan.jq|lib/canccu-planner.sh|lib/canccu-steps.sh)
       echo tests/canccu-steps.sh tests/canccu-steps2.sh ;;
     lib/canccu-snapshot-steps.sh) echo tests/canccu-snapshot2.sh tests/canccu-steps.sh ;;
-    lib/canccu-snapshot.sh) echo tests/canccu-snapshot2.sh tests/canccu-pane.sh ;;
     lib/canccu-usage.sh|lib/canccu-stream.py|libexec/canccu-nudge-hook) echo tests/canccu-usage.sh ;;
     libexec/canccu-worker|lib/canccu-engine.sh)
-      echo tests/canccu-engine.sh tests/canccu-units.sh tests/canccu-usage.sh tests/canccu-pane.sh ;;
+      echo tests/canccu-engine.sh tests/canccu-units.sh tests/canccu-usage.sh tests/canccu-pane.sh tests/canccu-install.sh tests/canccu-install2.sh tests/canccu-doctor.sh ;;
+    lib/canccu-common.sh|lib/canccu-projects.sh|lib/canccu-config.default)
+      echo tests/canccu-dispatch.sh tests/canccu-projects.sh tests/canccu-config.sh tests/canccu-cost.sh tests/canccu-compat.sh tests/canccu-hosts.sh tests/canccu-install.sh tests/canccu-doctor.sh ;;
+    bin/canccu-status|lib/canccu-snapshot.sh)
+      echo tests/canccu-snapshot2.sh tests/canccu-pane.sh tests/canccu-dispatch.sh tests/canccu-compat.sh tests/canccu-version.sh ;;
     lib/canccu-units.sh|lib/canccu-packages.sh) echo tests/canccu-units.sh tests/canccu-cost.sh tests/canccu-health-review.sh ;;
     lib/canccu-version.sh|VERSION|CHANGELOG.md) echo tests/canccu-version.sh tests/canccu-compat.sh tests/canccu-install.sh ;;
     install.sh|lib/canccu-install*.sh|lib/canccu-deps.sh|bin/canccu-dispatcher|docs/install.md)
