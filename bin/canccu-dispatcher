@@ -9,6 +9,9 @@
 set -uo pipefail
 self=$(realpath "$0")
 here=$(dirname "$self")/..
+# the user's PATH, before the engine's lib adds ~/.local/bin to it (for cron and tmux): doctor
+# checks that the commands are on this one
+export CANCCU_USER_PATH=$PATH
 # every lib is read now: uninstall removes the tree this runs from
 # shellcheck source=../lib/canccu-projects.sh
 . "$here/lib/canccu-projects.sh"

@@ -41,6 +41,10 @@ for pat in '~/.canccu/**' '/'"$H"'/.canccu/reviewer-token' '~/.canccu/*-token'; 
   ok "the token covered by Read($pat)" eq "$rc" 0
 done
 
+clean_host off-path
+IPATH=${IPATH#"$P/bin:"}; hrun "$P/bin/canccu-dispatcher" doctor
+ok "the prefix bin dir not on the user's PATH: named" eq "$rc $(line '/.local/bin is not on PATH')" "1 1"
+
 clean_host no-project
 rm -rf "$C/projects"
 doctor

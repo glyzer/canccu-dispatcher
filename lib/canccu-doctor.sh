@@ -20,7 +20,7 @@ _doc_install() {
     tree=$cur
     [ -d "$tree/bin" ] || { echo "release: current points at $(canccu_tilde "$cur"), which is no tree"; return; }
   fi
-  case ":$PATH:" in *":$prefix/bin:"*) ;; *) echo "canccu-dispatcher: $(canccu_tilde "$prefix/bin") is not on PATH" ;; esac
+  case ":${CANCCU_USER_PATH:-$PATH}:" in *":$prefix/bin:"*) ;; *) echo "canccu-dispatcher: $(canccu_tilde "$prefix/bin") is not on PATH" ;; esac
   for c in "$tree"/bin/*; do
     n=${c##*/} l=$prefix/bin/${c##*/}
     if [ -L "$l" ]; then
@@ -28,7 +28,7 @@ _doc_install() {
       [ "$t" = "$base/current/bin/$n" ] || { echo "$n links to $t, not to this install (install.sh --replace-links)"; continue; }
     elif [ -e "$l" ]; then echo "$n in $(canccu_tilde "$prefix/bin") is a file, not a link to this install"; continue
     else echo "$n is not linked in $(canccu_tilde "$prefix/bin") (install.sh)"; continue; fi
-    p=$(command -v "$n" 2>/dev/null)
+    p=$(PATH=${CANCCU_USER_PATH:-$PATH} command -v "$n" 2>/dev/null)
     [ -z "$p" ] || [ "$p" = "$l" ] || echo "$n on PATH is $(canccu_tilde "$p"), not this install's $(canccu_tilde "$l")"
   done
   canccu_in_use "$base" | while read -r t p; do
