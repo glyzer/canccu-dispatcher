@@ -144,6 +144,12 @@ ok "… its FAIL line and what follows it are shown" eq "$(grep -cE '^(FAIL \[x\
 ok "… one summary line per file" eq "$(grep -cE '^tests/(bad|good)\.sh: (FAILED|ok) · (bad|good) tests: ' <<<"$out")" 2
 ok "… no chatter" not grep -q chatter <<<"$out"
 ok "… the full logs are kept, and named" eq "$(cat "$T"/runlogs/*.log | grep -c chatter) $(grep -c "full logs: $T/runlogs" <<<"$out")" "2 1"
+# CANCCU_TEST_JOBS caps the parts at once; the biggest test file starts first
+printf '#!/usr/bin/env bash\nmkdir "%s/busy" || { echo "two at once"; exit 1; }\nsleep 1; rmdir "%s/busy"\necho "small tests: 1 passed, 0 failed"\n' "$T" "$T" > "$F/tests/small.sh"
+{ cat "$F/tests/small.sh"; printf '# %s\n' "padding that makes this file the biggest one" "more padding"; } > "$F/tests/big.sh"
+out=$(cd "$F" && CANCCU_TEST_JOBS=1 tests/run tests/small.sh tests/big.sh 2>&1); rc=$?
+ok "tests/run: CANCCU_TEST_JOBS=1 runs one part at a time" eq "$rc $(grep -c 'two at once' <<<"$out")" "0 0"
+ok "… the biggest test file first" eq "$(grep -oE '^tests/(big|small)\.sh' <<<"$out" | tr '\n' ' ')" "tests/big.sh tests/small.sh "
 
 # ---------------------------------------------------------------- the worker's test rule
 

@@ -131,14 +131,30 @@ run_part() {
   return $rc
 }
 
+# the parts run biggest first (a test file's size stands for its run time), at most
+# CANCCU_TEST_JOBS at once (default: the CPU count): on a small CI runner, starting them all at
+# once starves the biggest one until it times out
+queue=()
+(( ${#lint[@]} )) && queue+=(lint)
+while IFS= read -r p; do queue+=("${p#* }"); done < <(
+  for p in "${parts[@]}"; do
+    if [ -f "$p" ]; then echo "$(wc -c < "$p") $p"; else echo "0 $p"; fi
+  done | sort -rn)
+jobs_max=${CANCCU_TEST_JOBS:-$(nproc 2>/dev/null || echo 2)}
+[[ $jobs_max =~ ^[1-9][0-9]*$ ]] || jobs_max=2
 rc=0
 declare -A name=()
-(( ${#lint[@]} )) && { run_part lint > "$logs/.lint.out" 2>&1 & name[$!]=lint; }
-for p in "${parts[@]}"; do run_part "$p" > "$logs/.$(tr '/' '_' <<<"$p").out" 2>&1 & name[$!]=$p; done
-while (( ${#name[@]} )); do
-  r=0; wait -n -p pid || r=$?
+finish_one() {
+  local r=0 pid
+  wait -n -p pid || r=$?
   cat "$logs/.$(tr '/' '_' <<<"${name[$pid]}").out"; unset "name[$pid]"
   (( r )) && rc=1
+  return 0
+}
+for p in "${queue[@]}"; do
+  (( ${#name[@]} >= jobs_max )) && finish_one
+  run_part "$p" > "$logs/.$(tr '/' '_' <<<"$p").out" 2>&1 & name[$!]=$p
 done
+while (( ${#name[@]} )); do finish_one; done
 echo "full logs: $logs"
 exit $rc

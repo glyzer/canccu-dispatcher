@@ -85,12 +85,20 @@ resolve_repo() {
 # like any other, but are never this engine's to kill.
 
 lock_path() { echo "$WORKERS_DIR/$1-$2.lock"; }
-lock_get() { sed -n "s/^$2=//p" "$1" 2>/dev/null | head -1; }
+# lock_get <file> <key>: the key's first value. Pure bash: every pass reads every lock many times.
+lock_get() {
+  local l
+  [ -r "$1" ] || return 0
+  while IFS= read -r l || [ -n "$l" ]; do
+    [[ $l == "$2="* ]] && { printf '%s\n' "${l#"$2="}"; return 0; }
+  done < "$1"
+  return 0
+}
 
 # proc_start <pid>: the process's start time in clock ticks since boot (/proc/<pid>/stat field 22;
 # the fields are counted after the last ")", since the command name may contain spaces)
 proc_start() {
-  local s; s=$(cat "/proc/$1/stat" 2>/dev/null) || return 1
+  local s; { s=$(< "/proc/$1/stat"); } 2>/dev/null || return 1
   s=${s##*) }
   # shellcheck disable=SC2086
   set -- $s; [ -n "${20:-}" ] && echo "${20}"

@@ -33,7 +33,7 @@ cat > "$fb/gh" <<'EOF'
 # "fail:<cmd sub>" exists. Every call is appended to gh.log on one line, and the identity it ran
 # as (user: no GH_TOKEN; reviewer: the fake reviewer token; other) to gh.env, never the token.
 a="$*"; printf '%s\n' "${a//$'\n'/ }" >> "$FAKE/gh.log"
-tok=$(cat "$FAKE/../reviewer-token" 2>/dev/null)
+{ tok=$(< "$FAKE/../reviewer-token"); } 2>/dev/null
 if [ -z "${GH_TOKEN:-}" ]; then id=user; elif [ "$GH_TOKEN" = "$tok" ]; then id=reviewer; else id=other; fi
 printf '%s %s\t%s\n' "$1" "$2" "$id" >> "$FAKE/gh.env"
 # the config dir it ran with (a project's own login), and its git credential config count
@@ -54,7 +54,7 @@ if [ "$1" = api ] && [[ $2 =~ ^repos/[^/]+/[^/]+$ ]]; then
 fi
 q="" args=("$@")
 for ((i = 0; i < ${#args[@]}; i++)); do case ${args[i]} in -q|--jq) q=${args[i+1]} ;; esac; done
-routes=$(cat "$FAKE/routes" "$FAKE/routes.default" 2>/dev/null)
+{ routes=$(< "$FAKE/routes"); routes+=$'\n'$(< "$FAKE/routes.default"); } 2>/dev/null
 case "$1 $2" in
   "issue edit"|"issue comment"|"issue close"|"pr edit"|"pr merge"|"pr comment"|"label create")
     grep -qxF "fail:$1 $2" <<<"$routes" && exit 1

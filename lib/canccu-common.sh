@@ -213,9 +213,16 @@ declare -A DRY_ST=()
 st_file() { echo "$CANCCU_HOME/state/$1"; }
 # kv_get <file> <dry key> <key>, kv_set <file> <dry key> key=value...: one key=value file (a unit's
 # state/<K>, a step's steps/<m>); under --dry-run in DRY_ST under "<dry key>.<key>"
+# The last value wins (kv_set may append). Pure bash: a pass reads state files many times.
 kv_get() {
   if [ -n "${DRY_ST[$2.$3]+x}" ]; then printf '%s\n' "${DRY_ST[$2.$3]}"; return; fi
-  sed -n "s/^$3=//p" "$1" 2>/dev/null | tail -1
+  local l v f=0
+  [ -r "$1" ] || return 0
+  while IFS= read -r l || [ -n "$l" ]; do
+    [[ $l == "$3="* ]] && { v=${l#"$3="}; f=1; }
+  done < "$1"
+  (( f )) && printf '%s\n' "$v"
+  return 0
 }
 # kv_lock <file>: the lock of a key=value file, hidden beside it (the state dirs list units by
 # their visible files)
@@ -258,7 +265,7 @@ step_set() { local m=$1; shift; kv_set "$(step_file "$m")" "@s$m" "$@"; }
 # managed: every unit with a state file; issue numbers in order, package keys first
 managed() {
   local f
-  { for f in "$CANCCU_HOME"/state/*; do [ -f "$f" ] && basename "$f"; done
+  { for f in "$CANCCU_HOME"/state/*; do [ -f "$f" ] && echo "${f##*/}"; done
     for f in "${!DRY_ST[@]}"; do [[ $f == *. && $f != @* ]] && echo "${f%.}"; done; } | sort -u | sort -s -n
 }
 is_managed() { [ -f "$(st_file "$1")" ] || [ -n "${DRY_ST[$1.]+x}" ]; }

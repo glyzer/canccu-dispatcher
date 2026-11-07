@@ -152,5 +152,20 @@ ok "--kill: a cc lock's process is not the engine's run" eq "$rc $(kill -0 "$cp_
 ok "… the lock stays" test -e "$WORKERS_DIR/web-78.lock"
 kill "$cp_" 2>/dev/null; wait "$cp_" 2>/dev/null
 
+# ---------------------------------------------------------------- key=value reads
+
+# lock_get and kv_get read every lock and state file many times a pass: they are pure bash, and
+# keep the semantics of the sed they replace (lock_get: the first value, kv_get: the last)
+env_new kv
+printf 'a=1\nkey=first\nkeyx=no\nkey=second\nb=x=y\nlast=no newline' > "$E/kv"
+ok "lock_get: the first value of the key" eq "$(lib lock_get "$E/kv" key)" first
+ok "kv_get: the last value of the key" eq "$(lib kv_get "$E/kv" k key)" second
+ok "… a value may hold =" eq "$(lib kv_get "$E/kv" k b) $(lib lock_get "$E/kv" b)" "x=y x=y"
+ok "… a last line without a newline counts" eq "$(lib kv_get "$E/kv" k last) $(lib lock_get "$E/kv" last)" "no newline no newline"
+ok "… a key is not a prefix of another" eq "$(lib kv_get "$E/kv" k keyx)" no
+ok "… a missing key or file: nothing, status 0" eq "$(lib kv_get "$E/kv" k nope; echo "[$?]")$(lib lock_get "$E/nofile" key; echo "[$?]")" "[0][0]"
+ok "… an empty value is a value" eq "$(printf 'k=\n' > "$E/kv2"; lib kv_get "$E/kv2" x k | wc -l)" 1
+ok "… they run no other program" eq "$(lib eval 'PATH=/nonexistent; lock_get '"$E/kv"' key; kv_get '"$E/kv"' k key' 2>&1)" $'first\nsecond'
+
 echo "canccu-engine tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
