@@ -25,8 +25,9 @@ _dep_min() {
 _dep_gh_login() {
   local d
   timeout 20 gh auth status >/dev/null 2>&1 && return 0
+  # only a dir that holds a login: a call per empty dir would cost its timeout for nothing
   for d in "${CANCCU_ROOT:-$HOME/.canccu}"/projects/*/gh; do
-    [ -d "$d" ] && GH_CONFIG_DIR=$d timeout 20 gh auth status >/dev/null 2>&1 && return 0
+    [ -s "$d/hosts.yml" ] && GH_CONFIG_DIR=$d timeout 20 gh auth status >/dev/null 2>&1 && return 0
   done
   return 1
 }

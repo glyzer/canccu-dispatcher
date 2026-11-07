@@ -11,7 +11,8 @@ self=$(realpath "$0")
 here=$(dirname "$self")/..
 # the user's PATH, before the engine's lib adds ~/.local/bin to it (for cron and tmux): doctor
 # checks that the commands are on this one
-export CANCCU_USER_PATH=$PATH
+# shellcheck disable=SC2034  # read by lib/canccu-doctor.sh, in this process only
+CANCCU_USER_PATH=$PATH
 # every lib is read now: uninstall removes the tree this runs from
 # shellcheck source=../lib/canccu-projects.sh
 . "$here/lib/canccu-projects.sh"
@@ -30,7 +31,8 @@ export CANCCU_USER_PATH=$PATH
 
 usage() { sed -n '3,8s/^# \{0,1\}//p' "$self" >&2; exit 2; }
 cmd=${1:-}; [ $# -gt 0 ] && shift
-prefix=$(canccu_default_prefix "$here") purge=0 yes=0 force=0
+# from a checkout, the prefix of the PREFIX/bin link this was run through ($0, not resolved)
+prefix=$(canccu_default_prefix "$here" "$0") purge=0 yes=0 force=0
 # the options of rollback and uninstall
 opts() {
   while [ $# -gt 0 ]; do
@@ -57,7 +59,7 @@ case $cmd in
     if [ -n "$only" ] && ! canccu_profiles | grep -qxF -- "$only"; then
       _cmd_die "no project '$only'. Projects: $(canccu_profiles | tr '\n' ' ' | sed 's/ $//')"
     fi
-    canccu_doctor "$here" "$only" ;;
+    canccu_doctor "$here" "$only" "$prefix" ;;
   rollback) opts "$@"; canccu_rollback "$prefix" ;;
   uninstall) opts "$@"; canccu_uninstall "$prefix" "$purge" "$yes" "$force" ;;
   "") usage ;;

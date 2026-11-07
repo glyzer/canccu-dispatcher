@@ -76,6 +76,32 @@ inst_env rollback-reinstall
 for v in 0 1 0; do inst "$T/src$v" --no-monitor; done
 hrun "$P/bin/canccu-dispatcher" rollback
 ok "install A, B, A again: rollback goes back to B" eq "$rc $(cur)" "0 releases/9.9.1"
+# B drops a command A has and adds one of its own: a rollback to A puts PREFIX/bin back as A has it
+inst_env rollback-links
+src_copy "$E/b" 9.9.1; rm "$E/b/bin/canccu-pause"; cp "$E/b/bin/canccu-resume" "$E/b/bin/canccu-newcmd"
+inst "$T/src0" --no-monitor; inst "$E/b" --no-monitor
+ok "B installed: its links" eq "$(test -L "$P/bin/canccu-pause" && echo pause) $(test -L "$P/bin/canccu-newcmd" && echo new)" " new"
+hrun "$P/bin/canccu-dispatcher" rollback
+ok "rollback to A: A's command linked again, B's own gone" eq "$rc $(readlink "$P/bin/canccu-pause") $(test -e "$P/bin/canccu-newcmd" || test -L "$P/bin/canccu-newcmd" && echo new)" \
+  "0 $B/current/bin/canccu-pause "
+
+# an older release's own commands never count as processes left on it
+inst_env own-pids
+inst "$T/src0" --no-monitor; inst "$T/src1" --no-monitor
+hrun "$R/9.9.0/bin/canccu-dispatcher" doctor
+ok "doctor run from an older release does not name itself" eq "$(grep -c 'still in use' "$E/out")" 0
+
+# a checkout's commands reached through PREFIX/bin act on that prefix
+inst_env dev-prefix
+D=$E/checkout; src_copy "$D" 9.9.0
+(cd "$D" && git init -q && git -c user.name=octo -c user.email=octo@users.noreply.github.com add -A &&
+  git -c user.name=octo -c user.email=octo@users.noreply.github.com commit -qm one) >/dev/null 2>&1
+inst "$D" --dev --no-monitor --prefix "$E/opt"
+hrun "$E/opt/bin/canccu-dispatcher" doctor
+ok "--dev --prefix DIR: doctor through DIR/bin checks DIR" eq "$(grep -c 'not installed in' "$E/out") $(grep -c 'links to' "$E/out")" "0 0"
+hrun "$E/opt/bin/canccu-dispatcher" uninstall
+ok "… and uninstall removes DIR's tree" eq "$rc $(test -e "$E/opt/lib/canccu-dispatcher" && echo tree)" "0 "
+
 inst_env rollback-none
 inst "$T/src0" --no-monitor
 hrun "$P/bin/canccu-dispatcher" rollback
@@ -155,8 +181,13 @@ inst "$D" --dev --no-monitor
 ok "a symlinked HOME, --dev: current is the checkout" eq "$rc $(cur)" "0 $D"
 hrun "$P/bin/canccu-dispatcher" doctor
 ok "… doctor (run from the checkout) finds the links and PATH as they are" eq "$(grep -cE 'links to|not linked|not on PATH|on PATH is|not installed' "$E/out")" 0
-# a link written through the symlinked form of the prefix (an older install, or by hand)
+# a link written through the symlinked form of the prefix (an older install, or by hand): ours
 ln -s "$B/current/bin/canccu-status" "$P/bin/canccu-old-form"
+ln -sfn "$B/current/bin/canccu-up" "$P/bin/canccu-up"
+inst "$D" --dev --no-monitor
+ok "… a link through the symlinked form: not called foreign" eq "$(grep -c 'kept ' "$E/out")" 0
+hrun "$P/bin/canccu-dispatcher" doctor
+ok "… nor flagged by doctor" eq "$(grep -c 'links to' "$E/out")" 0
 hrun "$P/bin/canccu-dispatcher" uninstall
 ok "… uninstall (run from the checkout) removes every link into its tree" eq "$rc $(find "$P/bin" -type l | wc -l) $(test -e "$B" && echo tree)" "0 0 "
 

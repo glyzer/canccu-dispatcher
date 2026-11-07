@@ -5,17 +5,17 @@
 # canccu-engine.sh, canccu-deps.sh and canccu-install-cmds.sh; never run. Changes nothing, and
 # never reads the reviewer token (only its mode and the rules that keep Claude off it).
 
-# _doc_install <tree>: the install this command belongs to: a complete release, every command
+# _doc_install <prefix>: the install this command belongs to: a complete release, every command
 # linked through current and first on PATH, no process left on an older release
 _doc_install() {
   local prefix base id tree c n l t p cur
-  prefix=$(canccu_default_prefix "$1"); base=$(canccu_base "$prefix")
+  prefix=$1; base=$(canccu_base "$prefix")
   [ -L "$base/current" ] || { echo "canccu-dispatcher is not installed in $(canccu_tilde "$prefix") (install.sh)"; return; }
   id=$(canccu_current_id "$base") cur=$(canccu_current "$base")
   if [ -n "$id" ]; then
     tree=$base/releases/$id
     [ -f "$tree/.installed" ] && [ "$(cat "$tree/.tree.sha256" 2>/dev/null)" = "$(canccu_tree_files "$tree" | canccu_tree_hash "$tree")" ] ||
-      echo "release $id is incomplete or changed ($(canccu_tilde "$tree")): install it again"
+      echo "release $id is incomplete or changed ($(canccu_tilde "$tree")): make another release current (install one, or canccu-dispatcher rollback), then install this one again"
   else
     tree=$cur
     [ -d "$tree/bin" ] || { echo "release: current points at $(canccu_tilde "$cur"), which is no tree"; return; }
@@ -25,7 +25,7 @@ _doc_install() {
     n=${c##*/} l=$prefix/bin/${c##*/}
     if [ -L "$l" ]; then
       t=$(readlink "$l")
-      [ "$t" = "$base/current/bin/$n" ] || { echo "$n links to $t, not to this install (install.sh --replace-links)"; continue; }
+      canccu_link_cmd "$t" "$base" "$n" || { echo "$n links to $t, not to this install (install.sh --replace-links)"; continue; }
     elif [ -e "$l" ]; then echo "$n in $(canccu_tilde "$prefix/bin") is a file, not a link to this install"; continue
     else echo "$n is not linked in $(canccu_tilde "$prefix/bin") (install.sh)"; continue; fi
     p=$(PATH=${CANCCU_USER_PATH:-$PATH} command -v "$n" 2>/dev/null)
@@ -103,11 +103,12 @@ _doc_project() {
   return 0
 }
 
-# canccu_doctor <tree> <project or empty>: every problem, one per line; fails when there is one
+# canccu_doctor <tree> <project or empty> <prefix>: every problem, one per line; fails when there
+# is one
 canccu_doctor() {
   local here=$1 only=$2 out="" hp p res tokens="" t
   out+=$(canccu_check_deps | sed 's/^  //')$'\n'
-  out+=$(_doc_install "$here")$'\n'
+  out+=$(_doc_install "$3")$'\n'
   hp=$(canccu_host_profile)
   if [ -z "$hp" ]; then
     out+="HOST_PROFILE is not set ($(canccu_tilde "$CANCCU_ROOT")/config, or install.sh --host-profile max): the defaults apply"$'\n'

@@ -29,6 +29,24 @@ canccu_on_path() {
   for e in "${d[@]}"; do [ -n "$e" ] && [ "$(realpath -m "$e")" = "$want" ] && return 0; done
   return 1
 }
+# canccu_install_lock <base>: takes the base's install lock (fd 9) for the rest of the caller, or
+# says who holds it and fails. Appended, never truncated: a re-install that changes nothing
+# leaves even the lock's time alone.
+canccu_install_lock() {
+  exec 9>>"$1/.install.lock"
+  flock -n 9 && return 0
+  echo "an install, rollback or uninstall runs on $(canccu_tilde "$1"); try again" >&2
+  return 1
+}
+# canccu_link_ours <link target> <base>: the target points into this base, compared resolved up
+# to the base (a symlinked HOME writes one prefix in two forms), not past it (current may point
+# out of it: --dev)
+canccu_link_ours() {
+  [[ $1 == */lib/canccu-dispatcher/* ]] &&
+    [ "$(realpath -m "${1%%/lib/canccu-dispatcher/*}")/lib/canccu-dispatcher" = "$(realpath -m "$2")" ]
+}
+# canccu_link_cmd <link target> <base> <command>: the target is this base's current/bin/<command>
+canccu_link_cmd() { canccu_link_ours "$1" "$2" && [ "${1#*/lib/canccu-dispatcher/}" = "current/bin/$3" ]; }
 canccu_base() { printf '%s\n' "$1/lib/canccu-dispatcher"; }
 # canccu_release_id <tree> <tree hash>
 canccu_release_id() {
@@ -88,11 +106,24 @@ canccu_in_use() {
     done
   } | while read -r f l; do
     x=${f#/proc/}; x=${x%%/*}
-    [ "$x" = "$$" ] || [ "$x" = "$BASHPID" ] && continue
+    # the caller and its own subshells hold its script open too (fd 255): never "in use" by it
+    _canccu_mine "$x" && continue
+    # gone since the scan (or during the walk above, which then cannot reach $$): runs nothing
+    [ -d "/proc/$x" ] || continue
     l=${l#*"$rb"}; id=${l%%/*}
     # this scan's own find and grep name the dir in their argv, with no release after it
     canccu_valid_release "$id" && [ -d "$rb$id" ] && printf '%s %s\n' "$id" "$x"
   done | sort -u
+}
+
+# _canccu_mine <pid>: the pid is this shell or a descendant of it (its PPid chain reaches $$)
+_canccu_mine() {
+  local p=$1 n=0
+  while [[ $p =~ ^[0-9]+$ ]] && (( p > 1 && n++ < 64 )); do
+    [ "$p" = "$$" ] && return 0
+    p=$(awk '/^PPid:/ { print $2 }' "/proc/$p/status" 2>/dev/null)
+  done
+  return 1
 }
 
 # canccu_stage <tree> <base> <id> <tree hash>: the tree as release <id>. A release of that id with
@@ -104,9 +135,11 @@ canccu_stage() {
   local src=$1 base=$2 id=$3 want=$4 rel users tmp old
   rel=$base/releases/$id
   if [ -d "$rel" ]; then
-    [ "$(cat "$rel/.tree.sha256" 2>/dev/null)" = "$want" ] && [ -f "$rel/.installed" ] && { STAGED=same; return 0; }
+    # its files as they are now, not as recorded: a release edited by hand installs again
+    [ "$(cat "$rel/.tree.sha256" 2>/dev/null)" = "$want" ] && [ -f "$rel/.installed" ] &&
+      [ "$(canccu_tree_files "$rel" | canccu_tree_hash "$rel")" = "$want" ] && { STAGED=same; return 0; }
     if [ "$(canccu_current_id "$base")" = "$id" ]; then
-      echo "install.sh: release $id is current and installed with other files; nothing changed. Give this tree a new VERSION." >&2
+      echo "install.sh: release $id is current and installed with other files; nothing changed. Give this tree a new VERSION, or make another release current first (install one, or canccu-dispatcher rollback), then install this one again." >&2
       return 1
     fi
     users=$(canccu_in_use "$base" | awk -v r="$id" '$1 == r { printf " %s", $2 }')
@@ -150,8 +183,8 @@ canccu_link() {
     c=${c##*/} l=$prefix/bin/${c##*/} want=$base/current/bin/${c##*/}
     if [ -L "$l" ]; then
       t=$(readlink "$l")
-      [ "$t" = "$want" ] && continue
-      if [[ $t != "$base"/* ]] && (( ! replace )); then
+      canccu_link_cmd "$t" "$base" "$c" && continue
+      if ! canccu_link_ours "$t" "$base" && (( ! replace )); then
         echo "kept $(canccu_tilde "$l") → $t (a link into another install; --replace-links replaces it)"; continue
       fi
     elif [ -e "$l" ]; then
@@ -161,7 +194,7 @@ canccu_link() {
       { rm -f "$l.canccu-new"; echo "could not link $(canccu_tilde "$l")" >&2; }
   done
   for l in "$prefix"/bin/canccu-*; do
-    [ -L "$l" ] && [ "$(readlink "$l")" = "$base/current/bin/${l##*/}" ] && [ ! -e "$tree/bin/${l##*/}" ] &&
+    [ -L "$l" ] && canccu_link_cmd "$(readlink "$l")" "$base" "${l##*/}" && [ ! -e "$tree/bin/${l##*/}" ] &&
       rm -f "$l" && echo "removed $(canccu_tilde "$l") (this release has no such command)"
   done
   return 0
@@ -184,14 +217,22 @@ canccu_prune() {
   return 0
 }
 
-# canccu_venv <requirements> <venv>: the monitor's packages, pinned, in a venv of their own, no
-# sudo: with uv when there is one (it needs no ensurepip), else python3 -m venv and pip. Rebuilt
-# only when the requirements change (their hash is kept in the venv). Fails with a warning: the
-# dispatcher does not need the monitor.
+# canccu_venv <requirements> <venv> <recorded venv>: the monitor's packages, pinned, in a venv of
+# their own, no sudo: with uv when there is one (it needs no ensurepip), else python3 -m venv and
+# pip. Rebuilt only when the requirements change (their hash is kept in the venv). Built only
+# where the installer owns the dir: missing or empty, holding its marker, or the venv this base
+# recorded (a build cut short). Anywhere else the marker would make uninstall remove the dir with
+# all in it. Fails with a warning (2: skipped, 1: the build failed): the dispatcher does not need
+# the monitor.
 canccu_venv() {
   local req=$1 venv=$2 want
   want=$(sha256sum < "$req" | cut -d' ' -f1)
   [ -x "$venv/bin/python" ] && [ "$(cat "$venv/.requirements.sha256" 2>/dev/null)" = "$want" ] && return 0
+  if [ -e "$venv" ] && [ ! -f "$venv/.requirements.sha256" ] && [ "$venv" != "$3" ] &&
+     { [ ! -d "$venv" ] || [ -n "$(ls -A "$venv" 2>/dev/null)" ]; }; then
+    echo "install.sh: $(canccu_tilde "$venv") holds other files: not a venv this installer built, so it builds none there (--venv names another dir); everything else is installed" >&2
+    return 2
+  fi
   mkdir -p "${venv%/*}" && rm -f "$venv/.requirements.sha256"
   if command -v uv >/dev/null 2>&1; then
     uv venv -q --allow-existing --python "$(command -v python3)" "$venv" >/dev/null 2>&1 &&
@@ -206,7 +247,7 @@ canccu_venv() {
 
 # canccu_state_config <tree> <host profile>: the state dir's two exceptions. A missing config is
 # written with every default commented out (a later default then takes effect); a host profile
-# is added to a config without the key. Nothing else of the state dir is ever touched.
+# is added to a config without one. Nothing else of the state dir is ever touched.
 canccu_state_config() {
   local f=$CANCCU_ROOT/config have
   if [ ! -e "$f" ]; then
@@ -215,7 +256,9 @@ canccu_state_config() {
   fi
   [ -n "$2" ] || return 0
   have=$(canccu_config_host_profile "$f")
-  if [ -z "$(grep -E '^[[:space:]]*(export[[:space:]]+)?HOST_PROFILE=' "$f")" ]; then
+  # an empty value (HOST_PROFILE= copied from the defaults) is no profile: the line added after
+  # it wins
+  if [ -z "$have" ]; then
     printf 'HOST_PROFILE=%s\n' "$2" >> "$f" && echo "set HOST_PROFILE=$2 in $(canccu_tilde "$f")"
   elif [ "$have" != "$2" ]; then
     echo "$(canccu_tilde "$f") keeps HOST_PROFILE=$have (not changed to $2: edit it by hand)"

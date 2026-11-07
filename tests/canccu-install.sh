@@ -131,6 +131,9 @@ ok "a config that sets another profile: kept, said" eq "$(tree "$C")$(grep -c 'k
 printf 'HOST_PROFILE="max"   # this host\n' > "$C/config"; before=$(tree "$C")
 inst "$S" --no-monitor --host-profile max
 ok "a quoted, commented HOST_PROFILE of the same profile: the same, nothing said" eq "$(tree "$C")$(grep -c 'keeps HOST_PROFILE' "$E/out")" "${before}0"
+printf 'HOST_PROFILE=\n' > "$C/config"
+inst "$S" --no-monitor --host-profile max
+ok "an uncommented empty HOST_PROFILE= counts as missing" eq "$( . "$S/lib/canccu-projects.sh"; canccu_config_host_profile "$C/config")" max
 inst_env profile-fresh
 inst "$S" --no-monitor --host-profile max
 ok "--host-profile on a fresh host: the written config sets it" eq "$(grep -cE '^[[:space:]]*[A-Z_]+=' "$C/config") $(grep -c '^HOST_PROFILE=max$' "$C/config")" "1 1"
@@ -182,6 +185,20 @@ ok "--venv DIR: built there" test -f "$E/v/.requirements.sha256"
 inst_env venv-env
 CANCCU_VENV=$E/v2; export CANCCU_VENV; HOME=$H PATH=$IPATH bash "$S/install.sh" > "$E/out" 2>&1; unset CANCCU_VENV
 ok "CANCCU_VENV: built there" test -f "$E/v2/.requirements.sha256"
+# a dir the installer did not make is never its venv: a build there would leave the marker, and
+# uninstall would then remove the dir with everything in it
+inst_env venv-foreign
+mkdir -p "$E/work/notes"; echo data > "$E/work/notes/data.txt"
+inst "$S" --venv "$E/work"
+ok "--venv at a dir with other files: skipped with a warning" eq "$rc $(grep -c 'not a venv this installer built' "$E/out")" "0 1"
+ok "… no marker written, nothing recorded" eq "$(test -e "$E/work/.requirements.sha256" && echo marker)$(test -e "$B/.venv" && echo recorded)" ""
+hrun "$P/bin/canccu-dispatcher" uninstall
+ok "… and uninstall keeps the dir and its files" eq "$rc $(cat "$E/work/notes/data.txt")" "0 data"
+inst_env venv-recorded
+inst "$S" --venv "$E/v"; rm "$E/v/.requirements.sha256"; : > "$FAKE/uv.log"
+inst "$S" --venv "$E/v"
+ok "a recorded venv whose build was cut short: rebuilt" eq "$(grep -c 'pip install' "$FAKE/uv.log") $(test -f "$E/v/.requirements.sha256" && echo marker)" "1 marker"
+
 inst_env no-monitor
 inst "$S" --no-monitor
 ok "--no-monitor: no venv" eq "$(wc -l < "$FAKE/uv.log") $(test -e "$H/.local/share/canccu" && echo there)" "0 "
@@ -208,6 +225,17 @@ ok "uncommitted changes: a release named by its content" grep -qE "^releases/9\.
 echo "# again" >> "$D/README.md"; inst "$D" --no-monitor
 ok "… another edit: another release, the first one kept as it was" \
   eq "$(test "$(readlink "$B/current")" != "$d1" && echo new) $(grep -c '# again' "$B/${d1}/README.md")" "new 0"
+inst_env bad-version
+src_copy "$E/s" "../escape"
+inst "$E/s" --no-monitor
+ok "a VERSION that is no release name: refused, exit 2" eq "$rc $(grep -c 'no release name' "$E/out")" "2 1"
+ok "… nothing installed" eq "$(ls -A "$H" | tr '\n' ' ')" ""
+inst_env edited-release
+src_copy "$E/s1" 9.9.1
+inst "$S" --no-monitor; inst "$E/s1" --no-monitor
+echo "# edited by hand" >> "$R/9.9.0/README.md"
+inst "$S" --no-monitor
+ok "a release edited by hand: installed again from its tree" eq "$rc $(grep -c 'edited by hand' "$R/9.9.0/README.md")" "0 0"
 inst_env replace-current
 inst "$S" --no-monitor
 echo "# changed" >> "$S/README.md"; inst "$S" --no-monitor

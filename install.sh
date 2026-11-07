@@ -53,11 +53,17 @@ if (( dev )) && [ -z "$(canccu_commit "$src")" ]; then
   echo "install.sh: --dev needs a git checkout of canccu-dispatcher; $(canccu_tilde "$src") is none. Nothing installed" >&2; exit 2
 fi
 
+if (( ! dev )); then
+  want=$(canccu_tree_files "$src" | canccu_tree_hash "$src")
+  id=$(canccu_release_id "$src" "$want")
+  # the id names a dir under releases/: a VERSION with a / or a leading . would leave it
+  canccu_valid_release "$id" ||
+    { echo "install.sh: '$id' (from VERSION) is no release name (letters, digits, . + _ -); nothing installed" >&2; exit 2; }
+fi
+
 base=$(canccu_base "$prefix")
 mkdir -p "$base/releases" "$prefix/bin" || { echo "install.sh: cannot create $(canccu_tilde "$base")" >&2; exit 1; }
-# append, never truncate: a re-install that changes nothing leaves even the lock's time alone
-exec 9>>"$base/.install.lock"
-flock -n 9 || { echo "install.sh: another install, rollback or uninstall runs on $(canccu_tilde "$base"); try again" >&2; exit 1; }
+canccu_install_lock "$base" || exit 1
 
 # ---------------------------------------------------------------- the release and current
 if (( dev )); then
@@ -65,8 +71,7 @@ if (( dev )); then
   canccu_switch "$base" "$src" || exit 1
   echo "current is $name (--dev): every command runs this checkout as it is, for work on the tool: live projects must not run on it (a branch switch or an edit changes the dispatcher under them; install a release for them)"
 else
-  want=$(canccu_tree_files "$src" | canccu_tree_hash "$src")
-  id=$(canccu_release_id "$src" "$want") tree=$base/releases/$id name="release $id"
+  tree=$base/releases/$id name="release $id"
   canccu_stage "$src" "$base" "$id" "$want" || exit 1
   was=$(canccu_current "$base")
   canccu_switch "$base" "releases/$id" || exit 1
@@ -82,8 +87,10 @@ canccu_prune "$base" "$inuse"
 
 # ---------------------------------------------------------------- the monitor and the state dir
 if (( monitor )); then
-  canccu_venv "$tree/lib/canccu-monitor.requirements.txt" "$venv"
-  [ "$(cat "$base/.venv" 2>/dev/null)" = "$venv" ] || echo "$venv" > "$base/.venv"
+  # recorded only once it is ours: uninstall removes the venv .venv names
+  if canccu_venv "$tree/lib/canccu-monitor.requirements.txt" "$venv" "$(cat "$base/.venv" 2>/dev/null)"; then
+    [ "$(cat "$base/.venv" 2>/dev/null)" = "$venv" ] || echo "$venv" > "$base/.venv"
+  fi
   [ "$venv" = "$(realpath -m "${CANCCU_VENV:-$HOME/.local/share/canccu/venv}")" ] ||
     echo "the monitor finds its venv through CANCCU_VENV: export CANCCU_VENV=$(canccu_tilde "$venv")"
 fi

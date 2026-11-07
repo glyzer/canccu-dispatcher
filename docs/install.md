@@ -60,7 +60,9 @@ The monitor's pinned packages (`lib/canccu-monitor.requirements.txt`) go into a 
 DIR`, else `CANCCU_VENV`, else `~/.local/share/canccu/venv`. It is built with `uv` when there is
 one, else with `python3 -m venv` and pip. It is rebuilt only when the requirements change: the
 venv keeps their hash in `.requirements.sha256`. A failed build warns and installs the rest.
-`--no-monitor` skips the venv. The monitor finds a venv in another place through `CANCCU_VENV`.
+The installer builds only into a dir it owns: a missing or empty one, one that holds its marker,
+or the venv this install recorded. A dir with other files is left alone, with a warning, because
+uninstall removes the venv it recorded. `--no-monitor` skips the venv. The monitor finds a venv in another place through `CANCCU_VENV`.
 
 ### The state dir
 
@@ -107,18 +109,25 @@ in your shell later. `CANCCU_ROOT` behaves the same way.
   their working dir, and the files they hold open (bash holds the script it runs).
 - **`canccu-dispatcher rollback [--prefix DIR]`** points `current` at the release made
   current before it. Installing A, then B, then A again, a rollback goes back to B. From
-  `--dev` it goes to the newest release.
+  `--dev` it goes to the newest release. The links in `PREFIX/bin` follow: a command the newer
+  release dropped is linked again, and one only it had goes.
 - **`canccu-dispatcher uninstall [--prefix DIR] [--purge-state --yes] [--force]`** removes:
   - the links into its own tree;
   - the tree;
   - the monitor venv the installer built.
 
   It refuses while a dispatcher holds its lock or a run's lock is live, unless `--force`. It
-  removes only the venv this install recorded, so a venv from an older install stays. The state dir goes only with
+  removes only the venv this install recorded, so a venv from an older install stays. Two
+  prefixes that share one venv (both on the default) both record it: uninstalling one removes
+  it, and the other's next install builds it again. The state dir goes only with
   `--purge-state --yes`, and never while any lock is held: a dispatcher's or a live run's.
 
-`--prefix` defaults to the prefix of the release the command runs from (`~/.local` from a
-checkout).
+`--prefix` defaults to the prefix of the release the command runs from. From a checkout
+(`--dev`) it is the prefix of the `PREFIX/bin` link the command was run through, else
+`~/.local`.
+
+A release edited by hand is installed again from its tree. If it is current, make another
+release current first (install one, or roll back), then install it again; `doctor` says so.
 
 ## Version and doctor
 
