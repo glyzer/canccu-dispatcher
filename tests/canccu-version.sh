@@ -20,8 +20,8 @@ out=$("$S/bin/canccu-dispatcher" --version 2>&1); rc=$?
 ok "from a tarball: the version, nothing else" eq "$rc $out" "0 canccu-dispatcher 9.8.7"
 
 tname=version-checkout
-(cd "$S" && git init -q && git -c user.name=octo -c user.email=octo@example.com add -A &&
-  git -c user.name=octo -c user.email=octo@example.com commit -qm one) >/dev/null 2>&1
+(cd "$S" && git init -q && git -c user.name=octo -c user.email=octo@users.noreply.github.com add -A &&
+  git -c user.name=octo -c user.email=octo@users.noreply.github.com commit -qm one) >/dev/null 2>&1
 c=$(git -C "$S" rev-parse --short HEAD)
 out=$("$S/bin/canccu-dispatcher" --version 2>&1)
 ok "from a checkout: the version and the commit" eq "$out" "canccu-dispatcher 9.8.7 (commit $c)"

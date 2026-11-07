@@ -20,6 +20,10 @@ missing=$(comm -23 <(echo "$used") <(tr ' ' '\n' <<<"$CLAUDE_FLAGS" | sort -u) |
 ok "the check knows every flag the run engine passes to claude" eq "${missing% }" ""
 ok "… and the short ones by their long names (-p, -n)" eq "$(grep -cE -- '(-p|-n) ' <<<"$(grep -E 'args=\(' "$root/libexec/canccu-worker")") $(tr ' ' '\n' <<<"$CLAUDE_FLAGS" | grep -cxE -- '--print|--name')" "1 2"
 
+tested=$( . "$root/lib/canccu-deps.sh"; echo "$CANCCU_CLAUDE_TESTED")
+ok "docs/install.md names the tested minimum claude" grep -qF "Claude Code $tested" "$root/docs/install.md"
+ok "… and every minimum version the check holds" eq "$(for v in 'bash 5.0' 'git 2.30' 'jq 1.6' 'tmux 3.2' 'python3 3.10'; do grep -qF "$v" "$root/docs/install.md" || echo "$v"; done)" ""
+
 inst_env check-ok
 inst "$S" --check
 ok "--check: every tool there: exit 0" eq "$rc" 0
@@ -170,8 +174,8 @@ ok "--no-monitor: no venv" eq "$(wc -l < "$FAKE/uv.log") $(test -e "$H/.local/sh
 
 inst_env dev
 D=$E/checkout; src_copy "$D" 9.9.0
-(cd "$D" && git init -q && git -c user.name=octo -c user.email=octo@example.com add -A &&
-  git -c user.name=octo -c user.email=octo@example.com commit -qm one) >/dev/null 2>&1
+(cd "$D" && git init -q && git -c user.name=octo -c user.email=octo@users.noreply.github.com add -A &&
+  git -c user.name=octo -c user.email=octo@users.noreply.github.com commit -qm one) >/dev/null 2>&1
 inst "$D" --dev --no-monitor
 ok "--dev: current is the checkout itself" eq "$rc $(readlink "$B/current")" "0 $D"
 ok "… no release copied" not test -e "$R/9.9.0"
