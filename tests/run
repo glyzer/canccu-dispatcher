@@ -21,6 +21,7 @@ tests_for() {
   case $1 in
     tests/lib/*|tests/fixtures/rules/*) echo all ;;
     tests/run) echo tests/canccu-cost.sh ;;
+    tests/fixtures/compat/*) echo tests/canccu-compat.sh ;;
     tests/leak-check.sh) echo tests/leak.sh tests/leak-check.sh ;;
     tests/*.sh) [ -e "$1" ] && echo "$1" ;;   # a deleted test file is not run
     tests/fixtures/monitor/*|lib/canccu-monitor.py|lib/canccu_monitor/*|bin/canccu-monitor|lib/canccu-monitor.requirements.txt)
@@ -35,9 +36,9 @@ tests_for() {
     lib/canccu-units.sh|lib/canccu-packages.sh) echo tests/canccu-units.sh tests/canccu-cost.sh tests/canccu-health-review.sh ;;
     lib/canccu-ping.sh) echo tests/canccu-pings.sh tests/canccu-steps2.sh ;;
     lib/canccu-runs.sh|lib/canccu-answer.sh|lib/canccu-github.sh|lib/canccu-merge.sh|lib/canccu-pipeline.sh|lib/canccu-actions.sh|lib/canccu-queue.sh)
-      echo tests/canccu-dispatch.sh tests/canccu-review.sh tests/canccu-cost.sh tests/canccu-health-review.sh tests/canccu-config.sh ;;
+      echo tests/canccu-dispatch.sh tests/canccu-review.sh tests/canccu-cost.sh tests/canccu-health-review.sh tests/canccu-config.sh tests/canccu-compat.sh ;;
     lib/canccu-*|bin/canccu-*|profiles/*)
-      echo tests/canccu-dispatch.sh tests/canccu-projects.sh tests/canccu-config.sh tests/canccu-cost.sh ;;
+      echo tests/canccu-dispatch.sh tests/canccu-projects.sh tests/canccu-config.sh tests/canccu-cost.sh tests/canccu-compat.sh ;;
     .github/*|REUSE.toml|.file-size-exemptions|README.md|.gitignore) echo tests/canccu-repo.sh ;;
     *) ;;   # docs and the like: no test
   esac

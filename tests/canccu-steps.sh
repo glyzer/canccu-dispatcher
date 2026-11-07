@@ -113,6 +113,13 @@ ok "… the planner's key and the package's are charged to the step" eq "$(tr '\
 json c90.json "$(jq -n --arg b "x $(printf '<!-- canccu-plan -->')"$'\n\n<!-- canccu-dispatch -->' '{comments: [{author: {login: "octo"}, body: $b, url: "https://github.com/example-org/web/issues/90#issuecomment-777"}]}')"
 lib eval 'fetch; post_plan 12' >/dev/null 2>&1
 ok "planner: the next wave edits the same comment (PATCH), not a second one" grep -q '^api -X PATCH repos/example-org/web/issues/comments/777 ' "$FAKE/gh.log"
+# … and the edited body shows a path under $HOME as ~/…, like every posted text
+pf=$(sed -n 's/^plan=//p' "$CANCCU_HOME/steps/12" | tail -1)
+jq '.packages[0].risk_reason = "touches /home/someone/code/web/src/auth"' "$pf" > "$pf.tmp" && mv "$pf.tmp" "$pf"
+: > "$FAKE/gh.log"
+lib eval 'HOME=/home/someone; fetch; post_plan 12' >/dev/null 2>&1
+ok "planner: the PATCH body shows a \$HOME path as ~/" grep -qF 'touches ~/code/web/src/auth' <(grep '^api -X PATCH' "$FAKE/gh.log")
+ok "… and has no /home/" not grep -q /home/ <(grep '^api -X PATCH' "$FAKE/gh.log")
 
 # review #45, finding 1: the untrusted planner never decides which issues are eligible
 # (a) it plans an issue it was not given (not ready): unknown, nothing starts

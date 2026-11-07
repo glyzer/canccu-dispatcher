@@ -127,6 +127,9 @@ ok "tests/run: a path outside the repo → exit 2" eq "$(tr_ --list /etc/hostnam
 ok "tests/run: a pattern that matches nothing → exit 2" eq "$(tr_ --list no-such-test >/dev/null; echo $?)" 2
 ok "tests/run: the engine maps to the engine tests" grep -qx tests/canccu-engine.sh <<<"$(tr_ --list libexec/canccu-worker)"
 ok "tests/run: bin/canccu-dispatch maps to the dispatcher's tests" grep -qx tests/canccu-dispatch.sh <<<"$(tr_ --list bin/canccu-dispatch)"
+ok "tests/run: the commands and libs map to the compatibility test too" \
+  eq "$(grep -cx tests/canccu-compat.sh <<<"$(tr_ --list bin/canccu-status lib/canccu-runs.sh)")" 1
+ok "tests/run: an expected compat output maps to the compatibility test" eq "$(tr_ --list tests/fixtures/compat/status-web.txt)" tests/canccu-compat.sh
 full=$(tr_ --list)
 ok "tests/run (no argument): lints every shell file" \
   grep -q '^lint: .*bin/canccu-dispatch .*libexec/canccu-worker .*lib/canccu-common.sh .*tests/canccu-dispatch.sh .*tests/lib/harness.sh .*tests/run' <<<"$full"

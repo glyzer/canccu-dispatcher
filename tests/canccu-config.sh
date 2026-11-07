@@ -88,6 +88,8 @@ HOME=/home/someone dispatch --once
 # shellcheck disable=SC2088  # a literal ~ is what the posted text holds
 ok "HOME=/home/someone: a posted review shows ~/" grep -qF '~/code/web/src/a.ts:3' "$FAKE/posted-50"
 ok "… and no /home/" not grep -q /home/ "$FAKE/posted-50" "$FAKE/gh.log"
+ok "canccu_tilde: only a whole leading \$HOME becomes ~" \
+  eq "$(lib eval 'HOME=/home/someone; canccu_tilde /home/someone/x; echo; canccu_tilde /home/someoneelse/x; echo; canccu_tilde /home/someone')" $'~/x\n/home/someoneelse/x\n~'
 ok "the reviewer prompt asks for paths relative to the repo root" grep -qF 'cite every file as a path relative to the repo root' <<<"$(lib review_prompt 50 5 x f high)"
 ok "… the fix-check prompt too" grep -qF 'cite every file as a path relative to the repo root' <<<"$(lib fixcheck_prompt 50 5 a b f low "")"
 

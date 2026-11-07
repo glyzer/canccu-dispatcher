@@ -98,6 +98,13 @@ git commit -q --allow-empty -m "$(printf 'x\n\nCo-Authored-By: Bot <noreply@exam
 CANCCU_LEAK_WORDS=$T/words run --history
 ok "--history: a noreply co-author passes" eq "$rc" 0
 
+repo bad-list
+printf '%s\n' "$WORD" > w.txt
+printf '%s\n(unclosed\n' "$WORD" > "$T/bad-words"
+CANCCU_LEAK_WORDS=$T/bad-words run
+ok "an invalid regex in the deny-list: a usage error, never clean" eq "$rc $(grep -c 'leak-check: clean' <<<"$out")" "2 0"
+ok "… saying the list is broken" has "$out" "the deny-list has an invalid regex"
+
 tname=usage
 run --bogus
 ok "an unknown flag is a usage error" eq "$rc" 2

@@ -1,5 +1,5 @@
-# shellcheck shell=bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# shellcheck shell=bash
 # The run engine's plumbing: guard, locks, tmux, repo lookup. Sourced by lib/canccu-common.sh and
 # libexec/canccu-worker, never run. CODE_ROOT, WORKERS_DIR and TMUX_SESSION have no defaults here:
 # lib/canccu-common.sh derives them from the project, so a value from another context never counts.

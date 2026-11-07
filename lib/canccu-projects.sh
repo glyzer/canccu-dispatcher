@@ -24,6 +24,11 @@ canccu_default_profile() {
 canccu_session() {
   if [ "$1" = "$(canccu_default_profile)" ]; then echo "${CANCCU_TMUX_SESSION:-canccu}"; else echo "canccu-$1"; fi
 }
+# canccu_tilde <path>: the path with $HOME shown as ~, only as a whole leading component (a
+# sibling directory whose name starts with $HOME's last part stays as it is)
+canccu_tilde() {
+  if [[ $1 == "$HOME" || $1 == "$HOME"/* ]]; then printf '~%s' "${1#"$HOME"}"; else printf '%s' "$1"; fi
+}
 canccu_valid_name() { [[ $1 =~ ^[a-z0-9][a-z0-9_-]{0,30}$ ]]; }
 # canccu_repo_clone <config file>: "<REPO><TAB><CLONE>" as that config sets them, read in a
 # subshell (the canccu-config.default values are none)

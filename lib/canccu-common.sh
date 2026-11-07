@@ -32,7 +32,7 @@ canccu_valid_name "$CANCCU_PROJECT" || _canccu_die "'$CANCCU_PROJECT' is no proj
   _canccu_die "no project '$CANCCU_PROJECT' (${CANCCU_ROOT/#$HOME/\~}/projects/$CANCCU_PROJECT/config). Projects: ${_canccu_list:-none}"
 CANCCU_HOME=$CANCCU_ROOT/projects/$CANCCU_PROJECT
 [ -f "$CANCCU_HOME/rules" ] ||
-  _canccu_die "project '$CANCCU_PROJECT' has no rules file (${CANCCU_HOME/#$HOME/\~}/rules); copy $(realpath -m "$_canccu_lib/.." | sed "s|^$HOME|~|")/profiles/default/rules there"
+  _canccu_die "project '$CANCCU_PROJECT' has no rules file (${CANCCU_HOME/#$HOME/\~}/rules); copy $(canccu_tilde "$(realpath -m "$_canccu_lib/..")")/profiles/default/rules there"
 # GH_CONFIG_DIR is a project key (the project's own gh login): what the caller's environment
 # held is put aside, and only the config files below can set it
 _canccu_env_ghdir=${GH_CONFIG_DIR-} _canccu_env_ghdir_set=${GH_CONFIG_DIR+x} _canccu_env_owner=${CANCCU_GH_OWNER:-}

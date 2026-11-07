@@ -33,7 +33,7 @@ tpl=""
 for t in "$CANCCU_ROOT/profiles/$profile" "$(realpath -m "$here/profiles/$profile")"; do
   [ -f "$t/config" ] && [ -f "$t/rules" ] && { tpl=$t; break; }
 done
-[ -n "$tpl" ] || die "no template '$profile' (looked in ${CANCCU_ROOT/#$HOME/\~}/profiles/$profile and $(realpath -m "$here/profiles" | sed "s|^$HOME|~|")/$profile); nothing changed"
+[ -n "$tpl" ] || die "no template '$profile' (looked in ${CANCCU_ROOT/#$HOME/\~}/profiles/$profile and $(canccu_tilde "$(realpath -m "$here/profiles")")/$profile); nothing changed"
 tname="the template $profile: ${tpl/#$HOME/\~}"
 # a template may name its repo: then it must be this one
 trepo=$(sed -n 's/^REPO=//p' "$tpl/config" | tail -1)
@@ -101,8 +101,8 @@ secrets, variables or collaborators):
      in ${REVIEWER_TOKEN_FILE/#$HOME/\~} (one token for all projects).
   2. Set the repo variable REVIEWER_LOGIN to ${REVIEWER_LOGIN:-that login} (Settings → Secrets and variables →
      Actions → Variables): the review-gate check reads it.
-  3. Copy the review-gate workflow and its script from a project that has them
-     (.github/workflows/review-gate.yml and the script it runs) into $REPO, through a PR.
+  3. Add the review-gate workflow and its script (.github/workflows/review-gate.yml) to $REPO,
+     through a PR. This pre-release of canccu-dispatcher does not ship them yet: see its README.md.
   4. Set the required checks (a ruleset on main): CI and ${REVIEW_CHECKS:-review-gate}; with a merge queue.
   5. Clone the repo to $CLONE if it is not there, and review ${CANCCU_HOME/#$HOME/\~}/rules
      (risky and gated paths, extra reviewer and worker text, AUTO_MERGE_UNTIL, one-at-a-time lock,

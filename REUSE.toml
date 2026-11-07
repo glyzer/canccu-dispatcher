@@ -2,7 +2,7 @@ version = 1
 
 # The files that cannot carry a licence header of their own.
 [[annotations]]
-path = ["tests/fixtures/**/*.json", "tests/fixtures/compat/*.txt", "lib/canccu-monitor.requirements.txt", ".gitignore"]
+path = ["tests/fixtures/**/*.json", "tests/fixtures/compat/*.txt", "lib/canccu-monitor.requirements.txt", ".gitignore", ".file-size-exemptions"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "canccu-dispatcher contributors"
 SPDX-License-Identifier = "AGPL-3.0-or-later"

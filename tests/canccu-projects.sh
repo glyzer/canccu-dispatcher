@@ -199,6 +199,7 @@ for w8 in 'as a collaborator' 'repo scope' 'repo variable REVIEWER_LOGIN' 'revie
           "GH_CONFIG_DIR=$CANCCU_ROOT/projects/web/gh gh auth login --with-token --insecure-storage < $CANCCU_ROOT/projects/web/gh-token"; do
   ok "canccu-init checklist: $w8" grep -qF "$w8" <<<"$out"
 done
+ok "canccu-init checklist: never points at another project for the review-gate" not grep -q 'from a project that has them' <<<"$out"
 ok "canccu-init checklist: says REVIEWER_LOGIN is not set yet" grep -qF 'the reviewer bot (REVIEWER_LOGIN: not set yet' <<<"$out"
 ok "canccu-init: the new project resolves" eq "$(pick --project web)" "web canccu-web example-org/web"
 out=$(PATH="$fb:$PATH" "$root/bin/canccu-init" web example-org/other 2>&1); rc=$?
@@ -297,20 +298,20 @@ penv init-claims web
 echo '[]' > "$FAKE/labels.json"
 mkdir -p "$E/home"
 run_init() { HOME=$E/home PATH="$fb:$PATH" "$root/bin/canccu-init" "$@" 2>&1; }
-out=$(run_init tools org1/app); rc=$?
-ok "init tools org1/app: succeeds, clone ~/code/app" eq "$rc $(grep -c '^CLONE=\$HOME/code/app$' "$CANCCU_ROOT/projects/tools/config")" "0 1"
-out=$(run_init shop org2/app); rc=$?
-ok "init shop org2/app: the clone ~/code/app is tools's: refused" eq "$rc $(grep -c "project 'tools' already uses the clone ~/code/app" <<<"$out")" "1 1"
+out=$(run_init tools example-org/app); rc=$?
+ok "init tools example-org/app: succeeds, clone ~/code/app" eq "$rc $(grep -c '^CLONE=\$HOME/code/app$' "$CANCCU_ROOT/projects/tools/config")" "0 1"
+out=$(run_init shop example-user/app); rc=$?
+ok "init shop example-user/app: the clone ~/code/app is tools's: refused" eq "$rc $(grep -c "project 'tools' already uses the clone ~/code/app" <<<"$out")" "1 1"
 ok "… nothing written" test ! -e "$CANCCU_ROOT/projects/shop"
-out=$(run_init shop org2/app "$E/home/code/org2-app"); rc=$?
-ok "init shop org2/app <path>: its own clone is fine" eq "$rc $(grep -c "^CLONE=$E/home/code/org2-app\$" "$CANCCU_ROOT/projects/shop/config")" "0 1"
-ok "… and shop resolves to it" eq "$( (HOME=$E/home; PATH="$fb:$PATH"; . "$root/lib/canccu-common.sh" --project shop; echo "$REPO $CLONE $REPO_NAME") 2>&1)" "org2/app $E/home/code/org2-app org2-app"
-out=$(run_init c Org1/App "$E/home/code/other"); rc=$?
-ok "init c Org1/App: the repo is tools's (any case): refused" eq "$rc $(grep -c "project 'tools' already runs org1/app" <<<"$out")" "1 1"
+out=$(run_init shop example-user/app "$E/home/code/example-user-app"); rc=$?
+ok "init shop example-user/app <path>: its own clone is fine" eq "$rc $(grep -c "^CLONE=$E/home/code/example-user-app\$" "$CANCCU_ROOT/projects/shop/config")" "0 1"
+ok "… and shop resolves to it" eq "$( (HOME=$E/home; PATH="$fb:$PATH"; . "$root/lib/canccu-common.sh" --project shop; echo "$REPO $CLONE $REPO_NAME") 2>&1)" "example-user/app $E/home/code/example-user-app example-user-app"
+out=$(run_init c Example-Org/App "$E/home/code/other"); rc=$?
+ok "init c Example-Org/App: the repo is tools's (any case): refused" eq "$rc $(grep -c "project 'tools' already runs example-org/app" <<<"$out")" "1 1"
 ok "… nothing written" test ! -e "$CANCCU_ROOT/projects/c"
 out=$(run_init d example-org/web); rc=$?
 ok "init d example-org/web: the project web runs example-org/web: refused" eq "$rc $(grep -c "project 'web' already runs example-org/web" <<<"$out")" "1 1"
-out=$(run_init e org5/x relative/path); rc=$?
+out=$(run_init e example-org/x relative/path); rc=$?
 ok "init with a relative clone path: refused" eq "$rc $(test -e "$CANCCU_ROOT/projects/e" && echo made)" "1 "
 
 # 7: canccu-init says which labels it created, and which it could not

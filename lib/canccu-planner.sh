@@ -272,7 +272,9 @@ plan_comment_body() {
 post_plan() {
   local m=$1 i body id
   i=$(step_issue "$m"); [ -n "$i" ] || { log "step $(step_title "$m"): no epic or checkpoint to show the plan on"; return 0; }
-  body=$(plan_comment_body "$m")
+  # the planner's JSON (areas, risk_reason) may name absolute paths: both ways of posting it,
+  # a first comment and the edit, show $HOME as ~
+  body=$(home_tilde "$(plan_comment_body "$m")")
   id=$(ghj issue view "$i" -R "$REPO" --json comments | jqr --arg u "$USER_LOGIN" --arg pm "$PLAN_MARK" --arg cm "$CANCCU_MARK" \
          '[.comments[] | select(.author.login == $u and (.body | contains($pm)) and (.body | contains($cm)))] | last | .url // empty
           | capture("issuecomment-(?<id>[0-9]+)") | .id' 2>/dev/null)

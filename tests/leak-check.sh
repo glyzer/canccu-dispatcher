@@ -29,6 +29,12 @@ tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 words=${CANCCU_LEAK_WORDS:-$HOME/.config/canccu-leak-words}
 : > "$tmp/deny"
 [ -r "$words" ] && grep -vE '^[[:space:]]*(#|$)' "$words" > "$tmp/deny"
+# a broken regex would make every deny-list grep fail, and the scan pass: refuse instead
+grep -qiE -f "$tmp/deny" /dev/null 2>"$tmp/err"
+if [ $? -eq 2 ]; then
+  echo "leak-check: the deny-list has an invalid regex ($(head -n1 "$tmp/err")); nothing scanned" >&2
+  exit 2
+fi
 # the generic patterns; each one cannot match its own source text here
 cat > "$tmp/generic" <<'EOF'
 (^|[^A-Za-z0-9_.~-])/(home|Users)/[A-Za-z0-9_.-]+

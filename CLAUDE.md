@@ -47,7 +47,9 @@ flow below; a session started by hand follows it too.
 `tests/run` with no arguments runs all of it, in parallel, with a one-line summary per part
 (the full log goes to a file it names):
 
-- `bash -n` and `shellcheck -S warning` on every shell file;
+- `bash -n` and `shellcheck -S warning` on every shell file (the test files without `-x` and
+  without SC2154, SC2034, SC1010 and SC2319: they read the harness's globals, and following its
+  sources would lint the whole lib once per test file);
 - every `tests/*.sh`;
 - `bin/canccu-monitor --self-test`;
 - `tests/leak-check.sh`.

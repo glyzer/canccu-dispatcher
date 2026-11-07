@@ -23,7 +23,10 @@ missing=""
 while IFS= read -r f; do
   [ -f "$f" ] || continue
   case $(kind "$f") in
-    shell|python|yaml|markdown) head -n2 "$f" | grep -q 'SPDX-License-Identifier: AGPL-3.0-or-later' || missing+=" $f" ;;
+    # line 1, or line 2 after a shebang
+    shell|python|yaml|markdown)
+      n=1; head -n1 "$f" | grep -q '^#!' && n=2
+      sed -n "${n}p" "$f" | grep -q 'SPDX-License-Identifier: AGPL-3.0-or-later' || missing+=" $f" ;;
   esac
 done <<<"$files"
 ok "every shell, Python, YAML and Markdown source starts with the SPDX line" eq "${missing# }" ""
