@@ -1,0 +1,38 @@
+{
+ "schema": 1,
+ "project": "web",
+ "repo": "example-org/web",
+ "pid": 4242,
+ "interval": 60,
+ "pass": {
+  "at": 1920110400,
+  "ok": true,
+  "error": null,
+  "paused": true,
+  "backoff_until": 1920112200,
+  "started": 1920110380,
+  "duration": 20,
+  "durations": [
+   15,
+   20
+  ]
+ },
+ "caps": {
+  "running": 0,
+  "cap": 3,
+  "total_running": 2,
+  "total_cap": 3
+ },
+ "spend": {
+  "today_usd": 12.4,
+  "day": "2030-11-05",
+  "freeze": null,
+  "runs_without_cost": 0
+ },
+ "running": [],
+ "needs_you": [],
+ "queue": [],
+ "milestones": [],
+ "events": [],
+ "stale": []
+}

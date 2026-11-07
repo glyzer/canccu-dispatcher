@@ -1,0 +1,443 @@
+{
+  "schema": 2,
+  "project": "web",
+  "repo": "example-org/web",
+  "repo_name": "web",
+  "pid": 2379022,
+  "interval": 60,
+  "pass": {
+    "at": 1920110400,
+    "started": 1920110400,
+    "duration": 0,
+    "durations": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "ok": true,
+    "error": null,
+    "paused": false,
+    "backoff_until": null
+  },
+  "caps": {
+    "running": 2,
+    "cap": 3,
+    "total_running": 2,
+    "total_cap": 3
+  },
+  "spend": {
+    "today_usd": 5,
+    "runs_without_cost": 0,
+    "day": "2030-11-05",
+    "freeze": "2031-03-01"
+  },
+  "running": [
+    {
+      "key": "55",
+      "issue": 55,
+      "pr": null,
+      "kind": "work",
+      "phase": "",
+      "stage": "",
+      "pipeline": "work",
+      "title": "",
+      "started": 1920110280,
+      "minutes": 2,
+      "min_cap": null,
+      "turns": null,
+      "turn_cap": null,
+      "last_line": "",
+      "color": null,
+      "ci": null,
+      "review_verdict": null,
+      "package": null,
+      "issues": [
+        55
+      ],
+      "risk": null
+    },
+    {
+      "key": "77",
+      "issue": 77,
+      "pr": null,
+      "kind": "work",
+      "phase": "",
+      "stage": "",
+      "pipeline": "work",
+      "title": "",
+      "started": 1920109800,
+      "minutes": 10,
+      "min_cap": null,
+      "turns": null,
+      "turn_cap": null,
+      "last_line": "",
+      "color": null,
+      "ci": null,
+      "review_verdict": null,
+      "package": null,
+      "issues": [
+        77
+      ],
+      "risk": null
+    },
+    {
+      "key": "review-50",
+      "issue": 101,
+      "pr": 50,
+      "kind": "review",
+      "phase": "review",
+      "stage": "review",
+      "pipeline": "review",
+      "title": "package auth: Issue 101 (+1)",
+      "started": 1920110400,
+      "minutes": 0,
+      "min_cap": null,
+      "turns": null,
+      "turn_cap": null,
+      "last_line": "",
+      "color": 208,
+      "ci": "green",
+      "review_verdict": null,
+      "package": "pkg-12-auth",
+      "issues": [
+        101,
+        103
+      ],
+      "risk": "high"
+    }
+  ],
+  "needs_you": [
+    {
+      "kind": "budget",
+      "issue": 90,
+      "pr": null,
+      "reason": "step 3 Search reached STEP_BUDGET ($5.00 of $4)",
+      "since": null,
+      "title": "3 Search",
+      "url": "https://github.com/example-org/web/issues/90",
+      "color": null,
+      "package": null,
+      "step": 12,
+      "stage": null,
+      "issues": [
+        90
+      ]
+    },
+    {
+      "kind": "checkpoint",
+      "issue": 95,
+      "pr": null,
+      "reason": "step 3 Search is done: check it, then label checkpoint-ok or close it",
+      "since": 1920110400,
+      "title": "3 Search",
+      "url": "https://github.com/example-org/web/issues/95#issuecomment-7",
+      "color": null,
+      "package": null,
+      "step": 12,
+      "stage": null,
+      "issues": [
+        95
+      ]
+    }
+  ],
+  "queue": [
+    {
+      "issue": 6,
+      "title": "Issue 6",
+      "blocked": true,
+      "waits_on": "blocked by 104",
+      "lane": "fast",
+      "package": null
+    }
+  ],
+  "milestones": [
+    {
+      "title": "2 Setup",
+      "open": 0,
+      "closed": 3,
+      "due": null,
+      "checkpoints": []
+    },
+    {
+      "title": "3 Search",
+      "open": 4,
+      "closed": 1,
+      "due": null,
+      "checkpoints": [
+        {
+          "issue": 95,
+          "state": "open",
+          "ready": true
+        }
+      ]
+    },
+    {
+      "title": "4 Sharing",
+      "open": 4,
+      "closed": 0,
+      "due": null,
+      "checkpoints": []
+    },
+    {
+      "title": "5 Export",
+      "open": 0,
+      "closed": 0,
+      "due": null,
+      "checkpoints": []
+    },
+    {
+      "title": "6 Later",
+      "open": 1,
+      "closed": 0,
+      "due": null,
+      "checkpoints": []
+    }
+  ],
+  "events": [
+    {
+      "at": 1920110280,
+      "issue": null,
+      "package": "pkg-12-auth",
+      "text": "#pkg-12-auth PR #50: reviewer started",
+      "count": 1,
+      "first_at": 1920110280
+    },
+    {
+      "at": 1920110400,
+      "issue": 90,
+      "package": null,
+      "text": "#90 pinged @octo as review-bot: needs-you",
+      "count": 1,
+      "first_at": 1920110400
+    },
+    {
+      "at": 1920110400,
+      "issue": null,
+      "package": null,
+      "text": "step 3 Search reached STEP_BUDGET ($5.00 of $4): no new run of it starts · https://github.com/example-org/web/issues/90",
+      "count": 1,
+      "first_at": 1920110400
+    }
+  ],
+  "steps": [
+    {
+      "milestone": 12,
+      "title": "3 Search",
+      "track": "main",
+      "current": true,
+      "phase": "checkpoint",
+      "wave": 1,
+      "epic": 90,
+      "error": "the plan of wave 2 is invalid: x",
+      "checkpoint": {
+        "issue": 95,
+        "state": "open",
+        "waiting": true
+      },
+      "budget": {
+        "usd": 5,
+        "limit": 4,
+        "runs_without_cost": 0,
+        "over": true
+      },
+      "plan": {
+        "wave": 1,
+        "at": 1920109800,
+        "left_out": [
+          107
+        ],
+        "packages": [
+          {
+            "name": "auth",
+            "issues": [
+              101,
+              103
+            ],
+            "risk": "high",
+            "risk_reason": "sessions",
+            "areas": [
+              "src/auth/"
+            ],
+            "depends_on": [],
+            "key": "pkg-12-auth",
+            "state": "review",
+            "pr": 50,
+            "branch": "pkg-12-auth",
+            "risk_effective": "high"
+          },
+          {
+            "name": "list",
+            "issues": [
+              104
+            ],
+            "risk": "low",
+            "risk_reason": "a list",
+            "areas": [
+              "src/web/"
+            ],
+            "depends_on": [
+              "auth"
+            ],
+            "key": "104",
+            "state": "blocked",
+            "pr": null,
+            "branch": null,
+            "risk_effective": "low"
+          }
+        ]
+      },
+      "health": {
+        "state": "n/a",
+        "key": "pkg-12-health",
+        "pr": null
+      },
+      "notes": [
+        {
+          "at": 1920110350,
+          "kind": "follow-up",
+          "pr": 50,
+          "text": "split the parser"
+        }
+      ]
+    }
+  ],
+  "current_step": 12,
+  "step_overview": [
+    {
+      "milestone": 11,
+      "title": "2 Setup",
+      "track": "main",
+      "work_open": 0,
+      "work_closed": 3,
+      "place": "done",
+      "issues": []
+    },
+    {
+      "milestone": 12,
+      "title": "3 Search",
+      "track": "main",
+      "work_open": 4,
+      "work_closed": 1,
+      "place": "current",
+      "issues": [
+        {
+          "issue": 101,
+          "title": "Issue 101",
+          "url": "https://github.com/example-org/web/issues/101",
+          "status": "running",
+          "waits_on": null,
+          "package": "pkg-12-auth"
+        },
+        {
+          "issue": 103,
+          "title": "Issue 103",
+          "url": "https://github.com/example-org/web/issues/103",
+          "status": "running",
+          "waits_on": null,
+          "package": "pkg-12-auth"
+        },
+        {
+          "issue": 104,
+          "title": "Issue 104",
+          "url": "https://github.com/example-org/web/issues/104",
+          "status": "blocked",
+          "waits_on": "depends on auth",
+          "package": "104"
+        },
+        {
+          "issue": 107,
+          "title": "Issue 107",
+          "url": "https://github.com/example-org/web/issues/107",
+          "status": "blocked",
+          "waits_on": "blocked by 104",
+          "package": null
+        }
+      ]
+    },
+    {
+      "milestone": 13,
+      "title": "4 Sharing",
+      "track": "main",
+      "work_open": 4,
+      "work_closed": 0,
+      "place": "next",
+      "issues": [
+        {
+          "issue": 110,
+          "title": "Issue 110",
+          "url": "https://github.com/example-org/web/issues/110",
+          "status": "ready",
+          "waits_on": null,
+          "package": null
+        },
+        {
+          "issue": 111,
+          "title": "Issue 111",
+          "url": "https://github.com/example-org/web/issues/111",
+          "status": "blocked",
+          "waits_on": "no ready label",
+          "package": null
+        },
+        {
+          "issue": 112,
+          "title": "Issue 112",
+          "url": "https://github.com/example-org/web/issues/112",
+          "status": "blocked",
+          "waits_on": "labelled blocked",
+          "package": null
+        },
+        {
+          "issue": 113,
+          "title": "Issue 113",
+          "url": "https://github.com/example-org/web/issues/113",
+          "status": "blocked",
+          "waits_on": "blocked by 110",
+          "package": null
+        }
+      ]
+    },
+    {
+      "milestone": 14,
+      "title": "5 Export",
+      "track": "main",
+      "work_open": 0,
+      "work_closed": 0,
+      "place": "later",
+      "issues": []
+    },
+    {
+      "milestone": 15,
+      "title": "6 Later",
+      "track": "main",
+      "work_open": 1,
+      "work_closed": 0,
+      "place": "later",
+      "issues": []
+    }
+  ],
+  "other_runs": [
+    {
+      "repo": "web",
+      "key": "55",
+      "kind": "worker",
+      "started": 1920110280
+    },
+    {
+      "repo": "web",
+      "key": "77",
+      "kind": "cc",
+      "started": 1920109800
+    }
+  ],
+  "usage": {
+    "five_hour": 42,
+    "seven_day": 50,
+    "resets_at": 2019686400,
+    "weekly_resets_at": 2019686400,
+    "at": 1920110370,
+    "state": "normal",
+    "text": "5-hour 42% · weekly 50%"
+  },
+  "stale": []
+}

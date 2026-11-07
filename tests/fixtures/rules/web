@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# shellcheck shell=bash disable=SC2034
+# The rules of the invented test project web (example-org/web): every rules key set, so the
+# suite sees each one in its place. Not a template: canccu-init ships profiles/default only.
+RISKY_PATHS='^(\.github|deploy|modules|packages|contracts|setup)/|migration|sign-?in|login|auth|rights|permission|session|secret|tenan|rls'
+FIXCHECK_RISKY='(^|/)deploy/|(^|/)contracts?/|sign-?in|login|auth|rights|permission|session|secret|tenan|(^|[/_.-])rls([/_.-]|$)|migrations?(/|_|\.|$)|\.sql$|schema'
+GATED_PATHS='^(\.github|setup)/'
+SECURITY_REVIEW_WHEN='sign-in, rights, sessions, secrets, tenancy/RLS or deploy/'
+REVIEW_EXTRA='the no-personal-data rule (no real names, hostnames, IPs or personal paths), that contract changes are additive and migrations non-destructive'
+WORKER_EXTRA='Legacy code is in ~/legacy (read-only).'
+ANSWER_READ='docs/decisions/, docs/roadmap.md, AGENTS.md'
+ANSWER_READ_ALSO='the legacy code in ~/legacy'
+AUTO_MERGE_UNTIL='2031-03-01'
+EXCLUSIVE_LABEL='module:contracts'
+EXCLUSIVE_PATTERN='contracts/'
+EXCLUSIVE_WORKER_RE='contracts/|"name":"[^"]*contract'
+ADD_DIRS="$HOME/shared $HOME/legacy"
+REVIEW_CHECKS="review-gate"
+HIGH_RISK_PATHS='^(\.github|deploy|setup|contracts)/|migration|sign-?in|login|auth|rights|permission|session|secret|tenan|rls'
+HIGH_RISK_TEXT='migrations, sign-in or auth, rights, sessions, secrets, tenancy/RLS, deploy/, setup/, contract changes or CI configuration'
+PING_KINDS='accept checkpoint plan'

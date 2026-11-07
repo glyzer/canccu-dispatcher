@@ -1,0 +1,33 @@
+{
+ "schema": 1,
+ "step": 12,
+ "wave": 2,
+ "packages": [
+  {
+   "name": "Auth Flow",
+   "issues": [
+    101,
+    103
+   ],
+   "risk": "high",
+   "risk_reason": "changes sessions",
+   "areas": [
+    "modules/auth/"
+   ],
+   "depends_on": []
+  },
+  {
+   "name": "health",
+   "issues": [
+    104,
+    107
+   ],
+   "risk": "normal",
+   "risk_reason": "UI only",
+   "areas": [
+    "apps/web/"
+   ],
+   "depends_on": []
+  }
+ ]
+}

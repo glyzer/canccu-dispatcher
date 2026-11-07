@@ -1,0 +1,51 @@
+{
+ "schema": 1,
+ "project": "web",
+ "repo": "example-org/web",
+ "pid": 4242,
+ "interval": "60",
+ "pass": "yesterday",
+ "caps": [
+  1,
+  2
+ ],
+ "spend": {
+  "today_usd": 12.4,
+  "day": "2030-11-05",
+  "freeze": "2031-03-01"
+ },
+ "running": [
+  {
+   "issue": "41",
+   "minutes": "x",
+   "color": 999,
+   "pipeline": 3
+  },
+  7,
+  null
+ ],
+ "needs_you": {
+  "kind": "accept"
+ },
+ "queue": [
+  {
+   "issue": null,
+   "blocked": "yes"
+  }
+ ],
+ "milestones": [
+  {
+   "open": "3",
+   "checkpoints": [
+    1
+   ]
+  }
+ ],
+ "events": [
+  {
+   "at": "noon",
+   "text": null
+  }
+ ],
+ "stale": "queue"
+}

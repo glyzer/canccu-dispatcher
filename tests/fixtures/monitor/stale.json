@@ -1,0 +1,138 @@
+{
+ "schema": 1,
+ "project": "web",
+ "repo": "example-org/web",
+ "pid": 4242,
+ "interval": 60,
+ "pass": {
+  "at": 1920109400,
+  "ok": false,
+  "error": "gh error reading issues or PRs",
+  "paused": false,
+  "backoff_until": null,
+  "started": 1920109380,
+  "duration": 20,
+  "durations": [
+   15,
+   20
+  ]
+ },
+ "caps": {
+  "running": 2,
+  "cap": 3,
+  "total_running": 2,
+  "total_cap": 3
+ },
+ "spend": {
+  "today_usd": 12.4,
+  "day": "2030-11-05",
+  "freeze": "2031-03-01",
+  "runs_without_cost": 0
+ },
+ "running": [
+  {
+   "key": "41",
+   "issue": 41,
+   "pr": null,
+   "kind": "work",
+   "phase": "work",
+   "stage": "work",
+   "pipeline": "work",
+   "title": "feat: add a search box",
+   "started": 1920108900,
+   "minutes": 25,
+   "min_cap": 150,
+   "turns": 38,
+   "turn_cap": 250,
+   "last_line": "[t38] → Bash npm test -- search",
+   "color": 33
+  },
+  {
+   "key": "review-57",
+   "issue": 44,
+   "pr": 57,
+   "kind": "review",
+   "phase": "review",
+   "stage": "review",
+   "pipeline": "review",
+   "title": "fix: date parsing in the import",
+   "started": 1920109800,
+   "minutes": 10,
+   "min_cap": 40,
+   "turns": 12,
+   "turn_cap": 60,
+   "last_line": "[t12] → Read src/import/date.ts",
+   "color": 208
+  }
+ ],
+ "needs_you": [
+  {
+   "kind": "accept",
+   "issue": 39,
+   "pr": 55,
+   "reason": "manual: touches migrations",
+   "since": 1920106800,
+   "title": "feat: settings table",
+   "url": "https://github.com/example-org/web/pull/55",
+   "color": 135
+  }
+ ],
+ "queue": [
+  {
+   "issue": 45,
+   "title": "feat: export to CSV",
+   "blocked": false,
+   "waits_on": null
+  },
+  {
+   "issue": 46,
+   "title": "feat: email the export",
+   "blocked": true,
+   "waits_on": "blocked by 45"
+  }
+ ],
+ "milestones": [
+  {
+   "title": "2 Data model",
+   "open": 3,
+   "closed": 9,
+   "due": null,
+   "checkpoints": [
+    {
+     "issue": 50,
+     "state": "open",
+     "ready": false
+    }
+   ]
+  },
+  {
+   "title": "3 Pages",
+   "open": 8,
+   "closed": 1,
+   "due": null,
+   "checkpoints": []
+  }
+ ],
+ "events": [
+  {
+   "at": 1920108900,
+   "issue": 41,
+   "text": "#41 started: feat: add a search box"
+  },
+  {
+   "at": 1920109800,
+   "issue": 44,
+   "text": "#44 reviewer review#57 started (high)"
+  },
+  {
+   "at": 1920110100,
+   "issue": 38,
+   "text": "#38 merged (PR #54, auto)"
+  }
+ ],
+ "stale": [
+  "needs_you",
+  "queue",
+  "milestones"
+ ]
+}
