@@ -5,9 +5,11 @@
 #
 # PREFIX/lib/canccu-dispatcher/ (the base):
 #   releases/<id>/   a copy of a tree, never changed while a process runs from it. <id>: the
-#                    version; from a git checkout <version>+<commit>, +<commit>.dirty with
-#                    uncommitted changes. Its .tree.sha256 names its files (the same tree installs
-#                    once), its .installed the time it was installed (the order of releases).
+#                    version; from a git checkout <version>+<commit>, with uncommitted changes
+#                    <version>+<commit>.dirty.<hash>: the same id is always the same files, but
+#                    for a tarball that reuses a version. Its .tree.sha256 names its files (the
+#                    same tree installs once), its .installed the time it was last made current
+#                    (the order of releases: rollback, pruning).
 #   current          a symlink to releases/<id>, or to a checkout (--dev); switched by a rename
 #   .install.lock    held by install.sh, rollback and uninstall: one at a time
 #   .venv            the monitor venv's path (uninstall removes it)
@@ -19,23 +21,32 @@ CANCCU_KEEP_RELEASES=3
 # STAGED: what canccu_stage did (new, replaced, same), for install.sh
 STAGED=""
 
+# canccu_on_path <dir> <PATH>: the dir is on that PATH, either path resolved (a PATH entry keeps
+# the form the user wrote, through a symlinked HOME too)
+canccu_on_path() {
+  local d e want; want=$(realpath -m "$1")
+  IFS=: read -ra d <<<"$2"
+  for e in "${d[@]}"; do [ -n "$e" ] && [ "$(realpath -m "$e")" = "$want" ] && return 0; done
+  return 1
+}
 canccu_base() { printf '%s\n' "$1/lib/canccu-dispatcher"; }
-# canccu_release_id <tree>
+# canccu_release_id <tree> <tree hash>
 canccu_release_id() {
   local v c; v=$(canccu_version "$1"); c=$(canccu_commit "$1")
   case $c in
     "") printf '%s\n' "$v" ;;
-    *", dirty") printf '%s+%s.dirty\n' "$v" "${c%%,*}" ;;
+    *", dirty") printf '%s+%s.dirty.%s\n' "$v" "${c%%,*}" "${2:0:8}" ;;
     *) printf '%s+%s\n' "$v" "$c" ;;
   esac
 }
 canccu_valid_release() { [[ $1 =~ ^[0-9A-Za-z][0-9A-Za-z.+_-]*$ ]]; }
 
-# canccu_tree_files <tree>: its files, NUL-separated, relative: a checkout's tracked and new files
-# (as they are now, not ignored), else every file but .git, caches and a release's own markers
+# canccu_tree_files <tree>: its files, NUL-separated, relative: a checkout's tracked files (as
+# they are now: a stray local file never ships), else every file but .git, caches and a
+# release's own markers
 canccu_tree_files() {
-  if [ -n "$(canccu_commit "$1")" ]; then
-    git -C "$1" ls-files -co --exclude-standard -z |
+  if canccu_is_checkout "$1"; then
+    git -C "$1" ls-files -c -z |
       while IFS= read -r -d '' f; do { [ -e "$1/$f" ] || [ -L "$1/$f" ]; } && printf '%s\0' "$f"; done
   else
     (cd "$1" && find . \( -name .git -o -name __pycache__ \) -prune -o \( -type f -o -type l \) \
@@ -84,15 +95,20 @@ canccu_in_use() {
   done | sort -u
 }
 
-# canccu_stage <tree> <base> <id>: the tree as release <id>. A release of that id with the same
-# files is kept (STAGED=same); one with other files is replaced only while no process runs from
-# it. Copied beside it first and renamed into place: no process ever sees half a release.
+# canccu_stage <tree> <base> <id> <tree hash>: the tree as release <id>. A release of that id with
+# the same files is kept (STAGED=same). One with other files (a tarball reusing a version) is
+# replaced only while it is not current and no process runs from it: replacing it is two renames,
+# and current must never point at a missing or half-swapped dir. Copied beside it first and
+# renamed into place: no process ever sees half a release.
 canccu_stage() {
-  local src=$1 base=$2 id=$3 rel want users tmp old
+  local src=$1 base=$2 id=$3 want=$4 rel users tmp old
   rel=$base/releases/$id
-  want=$(canccu_tree_files "$src" | canccu_tree_hash "$src")
   if [ -d "$rel" ]; then
     [ "$(cat "$rel/.tree.sha256" 2>/dev/null)" = "$want" ] && [ -f "$rel/.installed" ] && { STAGED=same; return 0; }
+    if [ "$(canccu_current_id "$base")" = "$id" ]; then
+      echo "install.sh: release $id is current and installed with other files; nothing changed. Give this tree a new VERSION." >&2
+      return 1
+    fi
     users=$(canccu_in_use "$base" | awk -v r="$id" '$1 == r { printf " %s", $2 }')
     if [ -n "$users" ]; then
       echo "install.sh: release $id is installed with other files, and processes run from it (pid$users); nothing changed. Give this tree a new VERSION, or stop them first." >&2
@@ -151,11 +167,12 @@ canccu_link() {
   return 0
 }
 
-# canccu_prune <base>: removes the releases beyond the newest CANCCU_KEEP_RELEASES, never
-# current's and never one a process runs from; and what an interrupted install left behind
+# canccu_prune <base> <in use>: removes the releases beyond the newest CANCCU_KEEP_RELEASES,
+# never current's and never one a process runs from (canccu_in_use's lines, read once by the
+# caller); and what an interrupted install left behind
 canccu_prune() {
   local base=$1 cur busy id keep=()
-  cur=$(canccu_current_id "$base"); busy=$(canccu_in_use "$base" | cut -d' ' -f1 | sort -u)
+  cur=$(canccu_current_id "$base"); busy=$(cut -d' ' -f1 <<<"$2" | sort -u)
   mapfile -t keep < <(canccu_releases "$base" | tail -n "$CANCCU_KEEP_RELEASES")
   for id in $(canccu_releases "$base"); do
     [ "$id" = "$cur" ] && continue
@@ -197,7 +214,7 @@ canccu_state_config() {
       echo "wrote $(canccu_tilde "$f") (every default commented out)"
   fi
   [ -n "$2" ] || return 0
-  have=$(sed -nE 's/^[[:space:]]*(export[[:space:]]+)?HOST_PROFILE=//p' "$f" | tail -n1)
+  have=$(canccu_config_host_profile "$f")
   if [ -z "$(grep -E '^[[:space:]]*(export[[:space:]]+)?HOST_PROFILE=' "$f")" ]; then
     printf 'HOST_PROFILE=%s\n' "$2" >> "$f" && echo "set HOST_PROFILE=$2 in $(canccu_tilde "$f")"
   elif [ "$have" != "$2" ]; then

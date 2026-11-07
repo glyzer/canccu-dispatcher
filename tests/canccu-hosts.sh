@@ -28,6 +28,15 @@ ok "… TOTAL_CAP still comes only up to ~/.canccu/config" eq "$(load '$TOTAL_CA
 printf 'PING=on\n' >> "$CANCCU_HOME/rules"
 ok "the project's rules win over the profile" eq "$(load '$PING')" on
 
+env_new uses-defaults
+# a config that builds on a default (or names an unset variable) before HOST_PROFILE: the
+# profile is still read
+printf 'TOTAL_CAP=$((CAP * 2))\nHOST_PROFILE=lab\n' > "$CANCCU_ROOT/config"
+ok "a config that uses a default before HOST_PROFILE: the profile applies" eq "$(load '$HOST_PROFILE|$BUDGET_WORK|$TOTAL_CAP')" "lab|1 2 3|14"
+printf 'BUDGET_ANSWER="$NOT_SET_ANYWHERE 1"\nHOST_PROFILE="lab"   # the lab host\n' > "$CANCCU_ROOT/config"
+ok "… the profile's name read past an unset name, without quotes or comment" \
+  eq "$( . "$S/lib/canccu-projects.sh"; canccu_config_host_profile "$CANCCU_ROOT/config")" lab
+
 env_new from-env
 echo 'HOST_PROFILE=nosuch' > "$CANCCU_ROOT/config"
 ok "CANCCU_HOST_PROFILE wins over ~/.canccu/config" eq "$(CANCCU_HOST_PROFILE=lab load '$HOST_PROFILE|$BUDGET_WORK')" "lab|1 2 3"

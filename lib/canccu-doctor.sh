@@ -20,7 +20,7 @@ _doc_install() {
     tree=$cur
     [ -d "$tree/bin" ] || { echo "release: current points at $(canccu_tilde "$cur"), which is no tree"; return; }
   fi
-  case ":${CANCCU_USER_PATH:-$PATH}:" in *":$prefix/bin:"*) ;; *) echo "canccu-dispatcher: $(canccu_tilde "$prefix/bin") is not on PATH" ;; esac
+  canccu_on_path "$prefix/bin" "${CANCCU_USER_PATH:-$PATH}" || echo "canccu-dispatcher: $(canccu_tilde "$prefix/bin") is not on PATH"
   for c in "$tree"/bin/*; do
     n=${c##*/} l=$prefix/bin/${c##*/}
     if [ -L "$l" ]; then
@@ -29,11 +29,11 @@ _doc_install() {
     elif [ -e "$l" ]; then echo "$n in $(canccu_tilde "$prefix/bin") is a file, not a link to this install"; continue
     else echo "$n is not linked in $(canccu_tilde "$prefix/bin") (install.sh)"; continue; fi
     p=$(PATH=${CANCCU_USER_PATH:-$PATH} command -v "$n" 2>/dev/null)
-    [ -z "$p" ] || [ "$p" = "$l" ] || echo "$n on PATH is $(canccu_tilde "$p"), not this install's $(canccu_tilde "$l")"
+    [ -z "$p" ] || [ "$(realpath -m "${p%/*}")/$n" = "$l" ] || echo "$n on PATH is $(canccu_tilde "$p"), not this install's $(canccu_tilde "$l")"
   done
   canccu_in_use "$base" | while read -r t p; do
     [ "$t" = "$id" ] && continue
-    echo "release $t is still in use: pid $p ($(tr '\0' ' ' < "/proc/$p/cmdline" 2>/dev/null | cut -c1-60)) runs release $t; current is ${id:-the checkout}: restart it"
+    echo "release $t is still in use: pid $p ($({ tr '\0' ' ' < "/proc/$p/cmdline"; } 2>/dev/null | cut -c1-60)) runs release $t; current is ${id:-the checkout}: restart it"
   done
 }
 
@@ -67,7 +67,10 @@ _doc_token() {
   local t; t=$(canccu_tilde "$1")
   [ -e "$1" ] || { echo "reviewer token $t: missing (one token for all projects, mode 600); no review starts"; return; }
   [ "$(stat -c %a "$1")" = 600 ] || echo "reviewer token $t has mode $(stat -c %a "$1"), not 600 (chmod 600 $t)"
-  _doc_denied "$1" || echo "reviewer token $t: no Claude deny rule covers it (add \"Read($t)\" to permissions.deny in ~/.claude/settings.json)"
+  # the rule in Claude's own path forms: ~/… under HOME, //… for an absolute path (a single /
+  # would be relative to the settings file)
+  local r=$t; [[ $1 == "$HOME"/* ]] || r=/$1
+  _doc_denied "$1" || echo "reviewer token $t: no Claude deny rule covers it (add \"Read($r)\" to permissions.deny in ~/.claude/settings.json)"
 }
 
 # _doc_project: the project loaded by canccu-common.sh (in a subshell). Prints its problems, and

@@ -45,6 +45,16 @@ clean_host off-path
 IPATH=${IPATH#"$P/bin:"}; hrun "$P/bin/canccu-dispatcher" doctor
 ok "the prefix bin dir not on the user's PATH: named" eq "$rc $(line '/.local/bin is not on PATH')" "1 1"
 
+# a token outside HOME: the rule doctor suggests is the one that then covers it
+clean_host token-outside
+mkdir -p "$E/tokens"; mv "$C/reviewer-token" "$E/tokens/rt"; echo "REVIEWER_TOKEN_FILE=$E/tokens/rt" >> "$C/config"
+doctor
+rule=$(grep -o 'add "Read([^)]*)"' "$E/out" | sed 's/^add "//; s/"$//')
+ok "a token outside HOME: the suggested rule is Claude's absolute form" eq "$rule" "Read(/$E/tokens/rt)"
+jq -n --arg r "$rule" '{permissions: {deny: [$r]}}' > "$H/.claude/settings.json"
+doctor
+ok "… and with it the host is clean" eq "$rc $(cat "$E/out")" "0 no problems found"
+
 clean_host no-project
 rm -rf "$C/projects"
 doctor

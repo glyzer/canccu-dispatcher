@@ -114,6 +114,7 @@ def header(projects, now, width, phone):
     marks = [project_mark(n, s, now, k == 0, phone) for k, (n, s) in enumerate(projects)]
     u5, uw = num(usage, "five_hour"), num(usage, "seven_day")
     throttle = txt(usage, "text") if txt(usage, "state") in ("slow", "stop", "drain") else ""
+    ver = versions(projects)
     if phone:
         t = Text()
         for m in marks:
@@ -125,8 +126,8 @@ def header(projects, now, width, phone):
             t.append(" · week %d%%" % uw)
         if throttle:
             t.append(" · " + throttle, style="bold yellow")
-        if versions(projects):
-            t.append(" · " + versions(projects), style="dim")
+        if ver:
+            t.append(" · " + ver, style="dim")
         return wrap(t, width, 2)
     for gap in ("  │  ", " │ "):
         sep = (gap, "dim")
@@ -156,8 +157,8 @@ def header(projects, now, width, phone):
             t2.append(" → " + time.strftime("%a %H:%M", time.localtime(num(usage, "weekly_resets_at"))), style="dim")
     if throttle:
         t2.append(*sep).append(throttle, style="bold yellow")
-    if versions(projects):
-        t2.append(*sep).append(versions(projects), style="dim")
+    if ver:
+        t2.append(*sep).append(ver, style="dim")
     return wrap(t, width, 2) + wrap(t2, width, 2)
 
 

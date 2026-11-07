@@ -125,9 +125,12 @@ before=$(tree "$C")
 inst "$S" --no-monitor --host-profile max
 ok "… once" eq "$(tree "$C")" "$before"
 printf 'HOST_PROFILE=max\n' > "$C/config"; before=$(tree "$C")
-src_copy "$E/s2" 9.9.0; printf '# shellcheck shell=bash\n' > "$E/s2/hosts/lab.conf"
+src_copy "$E/s2" 9.9.1; printf '# shellcheck shell=bash\n' > "$E/s2/hosts/lab.conf"
 inst "$E/s2" --no-monitor --host-profile lab
 ok "a config that sets another profile: kept, said" eq "$(tree "$C")$(grep -c 'keeps HOST_PROFILE=max' "$E/out")" "${before}1"
+printf 'HOST_PROFILE="max"   # this host\n' > "$C/config"; before=$(tree "$C")
+inst "$S" --no-monitor --host-profile max
+ok "a quoted, commented HOST_PROFILE of the same profile: the same, nothing said" eq "$(tree "$C")$(grep -c 'keeps HOST_PROFILE' "$E/out")" "${before}0"
 inst_env profile-fresh
 inst "$S" --no-monitor --host-profile max
 ok "--host-profile on a fresh host: the written config sets it" eq "$(grep -cE '^[[:space:]]*[A-Z_]+=' "$C/config") $(grep -c '^HOST_PROFILE=max$' "$C/config")" "1 1"
@@ -196,6 +199,21 @@ ok "… it warns that live projects must not run on it" out_has "live projects m
 ok "… the commands run the checkout" grep -q "^canccu-dispatcher 9.9.0 (commit " <<<"$(HOME=$H "$P/bin/canccu-dispatcher" --version)"
 inst "$D" --no-monitor
 ok "a release from a checkout is named by its commit" eq "$(readlink "$B/current")" "releases/9.9.0+$(git -C "$D" rev-parse --short HEAD)"
+c=$(git -C "$D" rev-parse --short HEAD)
+echo stray > "$D/notes.txt"; inst "$D" --no-monitor
+ok "… an untracked file does not make it dirty, nor ship" eq "$(readlink "$B/current") $(test -e "$R/9.9.0+$c/notes.txt" && echo shipped)" "releases/9.9.0+$c "
+echo "# edited" >> "$D/README.md"; inst "$D" --no-monitor
+d1=$(readlink "$B/current")
+ok "uncommitted changes: a release named by its content" grep -qE "^releases/9\.9\.0\+$c\.dirty\.[0-9a-f]{8}$" <<<"$d1"
+echo "# again" >> "$D/README.md"; inst "$D" --no-monitor
+ok "… another edit: another release, the first one kept as it was" \
+  eq "$(test "$(readlink "$B/current")" != "$d1" && echo new) $(grep -c '# again' "$B/${d1}/README.md")" "new 0"
+inst_env replace-current
+inst "$S" --no-monitor
+echo "# changed" >> "$S/README.md"; inst "$S" --no-monitor
+ok "the same version with other files while it is current: refused" eq "$rc $(grep -c changed "$R/9.9.0/README.md")" "1 0"
+ok "… it says to give the tree a new VERSION" out_has "new VERSION"
+src_copy "$S" 9.9.0
 inst_env dev-tarball
 inst "$S" --dev --no-monitor
 ok "--dev from a tarball: refused, exit 2" eq "$rc $(grep -c 'needs a git checkout' "$E/out")" "2 1"

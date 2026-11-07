@@ -53,29 +53,32 @@ canccu_held_locks() {
 
 # canccu_uninstall <prefix> <purge 0|1> <yes 0|1> <force 0|1>: removes the links into its own
 # tree, the tree and the monitor venv; the state dir only with purge and yes, and never while a
-# lock is held. Refuses while a dispatcher holds its lock, unless force.
+# lock is held. Refuses while a dispatcher holds its lock or a run's lock is live, unless force.
 canccu_uninstall() {
-  local prefix=$1 purge=$2 yes=$3 force=$4 base held disp venv l
+  local prefix=$1 purge=$2 yes=$3 force=$4 base held venv l
   (( purge && ! yes )) && _cmd_die "--purge-state removes $(canccu_tilde "$CANCCU_ROOT") with every project's state; add --yes to mean it. Nothing removed" 2
   base=$(canccu_base "$prefix")
   [ -e "$base" ] || _cmd_die "nothing installed in $(canccu_tilde "$base")"
-  held=$(canccu_held_locks); disp=$(grep '^dispatcher ' <<<"$held")
+  held=$(canccu_held_locks)
   if (( purge )) && [ -n "$held" ]; then
     _cmd_die "the state dir is never removed while a lock is held: $(paste -sd ';' <<<"$held" | sed 's/;/; /g'). Stop them first. Nothing removed"
   fi
-  if [ -n "$disp" ] && (( ! force )); then
-    _cmd_die "a dispatcher runs: $(paste -sd ';' <<<"$disp" | sed 's/;/; /g'). Stop it first, or --force (it keeps running from deleted files until stopped). Nothing removed"
+  # a run whose dispatcher has stopped still runs from the release as much as a dispatcher does
+  if [ -n "$held" ] && (( ! force )); then
+    _cmd_die "still running: $(paste -sd ';' <<<"$held" | sed 's/;/; /g'). Stop them first, or --force (they keep running from deleted files until they stop). Nothing removed"
   fi
   exec 9>>"$base/.install.lock"
   flock -n 9 || _cmd_die "an install, rollback or uninstall runs on $(canccu_tilde "$base"); try again"
-  venv=$(cat "$base/.venv" 2>/dev/null); venv=${venv:-${CANCCU_VENV:-$HOME/.local/share/canccu/venv}}
+  # only the venv this install recorded: the default place may hold an older install's (the
+  # same marker), and --no-monitor records none
+  venv=$(cat "$base/.venv" 2>/dev/null)
   for l in "$prefix"/bin/*; do
     [ -L "$l" ] && [[ $(readlink "$l") == "$base"/* ]] && rm -f "$l" && echo "removed $(canccu_tilde "$l")"
   done
   rm -rf "$base" && echo "removed $(canccu_tilde "$base")" || _cmd_die "could not remove all of $(canccu_tilde "$base")"
-  # only a venv the installer built (it holds the requirements' hash)
-  if [ -f "$venv/.requirements.sha256" ]; then rm -rf "$venv" && echo "removed the monitor's venv $(canccu_tilde "$venv")"
-  elif [ -e "$venv" ]; then echo "kept $(canccu_tilde "$venv"): not a venv the installer built"; fi
+  # the recorded venv only when the installer built it (it holds the requirements' hash)
+  if [ -n "$venv" ] && [ -f "$venv/.requirements.sha256" ]; then rm -rf "$venv" && echo "removed the monitor's venv $(canccu_tilde "$venv")"
+  elif [ -n "$venv" ] && [ -e "$venv" ]; then echo "kept $(canccu_tilde "$venv"): not a venv the installer built"; fi
   if (( purge )); then
     rm -rf "$CANCCU_ROOT" && echo "removed the state dir $(canccu_tilde "$CANCCU_ROOT")"
   elif [ -e "$CANCCU_ROOT" ]; then

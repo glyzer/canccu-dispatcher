@@ -33,13 +33,15 @@ From a release tarball or a checkout:
 
 - The prefix defaults to `~/.local`.
 - The tree is copied to `PREFIX/lib/canccu-dispatcher/releases/<version>/`. From a git
-  checkout the release is named `<version>+<commit>`, or `<version>+<commit>.dirty` with
-  uncommitted changes.
+  checkout only the tracked files are copied, and the release is named `<version>+<commit>`.
+  With uncommitted changes it is `<version>+<commit>.dirty.<hash>`, so each edit makes a new
+  release.
 - `PREFIX/lib/canccu-dispatcher/current` is switched to the new release in one rename.
 - Each command is linked as `PREFIX/bin/<command>` → `…/current/bin/<command>`.
 - Installing the same tree again changes nothing.
-- A release with the same name but other files is replaced only while no process runs from
-  it. Otherwise the install refuses: give the tree a new `VERSION`.
+- A release with the same name but other files (a tarball that reuses a version) is replaced
+  only while it is not current and no process runs from it. Otherwise the install refuses:
+  give the tree a new `VERSION`.
 
 `--dev` points `current` at the checkout itself, for work on the tool. Live projects must not
 run on it: a branch switch or an edit changes the dispatcher under them.
@@ -90,6 +92,11 @@ The load order is:
 A later file wins. A profile never sets `HOST_PROFILE`, and `TOTAL_CAP` is read only up to
 `~/.canccu/config`.
 
+Set the profile in `~/.canccu/config`, so every process reads it. `CANCCU_HOST_PROFILE` is
+for one command. A tmux server that is already running keeps the environment it started with,
+so a dispatcher that `canccu-up` starts there does not see a `CANCCU_HOST_PROFILE` exported
+in your shell later. `CANCCU_ROOT` behaves the same way.
+
 ## Upgrade, rollback, uninstall
 
 - **Upgrade**: run `install.sh` from the new tree. A running dispatcher keeps the release it
@@ -98,14 +105,16 @@ A later file wins. A profile never sets `HOST_PROFILE`, and `TOTAL_CAP` is read 
 - **Pruning**: the last three releases are kept. A release that a live dispatcher or run still
   uses is never removed. The installer finds those from the processes' paths: their arguments,
   their working dir, and the files they hold open (bash holds the script it runs).
-- **`canccu-dispatcher rollback [--prefix DIR]`** points `current` at the release installed
-  before it. From `--dev` it goes to the newest release.
+- **`canccu-dispatcher rollback [--prefix DIR]`** points `current` at the release made
+  current before it. Installing A, then B, then A again, a rollback goes back to B. From
+  `--dev` it goes to the newest release.
 - **`canccu-dispatcher uninstall [--prefix DIR] [--purge-state --yes] [--force]`** removes:
   - the links into its own tree;
   - the tree;
   - the monitor venv the installer built.
 
-  It refuses while a dispatcher holds its lock, unless `--force`. The state dir goes only with
+  It refuses while a dispatcher holds its lock or a run's lock is live, unless `--force`. It
+  removes only the venv this install recorded, so a venv from an older install stays. The state dir goes only with
   `--purge-state --yes`, and never while any lock is held: a dispatcher's or a live run's.
 
 `--prefix` defaults to the prefix of the release the command runs from (`~/.local` from a

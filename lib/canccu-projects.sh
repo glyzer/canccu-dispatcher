@@ -44,10 +44,19 @@ canccu_repo_clone() {
 # profile, whose values it overrides.
 canccu_host_profile() {
   if [ -n "${CANCCU_HOST_PROFILE:-}" ]; then printf '%s\n' "$CANCCU_HOST_PROFILE"; return; fi
-  [ -f "$CANCCU_ROOT/config" ] || return 0
-  ( HOST_PROFILE=""
+  canccu_config_host_profile "$CANCCU_ROOT/config"
+}
+# canccu_config_host_profile <config file>: the HOST_PROFILE that file sets, as the shell reads it
+# (quotes and comments gone). The defaults come first, as in the real load: a line that builds on
+# one (TOTAL_CAP=$((CAP * 2))) must not end the read before HOST_PROFILE; nor must an unset name.
+canccu_config_host_profile() {
+  [ -f "$1" ] || return 0
+  ( set +u
+    # shellcheck source=canccu-config.default
+    . "$(dirname "${BASH_SOURCE[0]}")/canccu-config.default" >/dev/null 2>&1
+    HOST_PROFILE=""
     # shellcheck source=/dev/null
-    . "$CANCCU_ROOT/config" >/dev/null 2>&1
+    . "$1" >/dev/null 2>&1
     printf '%s\n' "$HOST_PROFILE" ) | grep .
   return 0
 }

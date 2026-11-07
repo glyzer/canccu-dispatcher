@@ -21,7 +21,9 @@ src=$(dirname "$(realpath "$0")")
 . "$src/lib/canccu-install.sh"
 
 usage() { sed -n '3,4s/^# \{0,1\}//p' "$src/install.sh" >&2; exit 2; }
-prefix=$HOME/.local profile="" venv=${CANCCU_VENV:-$HOME/.local/share/canccu/venv}
+# resolved like an explicit value (and like the prefix canccu-dispatcher derives from its real
+# path): a HOME reached through a symlink must name its links one way only
+prefix=$(realpath -m "$HOME/.local") profile="" venv=$(realpath -m "${CANCCU_VENV:-$HOME/.local/share/canccu/venv}")
 monitor=1 replace=0 dev=0 check=0
 while [ $# -gt 0 ]; do
   case $1 in
@@ -63,30 +65,35 @@ if (( dev )); then
   canccu_switch "$base" "$src" || exit 1
   echo "current is $name (--dev): every command runs this checkout as it is, for work on the tool: live projects must not run on it (a branch switch or an edit changes the dispatcher under them; install a release for them)"
 else
-  id=$(canccu_release_id "$src") tree=$base/releases/$id name="release $id"
-  canccu_stage "$src" "$base" "$id" || exit 1
+  want=$(canccu_tree_files "$src" | canccu_tree_hash "$src")
+  id=$(canccu_release_id "$src" "$want") tree=$base/releases/$id name="release $id"
+  canccu_stage "$src" "$base" "$id" "$want" || exit 1
   was=$(canccu_current "$base")
   canccu_switch "$base" "releases/$id" || exit 1
+  # made current again: the newest for rollback and pruning (install A, B, A: rollback goes to B)
+  [ "$STAGED" = same ] && [ "$was" != "releases/$id" ] && date +%s%N > "$tree/.installed"
   if [ "$STAGED" = same ] && [ "$was" = "releases/$id" ]; then echo "canccu-dispatcher $id is installed already"
   else echo "installed canccu-dispatcher $id in $(canccu_tilde "$tree")"; fi
 fi
 canccu_link "$prefix" "$base" "$tree" "$replace"
-canccu_prune "$base"
+# read once: the processes that run from a release, for pruning and the report below
+inuse=$(canccu_in_use "$base")
+canccu_prune "$base" "$inuse"
 
 # ---------------------------------------------------------------- the monitor and the state dir
 if (( monitor )); then
   canccu_venv "$tree/lib/canccu-monitor.requirements.txt" "$venv"
   [ "$(cat "$base/.venv" 2>/dev/null)" = "$venv" ] || echo "$venv" > "$base/.venv"
-  [ "$venv" = "$HOME/.local/share/canccu/venv" ] || [ "$venv" = "${CANCCU_VENV:-}" ] ||
+  [ "$venv" = "$(realpath -m "${CANCCU_VENV:-$HOME/.local/share/canccu/venv}")" ] ||
     echo "the monitor finds its venv through CANCCU_VENV: export CANCCU_VENV=$(canccu_tilde "$venv")"
 fi
 canccu_state_config "$tree" "$profile"
 
 # a dispatcher or run started before keeps its release until it is restarted
 cur=$(canccu_current_id "$base")
-canccu_in_use "$base" | while read -r rid pid; do
-  [ "$rid" = "$cur" ] && continue
-  echo "pid $pid still runs release $rid ($(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | cut -c1-80)): restart it to run $name"
-done
-case ":$PATH:" in *":$prefix/bin:"*) ;; *) echo "note: $(canccu_tilde "$prefix/bin") is not on PATH" ;; esac
+while read -r rid pid; do
+  [ -n "$rid" ] && [ "$rid" != "$cur" ] || continue
+  echo "pid $pid still runs release $rid ($({ tr '\0' ' ' < "/proc/$pid/cmdline"; } 2>/dev/null | cut -c1-80)): restart it to run $name"
+done <<<"$inuse"
+canccu_on_path "$prefix/bin" "$PATH" || echo "note: $(canccu_tilde "$prefix/bin") is not on PATH"
 exit 0

@@ -72,6 +72,10 @@ inst "$T/src3" --no-monitor
 ok "an install after a rollback: the new one is current" eq "$(cur)" "releases/9.9.3"
 hrun "$P/bin/canccu-dispatcher" rollback
 ok "… and rollback goes to the one installed before it" eq "$(cur)" "releases/9.9.2"
+inst_env rollback-reinstall
+for v in 0 1 0; do inst "$T/src$v" --no-monitor; done
+hrun "$P/bin/canccu-dispatcher" rollback
+ok "install A, B, A again: rollback goes back to B" eq "$rc $(cur)" "0 releases/9.9.1"
 inst_env rollback-none
 inst "$T/src0" --no-monitor
 hrun "$P/bin/canccu-dispatcher" rollback
@@ -99,6 +103,16 @@ ok "… the venv goes" not test -e "$H/.local/share/canccu/venv"
 ok "… the state dir stays" test -d "$C/projects/web"
 holders_stop
 
+# a run still live after its dispatcher stopped: its release stays unless --force
+inst_env uninstall-run
+inst "$T/src0" --no-monitor
+mkdir -p "$C/projects/web/workers"
+printf 'repo=web\nkey=5\nkind=worker\npid=%s\nwindow=\nstarted=1\n' "$$" > "$C/projects/web/workers/web-5.lock"
+hrun "$P/bin/canccu-dispatcher" uninstall
+ok "uninstall while a run's lock is live: refused" eq "$rc $(cur) $(grep -c 'web-5.lock' "$E/out")" "1 releases/9.9.0 1"
+hrun "$P/bin/canccu-dispatcher" uninstall --force
+ok "… --force removes it anyway" eq "$rc $(test -e "$B" && echo tree)" "0 "
+
 inst_env purge
 inst "$T/src0" --no-monitor
 printf 'TOTAL_CAP=4\n' > "$C/config"
@@ -118,6 +132,28 @@ inst "$T/src0" --venv "$E/v"
 mkdir -p "$E/other-venv"
 hrun "$P/bin/canccu-dispatcher" uninstall
 ok "uninstall: the venv the install built, wherever it is" eq "$rc $(test -e "$E/v" && echo v)" "0 "
+
+# a HOME reached through a symlink: install, doctor, an explicit --prefix and uninstall all
+# agree on whose links are whose
+inst_env symlink-home
+mkdir -p "$E/real/home"; ln -s real "$E/link"
+H=$E/link/home P=$E/link/home/.local C=$E/link/home/.canccu B=$E/link/home/.local/lib/canccu-dispatcher R=$B/releases
+IPATH="$P/bin:$IPATH"
+inst "$T/src0" --no-monitor
+ok "a symlinked HOME: installed" eq "$rc $(cur)" "0 releases/9.9.0"
+hrun "$P/bin/canccu-dispatcher" doctor
+ok "… doctor finds the links and PATH as they are" eq "$(grep -cE 'links to|not linked|not on PATH|on PATH is' "$E/out")" 0
+inst "$T/src0" --no-monitor --prefix "$H/.local"
+ok "… an explicit --prefix of the same dir calls no link foreign" eq "$rc $(grep -c 'kept ' "$E/out")" "0 0"
+hrun "$P/bin/canccu-dispatcher" uninstall
+ok "… uninstall removes every link into its tree" eq "$rc $(find "$P/bin" -type l | wc -l)" "0 0"
+
+# the old install's venv (the same marker, the same default place): never this install's to remove
+inst_env uninstall-foreign-venv
+mkdir -p "$H/.local/share/canccu/venv/bin"; echo old > "$H/.local/share/canccu/venv/.requirements.sha256"
+inst "$T/src0" --no-monitor
+hrun "$P/bin/canccu-dispatcher" uninstall
+ok "uninstall after a --no-monitor install: a venv it never built stays" eq "$rc $(cat "$H/.local/share/canccu/venv/.requirements.sha256")" "0 old"
 
 inst_env uninstall-none
 hrun bash "$T/src0/bin/canccu-dispatcher" uninstall --prefix "$E/nothing"
