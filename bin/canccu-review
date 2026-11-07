@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# canccu-review [--project <name>] <pr> — start the independent reviewer for a PR of ours at its current head: a fresh
+# headless session in its own worktree and window review#<pr>, without the checkout's project
+# settings and without any GitHub token. It writes its review, ending in
+# "Review verdict: pass|changes <head sha>", to ~/.canccu/reviews/<pr>/<sha>.md; the dispatcher posts
+# it as REVIEWER_LOGIN. Refuses without the reviewer's token file, and for a PR that is not ours
+# (a fork, another author, or an issue the dispatcher does not manage). docs/canccu-dispatch.md
+set -uo pipefail
+self=$(realpath "$0")
+# shellcheck source=../lib/canccu-common.sh
+. "$(dirname "$self")/../lib/canccu-common.sh"
+
+pr=${1:-}; [[ $pr =~ ^[0-9]+$ ]] || { echo "usage: canccu-review [--project <name>] <pr>" >&2; exit 2; }
+run_alive "review-$pr" && die "a reviewer for PR #$pr is running"
+p=$(login_problem); [ -z "$p" ] || die "refused: $p"
+p=$(reviewer_token_problem); [ -z "$p" ] || die "refused: $p (the review must post as ${REVIEWER_LOGIN:-REVIEWER_LOGIN})"
+# the open issues and PRs, as a pass reads them: the review effort reads the PR body, and the
+# labels decide what a failed post's needs-you leaves
+fetch || die "gh error reading $REPO"
+j=$(pr_detail "$pr") || die "gh error reading PR #$pr"
+[ "$(jqr .state <<<"$j")" = OPEN ] || die "PR #$pr is not open"
+# a work package's PR (its branch names it), else the issue it closes
+n=$(unit_of_branch "$(jqr '.headRefName // ""' <<<"$j")")
+[ -n "$n" ] || n=$(jqr '.closingIssuesReferences[0].number // empty' <<<"$j")
+[ -n "$n" ] || die "PR #$pr closes no issue"
+why=$(pr_not_ours "$j" "$n"); [ -z "$why" ] || die "refused: not ours: $why"
+start_review "$pr" "$n" "$(jqr .headRefOid <<<"$j")" ||
+  die "the reviewer did not start; see $CANCCU_HOME/dispatch.log"

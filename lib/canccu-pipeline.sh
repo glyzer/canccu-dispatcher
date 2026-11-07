@@ -1,0 +1,265 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# shellcheck shell=bash disable=SC2034,SC2154  # globals are shared with the other lib/canccu-*.sh parts
+# Sourced by canccu-dispatch after canccu-common.sh; never run: the dispatcher pass, steps 2 (reap) and 4 (resume).
+
+# ---------------------------------------------------------------- 2. reap
+
+# reap_worker, reap_review, reap_answer: the pass read the phase before the run ended; canccu-stop
+# sets phase=stopped before it kills the run, so a run whose phase moved on meanwhile is not reaped
+reap_worker() {
+  local n=$1 started last kind status q r
+  run_alive "$n" && return 0
+  [ "$(st_get "$n" phase)" = work ] || return 0
+  [ -e "$(run_lock "$n")" ] && mut "$CANCCU_WORKER" --unlock "$REPO_NAME" "$n" >/dev/null
+  started=$(st_get "$n" started); last="$WORKERS_DIR/$REPO_NAME-$n.last"
+  if [ -e "$last" ] && (( $(stat -c %Y "$last") >= ${started:-0} )); then
+    IFS='|' read -r kind status <<<"$(run_exit "$last")"
+  else kind=none status="ended without an exit report"; fi
+  case $kind in
+    done)
+      q=$(worker_question "$(run_msg "$n")")
+      # a question goes to the answerer even after a nudge (it waits for the reset anyway)
+      if [ "$(st_get "$n" nudged)" = 1 ] && [ -z "$q" ]; then
+        # stopped at a safe point at the usage stop: continue after the 5-hour reset
+        # the reset it was nudged for; already passed: no back-off (it continues next pass)
+        r=$(st_get "$n" nudge_reset); [[ $r =~ ^[0-9]+$ ]] && (( r > $(now) )) && set_backoff "$r"
+        st_set "$n" phase=limited nudged= nudge_reset=
+        log "#$n stopped at a safe point (usage); resumes after the reset"
+      elif [ -n "$q" ]; then st_set "$n" nudged=; ask "$n" "$q"
+      else st_set "$n" phase=check check_at="$(now)"; log "#$n worker done"; fi ;;
+    usage)
+      set_backoff "$(usage_reset "$(run_msg "$n")")"
+      st_set "$n" phase=limited; log "#$n hit the usage limit; resumes after the back-off" ;;
+    *) needs_you "$n" "the worker stopped: $status" "$(run_msg "$n")" ;;
+  esac
+}
+
+# reap_review <n>: the reviewer (a full review or a fix-check) wrote its review to a file and
+# exited. The dispatcher checks that the file ends in a verdict for exactly the reviewed head,
+# posts it as REVIEWER_LOGIN, then acts on the posted comment (the one the review-gate check reads
+# too). Every run ends with one outcome line in the log: posted, post failed, post timed out, no
+# valid verdict, or void (a push during the run).
+reap_review() {
+  local n=$1 pr sha j head kind status last started f prc at why
+  pr=$(st_get "$n" pr); sha=$(st_get "$n" review_sha)
+  run_alive "review-$pr" && return 0
+  [ "$(st_get "$n" phase)" = review ] || return 0
+  [ -e "$(run_lock "review-$pr")" ] && mut "$CANCCU_WORKER" --unlock "$REPO_NAME" "review-$pr" >/dev/null
+  j=$(pr_detail "$pr") || { log "#$n PR #$pr: gh error reading the review; retrying next pass"; return; }
+  head=$(jqr .headRefOid <<<"$j")
+  if [ "$(jqr .state <<<"$j")" != OPEN ] || [ "$head" != "$sha" ]; then
+    outcome "$n" "$pr" "$sha" "void: the PR changed during the run (now ${head:0:7}); re-checking"
+    clear_post_ny "$n"
+    st_set "$n" phase=check check_at="$(now)"; return
+  fi
+  # posted, but GitHub does not list it yet: wait POST_WAIT before calling it missing; a post that
+  # timed out (it may not have landed) is posted again after the wait instead
+  if [ -z "$(verdict_of "$j" "$(st_get "$n" verdict_at)")" ] && [ "$(st_get "$n" posted)" = "$sha" ]; then
+    at=$(st_get "$n" posted_at)
+    if (( $(now) - ${at:-0} < POST_WAIT )); then log "#$n PR #$pr: review posted; acting on it once GitHub lists it"; return; fi
+    [ "$(st_get "$n" post_uncertain)" = 1 ] && st_set "$n" posted= post_uncertain=
+  fi
+  if [ -z "$(verdict_of "$j" "$(st_get "$n" verdict_at)")" ] && [ "$(st_get "$n" posted)" != "$sha" ]; then
+    kind=none last="$WORKERS_DIR/$REPO_NAME-review-$pr.last" started=$(st_get "$n" started) f=$(review_file "$pr" "$sha")
+    [ -e "$last" ] && (( $(stat -c %Y "$last") >= ${started:-0} )) &&
+      IFS='|' read -r kind status <<<"$(run_exit "$last")"
+    if [ -e "$f" ] && (( $(stat -c %Y "$f") >= ${started:-0} )) && [ -n "$(file_verdict "$f" "$sha")" ]; then
+      post_review "$n" "$pr" "$f" "$sha"; prc=$?
+      (( prc == 2 )) && { st_set "$n" posted="$sha" posted_at="$(now)" post_uncertain=1; return; }
+      (( prc == 0 )) || return 0
+      st_set "$n" posted="$sha" posted_at="$(now)" post_uncertain=
+      j=$(pr_detail "$pr") || { log "#$n PR #$pr: review posted; reading it back next pass"; return; }
+      [ -n "$(verdict_of "$j" "$(st_get "$n" verdict_at)")" ] || { log "#$n PR #$pr: review posted; acting on it once GitHub lists it"; return; }
+    else
+      if [ ! -e "$f" ]; then why="no review file"
+      elif (( $(stat -c %Y "$f") < ${started:-0} )); then why="the review file is older than the run"
+      else why="the file's last line is no verdict for ${sha:0:7}"; fi
+      if [ "$kind" = usage ]; then
+        outcome "$n" "$pr" "$sha" "no valid verdict ($why; usage limit); again after the back-off"
+        set_backoff "$(usage_reset "$(run_msg "review-$pr")")"
+        st_set "$n" phase=check check_at="$(now)"
+        return
+      fi
+      outcome "$n" "$pr" "$sha" "no valid verdict ($why; run ${status:-$kind})"
+    fi
+  fi
+  # the review is acted on now (a post that timed out may have landed): a failed post's
+  # needs-you goes; act_verdict sets it again when the verdict needs the user
+  clear_post_ny "$n"
+  act_verdict "$n" "$pr" "$j"
+}
+
+# issue_comment_by <n> <since epoch> <regex>: newest issue comment by USER_LOGIN since then whose
+# body matches; "<url>\t<body on one line>"
+issue_comment_by() {
+  ghj issue view "$(lead_of "$1")" -R "$REPO" --json comments |
+    jqr --arg u "$USER_LOGIN" --arg s "$(iso "${2:-0}")" --arg re "$3" '[.comments[]
+      | select(.author.login == $u and .createdAt > $s and (.body | test($re)))] | sort_by(.createdAt) | last
+      | select(. != null) | "\(.url // "")\t\(.body | gsub("[\r\n\t]+"; " "))"'
+}
+
+# reap_answer <n>: ANSWERED → the worker resumes with the answer; ESCALATE or nothing → needs-you
+reap_answer() {
+  local n=$1 started last kind status out mark c url q a
+  run_alive "answer-$n" && return 0
+  [ "$(st_get "$n" phase)" = answer ] || return 0
+  [ -e "$(run_lock "answer-$n")" ] && mut "$CANCCU_WORKER" --unlock "$REPO_NAME" "answer-$n" >/dev/null
+  started=$(st_get "$n" started); last="$WORKERS_DIR/$REPO_NAME-answer-$n.last"; kind=none
+  [ -e "$last" ] && (( $(stat -c %Y "$last") >= ${started:-0} )) && IFS='|' read -r kind status <<<"$(run_exit "$last")"
+  q=$(q_get "$n")
+  if [ "$kind" = usage ]; then
+    set_backoff "$(usage_reset "$(run_msg "answer-$n")")"
+    a=$(st_get "$n" answers); a=${a:-1}   # a round cut short by the limit doesn't count
+    st_set "$n" phase=question answers=$(( a > 0 ? a - 1 : 0 ))
+    log "#$n answerer hit the usage limit; asks again after the back-off"; return
+  fi
+  out=$(run_msg "answer-$n")
+  mark=$(grep -oE '\b(ANSWERED|ESCALATE)\b' <<<"$out" | tail -1)
+  if [ "$kind" = "done" ] && [ "$mark" = ANSWERED ]; then
+    c=$(issue_comment_by "$n" "${started:-0}" '^[[:space:]*_]*Answer:'); url=${c%%$'\t'*}
+    [ -n "$c" ] && c=${c#*$'\t'} || c=$out
+    # logged for the digest only once the worker runs: a failed resume is retried, not listed twice
+    resume "$n" "An answerer (not the user) answered your question from the repo's decisions and docs; the user may overrule it on the issue. $(oneline 4000 "$c") Continue with that." || return 0
+    (( CANCCU_DRY )) || printf '%s\t%s\t%s\t%s\n' "$(now)" "$n" "${url:-#$n}" "$(oneline 200 "$q")" >> "$CANCCU_HOME/answers.log"
+    log "#$n question answered${url:+: $url}"
+  else
+    c=$(issue_comment_by "$n" "${started:-0}" '^[[:space:]*_]*Needs the product owner:'); url=${c%%$'\t'*}
+    needs_you "$n" "the worker's question needs the product owner${url:+ ($url)}$([ "$kind" = "done" ] || echo "; the answerer stopped: $status")" "$q" question
+  fi
+}
+
+# check_pr <n>: the worker is done; the PR and its CI decide what happens next
+check_pr() {
+  local n=$1 pr j head at rsha fix
+  pr=$(pr_for "$n")
+  if [ -z "$pr" ]; then
+    # the health pass's PR left the open list (closed or merged): health_pr_closed or finish_unit
+    # takes it from here. Still open but not ours (another branch): needs-you below.
+    is_health "$n" && pr=$(st_get "$n" pr) && [ -n "$pr" ] && ! pr_is_open "$pr" && return 0
+    if is_health "$n" && grep -qE '^[[:space:]*_]*Health: nothing to do' <<<"$(run_msg "$n")"; then health_nothing "$n"; return; fi
+    needs_you "$n" "the worker finished without an open PR" "$(run_msg "$n")" "" work; return
+  fi
+  st_set "$n" pr="$pr"
+  if [ "$(pr_get "$pr" .isDraft)" = true ]; then
+    if is_plan_pr "$n" "$pr"; then
+      needs_you "$n" "plan ready for OK: $(pr_get "$pr" .url) — label this issue \`plan-ok\` to approve, or comment" "" plan work
+    else needs_you "$n" "PR #$pr is still a draft" "$(run_msg "$n")" "" work; fi
+    return
+  fi
+  case $(ci_state "$pr") in
+    red) needs_you "$n" "CI is red on PR #$pr" "$(run_msg "$n")" "" ci; return ;;
+    pending)
+      at=$(st_get "$n" check_at); at=${at:-$(now)}
+      (( $(now) - at > CI_WAIT_MIN * 60 )) && needs_you "$n" "CI on PR #$pr is still pending after $CI_WAIT_MIN min" "" "" ci &&
+        st_set "$n" ny_wait=ci
+      return ;;
+    none)
+      at=$(st_get "$n" check_at); at=${at:-$(now)}
+      (( $(now) - at > ${NO_CHECKS_MIN:-10} * 60 )) &&
+        needs_you "$n" "no CI checks on PR #$pr: is CI set up for this repo, or did a path filter skip it?" "" "" no-checks &&
+        st_set "$n" ny_wait=ci
+      return ;;
+  esac
+  j=$(pr_detail "$pr") || { log "#$n PR #$pr: gh error; retrying next pass"; return; }
+  head=$(jqr .headRefOid <<<"$j")
+  if [ -n "$(verdict_of "$j" "$(st_get "$n" verdict_at)")" ]; then act_verdict "$n" "$pr" "$j"; return; fi
+  # a reviewer started earlier (canccu-review) is still running: wait for it, on the head it reviews
+  if run_alive "review-$pr"; then
+    at=$(running_review_sha "$pr")
+    st_set "$n" phase=review review_sha="${at:-$head}" posted= started="$(lock_get "$(run_lock "review-$pr")" started)" \
+      review_mode="$(cat "$CANCCU_HOME/reviews/$pr.mode" 2>/dev/null)"
+    return
+  fi
+  # the worker fixed the full review's findings: the fix-check of reviewed_sha..head, never a
+  # second full review. A push after a fix-check voids it (its verdict names the old head): a
+  # new fix-check of the whole fix diff runs.
+  rsha=$(st_get "$n" reviewed_sha)
+  case $(st_get "$n" stage) in fixing|fixcheck) fix=1 ;; *) fix=0 ;; esac
+  if (( fix )) && [ -n "$rsha" ] && [ "$head" = "$rsha" ]; then
+    needs_you "$n" "the worker pushed no fix for the review's findings on PR #$pr (the head is still the reviewed ${rsha:0:7}). If no fix was needed (a finding was wrong), \`canccu-review $pr\` reviews the head again: its pass merges, its \`changes\` comes back here; otherwise comment the way on and the worker resumes"; return
+  fi
+  backing_off && return
+  room || return
+  if (( fix )) && [ -n "$rsha" ]; then start_fixcheck "$pr" "$n" "$rsha" "$head"
+  else start_review "$pr" "$n" "$head"; fi
+}
+
+# ci_unpark <n>: a needs-you that only waited on CI (ny_wait=ci: pending past CI_WAIT_MIN, or no
+# checks past NO_CHECKS_MIN) goes back to check by itself once the PR's CI is green or red: the
+# label comes off, nothing is resumed, and check_pr (called next) reviews it or parks it again for
+# the red CI. A comment by the user since it parked leaves it to resume_step; a gh error
+# reading the comments leaves it for the next pass. 0 when it is back in check.
+ci_unpark() {
+  local n=$1 pr c
+  [ "$(st_get "$n" ny_wait)" = ci ] || return 1
+  pr=$(st_get "$n" pr); [ -n "$pr" ] || return 1
+  case $(ci_state "$pr") in green|red) ;; *) return 1 ;; esac
+  c=$(user_comments "$n" "$pr" "$(st_get "$n" ny_at)") || return 1
+  [ -z "$c" ] || return 1
+  has_label "$n" needs-you && edit_issue "$n" --remove-label needs-you
+  st_set "$n" phase=check ny_wait=
+  log "#$n PR #$pr: CI is no longer pending; back to check"
+}
+
+# adopt: an open PR of ours (USER_LOGIN, not a fork, branch <n>-…) closing an in-progress issue
+# nobody manages, with no worker running
+adopt() {
+  local pr n c j
+  for pr in $(jqr '.[].number' <<<"$PRS"); do
+    j=$(pr_get "$pr" .)
+    for n in $(jqr '.closingIssuesReferences[]?.number' <<<"$j"); do
+      is_managed "$n" && continue
+      [ "$(unit_of_issue "$n")" = "$n" ] || continue   # a package's issue is never adopted alone
+      [ -z "$(pr_foreign "$j" "$n")" ] || continue
+      has_label "$n" in-progress && ! run_alive "$n" || continue
+      c=0; is_exclusive "$n" && c=1
+      st_set "$n" phase=check pr="$pr" check_at="$(now)" adopted=1 exclusive=$c; new_cycle "$n"
+      claim_color "$n"
+      log "#$n adopted (PR #$pr)"
+    done
+  done
+}
+
+# ---------------------------------------------------------------- 4. resume
+
+# user_comments <n> <pr> <since epoch>: the user's comments on the issue and PR since then,
+# without the dispatcher's own (its marker), review verdicts, or the answerer's (it posts as the
+# user too)
+user_comments() {
+  local n=$1 pr=$2 since; since=$(iso "${3:-0}")
+  { ghj issue view "$(lead_of "$n")" -R "$REPO" --json comments; [ -n "$pr" ] && ghj pr view "$pr" -R "$REPO" --json comments; } |
+    jqr -s --arg u "$USER_LOGIN" --arg s "$since" --arg m "$CANCCU_MARK" '
+      [ .[].comments[] | select(.author.login == $u and .createdAt > $s
+                                and (.body | contains($m) | not)
+                                and (.body | test("Review verdict:") | not)
+                                and (.body | test("^[\\s*_]*(Answer|Needs the product owner):") | not)) ]
+      | sort_by(.createdAt) | map(.body) | join("\n\n---\n\n")'
+}
+
+resume_step() {
+  local n=$1 phase pr c since
+  run_alive "$n" && return 0
+  phase=$(st_get "$n" phase); pr=$(st_get "$n" pr)
+  if has_label "$n" plan-ok; then
+    room || return 0
+    resume "$n" "The user approved the plan. Execute it with the superpowers skill executing-plans." || return 0
+    edit_issue "$n" --remove-label plan-ok   # only once the worker runs: a failed start keeps the signal
+    st_set "$n" plan_ok=1; new_cycle "$n"
+  elif has_label "$n" needs-work; then
+    room || return 0
+    # the user's comments since the PR reached them: the accept request, else the merge or the verdict
+    # the newest of them; none at all (no verdict yet) → since the worker started
+    since=$(newest_of "$(st_get "$n" accept_at)" "$(st_get "$n" merge_at)" "$(iso_epoch "$(st_get "$n" verdict_at)")")
+    c=$(user_comments "$n" "$pr" "${since:-$(st_get "$n" started)}")
+    resume "$n" "The user rejected PR #$pr (needs-work). Address their comments, rerun the checks, push once, and stop when CI is green. Their comments: ${c:-none found; read the latest comments on the PR and the issue}" || return 0
+    edit_issue "$n" --remove-label needs-work
+    has_label "$n" awaiting-accept && edit_issue "$n" --remove-label awaiting-accept
+    new_cycle "$n"
+  elif [ "$phase" = needs-you ]; then
+    c=$(user_comments "$n" "$pr" "$(st_get "$n" ny_at)")
+    [ -n "$c" ] && room && resume "$n" "The user answered: $c"
+  elif [ "$phase" = limited ]; then
+    room && resume "$n" "Continue where you stopped: the usage limit has reset."
+  fi
+  return 0
+}

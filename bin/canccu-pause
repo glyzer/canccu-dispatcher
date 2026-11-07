@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# canccu-pause [--project <name>] — the dispatcher starts no new issue until canccu-resume; running workers continue.
+set -uo pipefail
+self=$(realpath "$0")
+# shellcheck source=../lib/canccu-common.sh
+. "$(dirname "$self")/../lib/canccu-common.sh"
+
+mkdir -p "$CANCCU_HOME" && touch "$CANCCU_HOME/paused" && log "paused (canccu-pause, project $CANCCU_PROJECT)"

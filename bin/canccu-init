@@ -1,0 +1,130 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# canccu-init [--profile <template>] <name> <owner/repo> [clone] — add a project for canccu-dispatch:
+# writes ~/.canccu/projects/<name>/config and rules from a template (default: default), looked up
+# in ~/.canccu/profiles/<template>/ first (your own templates) and then in this tool's profiles/,
+# creates the dispatcher's labels in the repo, and prints what is left to do by hand. The clone defaults to ~/code/<repo>; give another
+# absolute path when that one is taken. Refuses when the project exists, or when another project
+# already runs the repo or uses the clone. Never changes rulesets, secrets, variables or
+# collaborators, never creates or reads a token, and starts nothing. docs/canccu-dispatch.md, "Adding a project"
+# and "A narrow token per project".
+set -uo pipefail
+self=$(realpath "$0")
+here=$(dirname "$self")/..
+die() { echo "canccu-init: $*" >&2; exit 1; }
+# shellcheck source=../lib/canccu-projects.sh
+. "$here/lib/canccu-projects.sh"
+
+profile=default
+case ${1:-} in
+  --profile) [ $# -ge 2 ] || die "--profile needs a template name"; profile=$2; shift 2 ;;
+  --profile=*) profile=${1#--profile=}; shift ;;
+esac
+[ $# -eq 2 ] || [ $# -eq 3 ] || { sed -n '2,9s/^# \{0,1\}//p' "$self" >&2; exit 2; }
+name=$1 repo=$2 clone=${3:-}
+canccu_valid_name "$profile" || die "'$profile' is no template name (a-z, 0-9, - and _)"
+canccu_valid_name "$name" || die "'$name' is no project name (a-z, 0-9, - and _; up to 31 characters)"
+[[ $repo =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || die "'$repo' is not owner/repo"
+[ -z "$clone" ] || [[ $clone =~ ^/[A-Za-z0-9_./-]+$ ]] || die "'$clone' is not an absolute path (letters, digits, _ . / -)"
+dir=$CANCCU_ROOT/projects/$name
+{ [ -e "$dir" ] || [ -L "$dir" ]; } && die "project '$name' exists (${dir/#$HOME/\~}); nothing changed"
+# the user's own templates live beside the projects, never in this repo
+tpl=""
+for t in "$CANCCU_ROOT/profiles/$profile" "$(realpath -m "$here/profiles/$profile")"; do
+  [ -f "$t/config" ] && [ -f "$t/rules" ] && { tpl=$t; break; }
+done
+[ -n "$tpl" ] || die "no template '$profile' (looked in ${CANCCU_ROOT/#$HOME/\~}/profiles/$profile and $(realpath -m "$here/profiles" | sed "s|^$HOME|~|")/$profile); nothing changed"
+tname="the template $profile: ${tpl/#$HOME/\~}"
+# a template may name its repo: then it must be this one
+trepo=$(sed -n 's/^REPO=//p' "$tpl/config" | tail -1)
+[ "$trepo" = @REPO@ ] || [ "$trepo" = "$repo" ] ||
+  die "$tname is for $trepo, not $repo"
+
+# the config as it will be written, and the clone it names
+render() { sed -e "s|@NAME@|$name|g" -e "s|@REPO@|$repo|g" -e "s|@REPO_NAME@|${repo#*/}|g" "$tpl/$1"; }
+cfg=$(render config) || die "cannot read $tname/config"
+[ -n "$clone" ] && cfg=$(sed "s|^CLONE=.*|CLONE=$clone|" <<<"$cfg")
+newclone=$(canccu_repo_clone /dev/stdin <<<"$cfg" | cut -f2)
+[ -n "$newclone" ] || die "$tname: its config sets no CLONE"
+# two projects on one repo would both adopt, review and merge its PRs; two on one clone would
+# share its origin and worktrees. Neither ever runs independently.
+for p in $(canccu_profiles); do
+  IFS=$'\t' read -r prepo pclone <<<"$(canccu_repo_clone "$CANCCU_ROOT/projects/$p/config")"
+  [ "${prepo,,}" = "${repo,,}" ] && die "project '$p' already runs $prepo; nothing changed"
+  [ -n "$pclone" ] && [ "$(realpath -m "$pclone")" = "$(realpath -m "$newclone")" ] &&
+    die "project '$p' already uses the clone ${pclone/#$HOME/\~}; give $repo another one: canccu-init $name $repo <absolute path>. Nothing changed"
+done
+
+# the session "canccu" stays with the project that has it: the only project so far becomes the
+# default before a second one is added
+existing=$(canccu_profiles)
+mkdir -p "$dir" || die "cannot create ${dir/#$HOME/\~}"
+if [ ! -s "$CANCCU_ROOT/default-project" ]; then
+  case $(grep -c . <<<"$existing") in
+    0) echo "$name" > "$CANCCU_ROOT/default-project" ;;
+    1) echo "$existing" > "$CANCCU_ROOT/default-project" ;;
+  esac
+fi
+printf '%s\n' "$cfg" > "$dir/config" || die "cannot write ${dir/#$HOME/\~}/config"
+render rules > "$dir/rules" || die "cannot write ${dir/#$HOME/\~}/rules"
+echo "wrote ${dir/#$HOME/\~}/config and rules (from $tname)"
+
+# the labels: listed once, each missing one created; the report says what gh did
+# shellcheck disable=SC2034  # read by the lib
+CANCCU_PROJECT=$name
+# shellcheck source=../lib/canccu-common.sh
+. "$here/lib/canccu-common.sh"
+if have=$(ghj label list -R "$REPO" -L 300 --json name | jqr '.[].name'); then
+  made="" failed=""
+  for l in $CANCCU_LABELS; do
+    grep -qx "$l" <<<"$have" && continue
+    if mut gh label create "$l" -R "$REPO" >/dev/null 2>&1; then made+=" $l"; log "label $l created (canccu-init)"
+    else failed+=" $l"; fi
+  done
+  [ -n "$made$failed" ] || echo "labels: all there already"
+  [ -z "$made" ] || echo "labels: created$made"
+  [ -z "$failed" ] || echo "labels: could not create$failed (canccu-dispatch tries again on its first run)"
+else
+  echo "labels: gh could not list the labels of $REPO; canccu-dispatch creates them on its first run"
+fi
+
+def=$(canccu_default_profile)
+bot=${REVIEWER_LOGIN:-"(REVIEWER_LOGIN: not set yet; set it in ${CANCCU_ROOT/#$HOME/\~}/config)"}
+gdir=${CANCCU_HOME/#$HOME/\~}/gh gtok=${CANCCU_HOME/#$HOME/\~}/gh-token
+[ -n "$CANCCU_GH_DIR" ] && gdir=${CANCCU_GH_DIR/#$HOME/\~}
+cat <<EOT
+
+Project '$name' ($REPO) is set up. Left to do by hand (canccu-init never changes rulesets,
+secrets, variables or collaborators):
+  1. Add the reviewer bot $bot as a collaborator with write access to $REPO (Settings →
+     Collaborators; the bot accepts the invite). A private repo needs a token with the repo scope
+     in ${REVIEWER_TOKEN_FILE/#$HOME/\~} (one token for all projects).
+  2. Set the repo variable REVIEWER_LOGIN to ${REVIEWER_LOGIN:-that login} (Settings → Secrets and variables →
+     Actions → Variables): the review-gate check reads it.
+  3. Copy the review-gate workflow and its script from a project that has them
+     (.github/workflows/review-gate.yml and the script it runs) into $REPO, through a PR.
+  4. Set the required checks (a ruleset on main): CI and ${REVIEW_CHECKS:-review-gate}; with a merge queue.
+  5. Clone the repo to $CLONE if it is not there, and review ${CANCCU_HOME/#$HOME/\~}/rules
+     (risky and gated paths, extra reviewer and worker text, AUTO_MERGE_UNTIL, one-at-a-time lock,
+     ADD_DIRS, the review-gate checks).
+  6. A narrow GitHub token for this project (without it the project runs on your default gh login
+     and canccu-status warns): github.com → Settings → Developer settings → Personal access
+     tokens → Fine-grained tokens → Generate new token. Resource owner: ${REPO%%/*} (a fine-grained
+     token reaches one owner: a project of another owner needs its own). Repository access: Only
+     select repositories → $REPO. Repository permissions, exactly:
+       Read and write: Contents, Issues, Pull requests, Workflows
+       Read-only:      Actions, Commit statuses, Metadata
+       No access:      everything else (no Administration, no Secrets)
+     Put it in a file outside every repo, mode 600, log gh in with it in this project's own config
+     dir, then delete the file:
+       install -m 600 /dev/null $gtok     # then paste the token into it
+       install -d -m 700 $gdir
+       GH_CONFIG_DIR=$gdir gh auth login --with-token --insecure-storage < $gtok
+       GH_CONFIG_DIR=$gdir gh api repos/$REPO -q .full_name    # prints $REPO
+       rm $gtok
+     (--insecure-storage keeps the token in that dir's hosts.yml, mode 600: a keyring entry is
+     per account, so two projects would overwrite each other's.) From then on every gh and git
+     call of this project, and of every run it starts, uses it; canccu-status shows TOKEN MISSING
+     or TOKEN CANNOT REACH $REPO when it does not work.
+  7. Start it: canccu-up --project $name   (tmux session $(canccu_session "$name"); the default project is ${def:-none})
+EOT

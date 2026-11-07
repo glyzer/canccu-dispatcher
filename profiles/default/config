@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# shellcheck shell=bash disable=SC2034
+# Project @NAME@: ~/.canccu/projects/@NAME@/config, written by canccu-init. Read after
+# lib/canccu-config.default, ~/.canccu/config and this project's rules; set here only what
+# differs. docs/canccu-dispatch.md, "Adding a project".
+REPO=@REPO@
+CLONE=$HOME/code/@REPO_NAME@
+DIGEST_ISSUE=               # a pinned "Daily digest" issue; empty: the digest is written, never posted
+# CAP=3                     # this project's runs at once (TOTAL_CAP in ~/.canccu/config caps all projects)
+# USER_LOGIN=                # your GitHub login (REVIEWER_LOGIN: the reviewer bot's); in ~/.canccu/config for every project
+# GH_CONFIG_DIR=$HOME/.canccu/projects/@NAME@/gh   # the default: this project's own gh login (canccu-init prints the steps)

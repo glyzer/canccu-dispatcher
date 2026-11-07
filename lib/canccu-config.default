@@ -1,0 +1,71 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# shellcheck shell=bash disable=SC2034
+# canccu-dispatch defaults, for every project. A canccu-* command reads this file, then
+# ~/.canccu/config (global: TOTAL_CAP, and a default for every project), then the project's
+# rules and last its config (~/.canccu/projects/<name>/{rules,config}): a key either of those
+# sets wins over the global one (a rules file may set every rules key). TOTAL_CAP is read from
+# ~/.canccu/config only. Keep ~/.canccu/config as a copy of this file with every value commented
+# out: uncomment and change only what you need. See docs/canccu-dispatch.md.
+#
+# Each project's config sets at least REPO and CLONE (canccu-init writes them).
+REPO=
+CLONE=
+CAP=3                       # workers + reviewers + answerers of this project running at once
+TOTAL_CAP=3                 # the same over all projects together (one Claude account); ~/.canccu/config only
+MODEL=                      # every run gets --model $MODEL; empty: no --model, the account default
+USER_LOGIN=                 # your GitHub login: whose PRs are ours, who is pinged; unset → the dispatcher does nothing
+REVIEWER_LOGIN=             # the reviewer bot's login: reviews post as it, only its verdicts count; unset → no reviews
+REVIEWER_TOKEN_FILE=$CANCCU_ROOT/reviewer-token   # its token, mode 600, one for all projects; no file → no reviews
+GH_CONFIG_DIR=               # the project's own gh login (a narrow token): empty → ~/.canccu/projects/<name>/gh when it exists, else the default gh login
+BUDGET_WORK="250 80 150"    # turns, USD, minutes: a new issue
+BUDGET_RESUME="80 20 45"    # a resumed worker (review fixes, plan OK, answers)
+BUDGET_REVIEW="60 15 40"    # the independent reviewer
+BUDGET_FIXCHECK="30 6 20"   # the fix-check after the worker fixed the review's findings
+BUDGET_ANSWER="40 10 20"    # the answerer of a worker's question
+ANSWER_MAX=3                # answerer rounds per issue, then needs-you
+STALL_MIN=10                # kill a run whose log is silent this long
+DIGEST_HOUR_UTC=6
+DIGEST_ISSUE=               # the pinned "Daily digest" issue; empty: the digest is written, never posted
+PING=on                     # on|off: @mention USER_LOGIN in a comment as REVIEWER_LOGIN when something needs them
+INTERVAL=60                 # seconds between passes
+CI_WAIT_MIN=90              # a finished worker's PR with CI still pending this long → needs-you
+NO_CHECKS_MIN=10            # a finished worker's PR with no CI check reported this long → needs-you
+MERGE_WAIT_MIN=240          # auto-merge armed this long without a merge → disarmed, needs-you
+POST_WAIT=600               # seconds a posted review may take to show up on GitHub
+# work packages per step (docs/canccu-dispatch.md, "Work packages per step")
+STEP_BUDGET=400             # USD per step: its planner, package, review, fix-check, answer and health runs
+BUDGET_PLAN="60 10 30"      # the planner of a step's wave
+BUDGET_HEALTH="250 60 150"  # the health pass at the end of a step
+BUDGET_PACKAGE_MAX="600 200 360"   # cap on a package's budget (work, resume, review times its issue count)
+PACKAGE_LINES=1500          # the planner's size guide: changed lines per package
+PACKAGE_MIN_ISSUES=1        # above 1: the planner aims for at least this many issues per package (where they fit together)
+PLAN_MODEL=                 # the planner's model; empty: MODEL
+# the usage throttle (shares of the Claude account's limits, from the rate-limit reports in the runs' output)
+USAGE_SLOW=60               # 5-hour share (%) from which one run at a time runs, over all projects
+USAGE_STOP=90               # … from which no run starts and running workers are nudged to stop
+USAGE_WEEKLY_DRAIN=90       # weekly share (%) from which nothing new starts; started work finishes
+
+# ---- rules: the project's rules file (~/.canccu/projects/<name>/rules) sets these. It lives
+# on this host, never in the repo, so a PR can never change its own gating.
+# risky paths (grep -iE on each changed path): a full review of a PR touching one runs at high effort
+RISKY_PATHS='^(\.github|deploy)/|migration|sign-?in|login|auth|rights|permission|session|secret|tenan|rls'
+# the same for a fix-check's fix diff: medium instead of low effort
+FIXCHECK_RISKY='(^|/)deploy/|sign-?in|login|auth|rights|permission|session|secret|tenan|(^|[/_.-])rls([/_.-]|$)|migrations?(/|_|\.|$)|\.sql$|schema'
+# gated paths (grep -E): a PR touching one waits for the user's accept. Agent configuration
+# (.claude/, .mcp.json, CLAUDE.md, AGENTS.md) is always gated on top of these.
+GATED_PATHS='^\.github/'
+SECURITY_REVIEW_WHEN='sign-in, rights, sessions, secrets, tenancy/RLS or deploy/'   # the reviewer also runs security-review when the diff touches these
+PLANNER_EXTRA=''            # the project's guidance for the planner, e.g. "aim for 2-4 issues per package"
+REVIEW_EXTRA=''             # more for the reviewer to check: "Check every acceptance criterion, <this>, and …"
+WORKER_EXTRA=''             # more worker prompt text, after "… CI is green."
+ANSWER_READ='AGENTS.md'     # what the answerer reads besides the issue and the PR
+ANSWER_READ_ALSO=''         # … and, after the PR, "and <this>"
+AUTO_MERGE_UNTIL=''         # optional YYYY-MM-DD: from this date every PR waits for the user's accept
+EXCLUSIVE_LABEL=''          # optional: issues with this label run one at a time
+EXCLUSIVE_PATTERN=''        # optional (grep -E): … and those whose body or plan matches this
+EXCLUSIVE_WORKER_RE=''      # optional (grep -iE): the run engine's own check on the issue's JSON
+ADD_DIRS=''                 # extra read-only dirs for workers (--add-dir), space-separated
+REVIEW_CHECKS="review-gate" # checks that wait for the review verdict: not required before the review
+HIGH_RISK_PATHS='^(\.github|deploy)/|migration|sign-?in|login|auth|rights|permission|session|secret|tenan|rls'   # grep -iE: a health pass touching one is high risk
+HIGH_RISK_TEXT='migrations, sign-in or auth, rights, sessions, secrets, tenancy/RLS, deploy/ or CI configuration'   # high-risk content, in words, for the planner and the reviewer
+PING_KINDS=all              # the ping kinds (PING=on): all, or some of accept checkpoint plan question needs-you pr-needs-you; empty: none

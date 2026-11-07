@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# shellcheck shell=bash disable=SC2034
+# Project @NAME@'s rules: ~/.canccu/projects/@NAME@/rules, written by canccu-init. Lives on
+# this host, never in the repo, so a PR can never change its own gating. A key left commented out
+# keeps its value from ~/.canccu/config, else from lib/canccu-config.default (shown here).
+# Uncomment and change what this project needs. docs/canccu-dispatch.md, "Rules".
+# risky paths (grep -iE): the full review runs at high effort
+# RISKY_PATHS='^(\.github|deploy)/|migration|sign-?in|login|auth|rights|permission|session|secret|tenan|rls'
+# … and the fix-check at medium effort
+# FIXCHECK_RISKY='(^|/)deploy/|sign-?in|login|auth|rights|permission|session|secret|tenan|(^|[/_.-])rls([/_.-]|$)|migrations?(/|_|\.|$)|\.sql$|schema'
+# gated paths (grep -E): the user's accept. Agent configuration is always gated on top.
+# GATED_PATHS='^\.github/'
+# the reviewer also runs the security-review skill when the diff touches these
+# SECURITY_REVIEW_WHEN='sign-in, rights, sessions, secrets, tenancy/RLS or deploy/'
+# the project's guidance for the planner of a step's work packages, e.g. "aim for 2-4 issues per package"
+# PLANNER_EXTRA=''
+# above 1: the planner aims for at least this many issues per package, where they fit together
+# PACKAGE_MIN_ISSUES=1
+# extra reviewer checks: "Check every acceptance criterion, <this>, and …"
+# REVIEW_EXTRA=''
+# extra worker prompt text
+# WORKER_EXTRA=''
+# what the answerer reads besides the issue and the PR
+# ANSWER_READ='AGENTS.md'
+# ANSWER_READ_ALSO=''
+# optional freeze date (YYYY-MM-DD): from it every PR waits for the user's accept
+# AUTO_MERGE_UNTIL=''
+# optional one-at-a-time lock: a label, a pattern on the body or plan, the engine's own check
+# EXCLUSIVE_LABEL=''
+# EXCLUSIVE_PATTERN=''
+# EXCLUSIVE_WORKER_RE=''
+# extra read-only dirs for workers (--add-dir)
+# ADD_DIRS=''
+# the review-gate checks (they wait for the review verdict themselves)
+# REVIEW_CHECKS="review-gate"
+# high risk. HIGH_RISK_PATHS: a health pass touching one is high risk (manual accept).
+# HIGH_RISK_TEXT: the planner gives such content its own, high-risk package (manual accept); the
+# reviewer raises a package's Risk: line for it
+# HIGH_RISK_PATHS='^(\.github|deploy)/|migration|sign-?in|login|auth|rights|permission|session|secret|tenan|rls'
+# HIGH_RISK_TEXT='migrations, sign-in or auth, rights, sessions, secrets, tenancy/RLS, deploy/ or CI configuration'
+# which states ping USER_LOGIN (PING=on): all, or some of accept checkpoint plan question
+# needs-you pr-needs-you. The rest stays in needs-you, the status and the monitor, unpinged.
+# PING_KINDS=all

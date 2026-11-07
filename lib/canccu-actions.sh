@@ -1,0 +1,195 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# shellcheck shell=bash disable=SC2034,SC2154  # globals are shared with the other lib/canccu-*.sh parts
+# Part of lib/canccu-common.sh (sourced by it, never run): actions: needs-you, resume, start, merge, accept, act on a verdict, labels.
+
+# ---------------------------------------------------------------- actions
+
+# comment_issue and edit_issue take a unit key too: they act on its lead issue
+comment_issue() { local l; l=$(lead_of "$1"); [ -n "$l" ] || return 0; mut gh issue comment "$l" -R "$REPO" --body "$(home_tilde "$2")"$'\n\n'"$CANCCU_MARK"; }
+# comment_issue_url <K> <body>: comment_issue, setting COMMENT_URL to the new comment's link (gh
+# prints it), or to nothing. Not run in $(…), so a dry run's "would:" line goes where mut's go;
+# gh's output goes to dispatch.log in the dispatcher, else to stderr.
+comment_issue_url() {
+  local l out rc; COMMENT_URL=""; l=$(lead_of "$1"); [ -n "$l" ] || return 0
+  if (( CANCCU_DRY )); then mut gh issue comment "$l" -R "$REPO" --body "$(home_tilde "$2")"$'\n\n'"$CANCCU_MARK"; return 0; fi
+  out=$(guard 60 gh issue comment "$l" -R "$REPO" --body "$(home_tilde "$2")"$'\n\n'"$CANCCU_MARK" 2>&1); rc=$?
+  mut_show "$out"
+  COMMENT_URL=$(grep -oE 'https://[^[:space:]]+#issuecomment-[0-9]+' <<<"$out" | tail -1)
+  return $rc
+}
+# issue_url <K> / pr_url <pr>: the links a needs-you item has in the snapshot; its_url <url>: " · <url>",
+# the end of the dispatcher's needs-you and awaiting-accept lines, or nothing without a link
+issue_url() { local l; l=$(lead_of "$1"); [ -n "$l" ] && echo "https://github.com/$REPO/issues/$l"; return 0; }
+pr_url() { echo "https://github.com/$REPO/pull/$1"; }
+its_url() { [ -n "${1:-}" ] && printf ' · %s' "$1"; return 0; }
+comment_pr() { mut gh pr comment "$1" -R "$REPO" --body "$(home_tilde "$2")"$'\n\n'"$CANCCU_MARK"; }
+edit_issue() { local n; n=$(lead_of "$1"); shift; [ -n "$n" ] || return 0; mut gh issue edit "$n" -R "$REPO" "$@"; }
+# edit_members <K> <gh issue edit args...>: the same on every issue of the unit
+edit_members() { local k=$1 m; shift; for m in $(members_of "$k"); do mut gh issue edit "$m" -R "$REPO" "$@"; done; }
+
+# needs_you <n> <reason> [message] [kind] [stage]: stop for the user. The kind (plan, question;
+# default needs-you) is kept as ny_kind for the status snapshot, the stage it parked at (work, ci,
+# no-checks, …; default: from its phase, pkg_stage) as ny_stage. ny_wait goes: check_pr sets
+# it again after a park that only waits on CI (ci_unpark).
+needs_you() {
+  local n=$1 reason=$2 msg=${3:-} body stg=${5:-}
+  # where it parked (the monitor's inbox shows it): the caller's stage (check_pr knows why it
+  # stopped), else the pipeline step before needs-you
+  [ -z "$stg" ] && [ -n "$(st_get "$n" phase)" ] && stg=$(pkg_stage "$n" 2>/dev/null)
+  case $stg in needs-you) stg=$(st_get "$n" ny_stage) ;; accept|merging) stg=merge ;; esac
+  body="**Needs you** (canccu-dispatch): $reason"
+  [ -n "$msg" ] && body+=$'\n\n'"$(quote 1500 "$msg")"
+  edit_issue "$n" --add-label needs-you
+  comment_issue "$n" "$body"
+  st_set "$n" phase=needs-you ny_at="$(now)" reason="$(oneline 200 "$reason")" ny_kind="${4:-}" ny_stage="$stg" ny_wait=
+  log "#$n needs-you: $reason$(its_url "$(issue_url "$n")")"
+}
+
+# resume <n> <message>: the issue's worker continues its session with the message. A PR armed
+# for auto-merge is disarmed first (armed), and `accepted` dropped: the worker is about to change it.
+resume() {
+  local n=$1 pr; pr=$(st_get "$n" pr)
+  step_run_held "$n" "the resumed worker" && return 1
+  if [ -n "$pr" ] && [ "$(st_get "$n" phase)" = merging ]; then
+    armed "$n" "$pr" && mut gh pr merge "$pr" -R "$REPO" --disable-auto
+    pr_has_label "$pr" accepted && mut gh pr edit "$pr" -R "$REPO" --remove-label accepted
+  fi
+  # workers never review: a resumed worker is told so as well
+  run_worker "$n" "$2 Do not review your own work; run the checks only." \
+    "$( [ -n "$(st_get "$n" pkg)" ] && pkg_budget "$BUDGET_RESUME" "$(unit_size "$n")" || echo "$BUDGET_RESUME")" || return 1
+  has_label "$n" needs-you && edit_issue "$n" --remove-label needs-you
+  log "#$n resumed: $(oneline 100 "$2")"
+}
+
+# start_issue <n> [extra]: claim and start a new worker; extra is appended to its prompt
+start_issue() {
+  local n=$1 title prompt c=0
+  title=$(title_of "$n")
+  [ -n "$title" ] || title=$(ghj issue view "$n" -R "$REPO" --json title | jqr .title)
+  # shellcheck disable=SC2059
+  printf -v prompt "$WORKER_PROMPT" "$REPO" "$n" "$n" "$n" "$n-$(slug "$title")" "${WORKER_EXTRA:+ $WORKER_EXTRA}"
+  [ -n "${2:-}" ] && prompt+=" The user adds: $2"
+  is_exclusive "$n" && c=1
+  run_worker "$n" "$prompt" "$BUDGET_WORK" || return 1
+  edit_issue "$n" --add-label in-progress --remove-label ready --add-assignee "$USER_LOGIN"
+  st_set "$n" exclusive=$c; new_cycle "$n"
+  log "#$n started: $title"
+}
+
+# merge_auto <n> <pr> <how> <head>: merge exactly that head. Where the repo allows auto-merge (or
+# the setting is unknown): arm it; a push in between fails it. Where it does not (the setting, or
+# --auto's "not allowed" error): merge_direct, now or on a later pass (merge_mode=direct).
+merge_auto() {
+  local n=$1 pr=$2 how=$3 head=$4
+  is_full_sha "$head" || { needs_you "$n" "the head of PR #$pr ($head) is not a full commit sha; not merged"; return 1; }
+  auto_merge_read
+  if [ "$AUTO_MERGE_ALLOWED" != false ]; then
+    if mut_out gh pr merge "$pr" -R "$REPO" --auto --match-head-commit "$head"; then
+      st_set "$n" phase=merging how="$how" merge_sha="$head" merge_at="$(now)" merge_mode=
+      log "#$n PR #$pr: auto-merge enabled ($how)"; return 0
+    fi
+    if ! grep -qiE 'auto.?merge is not allowed' <<<"$MUT_OUT"; then
+      needs_you "$n" "\`gh pr merge $pr --auto --match-head-commit ${head:0:7}\` failed; merge it by hand or check the merge queue"; return 1
+    fi
+    AUTO_MERGE_ALLOWED=false
+  fi
+  st_set "$n" phase=merging how="$how" merge_sha="$head" merge_at="$(now)" merge_mode=direct
+  merge_direct "$n" "$pr"
+}
+
+# armed <n> <pr>: auto-merge may be armed on the PR: the state says auto-merge (merge_mode empty),
+# or GitHub does, whatever merge_mode says (a stale one never keeps an unreviewed head armed)
+armed() { [ -z "$(st_get "$1" merge_mode)" ] || [ "$(pr_get "$2" '.autoMergeRequest != null')" = true ]; }
+# direct_ci <pr>: what a direct merge sees on the PR's head: ci_state, but pending while a
+# REVIEW_CHECKS check still runs there (a required review-gate would refuse the merge)
+direct_ci() { local c; c=$(ci_state "$1"); [ "$c" = green ] && review_checks_running "$1" && c=pending; echo "$c"; }
+
+# merge_direct <n> <pr>: without auto-merge, merge merge_sha with --squash --match-head-commit, but
+# only while it is the PR's head (a push: merging_step reviews again) and CI is green on it
+# (direct_ci; pending or none: wait; red: needs-you). merge_mode=merged after (merge_at: then):
+# the PR is still in this pass's list, and finish_unit logs the merge once the issue closes. 1
+# after a needs-you.
+merge_direct() {
+  local n=$1 pr=$2 sha; sha=$(st_get "$n" merge_sha)
+  is_full_sha "$sha" || { needs_you "$n" "the head of PR #$pr ($sha) is not a full commit sha; not merged"; return 1; }
+  [ "$(pr_get "$pr" .headRefOid)" = "$sha" ] || return 0
+  case $(direct_ci "$pr") in
+    green) ;;
+    red) needs_you "$n" "CI is red on PR #$pr at ${sha:0:7}; not merged"; return 1 ;;
+    *) return 0 ;;
+  esac
+  if ! mut gh pr merge "$pr" -R "$REPO" --squash --match-head-commit "$sha"; then
+    needs_you "$n" "\`gh pr merge $pr --squash --match-head-commit ${sha:0:7}\` failed; merge it by hand"; return 1
+  fi
+  st_set "$n" merge_mode=merged merge_at="$(now)"
+  log "#$n PR #$pr: merged directly ($(st_get "$n" how))"
+}
+
+# to_accept <n> <pr> <reason> <head>: wait for the user's accept of this head. An `accepted` label
+# from before (an older head, or not the user's) is removed first: it never counts for this one.
+to_accept() {
+  local n=$1 pr=$2 reason=$3 head=$4 ship
+  pr_has_label "$pr" accepted && mut gh pr edit "$pr" -R "$REPO" --remove-label accepted
+  # canccu-ship arms auto-merge: not offered in a repo without it
+  auto_merge_read; ship=", or \`canccu-ship $(lead_of "$n")\`"; [ "$AUTO_MERGE_ALLOWED" = false ] && ship=""
+  # armed by someone else (a worker acting as the user): a manual PR never merges on its own
+  [ "$(pr_get "$pr" '.autoMergeRequest != null')" = true ] && mut gh pr merge "$pr" -R "$REPO" --disable-auto
+  edit_issue "$n" --add-label awaiting-accept
+  comment_pr "$pr" "Review passed; this PR waits for your accept: ${reason#manual: }.
+Accept: add the label \`accepted\` to this PR$ship.
+Reject: comment here and label issue #$(lead_of "$n") \`needs-work\`."
+  st_set "$n" phase=accept accept_sha="$head" accept_at="$(now)" reason="$(oneline 200 "$reason")"
+  log "#$n PR #$pr: awaiting accept ($reason)$(its_url "$(pr_url "$pr")")"
+}
+
+# new_cycle <n>: a new start, an adoption, plan-ok or needs-work: the next review is a full one
+new_cycle() { st_set "$1" stage= reviewed_sha= review_maccept= review_risk=; }
+
+# act_verdict <n> <pr> <pr_detail json>. The flow is one full review, one fix by the worker, one
+# fix-check, then merge or the maintainer: no further loop. A `changes` from the full review
+# resumes the worker once with the findings (stage fixing; the next review is the fix-check of
+# reviewed_sha..head). A `changes` once the findings were given (from the fix-check, or a full
+# review started by hand meanwhile) → needs-you with the open items. The verdict counts as acted
+# on (verdict_at) only once the merge, the accept request or the resume has happened: a failed
+# step sees it again next pass.
+act_verdict() {
+  local n=$1 pr=$2 j=$3 v c head at stage what body
+  v=$(verdict_of "$j" "$(st_get "$n" verdict_at)"); head=$(jqr .headRefOid <<<"$j"); at=$(verdict_at "$j")
+  stage=$(st_get "$n" stage)
+  what=review; [ "$(st_get "$n" review_mode)" = fixcheck ] && what=fix-check
+  case $v in
+    pass)
+      c=$(classify "$pr" "$n")
+      log "#$n PR #$pr: $what pass · $c"
+      if [ "$c" = auto ]; then merge_auto "$n" "$pr" auto "$head" || return 0
+      else to_accept "$n" "$pr" "$c" "$head"; fi
+      st_set "$n" verdict_at="$at" ;;
+    changes)
+      body=$(verdict_body "$j")
+      case $stage in
+        fixing|fixcheck)
+          needs_you "$n" "the $what of PR #$pr still finds open items after the fix (one review, one fix, one fix-check: no further loop)" "$body"
+          st_set "$n" verdict_at="$at" ;;
+        *)
+          resume "$n" "The independent reviewer asked for changes on PR #$pr (full comment: gh pr view $pr -R $REPO --comments). This is your one fix round: fix every finding, rerun the checks, push once, and stop when CI is green. A narrow fix-check of your fix diff follows, then the merge or the maintainer. The review: $body" || return 0
+          if (( ! CANCCU_DRY )); then
+            mkdir -p "$CANCCU_HOME/reviews/$pr" && printf '%s\n' "$body" > "$(findings_file "$pr" "$head")" ||
+              log "#$n PR #$pr: cannot save the findings of ${head:0:7}"
+          fi
+          st_set "$n" stage=fixing reviewed_sha="$head" verdict_at="$at" review_maccept="$(oneline 200 "$(maintainer_accept_of "$j")")" \
+            review_risk="$(review_risk_of "$j")"
+          log "#$n PR #$pr: review changes; the worker fixes the findings of ${head:0:7}" ;;
+      esac ;;
+    *) needs_you "$n" "the $([ "$what" = fix-check ] && echo fix-check || echo reviewer) of PR #$pr left no review ending in \`Review verdict: pass|changes <head sha>\` (none posted as $REVIEWER_LOGIN)" "$(run_msg "review-$pr")" ;;
+  esac
+}
+
+# ensure_labels: the labels the dispatcher uses, created in REPO where missing
+CANCCU_LABELS="ready blocked in-progress epic needs-you plan-ok awaiting-accept needs-work accepted manual-accept checkpoint checkpoint-ok fast"
+ensure_labels() {
+  local have l
+  have=$(ghj label list -R "$REPO" -L 300 --json name | jqr '.[].name') || return 0
+  for l in $CANCCU_LABELS; do
+    if ! grep -qx "$l" <<<"$have"; then mut gh label create "$l" -R "$REPO" >/dev/null && log "label $l created"; fi
+  done
+}

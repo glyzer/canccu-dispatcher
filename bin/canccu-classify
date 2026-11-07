@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# canccu-classify [--project <name>] <pr> [repo] — the merge classifier: prints "auto" or "manual: <first reason>".
+# docs/canccu-dispatch.md, "Merge policy". Any gh error is manual.
+set -uo pipefail
+self=$(realpath "$0")
+# shellcheck source=../lib/canccu-common.sh
+. "$(dirname "$self")/../lib/canccu-common.sh"
+
+[[ ${1:-} =~ ^[0-9]+$ ]] || { echo "usage: canccu-classify [--project <name>] <pr> [repo]" >&2; exit 2; }
+classify "$1" "" "${2:-}"

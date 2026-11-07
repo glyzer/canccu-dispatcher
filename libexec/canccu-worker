@@ -1,0 +1,316 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# canccu-worker — the run engine: run one headless claude session in a repo, in its own tmux
+# window, and record how it ended. Only canccu-dispatch and friends call it, through
+# lib/canccu-common.sh; it refuses to run otherwise.
+#
+#   canccu-worker [--key K] [--dir D] [--name N] [--model M] [--untrusted] [--keep-session] [--quiet]
+#                 <repo> "<prompt>" turns=<n> cost=<usd> min=<n>
+#   canccu-worker --unlock <repo> <key>
+#   canccu-worker --kill <repo> <key>
+#
+# The key: --key K, else the issue number the prompt starts with ("12 do it" → 12). The session
+# id lives in $WORKERS_DIR/<repo>-<key>.id: a numeric key (an issue) and --keep-session resume it
+# on every later run; any other key starts fresh. At most WORKER_CAP runs go at once in total and
+# WORKER_REPO_CAP per repo. A numbered issue runs in its own git worktree,
+# $WORKERS_DIR/worktrees/<repo>/issue-<n>; --dir D runs in D, an existing worktree, instead (the
+# reviewer's, a package's); any other run is in the main clone, one at a time per repo. Two issues
+# whose JSON (title, body, labels) matches WORKER_EXCLUSIVE_RE never run at once in a repo.
+# A run with no log output for WORKER_STALL_MIN minutes (default 10) is killed and reported as stalled.
+# --kill     stop a running run: kills its whole process tree and window, clears the lock
+# --unlock   clear a stale lock (no process, no window)
+# --name N   tmux window name (default <repo>#<key>); --model M the model (default: none, the account's)
+# --untrusted  the checkout is not ours to trust (a PR under review, an answerer): claude runs with
+#          --setting-sources user --strict-mcp-config, so the checkout's .claude/ settings, hooks
+#          and .mcp.json servers never load. Passed to the run as an argument, never through the
+#          environment, so it cannot leak into later windows.
+# --keep-session  a non-numeric key keeps its session id, so its next run resumes it (a work package)
+# --quiet    accepted for the callers' sake: a run's report only ever goes to <repo>-<key>.last
+# turns= / cost= / min=  the run's budget, required: turns, USD (claude reports cost in USD), minutes
+# WORKER_ADD_DIRS  space-separated dirs passed as --add-dir
+# No run gets a GitHub token: GH_TOKEN, GITHUB_TOKEN (and the token-path variables) are unset in
+# every run, so claude uses a gh login from a config dir: the project's own
+# (GH_CONFIG_DIR, passed into the window with git's credential helper for it), else the user's.
+set -uo pipefail
+self=$(realpath "$0")
+LIB="$(dirname "$self")/../lib"
+# CANCCU_HOME is set only by lib/canccu-common.sh, which also derives WORKERS_DIR from it: a
+# WORKERS_DIR or TMUX_SESSION left in a tmux server's environment by another project is never used
+if [ -z "${CANCCU_HOME:-}" ] || [ "${WORKERS_DIR:-}" != "$CANCCU_HOME/workers" ] || [ -z "${CODE_ROOT:-}" ]; then
+  echo "canccu-worker: run it through the canccu-* commands (lib/canccu-common.sh sets CANCCU_HOME, WORKERS_DIR and CODE_ROOT)" >&2
+  exit 2
+fi
+# shellcheck source=../lib/canccu-engine.sh
+. "$LIB/canccu-engine.sh"
+
+usage() { sed -n '7,10s/^# \{0,1\}//p' "$self" >&2; exit 2; }
+
+# Appended to every worker's system prompt: the two ways a headless run hangs itself.
+WORKER_RULES='Never match your own command line: pgrep -f / pkill -f with text that appears in the same command matches its own shell and waits forever; use a pid or a pidfile. Never wait in an unbounded until/while loop; bound it (timeout 120 ...) so a stuck wait ends the call.'
+
+# ---------------------------------------------------------------- inner run (in the tmux window)
+
+# Globals, not locals: the EXIT/TERM traps fire after run() has returned.
+lock="" errf="" sumf="" stallf="" cpid="" wpid="" run_repo="" run_key="" spend_logged=""
+# spend_unknown: a run killed (canccu-stop, worker --kill) before its report still cost money: its
+# spend.log line has the cost "?" (the TERM trap; once, never after report wrote one)
+spend_unknown() {
+  [ -n "$run_key" ] && [ -z "$spend_logged" ] || return 0
+  spend_logged=1
+  printf '%s\t%s\t%s\t?\n' "$(date +%s)" "$run_repo" "$run_key" >> "$WORKERS_DIR/spend.log"
+}
+
+# run <repo> <key> <turns> <cost> <mins> <model> <prompt> <dir> [sources] [keep]
+run() {
+  local repo=$1 key=$2 turns=$3 cost=$4 mins=$5 model=$6 prompt=$7 dir=$8 sources=${9:-} keep=${10:-0}
+  local base="$WORKERS_DIR/$repo-$key" started=$SECONDS note="" sid stop="" rc=0
+  lock="$base.lock" errf="$WORKERS_DIR/.$repo-$key.err" sumf="$WORKERS_DIR/.$repo-$key.sum"
+  stallf="$WORKERS_DIR/.$repo-$key.stall" run_repo=$repo run_key=$key
+  # no credential reaches claude, whatever the tmux server's environment holds
+  unset GH_TOKEN GITHUB_TOKEN WORKER_GH_TOKEN_FILE REVIEWER_TOKEN_FILE
+  export WORKER_NUDGE_FILE="$base.nudge"   # libexec/canccu-nudge-hook: the dispatcher asks the run to stop at a safe point
+  sed -i -e "s/^pid=.*/pid=$$/" -e '/^pstart=/d' "$lock"
+  echo "pstart=$(proc_start $$)" >> "$lock"
+  trap '[ -n "$wpid" ] && kill "$wpid" 2>/dev/null; rm -f "$lock" "$errf" "$sumf" "$stallf"' EXIT
+  # the spend line first: kill_tree (canccu-stop, worker --kill) sends KILL 3 s after TERM
+  trap 'spend_unknown; [ -n "$cpid" ] && kill_tree "$cpid"; exit 143' TERM HUP INT
+  [[ $key =~ ^[0-9]+$ || $keep == 1 ]] || rm -f "$base.id"
+
+  # watchdog <pid>: when the log stops growing for WORKER_STALL_MIN minutes, flag it and kill the tree
+  watchdog() {
+    local pid=$1 limit=$(( ${WORKER_STALL_MIN:-10} * 60 )) m
+    while kill -0 "$pid" 2>/dev/null; do
+      sleep 30
+      m=$(stat -c %Y "$base.log" 2>/dev/null) || continue
+      (( $(date +%s) - m > limit )) && { : > "$stallf"; kill_tree "$pid"; return; }
+    done
+  }
+
+  attempt() {
+    local sargs prc d
+    if [ -s "$base.id" ]; then sid=$(<"$base.id"); sargs=(--resume "$sid")
+    else sid=$(new_uuid); echo "$sid" > "$base.id"; sargs=(--session-id "$sid"); fi
+    local args=(-p --output-format stream-json --verbose --permission-mode auto
+                --permission-prompts none --max-budget-usd "$cost" -n "$repo#$key" "${sargs[@]}"
+                --append-system-prompt "$WORKER_RULES")
+    [ -n "$model" ] && args+=(--model "$model")
+    if [ "$sources" = user ]; then args+=(--setting-sources user --strict-mcp-config)
+    # a worker hears the dispatcher's nudge (usage near the limit) after each tool call
+    else args+=(--settings "{\"hooks\":{\"PostToolUse\":[{\"matcher\":\"*\",\"hooks\":[{\"type\":\"command\",\"command\":\"$(dirname "$self")/canccu-nudge-hook\"}]}]}}"); fi
+    for d in ${WORKER_ADD_DIRS:-}; do args+=(--add-dir "$d"); done
+    printf '\n=== %s %s#%s "%s" %s %s · budget %st/$%s/%sm%s\n' "$(date '+%F %T')" "$repo" "$key" \
+      "$prompt" "${sargs[0]#--}" "$sid" "$turns" "$cost" "$mins" "${model:+ · $model}" >> "$base.log"
+    stop="" ; rm -f "$sumf" "$stallf"
+    exec 4< <(cd "$dir" && timed_exec "${mins}m" claude "${args[@]}" -- "$prompt" 2>"$errf")
+    cpid=$!
+    watchdog "$cpid" & wpid=$!
+    guard "$((mins + 2))m" python3 -I "$LIB/canccu-stream.py" "$base.log" "$sumf" "$turns" "$WORKERS_DIR/usage.json" <&4
+    prc=$?
+    exec 4<&-
+    (( prc == 3 )) && { stop=turns; kill "$cpid" 2>/dev/null; }
+    wait "$cpid"; rc=$?
+    kill "$wpid" 2>/dev/null; wpid=""
+    [ -e "$stallf" ] && stop=stalled
+    [ -s "$errf" ] && sed 's/^/stderr: /' "$errf" >> "$base.log"
+  }
+
+  attempt
+  if [ -z "$stop" ] && grep -q 'No conversation found' "$errf" 2>/dev/null; then
+    note="session $sid could not be resumed; started a fresh one (resume reads the handoff)"
+    echo "$note" >> "$base.log"; rm -f "$base.id"; attempt
+  fi
+
+  # --- classify the exit
+  sget() { guard 10 jq -r ".$1 // empty" "$sumf" 2>/dev/null; }
+  local status msg nturns spent="?" denials
+  nturns=$(sget turns); nturns=${nturns:-?}
+  if [ "$(sget have_result)" = true ]; then
+    nturns=$(sget num_turns); spent=$(sget cost); msg=$(sget message); denials=$(sget denials)
+    case $(sget subtype) in
+      success) [ "$(sget is_error)" = true ] && status="error" || status="done" ;;
+      *budget*) status="stopped: cost budget \$$cost" ;;
+      *max_turns*) status="stopped: turn limit" ;;
+      *) status="error: $(sget subtype)" ;;
+    esac
+    [ -n "$denials" ] && status="blocked" && msg+=$'\n\n'"Blocked by the permission classifier (run it yourself or widen the allow list, then send resume):"$'\n'"$denials"
+  elif [ "$stop" = turns ]; then
+    status="stopped: turn budget $turns"; msg=$(sget last_text)
+  elif [ "$stop" = stalled ]; then
+    status="stalled: no output for ${WORKER_STALL_MIN:-10}m, killed"; msg="$(sget last_text)"$'\n\n'"Likely a hung command; the last tool call is at the end of the log."
+  elif [ "$rc" = 124 ] || [ "$rc" = 137 ]; then
+    status="stopped: time budget ${mins}m"; msg=$(sget last_text)
+  else
+    status="crashed (exit $rc)"; msg="$(sget last_text)"$'\n\n'"$(tail -5 "$errf" 2>/dev/null)"
+  fi
+  [ -n "$note" ] && msg="($note)"$'\n\n'"$msg"
+
+  report "$repo" "$key" "$prompt" "$status" "$nturns" "$spent" "$((SECONDS - started))" "$msg"
+}
+
+# report <repo> <key> <prompt> <status> <turns> <cost> <secs> <message>: writes .last (the
+# dispatcher reaps it) and the run's spend.log line
+report() {
+  local repo=$1 key=$2 prompt=$3 status=$4 turns=$5 cost=$6 secs=$7 msg=$8
+  local base="$WORKERS_DIR/$repo-$key"
+  printf '%s#%s · "%s" · %s · %s turns · $%s · %dm%02ds\n\n%s\n' \
+    "$repo" "$key" "$prompt" "$status" "$turns" "$cost" $((secs / 60)) $((secs % 60)) "$msg" > "$base.last"
+  printf '=== exit: %s\n' "$(head -1 "$base.last")" >> "$base.log"
+  # one line per run for the dispatcher's spend of the day: the exact cost, or "?" when claude
+  # reported none (stopped at a turn or time budget, stalled, crashed: it still cost money)
+  [[ $cost =~ ^[0-9]+(\.[0-9]+)?$ ]] || cost="?"
+  spend_logged=1
+  printf '%s\t%s\t%s\t%s\n' "$(date +%s)" "$repo" "$key" "$cost" >> "$WORKERS_DIR/spend.log"
+}
+
+# ---------------------------------------------------------------- --unlock
+
+unlock() {
+  local dir repo key lock
+  dir=$(resolve_repo "${1:-}") || exit 1; repo=$(basename "$dir"); key=${2:?usage: canccu-worker --unlock <repo> <key>}
+  lock=$(lock_path "$repo" "$key")
+  [ -e "$lock" ] || die "no lock for $repo#$key"
+  lock_alive "$lock" && die "$repo#$key is still running (window $(lock_get "$lock" window), pid $(lock_get "$lock" pid))"
+  rm -f "$lock" && echo "unlocked $repo#$key"
+}
+
+# canccu-worker --kill <repo> <key>: only what the lock still matches: a pid with the recorded
+# start time whose command line is this engine's run (`__run … <key>`), and a window with the
+# recorded id, session and name; never a reused pid or window id. When something lives but
+# nothing matched, the lock stays and --kill fails, so no second session starts on the issue.
+owns_pid() {   # owns_pid <pid> <key>
+  local args; args=$(tr '\0' '\n' < "/proc/$1/cmdline" 2>/dev/null) || return 1
+  grep -qxF -- "$2" <<<"$args" && grep -qx __run <<<"$args"
+}
+killw() {
+  local dir repo key lock pid win alive=0 killed=0
+  dir=$(resolve_repo "${1:-}") || exit 1; repo=$(basename "$dir"); key=${2:?usage: canccu-worker --kill <repo> <key>}
+  lock=$(lock_path "$repo" "$key")
+  [ -e "$lock" ] || die "no lock for $repo#$key"
+  pid=$(lock_get "$lock" pid); win=$(lock_get "$lock" window)
+  if lock_pid_alive "$lock"; then
+    alive=1
+    if owns_pid "$pid" "$key"; then kill_tree "$pid"; killed=1
+    else echo "pid $pid is not $repo#$key's run any more; not killed" >&2; fi
+  fi
+  if lock_window_alive "$lock"; then alive=1; tmux kill-window -t "$win" 2>/dev/null && killed=1; fi
+  (( alive && ! killed )) && die "nothing of $repo#$key was killed; lock kept ($lock)"
+  rm -f "$lock" "$WORKERS_DIR/.$repo-$key."{err,sum,stall}
+  echo "killed $repo#$key"
+}
+
+# ---------------------------------------------------------------- spawn
+
+[ "${1:-}" = __run ] && { shift; run "$@"; exit; }
+o_key="" o_dir="" o_name="" o_model="" sources="" keep=""
+while [[ ${1:-} == --* ]]; do
+  case $1 in
+    --quiet) ;; --untrusted) sources=user ;; --keep-session) keep=1 ;;
+    --key|--dir|--name|--model)
+      [ -n "${2:-}" ] || die "$1 needs a value"
+      printf -v "o_${1#--}" '%s' "$2"; shift ;;
+    --unlock) shift; unlock "$@"; exit ;;
+    --kill) shift; killw "$@"; exit ;;
+    --help) usage ;; *) die "unknown flag $1" ;;
+  esac
+  shift
+done
+(( $# >= 2 )) || usage
+dir=$(resolve_repo "$1") || exit 1; repo=$(basename "$dir"); shift
+read -ra tok <<<"$*"
+
+# the budget: the trailing turns=, cost= and min= words, all three required
+model=$o_model turns="" cost="" mins=""
+while (( ${#tok[@]} > 1 )); do
+  case ${tok[-1]} in
+    turns=*) turns=${tok[-1]#turns=} ;;
+    cost=*) cost=${tok[-1]#cost=} ;;
+    min=*) mins=${tok[-1]#min=} ;;
+    *) break ;;
+  esac
+  unset 'tok[-1]'
+done
+[[ $turns =~ ^[0-9]+$ && $mins =~ ^[0-9]+$ && $cost =~ ^[0-9]+(\.[0-9]+)?$ ]] ||
+  { echo "canccu-worker: the prompt must end in turns=<n> cost=<usd> min=<n>" >&2; exit 2; }
+prompt="${tok[*]}"
+
+# the key: --key, else the issue number the prompt starts with ("12 do it", "12: do it"); never
+# a number from free text
+key=""
+[[ ${tok[0]} =~ ^([0-9]+)[[:punct:]]*$ ]] && key=${BASH_REMATCH[1]}
+if [ -n "$o_key" ]; then
+  [[ $o_key =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ ]] || die "bad --key $o_key"
+  key=$o_key
+fi
+[ -n "$key" ] || die "no key: give --key, or start the prompt with the issue number"
+
+[ -n "${TMUX_SESSION:-}" ] || die "TMUX_SESSION is not set"
+name=${o_name:-$repo#$key} lock=$(lock_path "$repo" "$key")
+numeric=0; [[ $key =~ ^[0-9]+$ ]] && numeric=1
+# isolated: runs in its own worktree (an issue, or --dir), so it never excludes other isolated runs
+isolated=$numeric; [ -n "$o_dir" ] && isolated=1
+# no run gets a GitHub credential or the path to one, and none reaches tmux's environment
+unset GH_TOKEN GITHUB_TOKEN WORKER_GH_TOKEN_FILE REVIEWER_TOKEN_FILE
+
+# is the issue one of the one-at-a-time kind? (its title, body or labels match WORKER_EXCLUSIVE_RE)
+exclusive=0
+if (( numeric )) && [ -n "$WORKER_EXCLUSIVE_RE" ]; then
+  issue_json=$(cd "$dir" && guard 20 gh issue view "$key" --json title,body,labels 2>/dev/null) || issue_json=""
+  grep -qiE "$WORKER_EXCLUSIVE_RE" <<<"$issue_json" && exclusive=1
+fi
+
+# checks and lock creation happen under one flock so two spawns can't race past the caps
+exec 9>"$WORKERS_DIR/.spawn"; flock 9
+if [ -e "$lock" ]; then
+  lock_alive "$lock" && { echo "refused: $name is running (tmux $TMUX_SESSION:$name) — wait for its report" >&2; exit 2; }
+  echo "refused: stale lock for $name (no process, no window) — check, then: canccu-worker --unlock $repo $key" >&2; exit 2
+fi
+running=() inrepo=()
+for l in "$WORKERS_DIR"/*.lock; do
+  [ -e "$l" ] || continue
+  r=$(lock_get "$l" repo) k=$(lock_get "$l" key)
+  li=0; { [[ $k =~ ^[0-9]+$ ]] || [ "$(lock_get "$l" isolated)" = 1 ]; } && li=1
+  if [ "$r" = "$repo" ]; then
+    if ! lock_alive "$l"; then
+      (( isolated && li )) && continue   # another isolated run's stale lock doesn't block this one
+      echo "refused: stale lock $r#$k in $repo — check, then: canccu-worker --unlock $r $k" >&2; exit 2
+    fi
+    # the main clone is single-user: two runs there exclude each other
+    if (( ! isolated && ! li )); then
+      echo "refused: $repo already has $r#$k running in the main clone — wait for its report" >&2; exit 2
+    fi
+    if (( numeric )) && [ "$(lock_get "$l" exclusive)" = 1 ] && (( exclusive )); then
+      echo "refused: $name and $r#$k both match WORKER_EXCLUSIVE_RE — one at a time per repo; wait for $r#$k" >&2; exit 2
+    fi
+    [ "$(lock_get "$l" kind)" = worker ] && inrepo+=("$r#$k")
+  fi
+  [ "$(lock_get "$l" kind)" = worker ] && lock_alive "$l" && running+=("$r#$k")
+done
+(( ${#inrepo[@]} >= WORKER_REPO_CAP )) && { echo "refused: $repo already has $WORKER_REPO_CAP workers — running: ${inrepo[*]}" >&2; exit 2; }
+(( ${#running[@]} >= WORKER_CAP )) && { echo "refused: cap of $WORKER_CAP reached — running: ${running[*]}" >&2; exit 2; }
+
+# a numbered issue gets its own worktree, created on first use and reused by later runs
+if [ -n "$o_dir" ]; then
+  [ -d "$o_dir" ] || die "no such dir $o_dir"
+  dir=$(realpath "$o_dir")
+elif (( numeric )); then
+  wt="$WORKERS_DIR/worktrees/$repo/issue-$key"
+  if [ ! -e "$wt/.git" ]; then
+    git -C "$dir" worktree prune
+    git -C "$dir" fetch -q origin 2>/dev/null
+    base_ref=$(git -C "$dir" rev-parse -q --verify origin/HEAD || git -C "$dir" rev-parse HEAD)
+    mkdir -p "$(dirname "$wt")"
+    git -C "$dir" worktree add -q --detach "$wt" "$base_ref" || die "could not create worktree $wt"
+  fi
+  dir=$wt
+fi
+
+printf 'repo=%s\nkey=%s\nkind=worker\npid=\nwindow=\nsession=%s\nwname=%s\nword=%s\nstarted=%s\n' \
+  "$repo" "$key" "$TMUX_SESSION" "$name" "$prompt" "$(date +%s)" > "$lock"
+printf 'exclusive=%s\nisolated=%s\n' "$exclusive" "$isolated" >> "$lock"
+win=$(tmux_window "$name" "$dir" "$self" __run "$repo" "$key" "$turns" "$cost" "$mins" \
+        "$model" "$prompt" "$dir" "$sources" ${keep:+"$keep"}) || { rm -f "$lock"; die "tmux failed to open a window"; }
+sed -i "s/^window=.*/window=$win/" "$lock"
+flock -u 9
+
+echo "→ $name started: \"$prompt\" · budget ${turns} turns / \$$cost / ${mins}m${model:+ · $model} · tmux $TMUX_SESSION:$name"
+echo "  log ${WORKERS_DIR/#$HOME/\~}/$repo-$key.log"
