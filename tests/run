@@ -137,17 +137,24 @@ run_part() {
 # once starves the biggest one until it times out
 queue=()
 (( ${#lint[@]} )) && queue+=(lint)
-while IFS= read -r p; do queue+=("${p#* }"); done < <(
-  for p in "${parts[@]}"; do
-    if [ -f "$p" ]; then echo "$(wc -c < "$p") $p"; else echo "0 $p"; fi
-  done | sort -rn)
+# a command substitution, not a process substitution: no child of it is left for wait -n
+sorted=$(for p in "${parts[@]}"; do
+  if [ -f "$p" ]; then echo "$(wc -c < "$p") $p"; else echo "0 $p"; fi
+done | sort -rn)
+while IFS= read -r p; do [ -n "$p" ] && queue+=("${p#* }"); done <<<"$sorted"
 jobs_max=${CANCCU_TEST_JOBS:-$(nproc 2>/dev/null || echo 2)}
 [[ $jobs_max =~ ^[1-9][0-9]*$ ]] || jobs_max=2
 rc=0
 declare -A name=()
 finish_one() {
-  local r=0 pid
-  wait -n -p pid || r=$?
+  local r pid
+  # only a part's own pid frees a slot: wait -n may report another child (a newer bash reports
+  # process substitutions too), which would let two parts run at once
+  while :; do
+    r=0; pid=""; wait -n -p pid || r=$?
+    [ -n "$pid" ] && [ -n "${name[$pid]+x}" ] && break
+    (( r == 127 )) && { echo "tests/run: lost track of ${name[*]}"; rc=1; name=(); return 0; }
+  done
   cat "$logs/.$(tr '/' '_' <<<"${name[$pid]}").out"; unset "name[$pid]"
   (( r )) && rc=1
   return 0
