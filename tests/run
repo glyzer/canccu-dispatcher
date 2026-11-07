@@ -1,0 +1,168 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# tests/run — the local check, whole or in part, with short output: one summary line per part
+# and only the failing checks (a test run's whole output in a worker's context is what costs).
+#   tests/run                     everything, in parallel: lint every shell file, every
+#                                 tests/*.sh (the leak check too), the monitor's self-test
+#   tests/run <arg>...            only these parts. An arg is a test file (tests/x.sh), "monitor",
+#                                 "lint", a source file (lint it when it is shell, and run the
+#                                 test files that cover it), or a pattern: tests/*<pattern>*.sh
+#   tests/run --affected          the files changed against origin/main, as source files
+#   tests/run --list ...          print what it would run, run nothing
+# The full output of each part goes to a log file in CANCCU_TEST_LOGS (default: a new temp dir),
+# named at the end. Exit 1 when a part fails, 2 on a usage error.
+set -uo pipefail
+caller=$PWD
+root=$(cd "$(dirname "$0")/.." && pwd) || exit 2
+cd "$root" || exit 2
+
+# tests_for <file>: the test files (and "monitor") that cover a source file; "all" for the harness
+tests_for() {
+  case $1 in
+    tests/lib/*|tests/fixtures/rules/*) echo all ;;
+    tests/run) echo tests/canccu-cost.sh ;;
+    tests/fixtures/compat/*) echo tests/canccu-compat.sh ;;
+    tests/leak-check.sh) echo tests/leak.sh tests/leak-check.sh ;;
+    tests/*.sh) [ -e "$1" ] && echo "$1" ;;   # a deleted test file is not run
+    tests/fixtures/monitor/*|lib/canccu-monitor.py|lib/canccu_monitor/*|bin/canccu-monitor|lib/canccu-monitor.requirements.txt)
+      echo monitor tests/canccu-pane.sh tests/canccu-snapshot2.sh ;;
+    tests/fixtures/plans/*|lib/canccu-plan.jq|lib/canccu-planner.sh|lib/canccu-steps.sh)
+      echo tests/canccu-steps.sh tests/canccu-steps2.sh ;;
+    lib/canccu-snapshot-steps.sh) echo tests/canccu-snapshot2.sh tests/canccu-steps.sh ;;
+    lib/canccu-snapshot.sh) echo tests/canccu-snapshot2.sh tests/canccu-pane.sh ;;
+    lib/canccu-usage.sh|lib/canccu-stream.py|libexec/canccu-nudge-hook) echo tests/canccu-usage.sh ;;
+    libexec/canccu-worker|lib/canccu-engine.sh)
+      echo tests/canccu-engine.sh tests/canccu-units.sh tests/canccu-usage.sh tests/canccu-pane.sh ;;
+    lib/canccu-units.sh|lib/canccu-packages.sh) echo tests/canccu-units.sh tests/canccu-cost.sh tests/canccu-health-review.sh ;;
+    lib/canccu-ping.sh) echo tests/canccu-pings.sh tests/canccu-steps2.sh ;;
+    lib/canccu-runs.sh|lib/canccu-answer.sh|lib/canccu-github.sh|lib/canccu-merge.sh|lib/canccu-pipeline.sh|lib/canccu-actions.sh|lib/canccu-queue.sh)
+      echo tests/canccu-dispatch.sh tests/canccu-review.sh tests/canccu-cost.sh tests/canccu-health-review.sh tests/canccu-config.sh tests/canccu-compat.sh ;;
+    lib/canccu-*|bin/canccu-*|profiles/*)
+      echo tests/canccu-dispatch.sh tests/canccu-projects.sh tests/canccu-config.sh tests/canccu-cost.sh tests/canccu-compat.sh ;;
+    .github/*|REUSE.toml|.file-size-exemptions|README.md|.gitignore) echo tests/canccu-repo.sh ;;
+    *) ;;   # docs and the like: no test
+  esac
+}
+
+# is_shell <file>: a shell file: *.sh, a sh/bash shebang, or a `# shellcheck shell=` directive
+# in its first two lines (the sourced config and rules files, after their SPDX line)
+is_shell() {
+  [ -f "$1" ] || return 1
+  case $1 in *.sh) return 0 ;; *.py|*.jq|*.json|*.md|*.txt|*.yml) return 1 ;; esac
+  head -n2 "$1" 2>/dev/null | grep -qE '^#!.*[/ ](ba)?sh([[:space:]]|$)|^# shellcheck shell='
+}
+all_shell() {
+  local f
+  for f in bin/* libexec/* lib/* profiles/*/* tests/*.sh tests/lib/*.sh tests/run tests/fixtures/rules/*; do
+    is_shell "$f" && echo "$f"
+  done
+}
+
+list=0 affected=0 args=()
+for a; do
+  case $a in --list) list=1 ;; --affected) affected=1 ;; -*) echo "tests/run: unknown flag $a" >&2; exit 2 ;; *) args+=("$a") ;; esac
+done
+
+declare -A seen=()
+lint=() parts=()
+add() { [ -n "${seen[$1]+x}" ] && return; seen[$1]=1; parts+=("$1"); }
+addall() { local t; for t in tests/*.sh; do add "$t"; done; add monitor; }
+source_file() {   # source_file <path relative to root>
+  local t
+  is_shell "$1" && lint+=("$1")
+  for t in $(tests_for "$1"); do if [ "$t" = all ]; then addall; else add "$t"; fi; done
+}
+
+if (( affected )); then
+  base=$(git merge-base origin/main HEAD) || { echo "tests/run: no origin/main to compare with" >&2; exit 2; }
+  while IFS= read -r f; do source_file "$f"; done < <({ git diff --name-only --diff-filter=d "$base"; git ls-files --others --exclude-standard; } | sort -u)
+elif (( ${#args[@]} == 0 )); then
+  mapfile -t lint < <(all_shell); addall
+fi
+for a in "${args[@]}"; do
+  case $a in
+    monitor) add monitor; continue ;;
+    lint) mapfile -t lint < <(all_shell); continue ;;
+  esac
+  f=$a; [[ $f == /* ]] || f=$caller/$f
+  if [ -e "$f" ]; then
+    f=$(realpath -m --relative-to="$root" -- "$f")
+    case $f in ..|../*) echo "tests/run: not in this repo: $a" >&2; exit 2 ;; esac
+    source_file "$f"
+    continue
+  fi
+  m=0
+  for t in tests/*"$a"*.sh; do [ -e "$t" ] && { add "$t"; m=1; }; done
+  (( m )) || { echo "tests/run: no test file matches '$a'" >&2; exit 2; }
+done
+
+if (( list )); then
+  ((${#lint[@]})) && echo "lint: ${lint[*]}"
+  ((${#parts[@]})) && printf '%s\n' "${parts[@]}"
+  exit 0
+fi
+((${#lint[@]} + ${#parts[@]})) || { echo "tests/run: nothing to run"; exit 0; }
+
+logs=${CANCCU_TEST_LOGS:-$(mktemp -d)}; mkdir -p "$logs" || exit 2
+# run_part <part>: its output to its log; prints the summary line and the failing checks
+run_part() {
+  local p=$1 log rc
+  log=$logs/$(tr '/' '_' <<<"$p").log
+  case $p in
+    lint)
+      rc=0
+      for f in "${lint[@]}"; do bash -n "$f" || rc=1; done > "$log" 2>&1
+      # the test files read the harness's globals (SC2154, SC2034): following their sources (-x)
+      # would mean the whole lib through the harness, many times over, so they are linted without
+      # those checks instead; their fakes take "done" as a word (SC1010) and assert on $? (SC2319)
+      local src=() tst=()
+      for f in "${lint[@]}"; do case $f in tests/*) tst+=("$f") ;; *) src+=("$f") ;; esac; done
+      (( ${#src[@]} )) && { shellcheck -S warning -x "${src[@]}" >> "$log" 2>&1 || rc=1; }
+      (( ${#tst[@]} )) && { shellcheck -S warning -e SC2154,SC2034,SC1010,SC2319 "${tst[@]}" >> "$log" 2>&1 || rc=1; } ;;
+    monitor) bin/canccu-monitor --self-test > "$log" 2>&1; rc=$? ;;
+    *) timeout -k 10s 8m bash "$p" > "$log" 2>&1; rc=$? ;;
+  esac
+  if [ "$p" = lint ]; then
+    (( rc )) && grep -E '^In |SC[0-9]{4}|syntax error' "$log" | head -20
+    echo "lint: $( ((rc)) && echo FAILED || echo ok) · ${#lint[@]} file(s)"
+  else
+    (( rc )) && grep -A3 -E '^FAIL' "$log" | grep -E '^(FAIL|    )' | head -20
+    echo "$p: $( ((rc)) && echo FAILED || echo ok) · $(tail -n1 "$log")$( ((rc == 124 || rc == 137)) && echo ' (timed out)')"
+  fi
+  return $rc
+}
+
+# the parts run biggest first (a test file's size stands for its run time), at most
+# CANCCU_TEST_JOBS at once (default: the CPU count): on a small CI runner, starting them all at
+# once starves the biggest one until it times out
+queue=()
+(( ${#lint[@]} )) && queue+=(lint)
+# a command substitution, not a process substitution: no child of it is left for wait -n
+sorted=$(for p in "${parts[@]}"; do
+  if [ -f "$p" ]; then echo "$(wc -c < "$p") $p"; else echo "0 $p"; fi
+done | sort -rn)
+while IFS= read -r p; do [ -n "$p" ] && queue+=("${p#* }"); done <<<"$sorted"
+jobs_max=${CANCCU_TEST_JOBS:-$(nproc 2>/dev/null || echo 2)}
+[[ $jobs_max =~ ^[1-9][0-9]*$ ]] || jobs_max=2
+rc=0
+declare -A name=()
+finish_one() {
+  local r pid
+  # only a part's own pid frees a slot: wait -n may report another child (a newer bash reports
+  # process substitutions too), which would let two parts run at once
+  while :; do
+    r=0; pid=""; wait -n -p pid || r=$?
+    [ -n "$pid" ] && [ -n "${name[$pid]+x}" ] && break
+    (( r == 127 )) && { echo "tests/run: lost track of ${name[*]}"; rc=1; name=(); return 0; }
+  done
+  cat "$logs/.$(tr '/' '_' <<<"${name[$pid]}").out"; unset "name[$pid]"
+  (( r )) && rc=1
+  return 0
+}
+for p in "${queue[@]}"; do
+  (( ${#name[@]} >= jobs_max )) && finish_one
+  run_part "$p" > "$logs/.$(tr '/' '_' <<<"$p").out" 2>&1 & name[$!]=$p
+done
+while (( ${#name[@]} )); do finish_one; done
+echo "full logs: $logs"
+exit $rc

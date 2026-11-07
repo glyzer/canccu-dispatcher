@@ -1,0 +1,220 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# canccu-dispatch — the issue dispatcher: worker → independent review → auto-merge (docs/canccu-dispatch.md).
+#
+#   canccu-dispatch            the loop: one pass every INTERVAL seconds (one instance per project)
+#   canccu-dispatch --once     one pass
+#   canccu-dispatch --dry-run  the runnable queue, every open PR's classification and what one pass
+#                          would do; writes nothing (no labels, comments, merges, state or log)
+#   --project <name> first picks the project (else CANCCU_PROJECT, ~/.canccu/default-project, the only one)
+set -uo pipefail
+self=$(realpath "$0")
+# shellcheck source=../lib/canccu-common.sh
+. "$(dirname "$self")/../lib/canccu-common.sh"
+# shellcheck source=../lib/canccu-snapshot.sh
+. "$(dirname "$self")/../lib/canccu-snapshot.sh"
+# shellcheck source=../lib/canccu-pipeline.sh
+. "$(dirname "$self")/../lib/canccu-pipeline.sh"
+# shellcheck source=../lib/canccu-merge.sh
+. "$(dirname "$self")/../lib/canccu-merge.sh"
+
+usage() { sed -n '3,8s/^# \{0,1\}//p' "$self" >&2; exit 2; }
+
+# ---------------------------------------------------------------- 7. digest
+
+main_ci() {
+  local j; j=$(ghj run list -R "$REPO" -b main -L 20 --json headSha,status,conclusion,workflowName) || { echo "unknown (gh error)"; return; }
+  jqr '(.[0].headSha // "") as $s | [.[] | select(.headSha == $s)]
+    | [.[] | select(.conclusion | IN("failure", "timed_out", "cancelled", "startup_failure")) | .workflowName] as $bad
+    | if length == 0 then "no runs" elif ($bad | length) > 0 then "red (\($bad | join(", ")))"
+      elif any(.[]; .status != "completed") then "running" else "green" end' <<<"$j"
+}
+
+running_list() {
+  local k s
+  while read -r k s; do
+    echo "- $(run_label "$k") · $(ago "${s:-$(now)}")"
+  done < <(live_runs)
+}
+
+digest() {
+  local t h f merges answered awaiting ny ci running m active=0 steps notes
+  t=$(date -u -d "@$(now)" +%F); h=$(date -u -d "@$(now)" +%-H)
+  (( h >= DIGEST_HOUR_UTC )) || return 0
+  f="$CANCCU_HOME/digest/$t.md"; [ -e "$f" ] && return 0
+  answered=$(awk -F '\t' -v since=$(( $(now) - 86400 )) '$1 >= since { printf "- #%s %s · %s\n", $2, $4, $3 }' \
+             "$CANCCU_HOME/answers.log" 2>/dev/null)
+  merges=$(awk -F '\t' -v since=$(( $(now) - 86400 )) '$1 >= since { printf "- #%s %s · PR #%s · %s\n", $2, $5, $3, $4 }' \
+             "$CANCCU_HOME/merged.log" 2>/dev/null)
+  awaiting=$(for m in $(managed); do [ "$(st_get "$m" phase)" = accept ] && echo "- #$m · PR #$(st_get "$m" pr) · $(st_get "$m" reason)"; done)
+  ny=$(jqr '.[] | select(any(.labels[]; .name == "needs-you")) | "- #\(.number) \(.title)"' <<<"$ISSUES")
+  ci=$(main_ci); running=$(running_list)
+  steps=$(digest_steps); notes=$(digest_notes)
+  [ -n "$merges$answered$awaiting$ny$running$notes" ] || [[ $ci == red* ]] && active=1
+  if (( CANCCU_DRY )); then
+    echo "  would: write $f$( (( active )) && if [ -n "$DIGEST_ISSUE" ]; then echo " and comment on #$DIGEST_ISSUE"; else echo " (DIGEST_ISSUE is empty: not posted)"; fi)"
+    return 0
+  fi
+  mkdir -p "${f%/*}"
+  printf '## Daily digest %s\n\n**Merged in the last 24 h**\n%s\n\n**Questions answered by the answerer** (overrule on the issue)\n%s\n\n**Awaiting your accept** (label the PR `accepted`, or `canccu-ship <n>`)\n%s\n\n**Needs you**\n%s\n\n**CI on main:** %s\n\n**Running**\n%s\n\n**Steps**\n%s\n\n**Notes for the lead** (from package PRs, last 24 h; sort them into issues or the plan)\n%s\n\n%s\n' \
+    "$t" "${merges:-none}" "${answered:-none}" "${awaiting:-none}" "${ny:-none}" "$ci" "${running:-none}" "${steps:-none}" "${notes:-none}" "$CANCCU_MARK" |
+    home_tilde_stream > "$f"
+  if (( ! active )); then log "digest written, no activity: no comment"
+  elif [ -z "$DIGEST_ISSUE" ]; then log "digest written; DIGEST_ISSUE is empty: not posted"
+  elif mut gh issue comment "$DIGEST_ISSUE" -R "$REPO" --body-file "$f"; then log "digest posted on #$DIGEST_ISSUE"
+  else
+    # the file marks the day as done: without it the next pass writes and posts again
+    rm -f "$f"; log "digest: posting on #$DIGEST_ISSUE failed; retrying next pass"
+  fi
+}
+
+# ---------------------------------------------------------------- one pass
+
+pass() {
+  local n m go cred open=() closed=()
+  USAGE_NOW=$(usage_read)   # one usage reading for the whole pass
+  # a test stands for a pass that dies half-way (an unbound variable, a die in a helper)
+  [ -n "${CANCCU_TEST_PASS_DIES:-}" ] && exit 3
+  # the project's own credential first: without it this project does nothing (logged once, in
+  # the snapshot and canccu-status); the other projects' dispatchers keep running
+  cred=$(gh_credential_problem)
+  if [ -n "$cred" ]; then
+    warn_once credential "$cred: project $CANCCU_PROJECT does nothing until it works (canccu-status shows it; canccu-init prints how to set the token up)"
+    write_status "$cred"; return 1
+  fi
+  (( CANCCU_DRY )) || rm -f "$CANCCU_HOME/.warned-credential"
+  cred=$(login_problem)
+  if [ -n "$cred" ]; then
+    warn_once user-login "$cred: project $CANCCU_PROJECT does nothing until it is set"
+    write_status "$cred"; return 1
+  fi
+  (( CANCCU_DRY )) || rm -f "$CANCCU_HOME/.warned-user-login"
+  fetch || { log "gh error reading issues or PRs; skipping this pass"; write_status "gh error reading issues or PRs"; return 1; }
+  usage_tick
+  if fetch_steps; then (( CANCCU_DRY )) || rm -f "$CANCCU_HOME/.warned-steps"
+  else warn_once steps "gh error reading the milestones: no step acts this pass (the fast lane and the runs go on)"; fi
+  adopt
+  # pings first: the labels just read and the state the last pass left are of the same moment
+  ping_tick
+  # an issue whose blockers all closed (by any means) is ready before anything starts or plans
+  unblock_tick
+  for n in $(managed); do if is_open "$n"; then open+=("$n"); else closed+=("$n"); fi; done
+  # 2. reap finished workers and reviewers; PRs waiting for CI or a slot get their review
+  for n in "${open[@]}"; do
+    case $(st_get "$n" phase) in work) reap_worker "$n" ;; review) reap_review "$n" ;; answer) reap_answer "$n" ;; esac
+  done
+  for n in "${open[@]}"; do
+    case $(st_get "$n" phase) in
+      check) check_pr "$n" ;;
+      needs-you) ci_unpark "$n" && check_pr "$n" ;;
+      question) backing_off || ! room || start_answer "$n" ;;
+    esac
+  done
+  # 3. start
+  # the fast lane first (an issue alone), then each current step: its bookkeeping, its planner or
+  # health pass when due, its packages. The steps' bookkeeping runs also while nothing may start.
+  go=1 START_FREE=0
+  if paused; then go=0; (( CANCCU_DRY )) && echo "  paused: nothing new starts"
+  elif backing_off; then go=0; (( CANCCU_DRY )) && echo "  backing off (usage limit) until $(date -d "@$(backoff_until)" '+%F %T')"
+  elif draining; then go=0; (( CANCCU_DRY )) && echo "  draining: nothing new starts"
+  else
+    START_FREE=$(( $(free_slots) - $(wanting "${open[@]}") ))
+    if (( START_FREE > 0 )); then
+      for n in $(runnable "$START_FREE"); do start_issue "$n" || break; took_slot; done
+    fi
+  fi
+  if (( STEPS_OK )); then
+    for m in $(current_step_ids); do reap_planner "$m"; step_tick "$m" "$go"; done
+    (( go )) && for m in $(current_step_ids); do start_packages "$m"; done
+  fi
+  # 4. resume
+  backing_off || for n in "${open[@]}"; do resume_step "$n"; done
+  # 5. accept
+  for n in "${open[@]}"; do
+    case $(st_get "$n" phase) in accept) accept_step "$n" ;; merging) merging_step "$n" ;; esac
+  done
+  # 6. after merge
+  for n in "${closed[@]}"; do finish_unit "$n"; done
+  # 7. digest
+  digest
+  # the status snapshot for canccu-monitor
+  write_status
+}
+
+dry_run() {
+  local pr n why m nm is rk cred
+  # shellcheck disable=SC2034  # USAGE_NOW: read by lib/canccu-usage.sh
+  USAGE_NOW=$(usage_read)
+  cred=$(gh_credential_problem); [ -z "$cred" ] || die "$cred: project $CANCCU_PROJECT would do nothing"
+  cred=$(login_problem); [ -z "$cred" ] || die "$cred: project $CANCCU_PROJECT would do nothing"
+  fetch || die "gh error reading $REPO"
+  echo "canccu-dispatch --dry-run · project $CANCCU_PROJECT · $REPO · $(date -d "@$(now)" '+%F %T') · nothing is written"
+  echo "runnable queue (in order):"
+  VERBOSE=1 runnable | sed 's/^/  #/'
+  echo "steps (current):"
+  if fetch_steps; then
+    for m in $(current_step_ids); do
+      echo "  $(step_title "$m") · $(step_get "$m" phase || true) · wave $(step_get "$m" wave) · \$$(step_spend "$m" | cut -d' ' -f1) of \$$STEP_BUDGET"
+      while IFS=$'\t' read -r nm is rk _; do
+        [ -n "$nm" ] && echo "    package $nm (${is// /, }; $rk risk): $(package_status "$m" "$nm")"
+      done < <(plan_packages "$m")
+    done
+    [ -n "$(current_step_ids)" ] || echo "  none"
+  else echo "  gh error reading the milestones"; fi
+  echo "usage: $(usage_text)"
+  adopt   # in memory: an adoptable PR is listed as the pass would see it
+  echo "open PRs:"
+  for pr in $(jqr '.[].number' <<<"$PRS"); do
+    n=$(pr_get "$pr" '[.closingIssuesReferences[]?.number] | map("#\(.)") | join(" ")')
+    why=$(not_ours "$pr")
+    if [ -n "$why" ]; then printf '  PR #%s (closes %s) · not ours: %s\n' "$pr" "${n:-nothing}" "$why"; continue; fi
+    printf '  PR #%s (closes %s) · draft %s · CI %s · %s\n' "$pr" "${n:-nothing}" "$(pr_get "$pr" .isDraft)" \
+      "$(ci_state "$pr")" "$(classify "$pr")"
+  done
+  echo "one pass would:"
+  pass
+}
+
+case ${1:-} in
+  --dry-run)
+    # the files a dry run needs for the length of the pass (a reaped planner's plan) live here
+    CANCCU_DRY=1 CANCCU_DRY_TMP=$(mktemp -d) || die "cannot make a temp dir"
+    trap 'rm -rf "$CANCCU_DRY_TMP"' EXIT
+    dry_run; exit ;;
+  --once|"") ;;
+  *) usage ;;
+esac
+mkdir -p "$CANCCU_HOME"
+exec 8>"$CANCCU_HOME/.dispatch.lock"
+flock -n 8 || die "another canccu-dispatch is running for project $CANCCU_PROJECT (lock $CANCCU_HOME/.dispatch.lock)"
+echo $$ > "$CANCCU_HOME/dispatch.pid"   # for canccu-status and canccu-up; they never touch the lock
+# the pane shows the dispatcher's own lines only: the output of every write goes to the log (mut),
+# and so does the stderr of every command of a pass, each line prefixed "  │ "
+export CANCCU_MUT_TO_LOG=1
+# quiet <cmd...>: run it with its stderr to dispatch.log; waits for the log writer, keeps the status
+quiet() {
+  { "$@" 2>&1 1>&3 3>&- | sed -u 's/^/  │ /' >> "$CANCCU_HOME/dispatch.log"; return "${PIPESTATUS[0]}"; } 3>&1
+}
+# run_pass: one pass in a subshell (an error in it never ends the loop), quiet, with one blockers
+# read per issue (BLOCKERS_CACHE). A pass that ends before its snapshot (a bash error, a die: their
+# text is in dispatch.log) says so in the pane, and the snapshot says so too (ok=false).
+run_pass() {
+  local rc
+  # shellcheck disable=SC2034  # PASS_STARTED: read by write_status
+  PASS_STARTED=$(now) BLOCKERS_CACHE=$(mktemp -d) || BLOCKERS_CACHE=""
+  rm -f "$CANCCU_HOME/.pass-written"
+  ( quiet pass ); rc=$?
+  if [ ! -e "$CANCCU_HOME/.pass-written" ]; then
+    log "the pass ended early (exit $rc); its error is in dispatch.log"
+    ( ISSUES="[]" PRS="[]"; quiet write_status "the pass ended early (exit $rc); see dispatch.log" )
+  fi
+  [ -n "$BLOCKERS_CACHE" ] && rm -rf "$BLOCKERS_CACHE"
+  return "$rc"
+}
+quiet ensure_labels
+if [ "${1:-}" = --once ]; then run_pass; exit; fi
+log "canccu-dispatch started: project $CANCCU_PROJECT ($REPO), every ${INTERVAL}s, CAP $CAP, TOTAL_CAP $TOTAL_CAP"
+while :; do
+  run_pass
+  sleep "$INTERVAL"
+done

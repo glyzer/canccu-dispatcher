@@ -1,0 +1,119 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# canccu-status [--project <name>] — what the dispatcher is doing: the project's gh credential (TOKEN MISSING,
+# TOKEN CANNOT REACH <repo>, or a warning on the default login), paused / back-off, running workers and reviewers
+# (issue, stage: review / fixing / fix-check or the phase, minutes, last log line), the runs it did
+# not start (a worker started by hand: key, kind, age), PRs awaiting
+# accept, issues needing you (a review that could not be posted too), open PRs that are not ours
+# (never reviewed, merged or commented on), the next 5 runnable issues and the latest digest.
+# docs/canccu-dispatch.md
+set -uo pipefail
+self=$(realpath "$0")
+# shellcheck source=../lib/canccu-common.sh
+. "$(dirname "$self")/../lib/canccu-common.sh"
+# shellcheck source=../lib/canccu-snapshot-steps.sh
+. "$(dirname "$self")/../lib/canccu-snapshot-steps.sh"
+
+clip() { (( ${#1} <= $2 )) && printf '%s' "$1" || printf '%s…' "${1:0:$2-1}"; }
+cols=${COLUMNS:-$(tput cols 2>/dev/null)}; [[ $cols =~ ^[0-9]+$ ]] || cols=100
+
+state="running"
+paused && state="PAUSED (canccu-resume to continue)"
+dispatcher_running || state+=" · canccu-dispatch is NOT running (canccu-up, or run it in the window dispatch)"
+backing_off && state+=" · usage limit until $(date -d "@$(backoff_until)" '+%F %T')"
+echo "$REPO · $state"
+if [ -n "$REVIEWER_LOGIN" ]; then rv="reviews post as $REVIEWER_LOGIN"; else rv="reviews: REVIEWER_LOGIN is not set"; fi
+echo "model: ${MODEL:-the account default} · $rv"
+lp=$(login_problem)
+[ -n "$lp" ] && echo "$lp: the dispatcher does nothing for this project until it is set"
+echo "usage: $(usage_text)"
+echo "project: $CANCCU_PROJECT (${CANCCU_HOME/#$HOME/\~}, tmux $TMUX_SESSION) · runs: $(running_count) of CAP $CAP · all projects: $(total_running) of TOTAL_CAP $TOTAL_CAP"
+cp=$(gh_credential_problem)
+if [ -n "$cp" ]; then echo "$cp: the dispatcher does nothing for this project until it works"
+elif [ -n "$CANCCU_GH_DIR" ]; then echo "gh: the project's own login (${CANCCU_GH_DIR/#$HOME/\~})"
+else gh_credential_warning; fi
+tp=$(reviewer_token_problem)
+[ -n "$tp" ] && echo "REVIEWS BLOCKED: $tp (canccu-review refuses to start)"
+fp=$(automerge_until_problem)
+[ -n "$fp" ] && echo "AUTO-MERGE OFF: $fp; every PR waits for your accept"
+
+# the runs the dispatcher did not start (a worker started by hand) are listed apart
+others=$(other_runs)
+echo "running:"
+any=0
+while read -r k s; do
+  awk -F '\t' -v r="$REPO_NAME" -v k="$k" '$1 == r && $2 == k { f = 1 } END { exit !f }' <<<"$others" && continue
+  if is_managed "$k"; then what="#$k $(stage_of "$k")"; else what=$(run_label "$k"); fi
+  [[ $k == review-* ]] && e=$(cat "$CANCCU_HOME/reviews/${k#review-}.effort" 2>/dev/null) && [ -n "$e" ] && what+=" ($e)"
+  last=$(grep -E '^\[t[0-9]+\]' "$WORKERS_DIR/$REPO_NAME-$k.log" 2>/dev/null | tail -1)
+  printf '  %-22s %5s  %s\n' "$what" "$(ago "${s:-$(now)}")" "$(clip "$last" $(( cols > 60 ? cols - 34 : 26 )))"
+  any=1
+done < <(live_runs)
+(( any )) || echo "  none"
+if [ -n "$others" ]; then
+  echo "other runs (not started by the dispatcher):"
+  # split on a non-blank separator: tab is IFS whitespace, so an empty field would shift the rest
+  while IFS=$'\x1f' read -r r k kind s; do
+    printf '  %s · %s · %s\n' "$([ "$r" = "$REPO_NAME" ] && echo "$k" || echo "$r#$k")" "${kind:-?}" "$(ago "${s:-$(now)}")"
+  done < <(tr '\t' '\037' <<<"$others")
+fi
+
+awaiting="" merging="" waiting=""
+for n in $(managed); do
+  case $(st_get "$n" phase) in
+    accept) awaiting+="  #$n · PR #$(st_get "$n" pr) · $(st_get "$n" reason)"$'\n' ;;
+    merging) case $(st_get "$n" merge_mode) in direct) m="merges directly once CI is green" ;; merged) m="merged directly" ;; *) m="auto-merge on" ;; esac
+             merging+="  #$n · PR #$(st_get "$n" pr) · $m ($(st_get "$n" how))"$'\n' ;;
+    question) waiting+="  #$n · question; an answerer starts when a slot is free"$'\n' ;;
+    answer) ;;
+    review) f=$(st_get "$n" post_fails)
+            [ "$(st_get "$n" post_ny)" = 1 ] && waiting+="  #$n · the $(stage_of "$n") of PR #$(st_get "$n" pr) could not be posted ($f tries); retried each pass"$'\n' ;;
+    needs-you) waiting+="  #$n · $(st_get "$n" reason) · $(ago "$(st_get "$n" ny_at)")"$'\n' ;;
+    limited) waiting+="  #$n · usage limit; resumes after the back-off"$'\n' ;;
+    stopped) waiting+="  #$n · stopped by canccu-stop; canccu-run $n continues it"$'\n' ;;
+  esac
+done
+printf 'awaiting accept (label the PR `accepted`, or canccu-ship <n>):\n%s' "${awaiting:-  none
+}"
+[ -n "$merging" ] && printf 'merging:\n%s' "$merging"
+printf 'needs you:\n%s' "${waiting:-  none
+}"
+
+if fetch; then
+  other=$(jqr '.[] | select(any(.labels[]; .name == "needs-you")) | .number' <<<"$ISSUES" |
+          while read -r n; do is_managed "$n" || echo "  #$n · $(title_of "$n") (labelled needs-you)"; done)
+  [ -n "$other" ] && echo "$other"
+  foreign=$(for pr in $(jqr '.[].number' <<<"$PRS"); do
+              why=$(not_ours "$pr"); [ -n "$why" ] && echo "  PR #$pr · $(clip "$why" $(( cols > 40 ? cols - 14 : 26 )))"
+            done)
+  echo "not ours (never reviewed, merged or commented on):"
+  echo "${foreign:-  none}"
+  q=$(runnable 5 | sed 's/^/#/' | tr '\n' ' ')
+  echo "queue (fast lane, next 5 runnable): ${q:-none}"
+  # the steps: the current one(s), the package plan, the spend, the checkpoint, the notes
+  if fetch_steps; then
+    for m in $(current_step_ids); do
+      read -r sp _ <<<"$(step_spend "$m")"; c=$(step_get "$m" checkpoint)
+      cs=$(cur "$m" '.checkpoint.state // empty'); [ "$(step_get "$m" phase)" = checkpoint ] && cs=waiting
+      echo "step: $(step_title "$m") · wave $(step_get "$m" wave) · $(step_get "$m" phase || true) · \$$sp/\$$STEP_BUDGET${c:+ · checkpoint #$c ${cs:-open}}"
+      [ -n "$(step_get "$m" ny_reason)" ] && echo "  needs you: $(step_get "$m" ny_reason)"
+      while IFS=$'\t' read -r nm is rk _; do
+        [ -n "$nm" ] || continue
+        k=$(package_key "$m" "$nm" "$is"); st=$(package_status "$m" "$nm")
+        [ "$st" = running ] && st=$(pkg_stage "$k")
+        pr=$(st_get "$k" pr)
+        echo "  package $nm · $rk risk · $st · ${is// /, }${pr:+ · PR #$pr}"
+      done < <(plan_packages "$m")
+      n=$(grep -c . "$CANCCU_HOME/steps/$m.notes" 2>/dev/null); n=${n:-0}
+      echo "  notes: $n"; (( n )) && head -5 "$CANCCU_HOME/steps/$m.notes" | awk -F '\t' '{ printf "    %s: %s (PR #%s)\n", $2, $4, $3 }'
+    done
+  else echo "steps: gh error reading the milestones"; fi
+  echo "Waiting for the product owner (open, neither ready nor blocked):"
+  po=$(waiting_for_po | while read -r n; do echo "  #$n · $(title_of "$n")"; done)
+  echo "${po:-  none}"
+else
+  echo "queue: gh error"
+fi
+d=$(find "$CANCCU_HOME/digest" -name '*.md' 2>/dev/null | sort | tail -1)
+[ -n "$d" ] && echo "digest: ${d/#$HOME/\~}"
+exit 0

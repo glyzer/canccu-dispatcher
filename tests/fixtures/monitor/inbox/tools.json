@@ -1,0 +1,192 @@
+{
+ "schema": 2,
+ "project": "tools",
+ "repo": "example-user/tools",
+ "repo_name": "tools",
+ "pid": 5151,
+ "interval": 60,
+ "pass": {
+  "at": 1920232795,
+  "started": 1920232789,
+  "duration": 6,
+  "durations": [
+   6,
+   5,
+   7
+  ],
+  "ok": true,
+  "error": null,
+  "paused": false,
+  "backoff_until": null
+ },
+ "caps": {
+  "running": 2,
+  "cap": 3,
+  "total_running": 2,
+  "total_cap": 3
+ },
+ "spend": {
+  "today_usd": 17.64,
+  "runs_without_cost": 0,
+  "day": "2030-11-06",
+  "freeze": null
+ },
+ "running": [
+  {
+   "key": "27",
+   "issue": 27,
+   "pr": null,
+   "kind": "work",
+   "phase": "work",
+   "stage": "work",
+   "pipeline": "work",
+   "title": "Add a dry-run flag to the sync command",
+   "started": 1920230400,
+   "minutes": 41,
+   "min_cap": 150,
+   "turns": 52,
+   "turn_cap": 250,
+   "last_line": "[t52] → Bash ./run-tests.sh --filter sync --verbose 2>&1 | tail -40; grep -rn 'dry_run' src/ tests/ | head -30; ls -la build/out; diff -u expected/sync.txt build/out/sync.txt | head -60",
+   "color": 208,
+   "package": null,
+   "issues": [
+    27
+   ],
+   "risk": null,
+   "ci": null,
+   "review_verdict": null
+  },
+  {
+   "key": "review-31",
+   "issue": 24,
+   "pr": 31,
+   "kind": "fix-check",
+   "phase": "review",
+   "stage": "fix-check",
+   "pipeline": "fix-check",
+   "title": "Report the line of a bad config key",
+   "started": 1920232680,
+   "minutes": 3,
+   "min_cap": 20,
+   "turns": 4,
+   "turn_cap": 30,
+   "last_line": "[t4] Both findings are fixed in the new commit.",
+   "color": 135,
+   "package": null,
+   "issues": [
+    24
+   ],
+   "risk": null,
+   "ci": "none",
+   "review_verdict": "changes"
+  }
+ ],
+ "needs_you": [
+  {
+   "kind": "needs-you",
+   "issue": 22,
+   "pr": 29,
+   "reason": "CI on PR #29 is still pending after 90 min",
+   "since": 1920226320,
+   "title": "Retry downloads that time out",
+   "url": "https://github.com/example-user/tools/issues/22",
+   "color": 33,
+   "package": null,
+   "step": null,
+   "stage": "ci",
+   "issues": [
+    22
+   ]
+  },
+  {
+   "kind": "needs-you",
+   "issue": 25,
+   "pr": 30,
+   "reason": "CI on PR #30 is still pending after 90 min",
+   "since": 1920231240,
+   "title": "Cache the parsed config between runs",
+   "url": "https://github.com/example-user/tools/issues/25",
+   "color": 37,
+   "package": null,
+   "step": null,
+   "stage": "ci",
+   "issues": [
+    25
+   ]
+  }
+ ],
+ "queue": [],
+ "milestones": [],
+ "events": [
+  {
+   "at": 1920228720,
+   "issue": 24,
+   "package": null,
+   "text": "#24 PR #31: review post failed (try 57): HTTP 502 from the API",
+   "count": 57,
+   "first_at": 1920228000
+  },
+  {
+   "at": 1920228840,
+   "issue": 24,
+   "package": null,
+   "text": "#24 PR #31: review post failed (try 59): HTTP 502 from the API",
+   "count": 2,
+   "first_at": 1920228780
+  },
+  {
+   "at": 1920229500,
+   "issue": 24,
+   "package": null,
+   "text": "#24 PR #31: review changes; the worker fixes the findings of 3c1d9e2",
+   "count": 1,
+   "first_at": 1920229500
+  },
+  {
+   "at": 1920229800,
+   "issue": 22,
+   "package": null,
+   "text": "#22 pinged @octo as review-bot: needs-you",
+   "count": 1,
+   "first_at": 1920229800
+  },
+  {
+   "at": 1920231240,
+   "issue": 25,
+   "package": null,
+   "text": "#25 needs-you: CI on PR #30 is still pending after 90 min · https://github.com/example-user/tools/issues/25",
+   "count": 1,
+   "first_at": 1920231240
+  },
+  {
+   "at": 1920231360,
+   "issue": 25,
+   "package": null,
+   "text": "#25 pinged @octo as review-bot: needs-you",
+   "count": 1,
+   "first_at": 1920231360
+  },
+  {
+   "at": 1920232680,
+   "issue": 24,
+   "package": null,
+   "text": "#24 PR #31: fix-check started at 8b7a6f5 (fix diff 3c1d9e2..8b7a6f5) (low effort)",
+   "count": 1,
+   "first_at": 1920232680
+  }
+ ],
+ "steps": [],
+ "current_step": null,
+ "step_overview": [],
+ "other_runs": [],
+ "usage": {
+  "five_hour": 27,
+  "seven_day": 58,
+  "resets_at": 1920243600,
+  "weekly_resets_at": 1920618000,
+  "at": 1920232830,
+  "state": "normal",
+  "text": "5-hour 27% · weekly 58%"
+ },
+ "stale": []
+}

@@ -1,0 +1,474 @@
+{
+ "schema": 2,
+ "project": "web",
+ "repo": "example-org/web",
+ "repo_name": "web",
+ "pid": 6262,
+ "interval": 60,
+ "pass": {
+  "at": 1920232845,
+  "started": 1920232840,
+  "duration": 5,
+  "durations": [
+   5
+  ],
+  "ok": true,
+  "error": null,
+  "paused": false,
+  "backoff_until": null
+ },
+ "caps": {
+  "running": 0,
+  "cap": 3,
+  "total_running": 2,
+  "total_cap": 3
+ },
+ "spend": {
+  "today_usd": 64.17,
+  "runs_without_cost": 0,
+  "day": "2030-11-06",
+  "freeze": "2031-02-01"
+ },
+ "running": [],
+ "needs_you": [
+  {
+   "kind": "accept",
+   "issue": 212,
+   "pr": 240,
+   "reason": "manual: risk high (PR)",
+   "since": 1920221700,
+   "title": "Add a search box to the header (+1)",
+   "url": "https://github.com/example-org/web/pull/240",
+   "color": 33,
+   "package": "pkg-2-search-box",
+   "step": 2,
+   "stage": "merge",
+   "issues": [
+    212,
+    213
+   ]
+  }
+ ],
+ "queue": [],
+ "milestones": [],
+ "events": [
+  {
+   "at": 1920218700,
+   "issue": 211,
+   "package": null,
+   "text": "#211 merged (PR #238, auto)",
+   "count": 1,
+   "first_at": 1920218700
+  },
+  {
+   "at": 1920219120,
+   "issue": null,
+   "package": "pkg-2-search-box",
+   "text": "#pkg-2-search-box started (212, 213; normal risk)",
+   "count": 1,
+   "first_at": 1920219120
+  },
+  {
+   "at": 1920221640,
+   "issue": null,
+   "package": "pkg-2-search-box",
+   "text": "#pkg-2-search-box PR #240: fix-check pass · manual: risk high (PR)",
+   "count": 1,
+   "first_at": 1920221640
+  },
+  {
+   "at": 1920221700,
+   "issue": null,
+   "package": "pkg-2-search-box",
+   "text": "#pkg-2-search-box PR #240: awaiting accept (manual: risk high (PR)) · https://github.com/example-org/web/pull/240",
+   "count": 1,
+   "first_at": 1920221700
+  },
+  {
+   "at": 1920221820,
+   "issue": 212,
+   "package": null,
+   "text": "#212 pinged @octo as review-bot: accept",
+   "count": 1,
+   "first_at": 1920221820
+  }
+ ],
+ "steps": [
+  {
+   "milestone": 2,
+   "title": "2 Search",
+   "track": "main",
+   "current": true,
+   "phase": "running",
+   "wave": 1,
+   "epic": 200,
+   "error": null,
+   "checkpoint": {
+    "issue": 230,
+    "state": "open",
+    "waiting": false
+   },
+   "budget": {
+    "usd": 23.85,
+    "limit": 300,
+    "runs_without_cost": 0,
+    "over": false
+   },
+   "plan": {
+    "wave": 1,
+    "at": 1920213000,
+    "left_out": [],
+    "packages": [
+     {
+      "name": "search-index",
+      "issues": [
+       211
+      ],
+      "risk": "low",
+      "risk_reason": "internal only",
+      "areas": [
+       "src/search/"
+      ],
+      "depends_on": [],
+      "key": "pkg-2-search-index",
+      "state": "merged",
+      "pr": 238,
+      "branch": "pkg-2-search-index",
+      "risk_effective": "low"
+     },
+     {
+      "name": "search-box",
+      "issues": [
+       212,
+       213
+      ],
+      "risk": "normal",
+      "risk_reason": "user interface",
+      "areas": [
+       "src/ui/header/"
+      ],
+      "depends_on": [],
+      "key": "pkg-2-search-box",
+      "state": "accept",
+      "pr": 240,
+      "branch": "pkg-2-search-box",
+      "risk_effective": "high"
+     }
+    ]
+   },
+   "health": {
+    "state": "n/a",
+    "key": "pkg-2-health",
+    "pr": null
+   },
+   "notes": [
+    {
+     "at": 1920219600,
+     "kind": "roadmap",
+     "pr": 240,
+     "text": "step 4's filters reuse the search index instead of building a second one"
+    }
+   ]
+  }
+ ],
+ "current_step": 2,
+ "step_overview": [
+  {
+   "milestone": 1,
+   "title": "1 Foundations",
+   "track": "main",
+   "place": "done",
+   "work_open": 0,
+   "work_closed": 8,
+   "issues": []
+  },
+  {
+   "milestone": 2,
+   "title": "2 Search",
+   "track": "main",
+   "place": "current",
+   "work_open": 17,
+   "work_closed": 9,
+   "issues": [
+    {
+     "issue": 212,
+     "title": "Search box in the header",
+     "url": "https://github.com/example-org/web/issues/212",
+     "status": "accept",
+     "waits_on": null,
+     "package": "pkg-2-search-box"
+    },
+    {
+     "issue": 213,
+     "title": "Keyboard shortcut for search",
+     "url": "https://github.com/example-org/web/issues/213",
+     "status": "accept",
+     "waits_on": null,
+     "package": "pkg-2-search-box"
+    },
+    {
+     "issue": 205,
+     "title": "Empty results page",
+     "url": "https://github.com/example-org/web/issues/205",
+     "status": "ready",
+     "waits_on": null,
+     "package": null
+    },
+    {
+     "issue": 219,
+     "title": "Highlight the matched words",
+     "url": "https://github.com/example-org/web/issues/219",
+     "status": "ready",
+     "waits_on": null,
+     "package": null
+    },
+    {
+     "issue": 220,
+     "title": "Search filter 0",
+     "url": "https://github.com/example-org/web/issues/220",
+     "status": "blocked",
+     "waits_on": "labelled blocked",
+     "package": null
+    },
+    {
+     "issue": 221,
+     "title": "Search filter 1",
+     "url": "https://github.com/example-org/web/issues/221",
+     "status": "blocked",
+     "waits_on": "labelled blocked",
+     "package": null
+    },
+    {
+     "issue": 222,
+     "title": "Search filter 2",
+     "url": "https://github.com/example-org/web/issues/222",
+     "status": "blocked",
+     "waits_on": "labelled blocked",
+     "package": null
+    },
+    {
+     "issue": 223,
+     "title": "Search filter 3",
+     "url": "https://github.com/example-org/web/issues/223",
+     "status": "blocked",
+     "waits_on": "labelled blocked",
+     "package": null
+    },
+    {
+     "issue": 224,
+     "title": "Search filter 4",
+     "url": "https://github.com/example-org/web/issues/224",
+     "status": "blocked",
+     "waits_on": "labelled blocked",
+     "package": null
+    },
+    {
+     "issue": 225,
+     "title": "Search filter 5",
+     "url": "https://github.com/example-org/web/issues/225",
+     "status": "blocked",
+     "waits_on": "labelled blocked",
+     "package": null
+    },
+    {
+     "issue": 226,
+     "title": "Search filter 6",
+     "url": "https://github.com/example-org/web/issues/226",
+     "status": "blocked",
+     "waits_on": "labelled blocked",
+     "package": null
+    },
+    {
+     "issue": 227,
+     "title": "Search filter 7",
+     "url": "https://github.com/example-org/web/issues/227",
+     "status": "blocked",
+     "waits_on": "labelled blocked",
+     "package": null
+    },
+    {
+     "issue": 228,
+     "title": "Search filter 8",
+     "url": "https://github.com/example-org/web/issues/228",
+     "status": "blocked",
+     "waits_on": "labelled blocked",
+     "package": null
+    },
+    {
+     "issue": 229,
+     "title": "Search filter 9",
+     "url": "https://github.com/example-org/web/issues/229",
+     "status": "blocked",
+     "waits_on": "labelled blocked",
+     "package": null
+    },
+    {
+     "issue": 231,
+     "title": "Search history",
+     "url": "https://github.com/example-org/web/issues/231",
+     "status": "blocked",
+     "waits_on": "no ready label",
+     "package": null
+    },
+    {
+     "issue": 234,
+     "title": "Spelling suggestions",
+     "url": "https://github.com/example-org/web/issues/234",
+     "status": "blocked",
+     "waits_on": "no ready label",
+     "package": null
+    },
+    {
+     "issue": 237,
+     "title": "Search analytics",
+     "url": "https://github.com/example-org/web/issues/237",
+     "status": "blocked",
+     "waits_on": "no ready label",
+     "package": null
+    }
+   ]
+  },
+  {
+   "milestone": 3,
+   "title": "3 Sharing",
+   "track": "main",
+   "place": "next",
+   "work_open": 5,
+   "work_closed": 0,
+   "issues": [
+    {
+     "issue": 241,
+     "title": "Write the sharing design brief",
+     "url": "https://github.com/example-org/web/issues/241",
+     "status": "ready",
+     "waits_on": null,
+     "package": null
+    },
+    {
+     "issue": 242,
+     "title": "Sharing 242",
+     "url": "https://github.com/example-org/web/issues/242",
+     "status": "blocked",
+     "waits_on": "labelled blocked",
+     "package": null
+    },
+    {
+     "issue": 243,
+     "title": "Sharing 243",
+     "url": "https://github.com/example-org/web/issues/243",
+     "status": "blocked",
+     "waits_on": "labelled blocked",
+     "package": null
+    },
+    {
+     "issue": 244,
+     "title": "Sharing 244",
+     "url": "https://github.com/example-org/web/issues/244",
+     "status": "blocked",
+     "waits_on": "labelled blocked",
+     "package": null
+    },
+    {
+     "issue": 250,
+     "title": "Sharing 250",
+     "url": "https://github.com/example-org/web/issues/250",
+     "status": "blocked",
+     "waits_on": "labelled blocked",
+     "package": null
+    }
+   ]
+  },
+  {
+   "milestone": 4,
+   "title": "4 Filters",
+   "track": "main",
+   "place": "later",
+   "work_open": 5,
+   "work_closed": 0,
+   "issues": []
+  },
+  {
+   "milestone": 5,
+   "title": "5 Saved views",
+   "track": "main",
+   "place": "later",
+   "work_open": 3,
+   "work_closed": 0,
+   "issues": []
+  },
+  {
+   "milestone": 6,
+   "title": "6 Notifications",
+   "track": "main",
+   "place": "later",
+   "work_open": 6,
+   "work_closed": 0,
+   "issues": []
+  },
+  {
+   "milestone": 7,
+   "title": "7 Export",
+   "track": "main",
+   "place": "later",
+   "work_open": 4,
+   "work_closed": 0,
+   "issues": []
+  },
+  {
+   "milestone": 8,
+   "title": "8 Themes",
+   "track": "main",
+   "place": "later",
+   "work_open": 0,
+   "work_closed": 0,
+   "issues": []
+  },
+  {
+   "milestone": 9,
+   "title": "9 Offline",
+   "track": "main",
+   "place": "later",
+   "work_open": 0,
+   "work_closed": 0,
+   "issues": []
+  },
+  {
+   "milestone": 10,
+   "title": "10 Mobile",
+   "track": "main",
+   "place": "later",
+   "work_open": 0,
+   "work_closed": 0,
+   "issues": []
+  },
+  {
+   "milestone": 11,
+   "title": "11 Cleanup",
+   "track": "main",
+   "place": "later",
+   "work_open": 0,
+   "work_closed": 0,
+   "issues": []
+  },
+  {
+   "milestone": 20,
+   "title": "Parallel tracks",
+   "track": "parallel",
+   "place": "later",
+   "work_open": 0,
+   "work_closed": 0,
+   "issues": []
+  }
+ ],
+ "other_runs": [],
+ "usage": {
+  "five_hour": 27,
+  "seven_day": 58,
+  "resets_at": 1920243600,
+  "weekly_resets_at": 1920618000,
+  "at": 1920232830,
+  "state": "normal",
+  "text": "5-hour 27% · weekly 58%"
+ },
+ "stale": []
+}

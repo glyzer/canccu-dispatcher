@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# canccu-monitor [--project <name>] — the live command center: what the dispatchers are doing,
+# the project's first, from their status snapshots only (never GitHub, git or tmux; changes
+# nothing). Redraws every 2 s, reads no keys. --self-test renders the fixtures offline. The program
+# is lib/canccu-monitor.py with lib/canccu_monitor/ (Python 3 and rich, pinned in lib/canccu-monitor.requirements.txt);
+# rich lives in a venv: CANCCU_VENV, default ~/.local/share/canccu/venv. docs/canccu-dispatch.md
+set -uo pipefail
+lib="$(dirname "$(realpath "$0")")/../lib"
+venv=${CANCCU_VENV:-$HOME/.local/share/canccu/venv}
+CANCCU_VENV=$venv
+export CANCCU_VENV
+if [ -x "$venv/bin/python" ]; then exec "$venv/bin/python" -I "$lib/canccu-monitor.py" "$@"; fi
+exec python3 -I "$lib/canccu-monitor.py" "$@"

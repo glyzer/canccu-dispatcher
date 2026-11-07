@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# canccu-stop [--project <name>] <n> — stop the worker, reviewer and answerer of issue n: kills their process trees and
+# the windows the engine recorded for them. The phase is set to stopped first, so a dispatcher
+# pass in between never reaps the kill as a failure. Keeps the worktree and the session id;
+# canccu-run <n> continues it.
+set -uo pipefail
+self=$(realpath "$0")
+# shellcheck source=../lib/canccu-common.sh
+. "$(dirname "$self")/../lib/canccu-common.sh"
+
+n=${1:-}; [[ $n =~ ^[0-9]+$ ]] || { echo "usage: canccu-stop [--project <name>] <n>" >&2; exit 2; }
+n=$(unit_of_issue "$n")   # an issue of a work package stops the package
+keys=()
+for key in "$n" "review-$(st_get "$n" pr)" "answer-$n"; do
+  [ "$key" = review- ] && continue
+  run_alive "$key" && keys+=("$key")
+done
+(( ${#keys[@]} )) || { echo "nothing running for #$n"; exit 0; }
+is_managed "$n" && st_set "$n" phase=stopped
+for key in "${keys[@]}"; do "$CANCCU_WORKER" --kill "$REPO_NAME" "$key"; done
+log "#$n stopped (canccu-stop: ${keys[*]})"

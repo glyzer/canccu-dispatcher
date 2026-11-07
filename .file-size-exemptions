@@ -1,0 +1,6 @@
+# Source files over the file-size rule's ~400 lines (AGENTS.md), one "<path> — <reason>" line each.
+# These were over the limit when the dispatcher was imported; a split takes a file off the list.
+lib/canccu-runs.sh — over the limit at import: the run engine's callers (worker, reviewer, fix-check prompts and posting); split pending
+lib/canccu-steps.sh — over the limit at import: the step lifecycle (waves, budget, checkpoint); split pending
+lib/canccu_monitor/roadmap.py — over the limit at import: the roadmap tables and their fitting; split pending
+lib/canccu_monitor/selftest.py — over the limit at import: the monitor's offline self-test, test code kept beside the monitor

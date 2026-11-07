@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# canccu-run [--project <name>] <n> [message] — start or resume the worker for issue n by hand. On a resume the message is
+# the follow-up (e.g. answers to its question; default "continue"); on a new start it is appended
+# to the worker prompt. docs/canccu-dispatch.md
+set -uo pipefail
+self=$(realpath "$0")
+# shellcheck source=../lib/canccu-common.sh
+. "$(dirname "$self")/../lib/canccu-common.sh"
+
+n=${1:-}; [[ $n =~ ^[0-9]+$ ]] || { echo "usage: canccu-run [--project <name>] <n> [message]" >&2; exit 2; }
+shift; msg="$*"
+n=$(unit_of_issue "$n")   # an issue of a work package: the package, never a run of the issue alone
+run_alive "$n" && die "#$n is running; wait for its report, or canccu-stop $n first"
+run_alive "answer-$n" && die "#$n's answerer is running; wait for it, or canccu-stop $n first"
+pr=$(st_get "$n" pr)
+[ -n "$pr" ] && run_alive "review-$pr" && die "the reviewer of PR #$pr is running; wait for it, or canccu-stop $n first"
+fetch || die "gh error reading $REPO"
+is_open "$n" || die "#$n is not an open issue in $REPO"
+if is_managed "$n" || [ -s "$WORKERS_DIR/$REPO_NAME-$n.id" ]; then
+  if [ -z "$(st_get "$n" exclusive)" ]; then
+    c=0; is_exclusive "$n" && c=1; st_set "$n" exclusive=$c; new_cycle "$n"
+  fi
+  # the message never comes first: the engine takes a leading number as the run's key
+  if [ -n "$msg" ]; then msg="The user says: $msg"; else msg="Continue where you stopped."; fi
+  resume "$n" "$msg" || exit 1
+else
+  start_issue "$n" "$msg" || exit 1
+fi

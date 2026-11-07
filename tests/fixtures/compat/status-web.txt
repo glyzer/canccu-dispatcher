@@ -1,0 +1,19 @@
+example-org/web · running · canccu-dispatch is NOT running (canccu-up, or run it in the window dispatch)
+model: the account default · reviews post as review-bot
+usage: usage unknown
+project: web (~/.canccu/projects/web, tmux canccu) · runs: 1 of CAP 2 · all projects: 1 of TOTAL_CAP 4
+warning: no gh config dir for project web (GH_CONFIG_DIR, or ~/.canccu/projects/web/gh): it uses the default gh login (a narrow token per project: canccu-init prints the steps)
+running:
+  #5 work                  25m  [t7] → Bash tests/run search
+awaiting accept (label the PR `accepted`, or canccu-ship <n>):
+  #7 · PR #70 · manual: changes setup/ (setup/x.sh)
+needs you:
+  none
+not ours (never reviewed, merged or commented on):
+  none
+queue (fast lane, next 5 runnable): #3 
+step: 1 Search · wave 1 · running · $2.00/$400
+  package search-box · normal risk · pending · 101, 102
+  notes: 0
+Waiting for the product owner (open, neither ready nor blocked):
+  none

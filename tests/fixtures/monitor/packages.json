@@ -1,0 +1,793 @@
+{
+ "schema": 2,
+ "project": "web",
+ "repo": "example-org/web",
+ "pid": 1,
+ "interval": 60,
+ "pass": {
+  "at": 1920110400,
+  "started": 1920110400,
+  "duration": 5,
+  "durations": [
+   5
+  ],
+  "ok": true,
+  "error": null,
+  "paused": false,
+  "backoff_until": null
+ },
+ "caps": {
+  "running": 3,
+  "cap": 3,
+  "total_running": 3,
+  "total_cap": 3
+ },
+ "spend": {
+  "today_usd": 4.5,
+  "runs_without_cost": 0,
+  "day": "2030-11-05",
+  "freeze": null
+ },
+ "running": [
+  {
+   "key": "pkg-20-c",
+   "issue": 303,
+   "pr": null,
+   "kind": "work",
+   "phase": "work",
+   "stage": "",
+   "pipeline": "work",
+   "title": "Issue 303",
+   "started": 1920109800,
+   "minutes": 10,
+   "min_cap": 150,
+   "turns": 5,
+   "turn_cap": 250,
+   "last_line": "[t5] → Bash make",
+   "color": 33,
+   "package": "pkg-20-c",
+   "issues": [
+    303
+   ],
+   "risk": "normal"
+  },
+  {
+   "key": "",
+   "issue": 305,
+   "pr": 65,
+   "kind": "waiting",
+   "phase": "work",
+   "stage": "",
+   "pipeline": "ci",
+   "title": "Issue 305",
+   "started": 1920109800,
+   "minutes": 10,
+   "min_cap": 150,
+   "turns": 5,
+   "turn_cap": 250,
+   "last_line": "[t5] → Bash make",
+   "color": 208,
+   "package": "305",
+   "issues": [
+    305
+   ],
+   "risk": "normal"
+  },
+  {
+   "key": "review-66",
+   "issue": 306,
+   "pr": 66,
+   "kind": "review",
+   "phase": "work",
+   "stage": "",
+   "pipeline": "review",
+   "title": "Issue 306",
+   "started": 1920109800,
+   "minutes": 10,
+   "min_cap": 150,
+   "turns": 5,
+   "turn_cap": 250,
+   "last_line": "[t5] → Bash make",
+   "color": 135,
+   "package": "306",
+   "issues": [
+    306
+   ],
+   "risk": "normal"
+  },
+  {
+   "key": "307",
+   "issue": 307,
+   "pr": 67,
+   "kind": "work",
+   "phase": "work",
+   "stage": "",
+   "pipeline": "fix",
+   "title": "Issue 307",
+   "started": 1920109800,
+   "minutes": 10,
+   "min_cap": 150,
+   "turns": 5,
+   "turn_cap": 250,
+   "last_line": "[t5] → Bash make",
+   "color": 37,
+   "package": "307",
+   "issues": [
+    307
+   ],
+   "risk": "normal"
+  },
+  {
+   "key": "review-68",
+   "issue": 308,
+   "pr": 68,
+   "kind": "fix-check",
+   "phase": "work",
+   "stage": "",
+   "pipeline": "fix-check",
+   "title": "Issue 308",
+   "started": 1920109800,
+   "minutes": 10,
+   "min_cap": 150,
+   "turns": 5,
+   "turn_cap": 250,
+   "last_line": "[t5] → Bash make",
+   "color": 205,
+   "package": "308",
+   "issues": [
+    308
+   ],
+   "risk": "normal"
+  },
+  {
+   "key": "",
+   "issue": 310,
+   "pr": 70,
+   "kind": "waiting",
+   "phase": "work",
+   "stage": "",
+   "pipeline": "merge",
+   "title": "Issue 310",
+   "started": 1920109800,
+   "minutes": 10,
+   "min_cap": 150,
+   "turns": 5,
+   "turn_cap": 250,
+   "last_line": "[t5] → Bash make",
+   "color": 142,
+   "package": "310",
+   "issues": [
+    310
+   ],
+   "risk": "normal"
+  }
+ ],
+ "needs_you": [
+  {
+   "kind": "accept",
+   "issue": 309,
+   "pr": 69,
+   "reason": "manual: high risk",
+   "since": 1920110100,
+   "title": "Issue 309",
+   "url": "https://github.com/example-org/web/pull/69",
+   "color": null,
+   "package": "309",
+   "step": 20
+  },
+  {
+   "kind": "needs-you",
+   "issue": 314,
+   "pr": 74,
+   "reason": "CI is red on PR #74",
+   "since": 1920109500,
+   "title": "Issue 314",
+   "url": "https://github.com/example-org/web/issues/314",
+   "color": null,
+   "package": "314",
+   "step": 20
+  }
+ ],
+ "queue": [
+  {
+   "issue": 301,
+   "title": "package a (301)",
+   "blocked": false,
+   "waits_on": null,
+   "lane": "step",
+   "package": "301"
+  },
+  {
+   "issue": 302,
+   "title": "package b (302)",
+   "blocked": true,
+   "waits_on": "depends on a",
+   "lane": "step",
+   "package": "302"
+  }
+ ],
+ "milestones": [
+  {
+   "title": "7 Big",
+   "open": 14,
+   "closed": 2,
+   "due": null,
+   "checkpoints": [
+    {
+     "issue": 200,
+     "state": "open",
+     "ready": false
+    }
+   ]
+  },
+  {
+   "title": "8 After",
+   "open": 2,
+   "closed": 0,
+   "due": null,
+   "checkpoints": []
+  },
+  {
+   "title": "9 Far",
+   "open": 3,
+   "closed": 0,
+   "due": null,
+   "checkpoints": []
+  },
+  {
+   "title": "10 Empty",
+   "open": 0,
+   "closed": 0,
+   "due": null,
+   "checkpoints": []
+  },
+  {
+   "title": "Parallel tracks",
+   "open": 1,
+   "closed": 0,
+   "due": null,
+   "checkpoints": []
+  }
+ ],
+ "events": [
+  {
+   "at": 1920110160,
+   "issue": 303,
+   "package": null,
+   "text": "#303 started"
+  },
+  {
+   "at": 1920110280,
+   "issue": null,
+   "package": "pkg-20-c",
+   "text": "#pkg-20-c PR #63: opened"
+  }
+ ],
+ "steps": [
+  {
+   "milestone": 20,
+   "title": "7 Big",
+   "track": "main",
+   "current": true,
+   "phase": "running",
+   "wave": 2,
+   "epic": 199,
+   "error": null,
+   "checkpoint": {
+    "issue": 200,
+    "state": "open",
+    "waiting": false
+   },
+   "budget": {
+    "usd": 1.5,
+    "limit": 400,
+    "runs_without_cost": 0,
+    "over": false
+   },
+   "plan": {
+    "wave": 2,
+    "at": 1920107400,
+    "left_out": [
+     321
+    ],
+    "packages": [
+     {
+      "name": "a",
+      "issues": [
+       301
+      ],
+      "risk": "low",
+      "risk_reason": "why",
+      "areas": [
+       "src/a/"
+      ],
+      "depends_on": [],
+      "key": "301",
+      "state": "pending",
+      "pr": null,
+      "branch": null,
+      "risk_effective": "low"
+     },
+     {
+      "name": "b",
+      "issues": [
+       302
+      ],
+      "risk": "low",
+      "risk_reason": "why",
+      "areas": [
+       "src/b/"
+      ],
+      "depends_on": [
+       "a"
+      ],
+      "key": "302",
+      "state": "blocked",
+      "pr": null,
+      "branch": null,
+      "risk_effective": "low"
+     },
+     {
+      "name": "c",
+      "issues": [
+       303,
+       304
+      ],
+      "risk": "high",
+      "risk_reason": "why",
+      "areas": [
+       "src/c/"
+      ],
+      "depends_on": [],
+      "key": "pkg-20-c",
+      "state": "work",
+      "pr": null,
+      "branch": "pkg-20-c",
+      "risk_effective": "high"
+     },
+     {
+      "name": "d",
+      "issues": [
+       305
+      ],
+      "risk": "normal",
+      "risk_reason": "why",
+      "areas": [
+       "src/d/"
+      ],
+      "depends_on": [],
+      "key": "305",
+      "state": "ci",
+      "pr": 65,
+      "branch": null,
+      "risk_effective": "normal"
+     },
+     {
+      "name": "e",
+      "issues": [
+       306
+      ],
+      "risk": "normal",
+      "risk_reason": "why",
+      "areas": [
+       "src/e/"
+      ],
+      "depends_on": [],
+      "key": "306",
+      "state": "review",
+      "pr": 66,
+      "branch": null,
+      "risk_effective": "normal"
+     },
+     {
+      "name": "f",
+      "issues": [
+       307
+      ],
+      "risk": "normal",
+      "risk_reason": "why",
+      "areas": [
+       "src/f/"
+      ],
+      "depends_on": [],
+      "key": "307",
+      "state": "fix",
+      "pr": 67,
+      "branch": null,
+      "risk_effective": "normal"
+     },
+     {
+      "name": "g",
+      "issues": [
+       308
+      ],
+      "risk": "normal",
+      "risk_reason": "why",
+      "areas": [
+       "src/g/"
+      ],
+      "depends_on": [],
+      "key": "308",
+      "state": "fix-check",
+      "pr": 68,
+      "branch": null,
+      "risk_effective": "normal"
+     },
+     {
+      "name": "h",
+      "issues": [
+       309
+      ],
+      "risk": "high",
+      "risk_reason": "why",
+      "areas": [
+       "src/h/"
+      ],
+      "depends_on": [],
+      "key": "309",
+      "state": "accept",
+      "pr": 69,
+      "branch": null,
+      "risk_effective": "high"
+     },
+     {
+      "name": "i",
+      "issues": [
+       310
+      ],
+      "risk": "normal",
+      "risk_reason": "why",
+      "areas": [
+       "src/i/"
+      ],
+      "depends_on": [],
+      "key": "310",
+      "state": "merging",
+      "pr": 70,
+      "branch": null,
+      "risk_effective": "normal"
+     },
+     {
+      "name": "j",
+      "issues": [
+       311
+      ],
+      "risk": "normal",
+      "risk_reason": "why",
+      "areas": [
+       "src/j/"
+      ],
+      "depends_on": [],
+      "key": "311",
+      "state": "merged",
+      "pr": 71,
+      "branch": null,
+      "risk_effective": "normal"
+     },
+     {
+      "name": "k",
+      "issues": [
+       312
+      ],
+      "risk": "normal",
+      "risk_reason": "why",
+      "areas": [
+       "src/k/"
+      ],
+      "depends_on": [],
+      "key": "312",
+      "state": "closed",
+      "pr": null,
+      "branch": null,
+      "risk_effective": "normal"
+     },
+     {
+      "name": "l",
+      "issues": [
+       313
+      ],
+      "risk": "normal",
+      "risk_reason": "why",
+      "areas": [
+       "src/l/"
+      ],
+      "depends_on": [],
+      "key": "313",
+      "state": "refused",
+      "pr": null,
+      "branch": null,
+      "risk_effective": "normal"
+     },
+     {
+      "name": "m",
+      "issues": [
+       314
+      ],
+      "risk": "normal",
+      "risk_reason": "why",
+      "areas": [
+       "src/m/"
+      ],
+      "depends_on": [],
+      "key": "314",
+      "state": "needs-you",
+      "pr": 74,
+      "branch": null,
+      "risk_effective": "normal"
+     }
+    ]
+   },
+   "health": {
+    "state": "pending",
+    "key": "pkg-20-health",
+    "pr": null
+   },
+   "notes": [
+    {
+     "at": 1920110340,
+     "kind": "roadmap",
+     "pr": 71,
+     "text": "move reports to step 9"
+    },
+    {
+     "at": 1920010400,
+     "kind": "follow-up",
+     "pr": 70,
+     "text": "an old note"
+    }
+   ]
+  },
+  {
+   "milestone": 25,
+   "title": "Parallel tracks",
+   "track": "parallel",
+   "current": true,
+   "phase": "running",
+   "wave": 1,
+   "epic": null,
+   "error": null,
+   "checkpoint": null,
+   "budget": {
+    "usd": 0,
+    "limit": 400,
+    "runs_without_cost": 0,
+    "over": false
+   },
+   "plan": {
+    "wave": 1,
+    "at": 1920107400,
+    "left_out": [],
+    "packages": [
+     {
+      "name": "docs",
+      "issues": [
+       340
+      ],
+      "risk": "low",
+      "risk_reason": "why",
+      "areas": [
+       "src/docs/"
+      ],
+      "depends_on": [],
+      "key": "340",
+      "state": "pending",
+      "pr": null,
+      "branch": null,
+      "risk_effective": "low"
+     }
+    ]
+   },
+   "health": {
+    "state": "n/a",
+    "key": "pkg-25-health",
+    "pr": null
+   },
+   "notes": []
+  }
+ ],
+ "current_step": 20,
+ "step_overview": [
+  {
+   "milestone": 20,
+   "title": "7 Big",
+   "track": "main",
+   "work_open": 14,
+   "work_closed": 2,
+   "place": "current",
+   "issues": [
+    {
+     "issue": 301,
+     "title": "Issue 301",
+     "url": "https://github.com/example-org/web/issues/301",
+     "status": "ready",
+     "waits_on": null,
+     "package": "301"
+    },
+    {
+     "issue": 302,
+     "title": "Issue 302",
+     "url": "https://github.com/example-org/web/issues/302",
+     "status": "blocked",
+     "waits_on": "depends on a",
+     "package": "302"
+    },
+    {
+     "issue": 303,
+     "title": "Issue 303",
+     "url": "https://github.com/example-org/web/issues/303",
+     "status": "running",
+     "waits_on": null,
+     "package": "pkg-20-c"
+    },
+    {
+     "issue": 304,
+     "title": "Issue 304",
+     "url": "https://github.com/example-org/web/issues/304",
+     "status": "running",
+     "waits_on": null,
+     "package": "pkg-20-c"
+    },
+    {
+     "issue": 305,
+     "title": "Issue 305",
+     "url": "https://github.com/example-org/web/issues/305",
+     "status": "running",
+     "waits_on": null,
+     "package": "305"
+    },
+    {
+     "issue": 306,
+     "title": "Issue 306",
+     "url": "https://github.com/example-org/web/issues/306",
+     "status": "running",
+     "waits_on": null,
+     "package": "306"
+    },
+    {
+     "issue": 307,
+     "title": "Issue 307",
+     "url": "https://github.com/example-org/web/issues/307",
+     "status": "running",
+     "waits_on": null,
+     "package": "307"
+    },
+    {
+     "issue": 308,
+     "title": "Issue 308",
+     "url": "https://github.com/example-org/web/issues/308",
+     "status": "running",
+     "waits_on": null,
+     "package": "308"
+    },
+    {
+     "issue": 309,
+     "title": "Issue 309",
+     "url": "https://github.com/example-org/web/issues/309",
+     "status": "accept",
+     "waits_on": null,
+     "package": "309"
+    },
+    {
+     "issue": 310,
+     "title": "Issue 310",
+     "url": "https://github.com/example-org/web/issues/310",
+     "status": "running",
+     "waits_on": null,
+     "package": "310"
+    },
+    {
+     "issue": 313,
+     "title": "Issue 313",
+     "url": "https://github.com/example-org/web/issues/313",
+     "status": "blocked",
+     "waits_on": "no ready label",
+     "package": "313"
+    },
+    {
+     "issue": 314,
+     "title": "Issue 314",
+     "url": "https://github.com/example-org/web/issues/314",
+     "status": "needs-you",
+     "waits_on": null,
+     "package": "314"
+    },
+    {
+     "issue": 320,
+     "title": "Issue 320",
+     "url": "https://github.com/example-org/web/issues/320",
+     "status": "ready",
+     "waits_on": null,
+     "package": null
+    },
+    {
+     "issue": 321,
+     "title": "Issue 321",
+     "url": "https://github.com/example-org/web/issues/321",
+     "status": "blocked",
+     "waits_on": "blocked by 301",
+     "package": null
+    }
+   ]
+  },
+  {
+   "milestone": 21,
+   "title": "8 After",
+   "track": "main",
+   "work_open": 2,
+   "work_closed": 0,
+   "place": "next",
+   "issues": [
+    {
+     "issue": 330,
+     "title": "Issue 330",
+     "url": "https://github.com/example-org/web/issues/330",
+     "status": "ready",
+     "waits_on": null,
+     "package": null
+    },
+    {
+     "issue": 331,
+     "title": "Issue 331",
+     "url": "https://github.com/example-org/web/issues/331",
+     "status": "blocked",
+     "waits_on": "no ready label",
+     "package": null
+    }
+   ]
+  },
+  {
+   "milestone": 22,
+   "title": "9 Far",
+   "track": "main",
+   "work_open": 3,
+   "work_closed": 0,
+   "place": "later",
+   "issues": []
+  },
+  {
+   "milestone": 23,
+   "title": "10 Empty",
+   "track": "main",
+   "work_open": 0,
+   "work_closed": 0,
+   "place": "later",
+   "issues": []
+  },
+  {
+   "milestone": 25,
+   "title": "Parallel tracks",
+   "track": "parallel",
+   "work_open": 1,
+   "work_closed": 0,
+   "place": "current",
+   "issues": [
+    {
+     "issue": 340,
+     "title": "Issue 340",
+     "url": "https://github.com/example-org/web/issues/340",
+     "status": "ready",
+     "waits_on": null,
+     "package": "340"
+    }
+   ]
+  }
+ ],
+ "other_runs": [
+  {
+   "repo": "other-repo",
+   "key": "12",
+   "kind": "cc",
+   "started": 1920106800
+  }
+ ],
+ "usage": {
+  "five_hour": 10,
+  "seven_day": 20,
+  "resets_at": null,
+  "weekly_resets_at": null,
+  "at": 1920110400,
+  "state": "normal",
+  "text": "5-hour 10% · weekly 20%"
+ },
+ "stale": []
+}

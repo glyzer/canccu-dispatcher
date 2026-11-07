@@ -1,0 +1,6 @@
+{"schema":1,"repo":"example-org/web","step":{"milestone":12,"title":"3 Events"},"wave":2,
+ "issues":[{"number":101,"title":"a","body":"","labels":["ready"],"blocked_by":[]},
+           {"number":103,"title":"b","body":"","labels":["ready"],"blocked_by":[]},
+           {"number":104,"title":"c","body":"","labels":["ready"],"blocked_by":[]},
+           {"number":107,"title":"d","body":"","labels":["ready"],"blocked_by":[]}],
+ "earlier":[],"lead_adds":"","limits":{"package_lines":1500}}

@@ -1,0 +1,16 @@
+example-user/tools · running · canccu-dispatch is NOT running (canccu-up, or run it in the window dispatch)
+model: the account default · reviews post as review-bot
+usage: usage unknown
+project: tools (~/.canccu/projects/tools, tmux canccu-tools) · runs: 0 of CAP 3 · all projects: 1 of TOTAL_CAP 4
+warning: no gh config dir for project tools (GH_CONFIG_DIR, or ~/.canccu/projects/tools/gh): it uses the default gh login (a narrow token per project: canccu-init prints the steps)
+running:
+  none
+awaiting accept (label the PR `accepted`, or canccu-ship <n>):
+  none
+needs you:
+  none
+not ours (never reviewed, merged or commented on):
+  none
+queue (fast lane, next 5 runnable): #21 
+Waiting for the product owner (open, neither ready nor blocked):
+  none

@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# libexec/canccu-nudge-hook — a PostToolUse hook that libexec/canccu-worker gives every worker run (--settings).
+# While $WORKER_NUDGE_FILE exists (canccu-dispatch touches it when the 5-hour usage passes
+# USAGE_STOP), it tells the run to stop at a safe point; otherwise it prints nothing.
+cat > /dev/null   # the hook's input
+[ -n "${WORKER_NUDGE_FILE:-}" ] && [ -e "$WORKER_NUDGE_FILE" ] || exit 0
+printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"The Claude usage limit is near: finish your current small step, commit and push a WIP if needed, write a line `Next action: <what comes next>`, and stop now. You will be resumed with \"continue\" after the limit resets."}}'

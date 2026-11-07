@@ -1,0 +1,413 @@
+{
+ "schema": 1,
+ "project": "web",
+ "repo": "example-org/web",
+ "pid": 4242,
+ "interval": 60,
+ "pass": {
+  "at": 1920110190,
+  "ok": true,
+  "error": null,
+  "paused": false,
+  "backoff_until": null,
+  "started": 1920110380,
+  "duration": 20,
+  "durations": [
+   30,
+   240,
+   20
+  ]
+ },
+ "caps": {
+  "running": 3,
+  "cap": 3,
+  "total_running": 2,
+  "total_cap": 3
+ },
+ "spend": {
+  "today_usd": 12.4,
+  "day": "2030-11-05",
+  "freeze": "2031-03-01",
+  "runs_without_cost": 2
+ },
+ "running": [
+  {
+   "key": "41",
+   "issue": 41,
+   "pr": null,
+   "kind": "work",
+   "phase": "work",
+   "stage": "work",
+   "pipeline": "work",
+   "title": "feat: add a search box",
+   "started": 1920108900,
+   "minutes": 25,
+   "min_cap": 150,
+   "turns": 38,
+   "turn_cap": 250,
+   "last_line": "[t38] → Bash npm test -- search",
+   "color": 33
+  },
+  {
+   "key": "review-57",
+   "issue": 44,
+   "pr": 57,
+   "kind": "review",
+   "phase": "review",
+   "stage": "review",
+   "pipeline": "review",
+   "title": "fix: date parsing in the import",
+   "started": 1920109800,
+   "minutes": 10,
+   "min_cap": 40,
+   "turns": 12,
+   "turn_cap": 60,
+   "last_line": "[t12] → Read src/import/date.ts",
+   "color": 208
+  },
+  {
+   "key": "",
+   "issue": 47,
+   "pr": 60,
+   "kind": "waiting",
+   "phase": "check",
+   "stage": "check",
+   "pipeline": "ci",
+   "title": "chore: a very long title that keeps going that keeps going that keeps going that keeps going that keeps going that keeps going that keeps going that keeps going that keeps going that keeps going that keeps going that keeps going ",
+   "started": 1920110160,
+   "minutes": 4,
+   "min_cap": null,
+   "turns": null,
+   "turn_cap": null,
+   "last_line": "",
+   "color": 37
+  },
+  {
+   "key": "48",
+   "issue": 48,
+   "pr": 61,
+   "kind": "work",
+   "phase": "work",
+   "stage": "fixing",
+   "pipeline": "fix",
+   "title": "fix: review findings",
+   "started": 1920110340,
+   "minutes": 1,
+   "min_cap": 45,
+   "turns": 2,
+   "turn_cap": 80,
+   "last_line": "[t2] xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "color": 205
+  }
+ ],
+ "needs_you": [
+  {
+   "kind": "accept",
+   "issue": 39,
+   "pr": 55,
+   "reason": "manual: touches migrations",
+   "since": 1920106800,
+   "title": "feat: settings table",
+   "url": "https://github.com/example-org/web/pull/55",
+   "color": 135
+  },
+  {
+   "kind": "needs-you",
+   "issue": 42,
+   "pr": 56,
+   "reason": "CI is red on PR #56",
+   "since": 1920103200,
+   "title": "feat: search",
+   "url": "u",
+   "color": 142
+  },
+  {
+   "kind": "plan",
+   "issue": 43,
+   "pr": null,
+   "reason": "plan ready for OK: https://github.com/example-org/web/pull/58 — label this issue `plan-ok` to approve, or comment",
+   "since": 1920110300,
+   "title": "plan: sharing",
+   "url": "u",
+   "color": null
+  },
+  {
+   "kind": "checkpoint",
+   "issue": 50,
+   "pr": null,
+   "reason": "checkpoint ready: check the step and close it",
+   "since": null,
+   "title": "Checkpoint: data model",
+   "url": "u",
+   "color": null
+  },
+  {
+   "kind": "question",
+   "issue": 49,
+   "pr": null,
+   "reason": "the worker's question needs the product owner",
+   "since": 1920110350,
+   "title": "feat: roles feat: roles feat: roles feat: roles feat: roles feat: roles feat: roles feat: roles feat: roles feat: roles ",
+   "url": "u",
+   "color": 37
+  },
+  {
+   "kind": "needs-you",
+   "issue": 51,
+   "pr": null,
+   "reason": "labelled needs-you",
+   "since": null,
+   "title": "bug: login loop",
+   "url": "u",
+   "color": null
+  }
+ ],
+ "queue": [
+  {
+   "issue": 45,
+   "title": "feat: export to CSV",
+   "blocked": false,
+   "waits_on": null
+  },
+  {
+   "issue": 46,
+   "title": "feat: email the export",
+   "blocked": true,
+   "waits_on": "blocked by 45"
+  },
+  {
+   "issue": 52,
+   "title": "feat: item 0 ",
+   "blocked": true,
+   "waits_on": "waits: one-at-a-time issue #44 is open"
+  },
+  {
+   "issue": 53,
+   "title": "feat: item 1 word ",
+   "blocked": false,
+   "waits_on": null
+  },
+  {
+   "issue": 54,
+   "title": "feat: item 2 word word ",
+   "blocked": false,
+   "waits_on": null
+  },
+  {
+   "issue": 55,
+   "title": "feat: item 3 word word word ",
+   "blocked": true,
+   "waits_on": "waits: one-at-a-time issue #44 is open"
+  },
+  {
+   "issue": 56,
+   "title": "feat: item 4 word word word word ",
+   "blocked": false,
+   "waits_on": null
+  },
+  {
+   "issue": 57,
+   "title": "feat: item 5 word word word word word ",
+   "blocked": false,
+   "waits_on": null
+  },
+  {
+   "issue": 58,
+   "title": "feat: item 6 word word word word word word ",
+   "blocked": true,
+   "waits_on": "waits: one-at-a-time issue #44 is open"
+  },
+  {
+   "issue": 59,
+   "title": "feat: item 7 word word word word word word word ",
+   "blocked": false,
+   "waits_on": null
+  },
+  {
+   "issue": 60,
+   "title": "feat: item 8 word word word word word word word word ",
+   "blocked": false,
+   "waits_on": null
+  },
+  {
+   "issue": 61,
+   "title": "feat: item 9 word word word word word word word word word ",
+   "blocked": true,
+   "waits_on": "waits: one-at-a-time issue #44 is open"
+  },
+  {
+   "issue": 62,
+   "title": "feat: item 10 word word word word word word word word word word ",
+   "blocked": false,
+   "waits_on": null
+  },
+  {
+   "issue": 63,
+   "title": "feat: item 11 word word word word word word word word word word word ",
+   "blocked": false,
+   "waits_on": null
+  },
+  {
+   "issue": 64,
+   "title": "feat: item 12 word word word word word word word word word word word word ",
+   "blocked": true,
+   "waits_on": "waits: one-at-a-time issue #44 is open"
+  },
+  {
+   "issue": 65,
+   "title": "feat: item 13 word word word word word word word word word word word word word ",
+   "blocked": false,
+   "waits_on": null
+  }
+ ],
+ "milestones": [
+  {
+   "title": "1 Skeleton",
+   "open": 0,
+   "closed": 12,
+   "due": null,
+   "checkpoints": [
+    {
+     "issue": 20,
+     "state": "closed",
+     "ready": false
+    }
+   ]
+  },
+  {
+   "title": "2 Data model",
+   "open": 3,
+   "closed": 9,
+   "due": null,
+   "checkpoints": [
+    {
+     "issue": 50,
+     "state": "open",
+     "ready": true
+    }
+   ]
+  },
+  {
+   "title": "3 Pages",
+   "open": 8,
+   "closed": 1,
+   "due": null,
+   "checkpoints": []
+  },
+  {
+   "title": "Parallel tracks: a long milestone name for the roadmap",
+   "open": 0,
+   "closed": 0,
+   "due": null,
+   "checkpoints": []
+  }
+ ],
+ "events": [
+  {
+   "at": 1920108600,
+   "issue": 40,
+   "text": "#40 event number 0 "
+  },
+  {
+   "at": 1920108660,
+   "issue": 41,
+   "text": "#41 event number 1 with words "
+  },
+  {
+   "at": 1920108720,
+   "issue": 42,
+   "text": "#42 event number 2 with words with words "
+  },
+  {
+   "at": 1920108780,
+   "issue": 43,
+   "text": "#43 event number 3 with words with words with words "
+  },
+  {
+   "at": 1920108840,
+   "issue": 44,
+   "text": "#44 event number 4 with words with words with words with words "
+  },
+  {
+   "at": 1920108900,
+   "issue": 45,
+   "text": "#45 event number 5 "
+  },
+  {
+   "at": 1920108960,
+   "issue": 46,
+   "text": "#46 event number 6 with words "
+  },
+  {
+   "at": 1920109020,
+   "issue": 47,
+   "text": "#47 event number 7 with words with words "
+  },
+  {
+   "at": 1920109080,
+   "issue": 48,
+   "text": "#48 event number 8 with words with words with words "
+  },
+  {
+   "at": 1920109140,
+   "issue": 40,
+   "text": "#40 event number 9 with words with words with words with words "
+  },
+  {
+   "at": 1920109200,
+   "issue": 41,
+   "text": "#41 event number 10 "
+  },
+  {
+   "at": 1920109260,
+   "issue": 42,
+   "text": "#42 event number 11 with words "
+  },
+  {
+   "at": 1920109320,
+   "issue": 43,
+   "text": "#43 event number 12 with words with words "
+  },
+  {
+   "at": 1920109380,
+   "issue": 44,
+   "text": "#44 event number 13 with words with words with words "
+  },
+  {
+   "at": 1920109440,
+   "issue": 45,
+   "text": "#45 event number 14 with words with words with words with words "
+  },
+  {
+   "at": 1920109500,
+   "issue": 46,
+   "text": "#46 event number 15 "
+  },
+  {
+   "at": 1920109560,
+   "issue": 47,
+   "text": "#47 event number 16 with words "
+  },
+  {
+   "at": 1920109620,
+   "issue": 48,
+   "text": "#48 event number 17 with words with words "
+  },
+  {
+   "at": 1920109680,
+   "issue": 40,
+   "text": "#40 event number 18 with words with words with words "
+  },
+  {
+   "at": 1920109740,
+   "issue": 41,
+   "text": "#41 event number 19 with words with words with words with words "
+  },
+  {
+   "at": 1920110400,
+   "issue": null,
+   "text": "digest written, no activity: no comment"
+  }
+ ],
+ "stale": []
+}
