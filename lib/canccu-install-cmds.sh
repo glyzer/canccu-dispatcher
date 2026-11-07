@@ -7,11 +7,12 @@
 
 _cmd_die() { echo "canccu-dispatcher: $1" >&2; exit "${2:-1}"; }
 # canccu_default_prefix <tree>: the prefix the running release was installed in; ~/.local for a
-# checkout
+# checkout (--dev). Resolved either way, as install.sh resolves the prefix it writes the links
+# with: through a symlinked HOME both name the same path.
 canccu_default_prefix() {
   local t; t=$(realpath -m "$1")
   if [[ $t == */lib/canccu-dispatcher/releases/* ]]; then printf '%s\n' "${t%/lib/canccu-dispatcher/releases/*}"
-  else printf '%s\n' "$HOME/.local"; fi
+  else realpath -m "$HOME/.local"; fi
 }
 # _cmd_installed <base>: refuses where nothing is installed; else takes the install lock (fd 9)
 _cmd_installed() {
@@ -55,7 +56,7 @@ canccu_held_locks() {
 # tree, the tree and the monitor venv; the state dir only with purge and yes, and never while a
 # lock is held. Refuses while a dispatcher holds its lock or a run's lock is live, unless force.
 canccu_uninstall() {
-  local prefix=$1 purge=$2 yes=$3 force=$4 base held venv l
+  local prefix=$1 purge=$2 yes=$3 force=$4 base rbase held venv l t
   (( purge && ! yes )) && _cmd_die "--purge-state removes $(canccu_tilde "$CANCCU_ROOT") with every project's state; add --yes to mean it. Nothing removed" 2
   base=$(canccu_base "$prefix")
   [ -e "$base" ] || _cmd_die "nothing installed in $(canccu_tilde "$base")"
@@ -72,8 +73,15 @@ canccu_uninstall() {
   # only the venv this install recorded: the default place may hold an older install's (the
   # same marker), and --no-monitor records none
   venv=$(cat "$base/.venv" 2>/dev/null)
+  # resolved on both sides, up to the tree: a link written through another form of the same
+  # prefix (a symlinked HOME) is still ours. Not past it: current may point out of it (--dev).
+  rbase=$(realpath -m "$base")
   for l in "$prefix"/bin/*; do
-    [ -L "$l" ] && [[ $(readlink "$l") == "$base"/* ]] && rm -f "$l" && echo "removed $(canccu_tilde "$l")"
+    [ -L "$l" ] || continue
+    t=$(readlink "$l")
+    [[ $t == */lib/canccu-dispatcher/* ]] || continue
+    [ "$(realpath -m "${t%%/lib/canccu-dispatcher/*}")/lib/canccu-dispatcher" = "$rbase" ] &&
+      rm -f "$l" && echo "removed $(canccu_tilde "$l")"
   done
   rm -rf "$base" && echo "removed $(canccu_tilde "$base")" || _cmd_die "could not remove all of $(canccu_tilde "$base")"
   # the recorded venv only when the installer built it (it holds the requirements' hash)

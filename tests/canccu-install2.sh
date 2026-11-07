@@ -147,6 +147,18 @@ inst "$T/src0" --no-monitor --prefix "$H/.local"
 ok "… an explicit --prefix of the same dir calls no link foreign" eq "$rc $(grep -c 'kept ' "$E/out")" "0 0"
 hrun "$P/bin/canccu-dispatcher" uninstall
 ok "… uninstall removes every link into its tree" eq "$rc $(find "$P/bin" -type l | wc -l)" "0 0"
+# --dev: the commands run the checkout, whose default prefix is ~/.local, resolved like install.sh's
+D=$E/checkout; src_copy "$D" 9.9.0
+(cd "$D" && git init -q && git -c user.name=octo -c user.email=octo@users.noreply.github.com add -A &&
+  git -c user.name=octo -c user.email=octo@users.noreply.github.com commit -qm one) >/dev/null 2>&1
+inst "$D" --dev --no-monitor
+ok "a symlinked HOME, --dev: current is the checkout" eq "$rc $(cur)" "0 $D"
+hrun "$P/bin/canccu-dispatcher" doctor
+ok "… doctor (run from the checkout) finds the links and PATH as they are" eq "$(grep -cE 'links to|not linked|not on PATH|on PATH is|not installed' "$E/out")" 0
+# a link written through the symlinked form of the prefix (an older install, or by hand)
+ln -s "$B/current/bin/canccu-status" "$P/bin/canccu-old-form"
+hrun "$P/bin/canccu-dispatcher" uninstall
+ok "… uninstall (run from the checkout) removes every link into its tree" eq "$rc $(find "$P/bin" -type l | wc -l) $(test -e "$B" && echo tree)" "0 0 "
 
 # the old install's venv (the same marker, the same default place): never this install's to remove
 inst_env uninstall-foreign-venv
