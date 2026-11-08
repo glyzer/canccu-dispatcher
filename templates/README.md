@@ -1,0 +1,29 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+# Templates for a target repo
+
+`templates/repo/` holds the files a repo that canccu-dispatcher works on adds through a PR, at
+the same paths under its root. They are 0BSD (`templates/LICENSE`): copy them freely. This repo
+runs the same files: `tests/canccu-ci.sh` fails when its copies differ.
+
+## The review gate
+
+- `.github/workflows/review-gate.yml`: the workflow. Its job `review-gate` is the check a
+  ruleset requires (the default of `REVIEW_CHECKS`); do not rename it.
+- `.github/scripts/review-gate`: the gate. `review-gate --self-test` runs its offline tests; the
+  workflow runs them first on every PR.
+
+The gate passes only when the newest comment by the reviewer identity that holds
+`Review verdict:` ends in exactly `Review verdict: pass <full head sha>` for the PR's current
+head, was never edited, and the base branch has not changed since. That is the line
+canccu-dispatcher's reviewer writes last (`changes` instead of `pass` fails the gate). Comments
+by anyone else are ignored, and comment text is matched, never run.
+
+Setup, by a maintainer (`canccu-init` prints the same checklist):
+
+1. Set the repo variable `REVIEWER_LOGIN` to the reviewer account's login (Settings → Secrets
+   and variables → Actions → Variables). Unset, the gate fails every PR.
+2. Add both files through a PR.
+3. Require the checks `CI` and `review-gate` in a ruleset on the default branch.
+
+The workflow token only reads, except `actions: write` in the job that re-runs the gate when the
+reviewer posts a verdict. Every action is pinned by its commit SHA; Dependabot updates them.

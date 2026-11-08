@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# tests/canccu-repo.sh — the repo's own rules: licence headers, the file-size rule, the layout,
-# the CI workflow (the harness: tests/lib/harness.sh).
+# tests/canccu-repo.sh — the repo's own rules: licence headers, the file-size rule and the layout
+# (the workflows: tests/canccu-ci.sh; the harness: tests/lib/harness.sh).
 # shellcheck source=lib/harness.sh
 . "$(dirname "$0")/lib/harness.sh"
 cd "$root" || exit 1
@@ -19,17 +19,23 @@ kind() {   # kind <file>: shell, python, yaml, markdown or other
 
 # ---------------------------------------------------------------- licence headers
 
+# the review-gate templates, and this repo's copies of them, are 0BSD (templates/LICENSE): a
+# target repo copies them without taking on the AGPL
+zero_bsd() { case $1 in templates/repo/*|.github/workflows/review-gate.yml|.github/scripts/review-gate) return 0 ;; esac; return 1; }
 missing=""
 while IFS= read -r f; do
   [ -f "$f" ] || continue
   case $(kind "$f") in
-    # line 1, or line 2 after a shebang
+    # line 1, or line 2 after a shebang; an issue template's front matter must come first, so
+    # there the line after it
     shell|python|yaml|markdown)
       n=1; head -n1 "$f" | grep -q '^#!' && n=2
-      sed -n "${n}p" "$f" | grep -q 'SPDX-License-Identifier: AGPL-3.0-or-later' || missing+=" $f" ;;
+      [[ $f == .github/ISSUE_TEMPLATE/*.md ]] && n=$(( $(sed -n '2,$p' "$f" | grep -n -m1 '^---$' | cut -d: -f1) + 2 ))
+      lic=AGPL-3.0-or-later; zero_bsd "$f" && lic=0BSD
+      sed -n "${n}p" "$f" | grep -q "SPDX-License-Identifier: $lic" || missing+=" $f" ;;
   esac
 done <<<"$files"
-ok "every shell, Python, YAML and Markdown source starts with the SPDX line" eq "${missing# }" ""
+ok "every shell, Python, YAML and Markdown source starts with its SPDX line (0BSD: the templates)" eq "${missing# }" ""
 ok "REUSE.toml covers the JSON fixtures and the monitor's requirements" \
   eq "$(grep -oE 'tests/fixtures/\*\*/\*\.json|lib/canccu-monitor\.requirements\.txt' REUSE.toml 2>/dev/null | wc -l)" 2
 ok "… and VERSION" grep -q '"VERSION"' REUSE.toml
@@ -65,15 +71,6 @@ ok "every command and the engine find their libs from their real path" \
   eq "$(grep -L 'realpath' bin/* libexec/canccu-worker | tr '\n' ' ')" ""
 mkdir -p "$T/links"; ln -s "$root/bin/canccu-status" "$T/links/canccu-status"
 ok "… so a symlink to a command works" grep -q "no project in" <<<"$(env -u CANCCU_PROJECT CANCCU_ROOT="$T/none" "$T/links/canccu-status" 2>&1)"
-
-# ---------------------------------------------------------------- CI
-
-Y=.github/workflows/ci.yml
-ok "CI: one job, named CI" eq "$(sed -n '/^jobs:/,$p' "$Y" | grep -cE '^  [a-z0-9_-]+:$') $(grep -c '^    name: CI$' "$Y")" "1 1"
-ok "CI: every action is pinned by a full SHA" eq "$(grep -E '^\s*-?\s*uses:' "$Y" | grep -cvE 'uses: [^@]+@[0-9a-f]{40}( |$)')" 0
-ok "CI: no secrets" not grep -q 'secrets\.' "$Y"
-ok "CI: the job ends within 10 minutes" grep -qE '^    timeout-minutes: ([1-9]|10)$' "$Y"
-ok "CI: it runs the local check" grep -q 'tests/run$' "$Y"
 
 echo "canccu-repo tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

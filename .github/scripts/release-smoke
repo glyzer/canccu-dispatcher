@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# .github/scripts/release-smoke <tarball> — a release tarball as a user gets it: unpacked, then in
+# a temp prefix and a fake HOME (the state dir of tests/fixtures/home) install.sh --check, the
+# install, canccu-dispatcher --version, doctor (which must find no problem) and uninstall, which
+# must leave no file in the prefix and the HOME as it found it. One line per step.
+# gh and claude are stubs (no login, no network, no Claude Code on a CI runner), and tmux when
+# the host has none; bash, git, jq, python3 and coreutils are the host's own.
+# Exit 0 passed, 1 a step failed, 2 a usage error.
+set -uo pipefail
+repo=$(cd "$(dirname "$(realpath "$0")")/../.." && pwd)
+[ $# -eq 1 ] && [ -f "$1" ] || { echo "usage: release-smoke <tarball>" >&2; exit 2; }
+tarball=$(realpath "$1")
+
+w=$(mktemp -d) || exit 1
+trap 'rm -rf "$w"' EXIT
+H=$w/home P=$w/prefix X=$w/unpacked tb=$w/toolbin
+mkdir -p "$H" "$P" "$X" "$tb"
+fail() { echo "FAIL $1"; [ -s "$w/out" ] && sed 's/^/  | /' "$w/out" | tail -n 20; exit 1; }
+# the user's view: nothing of the caller's environment (a CANCCU_ROOT, a token) but the stubs
+run() { env -i HOME="$H" PATH="$tb:$P/bin:/usr/local/bin:/usr/bin:/bin" LANG=C.UTF-8 TMPDIR="$w" "$@" > "$w/out" 2>&1; }
+# snap <dir>: every path with its type, mode and content hash, to compare before and after
+snap() { (cd "$1" && find . -printf '%p %y %m\n' | sort && find . -type f -print0 | sort -z | xargs -0 -r sha256sum); }
+
+tar -xzf "$tarball" -C "$X" || fail "the tarball does not unpack"
+mapfile -t tops < <(find "$X" -mindepth 1 -maxdepth 1)
+[ "${#tops[@]}" = 1 ] && [ -d "${tops[0]}" ] || fail "the tarball holds ${#tops[@]} top-level entries, not one dir"
+src=${tops[0]}
+[ -x "$src/bin/canccu-dispatcher" ] || fail "the tarball has no bin/canccu-dispatcher"
+
+cp -a "$repo/tests/fixtures/home/." "$H/" || fail "no fixture HOME in $repo/tests/fixtures/home"
+printf 'fake-reviewer-token-for-tests\n' > "$H/.canccu/reviewer-token" && chmod 600 "$H/.canccu/reviewer-token"
+# the claude stub lists exactly the flags this release's run engine passes (lib/canccu-deps.sh)
+flags=$(bash -c '. "$1/lib/canccu-deps.sh" && echo "$CANCCU_CLAUDE_FLAGS"' _ "$src") || fail "no lib/canccu-deps.sh in the tarball"
+{ echo '#!/bin/sh'; echo 'case $1 in --version) echo "99.0.0 (Claude Code)" ;; --help) cat <<EOT'
+  for f in $flags; do echo "  $f <value>"; done; echo 'EOT'; echo ';; esac'; } > "$tb/claude"
+printf '#!/bin/sh\ncase "$1 $2" in "auth status") echo "Logged in to github.com" ;; esac\n' > "$tb/gh"
+command -v tmux >/dev/null || { printf '#!/bin/sh\n[ "$1" = -V ] && echo "tmux 3.4"\n' > "$tb/tmux"; echo "note: no tmux on this host: a stub stands in"; }
+chmod +x "$tb"/*
+before=$(snap "$H")
+
+run bash "$src/install.sh" --check || fail "install.sh --check"
+echo "ok   install.sh --check: $(tail -n1 "$w/out")"
+run bash "$src/install.sh" --prefix "$P" --no-monitor || fail "install.sh --prefix <temp> --no-monitor"
+echo "ok   install: $(grep -m1 '^install' "$w/out")"
+want="canccu-dispatcher $(tr -d '[:space:]' < "$src/VERSION")"
+run "$P/bin/canccu-dispatcher" --version && [ "$(cat "$w/out")" = "$want" ] || fail "canccu-dispatcher --version is not '$want'"
+echo "ok   --version: $want"
+run "$P/bin/canccu-dispatcher" doctor || fail "doctor found problems"
+echo "ok   doctor: $(cat "$w/out")"
+run "$P/bin/canccu-dispatcher" uninstall || fail "uninstall"
+left=$(cd "$P" && find . -mindepth 1 ! -type d | sed 's|^\./||')
+[ -z "$left" ] || { : > "$w/out"; fail "uninstall left behind in the prefix: $(tr '\n' ' ' <<<"$left")"; }
+[ ! -e "$P/lib/canccu-dispatcher" ] || { : > "$w/out"; fail "uninstall left lib/canccu-dispatcher in the prefix"; }
+diff <(echo "$before") <(snap "$H") > "$w/out" || fail "uninstall left the HOME changed"
+echo "ok   uninstall: nothing left in the prefix, the HOME as it was"

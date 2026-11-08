@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # CI: the local check of CLAUDE.md (tests/run), on every PR, every merge-queue entry and every
-# push to main. One job, named `CI`, so a ruleset can require it. No secrets; the token only
-# reads the repo.
+# push to main. The job `CI` is the one a ruleset requires: the check on the newest runner, then
+# the release tarball's install smoke test. `CI (oldstable)` runs the same check on Debian 12's
+# own bash, jq 1.6, tmux, Python 3.11 and git, the oldest distribution the tool supports. No
+# secrets; the token only reads the repo.
 name: CI
 
 on:
@@ -10,8 +12,7 @@ on:
   push:
     branches: [main]
 
-permissions:
-  contents: read
+permissions: {}
 
 # A new push to a PR cancels its older run. Each main commit has a group of its own: in a shared
 # group GitHub still cancels an older pending run when a newer one queues, and a cancelled CI is
@@ -24,7 +25,9 @@ jobs:
   ci:
     name: CI
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -67,3 +70,50 @@ jobs:
         if: failure()
         run: |
           for f in "$RUNNER_TEMP"/test-logs/*.log; do echo "::group::${f##*/}"; cat "$f"; echo "::endgroup::"; done
+
+      # the tarball release.yml would publish for this commit, installed the way a user installs
+      # it: in a temp prefix and a fake HOME, then doctor and uninstall (.github/scripts/release-smoke)
+      - name: Release tarball smoke test
+        run: |
+          v=$(cat VERSION)
+          .github/scripts/release build "$v" "$RUNNER_TEMP/dist"
+          .github/scripts/release-smoke "$RUNNER_TEMP/dist/canccu-dispatcher-$v.tar.gz"
+
+  oldstable:
+    name: CI (oldstable)
+    runs-on: ubuntu-latest
+    # jq 1.6 starts about 8 times slower than 1.7, and the tests call it thousands of times: the
+    # same check takes more than twice as long here, so each test file gets 20 minutes, not 8
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    container:
+      image: debian:12
+    steps:
+      # git before the checkout: without it, checkout fetches a tarball, and the tests need a repo
+      - name: Tools
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends ca-certificates coreutils procps util-linux bash jq tmux python3 python3-venv git shellcheck > /dev/null
+          bash --version | head -n1; shellcheck --version | sed -n 2p; jq --version; tmux -V; python3 --version; git --version
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # as a user, not as the container's root: root passes every permission check, so the tests
+      # of a mode or an unwritable dir would prove nothing. The monitor's venv straight from PyPI.
+      - name: Local check
+        run: |
+          useradd -m -d /var/lib/ci ci
+          chown -R ci "$GITHUB_WORKSPACE"
+          runuser -u ci -- python3 -m venv /var/lib/ci/venv
+          runuser -u ci -- /var/lib/ci/venv/bin/pip install --quiet --disable-pip-version-check -r lib/canccu-monitor.requirements.txt
+          runuser -u ci -- env HOME=/var/lib/ci CANCCU_TEST_TIMEOUT=20m CANCCU_VENV=/var/lib/ci/venv CANCCU_TEST_LOGS=/var/lib/ci/test-logs tests/run
+
+      - name: Full logs of a failed check
+        if: failure()
+        run: |
+          for f in /var/lib/ci/test-logs/*.log; do echo "::group::${f##*/}"; cat "$f"; echo "::endgroup::"; done

@@ -134,6 +134,8 @@ full=$(tr_ --list)
 ok "tests/run (no argument): lints every shell file" \
   grep -q '^lint: .*bin/canccu-dispatch .*libexec/canccu-worker .*lib/canccu-common.sh .*tests/canccu-dispatch.sh .*tests/lib/harness.sh .*tests/run' <<<"$full"
 ok "… the sourced shell files too (config, rules)" grep -q '^lint: .*lib/canccu-config.default .*profiles/default/rules' <<<"$full"
+ok "… the release and review-gate scripts, and the template's" \
+  grep -q '^lint: .*\.github/scripts/release .*\.github/scripts/release-smoke .*\.github/scripts/review-gate .*templates/repo/\.github/scripts/review-gate' <<<"$full"
 ok "… lints no non-shell file" not grep -qE '^lint: .*(canccu-monitor\.py|canccu-plan\.jq|\.json)' <<<"$full"
 ok "… runs every test file, the leak check and the monitor's self-test" \
   eq "$(grep -v '^lint:' <<<"$full" | sort | tr '\n' ' ')" "$(cd "$root" && { ls tests/*.sh; echo monitor; } | sort | tr '\n' ' ')"
@@ -153,6 +155,14 @@ printf '#!/usr/bin/env bash\nmkdir "%s/busy" || { echo "two at once"; exit 1; }\
 out=$(cd "$F" && CANCCU_TEST_JOBS=1 tests/run tests/small.sh tests/big.sh 2>&1); rc=$?
 ok "tests/run: CANCCU_TEST_JOBS=1 runs one part at a time" eq "$rc $(grep -c 'two at once' <<<"$out")" "0 0"
 ok "… the biggest test file first" eq "$(grep -oE '^tests/(big|small)\.sh' <<<"$out" | tr '\n' ' ')" "tests/big.sh tests/small.sh "
+# CANCCU_TEST_TIMEOUT: each test file's time limit (default 8m), for a slow host such as jq 1.6's
+printf '#!/usr/bin/env bash\nsleep 5\necho "slow tests: 1 passed, 0 failed"\n' > "$F/tests/slow.sh"
+out=$(cd "$F" && CANCCU_TEST_LOGS=$T/runlogs3 CANCCU_TEST_TIMEOUT=1s tests/run tests/slow.sh 2>&1); rc=$?
+ok "tests/run: CANCCU_TEST_TIMEOUT=1s stops a slower test file" eq "$rc $(grep -c '^tests/slow\.sh: FAILED .*(timed out)$' <<<"$out")" "1 1"
+out=$(cd "$F" && CANCCU_TEST_LOGS=$T/runlogs3 CANCCU_TEST_TIMEOUT=20s tests/run tests/slow.sh 2>&1); rc=$?
+ok "… and a longer one lets it finish" eq "$rc" 0
+out=$(cd "$F" && CANCCU_TEST_TIMEOUT=soon tests/run tests/slow.sh 2>&1); rc=$?
+ok "… a limit that is no duration: a usage error" eq "$rc $(grep -c 'CANCCU_TEST_TIMEOUT' <<<"$out")" "2 1"
 
 # ---------------------------------------------------------------- the worker's test rule
 

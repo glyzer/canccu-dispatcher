@@ -101,8 +101,9 @@ secrets, variables or collaborators):
      in ${REVIEWER_TOKEN_FILE/#$HOME/\~} (one token for all projects).
   2. Set the repo variable REVIEWER_LOGIN to ${REVIEWER_LOGIN:-that login} (Settings → Secrets and variables →
      Actions → Variables): the review-gate check reads it.
-  3. Add the review-gate workflow and its script (.github/workflows/review-gate.yml) to $REPO,
-     through a PR. This pre-release of canccu-dispatcher does not ship them yet: see its README.md.
+  3. Add the review-gate workflow and its script to $REPO through a PR: copy the files under
+     $(canccu_tilde "$(realpath -m "$here/templates/repo/.github")")/ to the same paths in the
+     repo (templates/README.md says what they check).
   4. Set the required checks (a ruleset on main): CI and ${REVIEW_CHECKS:-review-gate}; with a merge queue.
   5. Clone the repo to $CLONE if it is not there, and review ${CANCCU_HOME/#$HOME/\~}/rules
      (risky and gated paths, extra reviewer and worker text, AUTO_MERGE_UNTIL, one-at-a-time lock,
