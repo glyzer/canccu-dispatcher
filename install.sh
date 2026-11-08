@@ -23,7 +23,7 @@ src=$(dirname "$(realpath "$0")")
 usage() { sed -n '3,4s/^# \{0,1\}//p' "$src/install.sh" >&2; exit 2; }
 # resolved like an explicit value (and like the prefix canccu-dispatcher derives from its real
 # path): a HOME reached through a symlink must name its links one way only
-prefix=$(realpath -m "$HOME/.local") profile="" venv=$(realpath -m "${CANCCU_VENV:-$HOME/.local/share/canccu/venv}")
+prefix=$(realpath -m "$HOME/.local") profile="" venv=$(canccu_default_venv)
 monitor=1 replace=0 dev=0 check=0
 while [ $# -gt 0 ]; do
   case $1 in
@@ -75,8 +75,10 @@ else
   canccu_stage "$src" "$base" "$id" "$want" || exit 1
   was=$(canccu_current "$base")
   canccu_switch "$base" "releases/$id" || exit 1
-  # made current again: the newest for rollback and pruning (install A, B, A: rollback goes to B)
+  # made current again: the newest for rollback and pruning (install A, B, A: rollback goes to B),
+  # and no longer one a rollback switched away from
   [ "$STAGED" = same ] && [ "$was" != "releases/$id" ] && date +%s%N > "$tree/.installed"
+  rm -f "$tree/.rolled-back"
   if [ "$STAGED" = same ] && [ "$was" = "releases/$id" ]; then echo "canccu-dispatcher $id is installed already"
   else echo "installed canccu-dispatcher $id in $(canccu_tilde "$tree")"; fi
 fi
@@ -91,7 +93,7 @@ if (( monitor )); then
   if canccu_venv "$tree/lib/canccu-monitor.requirements.txt" "$venv" "$(cat "$base/.venv" 2>/dev/null)"; then
     [ "$(cat "$base/.venv" 2>/dev/null)" = "$venv" ] || echo "$venv" > "$base/.venv"
   fi
-  [ "$venv" = "$(realpath -m "${CANCCU_VENV:-$HOME/.local/share/canccu/venv}")" ] ||
+  [ "$venv" = "$(canccu_default_venv)" ] ||
     echo "the monitor finds its venv through CANCCU_VENV: export CANCCU_VENV=$(canccu_tilde "$venv")"
 fi
 canccu_state_config "$tree" "$profile"

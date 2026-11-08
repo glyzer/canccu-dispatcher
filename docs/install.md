@@ -63,7 +63,8 @@ venv keeps their hash in `.requirements.sha256`. A failed build warns and instal
 The installer builds only into a dir it owns: a missing or empty one, one that holds its marker
 or the trace of its own failed build (`.canccu-building`, removed once a build succeeds), or the
 venv this install recorded. A failed build is retried by the next install. A dir with other files is left alone, with a warning, because
-uninstall removes the venv it recorded. `--no-monitor` skips the venv. The monitor finds a venv in another place through `CANCCU_VENV`.
+uninstall removes the venv it recorded. `--no-monitor` skips the venv. The monitor finds a venv in another place through `CANCCU_VENV`,
+and runs the system `python3` while the venv holds the trace of a failed build.
 
 ### The state dir
 
@@ -105,11 +106,14 @@ in your shell later. `CANCCU_ROOT` behaves the same way.
 - **Upgrade**: run `install.sh` from the new tree. A running dispatcher keeps the release it
   started from, because every command finds its files through its real path. The installer
   names each process still on an older release; restart those to pick up the new one.
-- **Pruning**: the last three releases are kept. A release that a live dispatcher or run still
-  uses is never removed. The installer finds those from the processes' paths: their arguments,
+- **Pruning**: the last three releases are kept; a release a rollback switched away from counts
+  last, so it goes before a good one. A release that a live dispatcher or run still uses is
+  never removed. The installer finds those from the processes' paths: their arguments,
   their working dir, and the files they hold open (bash holds the script it runs).
 - **`canccu-dispatcher rollback [--prefix DIR]`** points `current` at the release made
-  current before it. Installing A, then B, then A again, a rollback goes back to B. From
+  current before it, passing any release a rollback switched away from (it is marked
+  `.rolled-back` until it is made current again). Installing A, then B, then A again, a rollback
+  goes back to B. A, B, C, rollback (to B), D, rollback goes back to B, never to C. From
   `--dev` it goes to the newest release. The links in `PREFIX/bin` follow: a command the newer
   release dropped is linked again, and one only it had goes.
 - **`canccu-dispatcher uninstall [--prefix DIR] [--purge-state --yes] [--force]`** removes:
@@ -117,11 +121,14 @@ in your shell later. `CANCCU_ROOT` behaves the same way.
   - the tree;
   - the monitor venv the installer built.
 
-  It refuses while a dispatcher holds its lock or a run's lock is live, unless `--force`. It
-  removes only the venv this install recorded, so a venv from an older install stays. Two
+  It refuses while a dispatcher holds its lock, a run's lock is live, or any process runs from
+  this prefix's releases (the monitor holds no lock), unless `--force`. It removes only the venv
+  this install recorded, so a venv from an older install stays. Two
   prefixes that share one venv (both on the default) both record it: uninstalling one removes
   it, and the other's next install builds it again. The state dir goes only with
-  `--purge-state --yes`, and never while any lock is held: a dispatcher's or a live run's.
+  `--purge-state --yes`, and never while any lock is held: a dispatcher's or a live run's. A
+  dir that is no state dir (`/`, your home, or one with neither `config` nor `projects/`) is
+  never removed.
 
 `--prefix` defaults to the prefix of the release the command runs from. From a checkout
 (`--dev`) it is the prefix of the `PREFIX/bin` link the command was run through, else

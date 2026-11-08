@@ -8,8 +8,10 @@
 #                    version; from a git checkout <version>+<commit>, with uncommitted changes
 #                    <version>+<commit>.dirty.<hash>: the same id is always the same files, but
 #                    for a tarball that reuses a version. Its .tree.sha256 names its files (the
-#                    same tree installs once), its .installed the time it was last made current
-#                    (the order of releases: rollback, pruning).
+#                    same tree installs once), its .installed the time it was installed or made
+#                    current again (the order of releases), its .rolled-back that a rollback
+#                    switched away from it (rollback passes it, pruning drops it first; making
+#                    it current again clears it).
 #   current          a symlink to releases/<id>, or to a checkout (--dev); switched by a rename
 #   .install.lock    held by install.sh, rollback and uninstall: one at a time
 #   .venv            the monitor venv's path (uninstall removes it)
@@ -47,6 +49,19 @@ canccu_link_ours() {
 }
 # canccu_link_cmd <link target> <base> <command>: the target is this base's current/bin/<command>
 canccu_link_cmd() { canccu_link_ours "$1" "$2" && [ "${1#*/lib/canccu-dispatcher/}" = "current/bin/$3" ]; }
+# canccu_default_venv: the monitor venv's place when neither --venv nor CANCCU_VENV names one
+# (bin/canccu-monitor holds the same default: it sources no lib)
+canccu_default_venv() { realpath -m "${CANCCU_VENV:-$HOME/.local/share/canccu/venv}"; }
+# canccu_release_intact <release dir> [hash]: its files are the ones it was installed with (and,
+# given a hash, the ones of that tree): recomputed, never taken from its own record
+canccu_release_intact() {
+  local h; h=$(cat "$1/.tree.sha256" 2>/dev/null)
+  [ -n "$h" ] && [ -f "$1/.installed" ] || return 1
+  [ -z "${2:-}" ] || [ "$h" = "$2" ] || return 1
+  [ "$(canccu_tree_files "$1" | canccu_tree_hash "$1")" = "$h" ]
+}
+# canccu_rolled <base> <id>: a rollback switched away from that release
+canccu_rolled() { [ -e "$1/releases/$2/.rolled-back" ]; }
 canccu_base() { printf '%s\n' "$1/lib/canccu-dispatcher"; }
 # canccu_release_id <tree> <tree hash>
 canccu_release_id() {
@@ -68,7 +83,7 @@ canccu_tree_files() {
       while IFS= read -r -d '' f; do { [ -e "$1/$f" ] || [ -L "$1/$f" ]; } && printf '%s\0' "$f"; done
   else
     (cd "$1" && find . \( -name .git -o -name __pycache__ \) -prune -o \( -type f -o -type l \) \
-      ! -name '*.pyc' ! -path ./.installed ! -path ./.tree.sha256 -printf '%P\0')
+      ! -name '*.pyc' ! -path ./.installed ! -path ./.tree.sha256 ! -path ./.rolled-back -printf '%P\0')
   fi
 }
 # canccu_tree_hash <dir> < NUL list: one hash of the listed files' names, modes and contents
@@ -104,16 +119,19 @@ canccu_in_use() {
       # a process may end between the grep and this read (the grep itself does)
       { tr '\0' '\n' < "$f"; } 2>/dev/null | grep -F "$rb" | sed "s|^|$f |"
     done
-  } | while read -r f l; do
+  } | { declare -A mine=()
+  while read -r f l; do
     x=${f#/proc/}; x=${x%%/*}
-    # the caller and its own subshells hold its script open too (fd 255): never "in use" by it
-    _canccu_mine "$x" && continue
+    # the caller and its own subshells hold its script open too (fd 255): never "in use" by it.
+    # Walked once per pid: one holds many matching fds.
+    [ -n "${mine[$x]+x}" ] || { if _canccu_mine "$x"; then mine[$x]=1; else mine[$x]=0; fi; }
+    (( mine[$x] )) && continue
     # gone since the scan (or during the walk above, which then cannot reach $$): runs nothing
     [ -d "/proc/$x" ] || continue
     l=${l#*"$rb"}; id=${l%%/*}
     # this scan's own find and grep name the dir in their argv, with no release after it
     canccu_valid_release "$id" && [ -d "$rb$id" ] && printf '%s %s\n' "$id" "$x"
-  done | sort -u
+  done; } | sort -u
 }
 
 # _canccu_mine <pid>: the pid is this shell or a descendant of it (its PPid chain reaches $$)
@@ -136,8 +154,7 @@ canccu_stage() {
   rel=$base/releases/$id
   if [ -d "$rel" ]; then
     # its files as they are now, not as recorded: a release edited by hand installs again
-    [ "$(cat "$rel/.tree.sha256" 2>/dev/null)" = "$want" ] && [ -f "$rel/.installed" ] &&
-      [ "$(canccu_tree_files "$rel" | canccu_tree_hash "$rel")" = "$want" ] && { STAGED=same; return 0; }
+    canccu_release_intact "$rel" "$want" && { STAGED=same; return 0; }
     if [ "$(canccu_current_id "$base")" = "$id" ]; then
       echo "install.sh: release $id is current and installed with other files; nothing changed. Give this tree a new VERSION, or make another release current first (install one, or canccu-dispatcher rollback), then install this one again." >&2
       return 1
@@ -200,13 +217,16 @@ canccu_link() {
   return 0
 }
 
-# canccu_prune <base> <in use>: removes the releases beyond the newest CANCCU_KEEP_RELEASES,
-# never current's and never one a process runs from (canccu_in_use's lines, read once by the
-# caller); and what an interrupted install left behind
+# canccu_prune <base> <in use>: removes the releases beyond the newest CANCCU_KEEP_RELEASES (the
+# ones rolled away from count last: a bad release goes before a good one), never current's and
+# never one a process runs from (canccu_in_use's lines, read once by the caller); and what an
+# interrupted install left behind
 canccu_prune() {
   local base=$1 cur busy id keep=()
   cur=$(canccu_current_id "$base"); busy=$(cut -d' ' -f1 <<<"$2" | sort -u)
-  mapfile -t keep < <(canccu_releases "$base" | tail -n "$CANCCU_KEEP_RELEASES")
+  mapfile -t keep < <({ for id in $(canccu_releases "$base" | tac); do canccu_rolled "$base" "$id" || echo "$id"; done
+                        for id in $(canccu_releases "$base" | tac); do canccu_rolled "$base" "$id" && echo "$id"; done; } |
+                      head -n "$CANCCU_KEEP_RELEASES")
   for id in $(canccu_releases "$base"); do
     [ "$id" = "$cur" ] && continue
     printf '%s\n' "${keep[@]}" | grep -qxF -- "$id" && continue

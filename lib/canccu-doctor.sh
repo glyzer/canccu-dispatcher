@@ -14,7 +14,7 @@ _doc_install() {
   id=$(canccu_current_id "$base") cur=$(canccu_current "$base")
   if [ -n "$id" ]; then
     tree=$base/releases/$id
-    [ -f "$tree/.installed" ] && [ "$(cat "$tree/.tree.sha256" 2>/dev/null)" = "$(canccu_tree_files "$tree" | canccu_tree_hash "$tree")" ] ||
+    canccu_release_intact "$tree" ||
       echo "release $id is incomplete or changed ($(canccu_tilde "$tree")): make another release current (install one, or canccu-dispatcher rollback), then install this one again"
   else
     tree=$cur
@@ -29,7 +29,8 @@ _doc_install() {
     elif [ -e "$l" ]; then echo "$n in $(canccu_tilde "$prefix/bin") is a file, not a link to this install"; continue
     else echo "$n is not linked in $(canccu_tilde "$prefix/bin") (install.sh)"; continue; fi
     p=$(PATH=${CANCCU_USER_PATH:-$PATH} command -v "$n" 2>/dev/null)
-    [ -z "$p" ] || [ "$(realpath -m "${p%/*}")/$n" = "$l" ] || echo "$n on PATH is $(canccu_tilde "$p"), not this install's $(canccu_tilde "$l")"
+    # the dirs resolved on both sides: PREFIX/bin may itself be a link
+    [ -z "$p" ] || [ "$(realpath -m "${p%/*}")" = "$(realpath -m "$prefix/bin")" ] || echo "$n on PATH is $(canccu_tilde "$p"), not this install's $(canccu_tilde "$l")"
   done
   canccu_in_use "$base" | while read -r t p; do
     [ "$t" = "$id" ] && continue

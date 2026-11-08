@@ -55,6 +55,14 @@ jq -n --arg r "$rule" '{permissions: {deny: [$r]}}' > "$H/.claude/settings.json"
 doctor
 ok "… and with it the host is clean" eq "$rc $(cat "$E/out")" "0 no problems found"
 
+# PREFIX/bin itself a link (~/.local/bin → ~/bin), on PATH as ~/.local/bin
+inst_env bin-link
+mkdir -p "$H/bin" "$P"; ln -s ../bin "$P/bin"
+IPATH="$P/bin:$IPATH"
+inst "$T/src0" --no-monitor
+doctor
+ok "PREFIX/bin a link: no command called another install's" eq "$(grep -c 'on PATH is' "$E/out")" 0
+
 clean_host no-project
 rm -rf "$C/projects"
 doctor

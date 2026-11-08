@@ -2,8 +2,11 @@
 # shellcheck shell=bash
 # The tool's version, from the VERSION file of the tree the caller runs from. Sourced, never run.
 # canccu_version <root>: the version; "unknown" when the tree has no VERSION (a broken copy)
+# Pure bash: every command and every dispatcher pass reads it.
 canccu_version() {
-  local v; v=$(tr -d '[:space:]' < "$1/VERSION" 2>/dev/null)
+  local v=""
+  { read -r v < "$1/VERSION"; } 2>/dev/null
+  v=${v//[[:space:]]/}
   printf '%s\n' "${v:-unknown}"
 }
 # canccu_is_checkout <root>: the tree is a git checkout of its own; a checkout nested in another

@@ -71,7 +71,15 @@ ok "no release before: refused, current unchanged" eq "$rc $(cur) $(grep -c 'no 
 inst "$T/src3" --no-monitor
 ok "an install after a rollback: the new one is current" eq "$(cur)" "releases/9.9.3"
 hrun "$P/bin/canccu-dispatcher" rollback
-ok "… and rollback goes to the one installed before it" eq "$(cur)" "releases/9.9.2"
+ok "… and rollback goes to the one made current before it, not one rolled away from" eq "$(cur)" "releases/9.9.0"
+ok "… pruning dropped a rolled-away release first" eq "$(rels)" "9.9.0 9.9.2 9.9.3 "
+inst_env rollback-twice
+for v in 0 1 2; do inst "$T/src$v" --no-monitor; done
+hrun "$P/bin/canccu-dispatcher" rollback; inst "$T/src3" --no-monitor
+hrun "$P/bin/canccu-dispatcher" rollback
+ok "A, B, C, rollback, D, rollback: back to B" eq "$rc $(cur)" "0 releases/9.9.1"
+inst "$T/src2" --no-monitor; hrun "$P/bin/canccu-dispatcher" rollback
+ok "… C installed again is no longer rolled away from: rollback from it goes to B" eq "$(cur)" "releases/9.9.1"
 inst_env rollback-reinstall
 for v in 0 1 0; do inst "$T/src$v" --no-monitor; done
 hrun "$P/bin/canccu-dispatcher" rollback
@@ -138,6 +146,23 @@ hrun "$P/bin/canccu-dispatcher" uninstall
 ok "uninstall while a run's lock is live: refused" eq "$rc $(cur) $(grep -c 'web-5.lock' "$E/out")" "1 releases/9.9.0 1"
 hrun "$P/bin/canccu-dispatcher" uninstall --force
 ok "… --force removes it anyway" eq "$rc $(test -e "$B" && echo tree)" "0 "
+
+# a process of this prefix that holds no lock (the monitor) still runs from the release
+inst_env uninstall-in-use
+inst "$T/src0" --no-monitor
+holder_fd "$R/9.9.0/lib/canccu-monitor.py"
+hrun "$P/bin/canccu-dispatcher" uninstall
+ok "uninstall while a process runs from the release: refused, named" eq "$rc $(cur) $(grep -c 'runs release 9.9.0' "$E/out")" "1 releases/9.9.0 1"
+hrun "$P/bin/canccu-dispatcher" uninstall --force
+ok "… --force removes it anyway" eq "$rc $(test -e "$B" && echo tree)" "0 "
+holders_stop
+# a state dir that is none: never purged
+inst_env purge-sanity
+inst "$T/src0" --no-monitor
+rm -f "$C/config"; echo keep > "$C/notes"
+hrun "$P/bin/canccu-dispatcher" uninstall --purge-state --yes
+ok "--purge-state on a dir with neither config nor projects/: refused, nothing removed" \
+  eq "$rc $(cat "$C/notes") $(cur)" "1 keep releases/9.9.0"
 
 inst_env purge
 inst "$T/src0" --no-monitor

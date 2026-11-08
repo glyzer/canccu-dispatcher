@@ -205,6 +205,17 @@ ok "… the dir is left with files" test -x "$V/bin/python"
 rm "$FAKE/uv-fail-pip"; inst "$S"
 ok "… the next install builds it again" eq "$(grep -c 'built the monitor' "$E/out") $(test -f "$V/.requirements.sha256" && echo marker)" "1 marker"
 ok "… and leaves no trace of the build" not test -e "$V/.canccu-building"
+# a rebuild that fails (the requirements changed, pip is down) leaves the recorded venv with only
+# the trace: still the installer's, so uninstall removes it
+src_copy "$E/s2" 9.9.1; echo "# changed" >> "$E/s2/lib/canccu-monitor.requirements.txt"
+touch "$FAKE/uv-fail-pip"; inst "$E/s2"
+hrun "$P/bin/canccu-dispatcher" uninstall
+ok "uninstall after a failed rebuild: the venv goes" eq "$rc $(test -e "$V" && echo venv)" "0 "
+# the monitor never runs a venv whose build of ours failed (no packages): python3 instead
+inst_env monitor-fallback
+touch "$FAKE/uv-fail-pip"; inst "$S"
+tool_fake python3 "system python"
+ok "the monitor after a failed first build: the system python3" grep -q 'system python' <<<"$(HOME=$H PATH=$IPATH "$P/bin/canccu-monitor" 2>&1)"
 
 inst_env venv-recorded
 inst "$S" --venv "$E/v"; rm "$E/v/.requirements.sha256"; : > "$FAKE/uv.log"

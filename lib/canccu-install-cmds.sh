@@ -25,18 +25,21 @@ _cmd_installed() {
   canccu_install_lock "$1" || exit 1
 }
 
-# canccu_rollback <prefix>: current back to the release installed before it (from a checkout:
-# to the newest release). Prunes nothing: a rollback after a rollback goes further back.
+# canccu_rollback <prefix>: current back to the release made current before it (from a checkout:
+# to the newest release), passing the ones a rollback switched away from; the one it leaves is
+# marked so (.rolled-back). Prunes nothing: a rollback after a rollback goes further back, and
+# after a new install it never returns to a release rolled away from.
 canccu_rollback() {
   local base cur prev="" id was
   base=$(canccu_base "$1"); _cmd_installed "$base"
   cur=$(canccu_current_id "$base"); was=${cur:-the checkout $(canccu_tilde "$(canccu_current "$base")")}
   for id in $(canccu_releases "$base"); do
     [ -n "$cur" ] && [ "$id" = "$cur" ] && break
-    prev=$id
+    canccu_rolled "$base" "$id" || prev=$id
   done
   [ -n "$prev" ] || _cmd_die "no release before ${cur:-the checkout} in $(canccu_tilde "$base/releases"); current is unchanged"
   canccu_switch "$base" "releases/$prev" || exit 1
+  [ -z "$cur" ] || : > "$base/releases/$cur/.rolled-back"
   echo "current is release $prev (was $was)"
   # PREFIX/bin as that release has it: a command the newer one dropped is linked again, one only
   # it had goes
@@ -67,7 +70,17 @@ canccu_uninstall() {
   (( purge && ! yes )) && _cmd_die "--purge-state removes $(canccu_tilde "$CANCCU_ROOT") with every project's state; add --yes to mean it. Nothing removed" 2
   base=$(canccu_base "$prefix")
   [ -e "$base" ] || _cmd_die "nothing installed in $(canccu_tilde "$base")"
-  held=$(canccu_held_locks)
+  if (( purge )); then
+    local root; root=$(realpath -m "$CANCCU_ROOT")
+    # never a dir that is no state dir: / , HOME itself, or one with neither config nor projects/
+    [ "$root" != / ] && [ "$root" != "$(realpath -m "$HOME")" ] && { [ -e "$root/config" ] || [ -d "$root/projects" ]; } ||
+      _cmd_die "$(canccu_tilde "$CANCCU_ROOT") is no canccu state dir (no config, no projects/); nothing removed"
+  fi
+  # the lock first: no install or rollback starts a process from the tree while it is checked
+  canccu_install_lock "$base" || exit 1
+  # the locks of the state dir, and every process that runs from this prefix's releases (the
+  # monitor holds no lock)
+  held=$(canccu_held_locks; canccu_in_use "$base" | while read -r id pid; do echo "process $pid runs release $id"; done)
   if (( purge )) && [ -n "$held" ]; then
     _cmd_die "the state dir is never removed while a lock is held: $(paste -sd ';' <<<"$held" | sed 's/;/; /g'). Stop them first. Nothing removed"
   fi
@@ -75,7 +88,6 @@ canccu_uninstall() {
   if [ -n "$held" ] && (( ! force )); then
     _cmd_die "still running: $(paste -sd ';' <<<"$held" | sed 's/;/; /g'). Stop them first, or --force (they keep running from deleted files until they stop). Nothing removed"
   fi
-  canccu_install_lock "$base" || exit 1
   # only the venv this install recorded: the default place may hold an older install's (the
   # same marker), and --no-monitor records none
   venv=$(cat "$base/.venv" 2>/dev/null)
@@ -83,8 +95,9 @@ canccu_uninstall() {
     [ -L "$l" ] && canccu_link_ours "$(readlink "$l")" "$base" && rm -f "$l" && echo "removed $(canccu_tilde "$l")"
   done
   rm -rf "$base" && echo "removed $(canccu_tilde "$base")" || _cmd_die "could not remove all of $(canccu_tilde "$base")"
-  # the recorded venv only when the installer built it (it holds the requirements' hash)
-  if [ -n "$venv" ] && [ -f "$venv/.requirements.sha256" ]; then rm -rf "$venv" && echo "removed the monitor's venv $(canccu_tilde "$venv")"
+  # the recorded venv only when the installer built it: its requirements' hash, or the trace of a
+  # (re)build of its own that failed (canccu_venv's own rule)
+  if [ -n "$venv" ] && { [ -f "$venv/.requirements.sha256" ] || [ -f "$venv/.canccu-building" ]; }; then rm -rf "$venv" && echo "removed the monitor's venv $(canccu_tilde "$venv")"
   elif [ -n "$venv" ] && [ -e "$venv" ]; then echo "kept $(canccu_tilde "$venv"): not a venv the installer built"; fi
   if (( purge )); then
     rm -rf "$CANCCU_ROOT" && echo "removed the state dir $(canccu_tilde "$CANCCU_ROOT")"
