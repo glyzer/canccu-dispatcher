@@ -82,7 +82,9 @@ jobs:
   oldstable:
     name: CI (oldstable)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # jq 1.6 starts about 8 times slower than 1.7, and the tests call it thousands of times: the
+    # same check takes more than twice as long here, so each test file gets 20 minutes, not 8
+    timeout-minutes: 30
     permissions:
       contents: read
     container:
@@ -109,7 +111,7 @@ jobs:
           chown -R ci "$GITHUB_WORKSPACE"
           runuser -u ci -- python3 -m venv /var/lib/ci/venv
           runuser -u ci -- /var/lib/ci/venv/bin/pip install --quiet --disable-pip-version-check -r lib/canccu-monitor.requirements.txt
-          runuser -u ci -- env HOME=/var/lib/ci CANCCU_VENV=/var/lib/ci/venv CANCCU_TEST_LOGS=/var/lib/ci/test-logs tests/run
+          runuser -u ci -- env HOME=/var/lib/ci CANCCU_TEST_TIMEOUT=20m CANCCU_VENV=/var/lib/ci/venv CANCCU_TEST_LOGS=/var/lib/ci/test-logs tests/run
 
       - name: Full logs of a failed check
         if: failure()

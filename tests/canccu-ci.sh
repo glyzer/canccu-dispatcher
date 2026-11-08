@@ -41,13 +41,17 @@ ok "CI: two jobs, CI and CI (oldstable)" eq "$(grep -E '^    name: ' <(sed -n '/
 for j in $(jobs "$Y"); do
   ok "CI: job $j only reads the repo" eq "$(job "$Y" "$j" | sed -n '/^    permissions:/,/^    [a-z]/p' | grep -E '^      ' | tr -d ' ')" "contents:read"
   ok "CI: job $j runs the local check" grep -qE '^ +[^#]*tests/run$' <(job "$Y" "$j")
-  ok "CI: job $j ends within 15 minutes" grep -qE '^    timeout-minutes: ([1-9]|1[0-5])$' <(job "$Y" "$j")
 done
 old=$(job "$Y" "$(jobs "$Y" | sed -n 2p)")
 ok "CI (oldstable): in a debian:12 container" grep -qE '^      image: debian:12$' <<<"$old"
 for p in bash jq tmux python3 git shellcheck; do
   ok "CI (oldstable): the distribution's $p" grep -qE "apt-get install .*[ ]$p( |$)" <<<"$old"
 done
+ok "CI: the job CI ends within 12 minutes" grep -qE '^    timeout-minutes: ([1-9]|1[0-2])$' <(job "$Y" ci)
+# jq 1.6 starts about 8 times slower than 1.7, and the dispatcher's tests call it thousands of
+# times: the same tests take more than twice as long there
+ok "CI (oldstable): each test file may take 20 minutes" grep -qE 'CANCCU_TEST_TIMEOUT=20m .*tests/run$' <<<"$old"
+ok "CI (oldstable): the job ends within 30 minutes" grep -qx '    timeout-minutes: 30' <<<"$old"
 ok "CI (oldstable): the tests run as a user, not as root" grep -qE 'runuser -u [a-z]+ -- .*tests/run$' <<<"$old"
 ci=$(job "$Y" ci)
 ok "CI: builds the tarball with the release script" grep -qF '.github/scripts/release build' <<<"$ci"

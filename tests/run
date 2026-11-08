@@ -9,6 +9,8 @@
 #                                 test files that cover it), or a pattern: tests/*<pattern>*.sh
 #   tests/run --affected          the files changed against origin/main, as source files
 #   tests/run --list ...          print what it would run, run nothing
+# Each test file may run for CANCCU_TEST_TIMEOUT (a duration of timeout(1); default 8m): a slow
+# host, such as an older distribution's jq 1.6 with its slow start, needs longer.
 # The full output of each part goes to a log file in CANCCU_TEST_LOGS (default: a new temp dir),
 # named at the end. Exit 1 when a part fails, 2 on a usage error.
 set -uo pipefail
@@ -76,6 +78,8 @@ all_shell() {
   done
 }
 
+limit=${CANCCU_TEST_TIMEOUT:-8m}
+[[ $limit =~ ^[0-9]+[smh]?$ ]] || { echo "tests/run: CANCCU_TEST_TIMEOUT=$limit is no duration (like 8m)" >&2; exit 2; }
 list=0 affected=0 args=()
 for a; do
   case $a in --list) list=1 ;; --affected) affected=1 ;; -*) echo "tests/run: unknown flag $a" >&2; exit 2 ;; *) args+=("$a") ;; esac
@@ -138,7 +142,7 @@ run_part() {
       (( ${#src[@]} )) && { shellcheck -S warning -x "${src[@]}" >> "$log" 2>&1 || rc=1; }
       (( ${#tst[@]} )) && { shellcheck -S warning -e SC2154,SC2034,SC1010,SC2319 "${tst[@]}" >> "$log" 2>&1 || rc=1; } ;;
     monitor) bin/canccu-monitor --self-test > "$log" 2>&1; rc=$? ;;
-    *) timeout -k 10s 8m bash "$p" > "$log" 2>&1; rc=$? ;;
+    *) timeout -k 10s "$limit" bash "$p" > "$log" 2>&1; rc=$? ;;
   esac
   if [ "$p" = lint ]; then
     (( rc )) && grep -E '^In |SC[0-9]{4}|syntax error' "$log" | head -20
