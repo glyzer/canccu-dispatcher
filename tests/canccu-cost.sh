@@ -134,6 +134,8 @@ full=$(tr_ --list)
 ok "tests/run (no argument): lints every shell file" \
   grep -q '^lint: .*bin/canccu-dispatch .*libexec/canccu-worker .*lib/canccu-common.sh .*tests/canccu-dispatch.sh .*tests/lib/harness.sh .*tests/run' <<<"$full"
 ok "… the sourced shell files too (config, rules)" grep -q '^lint: .*lib/canccu-config.default .*profiles/default/rules' <<<"$full"
+ok "… the release and review-gate scripts, and the template's" \
+  grep -q '^lint: .*\.github/scripts/release .*\.github/scripts/release-smoke .*\.github/scripts/review-gate .*templates/repo/\.github/scripts/review-gate' <<<"$full"
 ok "… lints no non-shell file" not grep -qE '^lint: .*(canccu-monitor\.py|canccu-plan\.jq|\.json)' <<<"$full"
 ok "… runs every test file, the leak check and the monitor's self-test" \
   eq "$(grep -v '^lint:' <<<"$full" | sort | tr '\n' ' ')" "$(cd "$root" && { ls tests/*.sh; echo monitor; } | sort | tr '\n' ' ')"
