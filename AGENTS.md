@@ -28,6 +28,14 @@ import are listed there; a split takes a file off the list.
   `example-org/web` and `example-user/tools`, users `octo` and `review-bot`, dates in 2030).
   Never a real person, organisation, host or other project.
 
+## Docs
+
+The reference is split into short per-topic files under `docs/reference/` (the index:
+`docs/reference/README.md`). Read only the topic your change touches, and update only that topic
+when a behaviour changes; the guides in `docs/` change only when a step a user takes changes. A
+new config or rules key gets its row in `docs/reference/config.md` or `docs/reference/rules.md`
+(`tests/canccu-docs.sh` fails without it).
+
 ## No personal data
 
 Nothing in the repo names a person, an organisation, a host or another project, and no file

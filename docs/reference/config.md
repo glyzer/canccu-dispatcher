@@ -1,0 +1,96 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+# Config
+
+Part of the reference; the index is [`README.md`](README.md). The rules keys (gating, review
+and prompt text) are in [`rules.md`](rules.md).
+
+## Where the values come from
+
+Every file is shell `KEY=value` lines. A `canccu-*` command reads, in this order:
+
+1. `lib/canccu-config.default`: the defaults, for every project;
+2. `hosts/<HOST_PROFILE>.conf`: the host profile, the values that suit the Claude plan and the
+   host (see "Host profiles" below);
+3. `~/.canccu/config`: the global config, a default for every project on this host;
+4. `~/.canccu/projects/<name>/rules`: the project's rules ([`rules.md`](rules.md));
+5. `~/.canccu/projects/<name>/config`: the project's config.
+
+A later file wins. Two keys are exceptions: `TOTAL_CAP` is read only up to `~/.canccu/config`
+(it caps all projects together, so no project may change it), and `HOST_PROFILE` only from
+`~/.canccu/config` or `CANCCU_HOST_PROFILE` (a profile never sets it).
+
+`install.sh` writes a missing `~/.canccu/config` as a copy of the defaults with every value
+commented out. Uncomment only what you change: a later release's new default then still applies
+to every key you left alone. `canccu-init` writes a project's `config` (`REPO`, `CLONE`,
+`DIGEST_ISSUE`) and `rules` from a template, `profiles/default/` or your own in
+`~/.canccu/profiles/<template>/`.
+
+## Keys
+
+Budgets are three numbers: turns, USD and minutes for one run. A run that reaches any of them
+is stopped and its issue goes to `needs-you`.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `REPO` | none | The only repo (`owner/repo`) the project's dispatcher works on. Project config only |
+| `CLONE` | none | Its main clone; every worktree hangs off it. `canccu-init` writes `~/code/<repo>` or the path it was given |
+| `HOST_PROFILE` | empty | The host profile, `hosts/<name>.conf` (for example `max`); empty: none. Set it in `~/.canccu/config`, or `CANCCU_HOST_PROFILE` for one command. An unknown name is refused with the list |
+| `CAP` | `3` | The project's workers, reviewers and answerers running at once |
+| `TOTAL_CAP` | `3` | The same over all projects of this host together (they share one Claude account). Up to `~/.canccu/config` only |
+| `MODEL` | empty | Passed as `--model` to every run; empty: no `--model`, the account's default model |
+| `USER_LOGIN` | empty | Your GitHub login: whose PRs are ours, who is assigned and pinged, whose comments resume a worker. Unset: the dispatcher does nothing |
+| `REVIEWER_LOGIN` | empty | The reviewer bot's login: reviews and pings post as it, and only its verdicts count. The same login is the repo variable the `review-gate` check reads. Unset: no review starts |
+| `REVIEWER_TOKEN_FILE` | `~/.canccu/reviewer-token` | The bot's token, mode 600, one for all projects. Only the dispatcher's own `gh` calls that post a review or a ping read it ([`../security.md`](../security.md)). Missing or another mode: no review starts, and `canccu-status` says so |
+| `GH_CONFIG_DIR` | empty | The project's own `gh` config dir, logged in with its narrow token. Empty: `~/.canccu/projects/<name>/gh` when it exists, else the default `gh` login, with a warning in `canccu-status` ([`projects.md`](projects.md)) |
+| `BUDGET_WORK` | `250 80 150` | A worker on a new issue |
+| `BUDGET_RESUME` | `80 20 45` | A resumed worker: review fixes, a plan OK, an answer, your comment |
+| `BUDGET_REVIEW` | `60 15 40` | The independent reviewer |
+| `BUDGET_FIXCHECK` | `30 6 20` | The fix-check after the worker fixed the review's findings |
+| `BUDGET_ANSWER` | `40 10 20` | The answerer of a worker's question |
+| `ANSWER_MAX` | `3` | Answerer rounds per issue; another question after that goes to `needs-you` |
+| `STALL_MIN` | `10` | A run whose log has not grown for this many minutes is killed as stalled |
+| `DIGEST_HOUR_UTC` | `6` | The daily digest is written on the first pass at or after this hour (UTC) |
+| `DIGEST_ISSUE` | empty | The issue the digest is posted on as a comment; empty: the digest is only written to `digest/<date>.md` |
+| `PING` | `on` | `on`: when something needs you, one comment as `REVIEWER_LOGIN` @mentions `USER_LOGIN` ([`pings.md`](pings.md)); `off`: never |
+| `INTERVAL` | `60` | Seconds between passes |
+| `CI_WAIT_MIN` | `90` | A finished worker's PR whose CI is still pending after this many minutes goes to `needs-you` |
+| `NO_CHECKS_MIN` | `10` | A finished worker's PR with no CI check reported at all after this many minutes goes to `needs-you` ("is CI set up for this repo, or did a path filter skip it?") |
+| `MERGE_WAIT_MIN` | `240` | Auto-merge armed this long without a merge is disarmed, and the PR goes to `needs-you` |
+| `POST_WAIT` | `600` | Seconds a posted review may take to show up on GitHub before it counts as missing |
+| `STEP_BUDGET` | `400` | USD per step: its planner, package, review, fix-check, answerer and health runs ([`steps.md`](steps.md)) |
+| `BUDGET_PLAN` | `60 10 30` | The planner of a step's wave |
+| `BUDGET_HEALTH` | `250 60 150` | The health pass at the end of a step |
+| `BUDGET_PACKAGE_MAX` | `600 200 360` | A package's work, resume and review budgets are the issue's times its issue count, each part capped by this |
+| `PACKAGE_LINES` | `1500` | The planner's size guide: changed lines per package |
+| `PACKAGE_MIN_ISSUES` | `1` | Above 1, the planner aims for at least this many issues per package, where they fit together |
+| `PLAN_MODEL` | empty | The planner's model; empty: `MODEL` |
+| `USAGE_SLOW` | `60` | 5-hour usage share (%) from which one run at a time runs, over all projects ([`usage.md`](usage.md)) |
+| `USAGE_STOP` | `90` | 5-hour usage share (%) from which no run starts and running workers are asked to stop at a safe point |
+| `USAGE_WEEKLY_DRAIN` | `90` | Weekly usage share (%) from which nothing new starts; work already started finishes |
+
+## Host profiles
+
+A host profile pins the values that depend on the Claude plan and the host, so a later change to
+the defaults does not move a running host. `hosts/max.conf` (a Claude Max plan) sets today's
+defaults of `CAP`, `TOTAL_CAP`, every `BUDGET_*` key, `STEP_BUDGET`, `USAGE_SLOW`, `USAGE_STOP`
+and `USAGE_WEEKLY_DRAIN`. `~/.canccu/config` overrides any of them. `install.sh --host-profile
+<name>` adds `HOST_PROFILE=<name>` to a config without that key.
+
+The tools read `HOST_PROFILE` from `~/.canccu/config` in a subshell, so nothing else in that
+file applies before the profile. A tmux server keeps the environment it started with: a
+dispatcher that `canccu-up` starts there does not see a `CANCCU_HOST_PROFILE` you export later,
+so set the profile in the config file.
+
+## Environment variables
+
+- `CANCCU_ROOT`: the state dir (default `~/.canccu`). The same tmux caveat as above applies.
+- `CANCCU_PROJECT`: the project, instead of `--project <name>`; `canccu-up` sets it in every
+  pane of a project's session.
+- `CANCCU_HOST_PROFILE`: the host profile for one command.
+- `CANCCU_VENV`: the monitor's venv (default `~/.local/share/canccu/venv`).
+- `CANCCU_TMUX_SESSION`: the default project's tmux session name (default `canccu`).
+- `NO_COLOR`: no colour in the dispatcher's pane and the monitor.
+
+Two values are constants in the code, not keys: a usage-limit back-off adds a margin of 120 s
+to the reset time (`USAGE_MARGIN`), and a fix-check runs at medium effort above 300 changed lines
+(`FIXCHECK_BIG`).

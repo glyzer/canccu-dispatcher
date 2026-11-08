@@ -27,3 +27,13 @@ Setup, by a maintainer (`canccu-init` prints the same checklist):
 
 The workflow token only reads, except `actions: write` in the job that re-runs the gate when the
 reviewer posts a verdict. Every action is pinned by its commit SHA; Dependabot updates them.
+
+## The CLAUDE.md and AGENTS.md snippets
+
+- `CLAUDE.snippet.md`: the `<n>` / `execute` / `finish` flow the worker prompt names.
+- `AGENTS.snippet.md`: the comment and file-size rules the health pass checks, and the PR body
+  lines the reviewer and the classifier read.
+
+They are named `*.snippet.md`, never `CLAUDE.md` or `AGENTS.md`, so no session in this repo loads
+them as instructions. A target repo merges them into its own `CLAUDE.md` and `AGENTS.md`:
+`docs/repo-contract.md` says how.

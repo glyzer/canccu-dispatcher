@@ -96,8 +96,9 @@ for w in install.sh canccu-init canccu-up uninstall REVIEWER_LOGIN templates/rep
   ok "README.md names $w" grep -qF -- "$w" README.md
 done
 ok "the CHANGELOG lists the docs" grep -qF 'docs/' CHANGELOG.md
-ok "CONTRIBUTING.md covers the local check and how issues are written" \
-  eq "$(grep -cE 'tests/run|Acceptance criteria|Out of scope|Risk:' CONTRIBUTING.md 2>/dev/null)" 4
+for w in tests/run 'Acceptance criteria' 'Out of scope' 'Risk:' 'type(scope)' 'run by canccu-dispatcher'; do
+  ok "CONTRIBUTING.md covers $w" grep -qF -- "$w" CONTRIBUTING.md
+done
 ok "SECURITY.md says how to report a problem" grep -qi 'report' SECURITY.md
 
 # ---------------------------------------------------------------- the repo-contract snippets
