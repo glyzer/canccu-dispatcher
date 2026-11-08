@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# shellcheck shell=bash
+# The state dir of the release smoke test (.github/scripts/release-smoke), in the fake HOME
+# tests/fixtures/home: a host set up the way docs/install.md says, with no project yet. The
+# smoke test adds the reviewer token, mode 600 (git keeps no such mode).
+HOST_PROFILE=max
+USER_LOGIN=octo
+REVIEWER_LOGIN=review-bot
