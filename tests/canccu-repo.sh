@@ -12,7 +12,7 @@ files=$(git ls-files -co --exclude-standard | sort)
 kind() {   # kind <file>: shell, python, yaml, markdown or other
   case $1 in
     *.py) echo python ;; *.yml|*.yaml) echo yaml ;; *.md) echo markdown ;; *.sh) echo shell ;;
-    *.json|*.txt|*.jq|LICENSE|REUSE.toml|.file-size-exemptions|.gitignore) echo other ;;
+    *.json|*.txt|*.jq|LICENSE|REUSE.toml|VERSION|.file-size-exemptions|.gitignore) echo other ;;
     *) if head -n2 "$1" | grep -qE '^#!.*[/ ](ba)?sh([[:space:]]|$)|^# shellcheck shell='; then echo shell; else echo other; fi ;;
   esac
 }
@@ -32,6 +32,7 @@ done <<<"$files"
 ok "every shell, Python, YAML and Markdown source starts with the SPDX line" eq "${missing# }" ""
 ok "REUSE.toml covers the JSON fixtures and the monitor's requirements" \
   eq "$(grep -oE 'tests/fixtures/\*\*/\*\.json|lib/canccu-monitor\.requirements\.txt' REUSE.toml 2>/dev/null | wc -l)" 2
+ok "… and VERSION" grep -q '"VERSION"' REUSE.toml
 ok "… with the licence" grep -q 'SPDX-License-Identifier = "AGPL-3.0-or-later"' REUSE.toml
 ok "the JSON fixtures carry no header" not grep -lq SPDX tests/fixtures/monitor/*.json tests/fixtures/plans/*.json
 ok "README.md says the tool is pre-release" grep -qi 'pre-release' README.md
@@ -57,8 +58,8 @@ ok "… and lists nothing else" eq "${stale# }" ""
 
 # ---------------------------------------------------------------- the layout
 
-ok "bin/: the 12 commands" eq "$(cd bin && ls | tr '\n' ' ')" \
-  "canccu-classify canccu-dispatch canccu-init canccu-monitor canccu-pause canccu-resume canccu-review canccu-run canccu-ship canccu-status canccu-stop canccu-up "
+ok "bin/: the 13 commands" eq "$(cd bin && ls | tr '\n' ' ')" \
+  "canccu-classify canccu-dispatch canccu-dispatcher canccu-init canccu-monitor canccu-pause canccu-resume canccu-review canccu-run canccu-ship canccu-status canccu-stop canccu-up "
 ok "libexec/: the run engine and its nudge hook" eq "$(cd libexec && ls | tr '\n' ' ')" "canccu-nudge-hook canccu-worker "
 ok "every command and the engine find their libs from their real path" \
   eq "$(grep -L 'realpath' bin/* libexec/canccu-worker | tr '\n' ' ')" ""

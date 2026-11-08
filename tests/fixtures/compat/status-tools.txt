@@ -1,4 +1,4 @@
-example-user/tools · running · canccu-dispatch is NOT running (canccu-up, or run it in the window dispatch)
+canccu-dispatcher <version> · example-user/tools · running · canccu-dispatch is NOT running (canccu-up, or run it in the window dispatch)
 model: the account default · reviews post as review-bot
 usage: usage unknown
 project: tools (~/.canccu/projects/tools, tmux canccu-tools) · runs: 0 of CAP 3 · all projects: 1 of TOTAL_CAP 4

@@ -1,4 +1,4 @@
-example-org/web · running · canccu-dispatch is NOT running (canccu-up, or run it in the window dispatch)
+canccu-dispatcher <version> · example-org/web · running · canccu-dispatch is NOT running (canccu-up, or run it in the window dispatch)
 model: the account default · reviews post as review-bot
 usage: usage unknown
 project: web (~/.canccu/projects/web, tmux canccu) · runs: 1 of CAP 2 · all projects: 1 of TOTAL_CAP 4

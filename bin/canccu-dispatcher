@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# canccu-dispatcher — the installed tool itself (docs/install.md):
+#   canccu-dispatcher --version                       the version; plus the commit from a checkout
+#   canccu-dispatcher doctor [--project <name>]       one line per problem; exit 0 when clean
+#   canccu-dispatcher rollback [--prefix DIR]         current back to the previous release
+#   canccu-dispatcher uninstall [--prefix DIR] [--purge-state --yes] [--force]
+# --prefix defaults to the prefix of the release this runs from (~/.local from a checkout).
+set -uo pipefail
+self=$(realpath "$0")
+here=$(dirname "$self")/..
+# the user's PATH, before the engine's lib adds ~/.local/bin to it (for cron and tmux): doctor
+# checks that the commands are on this one
+# shellcheck disable=SC2034  # read by lib/canccu-doctor.sh, in this process only
+CANCCU_USER_PATH=$PATH
+# every lib is read now: uninstall removes the tree this runs from
+# shellcheck source=../lib/canccu-projects.sh
+. "$here/lib/canccu-projects.sh"
+# shellcheck source=../lib/canccu-version.sh
+. "$here/lib/canccu-version.sh"
+# shellcheck source=../lib/canccu-install.sh
+. "$here/lib/canccu-install.sh"
+# shellcheck source=../lib/canccu-engine.sh
+. "$here/lib/canccu-engine.sh"
+# shellcheck source=../lib/canccu-install-cmds.sh
+. "$here/lib/canccu-install-cmds.sh"
+# shellcheck source=../lib/canccu-deps.sh
+. "$here/lib/canccu-deps.sh"
+# shellcheck source=../lib/canccu-doctor.sh
+. "$here/lib/canccu-doctor.sh"
+
+usage() { sed -n '3,8s/^# \{0,1\}//p' "$self" >&2; exit 2; }
+cmd=${1:-}; [ $# -gt 0 ] && shift
+# from a checkout, the prefix of the PREFIX/bin link this was run through ($0, not resolved)
+prefix=$(canccu_default_prefix "$here" "$0") purge=0 yes=0 force=0
+# the options of rollback and uninstall
+opts() {
+  while [ $# -gt 0 ]; do
+    case $1 in
+      --prefix) [ $# -ge 2 ] && [ -n "$2" ] || usage; prefix=$(realpath -m "$2"); shift 2 ;;
+      --purge-state) [ "$cmd" = uninstall ] || usage; purge=1; shift ;;
+      --yes) [ "$cmd" = uninstall ] || usage; yes=1; shift ;;
+      --force) [ "$cmd" = uninstall ] || usage; force=1; shift ;;
+      *) echo "canccu-dispatcher $cmd: unknown option $1" >&2; usage ;;
+    esac
+  done
+}
+case $cmd in
+  --version|version)
+    c=$(canccu_commit "$here")
+    echo "canccu-dispatcher $(canccu_version "$here")${c:+ (commit $c)}" ;;
+  doctor)
+    only=""
+    case ${1:-} in
+      --project) [ $# -eq 2 ] && [ -n "$2" ] || usage; only=$2 ;;
+      "") ;;
+      *) usage ;;
+    esac
+    if [ -n "$only" ] && ! canccu_profiles | grep -qxF -- "$only"; then
+      _cmd_die "no project '$only'. Projects: $(canccu_profiles | tr '\n' ' ' | sed 's/ $//')"
+    fi
+    canccu_doctor "$here" "$only" "$prefix" ;;
+  rollback) opts "$@"; canccu_rollback "$prefix" ;;
+  uninstall) opts "$@"; canccu_uninstall "$prefix" "$purge" "$yes" "$force" ;;
+  "") usage ;;
+  *) echo "canccu-dispatcher: unknown subcommand '$cmd'" >&2; usage ;;
+esac

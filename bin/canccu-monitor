@@ -10,5 +10,6 @@ lib="$(dirname "$(realpath "$0")")/../lib"
 venv=${CANCCU_VENV:-$HOME/.local/share/canccu/venv}
 CANCCU_VENV=$venv
 export CANCCU_VENV
-if [ -x "$venv/bin/python" ]; then exec "$venv/bin/python" -I "$lib/canccu-monitor.py" "$@"; fi
+# a venv whose build by install.sh failed (its trace is still there) has no packages: python3
+if [ -x "$venv/bin/python" ] && [ ! -e "$venv/.canccu-building" ]; then exec "$venv/bin/python" -I "$lib/canccu-monitor.py" "$@"; fi
 exec python3 -I "$lib/canccu-monitor.py" "$@"

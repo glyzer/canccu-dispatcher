@@ -64,7 +64,8 @@ ok "a project without rules: refused" grep -q "project 'shop' has no rules file"
 ok "… says where this tool's template is" grep -qF "copy $(realpath "$root" | sed "s|^$HOME|~|")/profiles/default/rules there" <<<"$(pick --project shop)"
 cp "$root/profiles/default/rules" "$CANCCU_ROOT/projects/shop/rules"
 for c in "$root"/bin/canccu-*; do
-  [ "${c##*/}" = canccu-init ] && continue
+  # canccu-dispatcher takes --project after doctor only (tests/canccu-doctor.sh)
+  case ${c##*/} in canccu-init|canccu-dispatcher) continue ;; esac
   out=$(PATH="$fb:$PATH" "$c" --project nope 1 2>&1); rc=$?
   ok "${c##*/} takes --project (an unknown one is refused)" eq "$rc $(grep -c "no project 'nope'" <<<"$out")" "1 1"
 done

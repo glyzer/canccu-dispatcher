@@ -249,6 +249,13 @@ started() { grep -E "^--quiet --name #$1 web $1 " "$FAKE/worker.log" >/dev/null;
 
 # ---------------------------------------------------------------- shared by several test files
 
+# src_copy <dir> [version]: the repo's tree (tracked and new files, no .git) copied to dir, as a
+# release tarball unpacks; with a version, that is its VERSION
+src_copy() {
+  mkdir -p "$1" && (cd "$root" && git ls-files -co --exclude-standard -z | xargs -0 cp --parents -t "$1" 2>/dev/null)
+  [ -z "${2:-}" ] || echo "$2" > "$1/VERSION"
+}
+
 # notoken <files...>: neither the fake token nor the token file's path appears in them
 notoken() { ! grep -rqF -e "$FAKE_TOKEN" -e "$E/reviewer-token" "$@" 2>/dev/null; }
 c() { lib classify_pure "$@"; }

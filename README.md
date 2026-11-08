@@ -4,9 +4,11 @@
 Run Claude Code workers, independent reviewers and planners against GitHub issues: work
 packages, risk-based merges and a terminal monitor.
 
-**Pre-release.** The commands, the run engine and the monitor are here, with their offline
-tests; the installer and the documentation come next. Until then:
+**Pre-release.** The commands, the run engine, the monitor and the installer are here, with
+their offline tests; more documentation comes next.
 
+- `./install.sh` installs a release under `~/.local` (`--check` checks the dependencies first);
+  `canccu-dispatcher doctor`, `rollback` and `uninstall` look after it. See `docs/install.md`.
 - `bin/canccu-*` are the commands; `libexec/canccu-worker` is the run engine they call.
 - `bin/canccu-init [--profile <template>] <name> <owner/repo>` adds a project under
   `~/.canccu/projects/<name>/` from `profiles/default` (or your own template in
