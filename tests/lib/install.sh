@@ -32,13 +32,15 @@ cat > "$tb/tmux" <<'EOF'
 #!/bin/sh
 case $1 in -V) echo "tmux ${FAKE_TMUX_V:-3.5a}" ;; *) exit 1 ;; esac
 EOF
-# uv: records each call; a venv is a dir with bin/python; fails when $FAKE/uv-fail exists
+# uv: records each call; a venv is a dir with bin/python; fails when $FAKE/uv-fail exists, and
+# only its pip install when $FAKE/uv-fail-pip does (the venv is made, the packages are not)
 cat > "$tb/uv" <<'EOF'
 #!/bin/sh
 echo "$*" >> "$FAKE/uv.log"
 [ -e "$FAKE/uv-fail" ] && { echo "uv: no network" >&2; exit 1; }
 case $1 in
   venv) for d; do :; done; mkdir -p "$d/bin" && printf '#!/bin/sh\n' > "$d/bin/python" && chmod +x "$d/bin/python" ;;
+  pip) [ -e "$FAKE/uv-fail-pip" ] && { echo "uv: no network" >&2; exit 1; } ;;
 esac
 exit 0
 EOF

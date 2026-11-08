@@ -194,6 +194,18 @@ ok "--venv at a dir with other files: skipped with a warning" eq "$rc $(grep -c 
 ok "… no marker written, nothing recorded" eq "$(test -e "$E/work/.requirements.sha256" && echo marker)$(test -e "$B/.venv" && echo recorded)" ""
 hrun "$P/bin/canccu-dispatcher" uninstall
 ok "… and uninstall keeps the dir and its files" eq "$rc $(cat "$E/work/notes/data.txt")" "0 data"
+# a build that failed half way (the venv made, the packages not) leaves a dir with files, no
+# marker and nothing recorded: the installer's own, so the next install builds it again
+inst_env venv-retry
+touch "$FAKE/uv-fail-pip"; inst "$S"
+V=$H/.local/share/canccu/venv
+ok "a build that fails after the venv is made: a warning, no marker" \
+  eq "$rc $(grep -c 'could not build' "$E/out") $(test -e "$V/.requirements.sha256" && echo marker)" "0 1 "
+ok "… the dir is left with files" test -x "$V/bin/python"
+rm "$FAKE/uv-fail-pip"; inst "$S"
+ok "… the next install builds it again" eq "$(grep -c 'built the monitor' "$E/out") $(test -f "$V/.requirements.sha256" && echo marker)" "1 marker"
+ok "… and leaves no trace of the build" not test -e "$V/.canccu-building"
+
 inst_env venv-recorded
 inst "$S" --venv "$E/v"; rm "$E/v/.requirements.sha256"; : > "$FAKE/uv.log"
 inst "$S" --venv "$E/v"

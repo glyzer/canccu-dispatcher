@@ -220,27 +220,30 @@ canccu_prune() {
 # canccu_venv <requirements> <venv> <recorded venv>: the monitor's packages, pinned, in a venv of
 # their own, no sudo: with uv when there is one (it needs no ensurepip), else python3 -m venv and
 # pip. Rebuilt only when the requirements change (their hash is kept in the venv). Built only
-# where the installer owns the dir: missing or empty, holding its marker, or the venv this base
-# recorded (a build cut short). Anywhere else the marker would make uninstall remove the dir with
+# where the installer owns the dir: missing or empty, holding its marker, holding the trace of a
+# build of its own that failed (.canccu-building: written before a build, removed when it
+# succeeds), or the venv this base recorded. Anywhere else the marker would make uninstall remove the dir with
 # all in it. Fails with a warning (2: skipped, 1: the build failed): the dispatcher does not need
 # the monitor.
 canccu_venv() {
   local req=$1 venv=$2 want
   want=$(sha256sum < "$req" | cut -d' ' -f1)
   [ -x "$venv/bin/python" ] && [ "$(cat "$venv/.requirements.sha256" 2>/dev/null)" = "$want" ] && return 0
-  if [ -e "$venv" ] && [ ! -f "$venv/.requirements.sha256" ] && [ "$venv" != "$3" ] &&
+  if [ -e "$venv" ] && [ ! -f "$venv/.requirements.sha256" ] && [ ! -f "$venv/.canccu-building" ] && [ "$venv" != "$3" ] &&
      { [ ! -d "$venv" ] || [ -n "$(ls -A "$venv" 2>/dev/null)" ]; }; then
     echo "install.sh: $(canccu_tilde "$venv") holds other files: not a venv this installer built, so it builds none there (--venv names another dir); everything else is installed" >&2
     return 2
   fi
-  mkdir -p "${venv%/*}" && rm -f "$venv/.requirements.sha256"
+  mkdir -p "$venv" && rm -f "$venv/.requirements.sha256" && : > "$venv/.canccu-building" ||
+    { echo "install.sh: cannot create the monitor's venv in $(canccu_tilde "$venv"); everything else is installed" >&2; return 1; }
   if command -v uv >/dev/null 2>&1; then
     uv venv -q --allow-existing --python "$(command -v python3)" "$venv" >/dev/null 2>&1 &&
       uv pip install -q --python "$venv/bin/python" -r "$req" >/dev/null 2>&1
   else
     python3 -m venv "$venv" >/dev/null 2>&1 &&
       "$venv/bin/python" -m pip install -q --disable-pip-version-check -r "$req" >/dev/null 2>&1
-  fi && echo "$want" > "$venv/.requirements.sha256" && echo "built the monitor's venv in $(canccu_tilde "$venv")" && return 0
+  fi && echo "$want" > "$venv/.requirements.sha256" && rm -f "$venv/.canccu-building" &&
+    echo "built the monitor's venv in $(canccu_tilde "$venv")" && return 0
   echo "install.sh: could not build the monitor's venv in $(canccu_tilde "$venv") (it needs uv, or python3 -m venv with pip: the python3-venv package); everything else is installed" >&2
   return 1
 }

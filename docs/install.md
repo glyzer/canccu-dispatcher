@@ -60,8 +60,9 @@ The monitor's pinned packages (`lib/canccu-monitor.requirements.txt`) go into a 
 DIR`, else `CANCCU_VENV`, else `~/.local/share/canccu/venv`. It is built with `uv` when there is
 one, else with `python3 -m venv` and pip. It is rebuilt only when the requirements change: the
 venv keeps their hash in `.requirements.sha256`. A failed build warns and installs the rest.
-The installer builds only into a dir it owns: a missing or empty one, one that holds its marker,
-or the venv this install recorded. A dir with other files is left alone, with a warning, because
+The installer builds only into a dir it owns: a missing or empty one, one that holds its marker
+or the trace of its own failed build (`.canccu-building`, removed once a build succeeds), or the
+venv this install recorded. A failed build is retried by the next install. A dir with other files is left alone, with a warning, because
 uninstall removes the venv it recorded. `--no-monitor` skips the venv. The monitor finds a venv in another place through `CANCCU_VENV`.
 
 ### The state dir
