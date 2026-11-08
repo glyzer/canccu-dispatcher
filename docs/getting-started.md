@@ -80,7 +80,7 @@ canccu-init web example-org/web
 ```
 
 It writes `~/.canccu/projects/web/{config,rules}`, creates the labels, and prints the checklist
-of step 4 plus two steps of its own:
+of the GitHub part of step 4 (not the snippets) plus two steps of its own:
 
 - clone the repo to `~/code/web` (`git clone https://github.com/example-org/web ~/code/web`), and
   read `~/.canccu/projects/web/rules` ([`reference/rules.md`](reference/rules.md));

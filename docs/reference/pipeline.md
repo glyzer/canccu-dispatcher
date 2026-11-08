@@ -35,7 +35,9 @@ Every `INTERVAL` seconds, under the project's lock:
        `awaiting-accept`, comments a short summary with the reason, phase `accept`;
      - `changes` from the full review → the worker resumes once with the review (stage
        `fixing`). When it is done and CI is green, the fix-check runs on the fix diff. A worker
-       that pushed nothing → `needs-you`;
+       that pushed nothing → `needs-you`; if no fix was needed (a finding was wrong),
+       `canccu-review <pr>` reviews the unchanged head again: its pass merges, its `changes`
+       returns to `needs-you`. Otherwise a comment from you resumes the worker;
      - `changes` from the fix-check → `needs-you` with the open items;
      - a push after the fix-check voids it: a new fix-check of the whole fix diff runs;
      - no counting verdict line → `needs-you`.
@@ -67,17 +69,20 @@ Every `INTERVAL` seconds, under the project's lock:
    merge is disarmed before its worker resumes; resuming removes `needs-you`.
 5. **Accept and merging.** An `accept` PR labelled `accepted` by `USER_LOGIN` after the accept
    request, whose head is still the classified one → the merge is armed (`canccu-ship <n>` does
-   the same by hand). A push after classification removes `accepted` and the PR is reviewed
+   the same by hand, where the repo allows auto-merge). A push after classification removes `accepted` and the PR is reviewed
    again. A push while the merge is armed disarms it and reviews again; auto-merge switched off
    by someone, or no merge within `MERGE_WAIT_MIN` → `needs-you`.
-6. **After the merge.** For each managed issue that closed: a line in `merged.log`; its
+6. **After the merge.** For each managed issue whose PR merged: a line in `merged.log`; its
    worktrees, local branch, session id and question file go; `in-progress`, `awaiting-accept`
    and `needs-you` come off; the main clone is fast-forwarded. An epic whose sub-issues are all
-   closed is closed (a step's epic only once its step is done).
+   closed is closed (a step's epic only once its step is done). An issue closed without a merged
+   PR logs "closed without a merged PR; its worktree is kept": only its question file goes; no
+   `merged.log` line, and its worktree, branch and session id stay.
 7. **Digest.** On the first pass at or after `DIGEST_HOUR_UTC` each day: `digest/<date>.md` and,
    with `DIGEST_ISSUE` set, one comment there: the merges of the last 24 hours, the questions the
    answerer answered (with links, so you can overrule them), PRs awaiting accept, issues that need
-   you, CI on main and the running workers. None on a day with no activity.
+   you, CI on main and the running workers. None on a day with no activity. A failed post
+   removes the file, so the next pass writes and posts it again.
 8. **Log and snapshot.** One line per action in `dispatch.log` (also in the pane, coloured);
    the raw output of the commands goes to the file only, prefixed `  │ `. Then `status.json`
    ([`snapshot.md`](snapshot.md)), also after a pass that failed or ended early.

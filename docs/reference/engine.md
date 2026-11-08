@@ -25,7 +25,7 @@ canccu-worker --kill <repo> <key>
   runs in an existing worktree instead (the reviewer's at the PR head, a package's).
 - **Worker**: `--name '#<n>' <repo> "<n> <prompt>"`. **Reviewer**: `--key review-<pr> --dir
   …/review-<pr> --name 'review#<pr>' --untrusted`. **Answerer**: `--key answer-<n> --untrusted`
-  in the issue's worktree. **Planner**: `--key plan-<m> --untrusted` in a fresh worktree.
+  in the issue's worktree, or the main clone when there is none. **Planner**: `--key plan-<m> --untrusted` in a fresh worktree.
 - **`--untrusted`**: `claude` runs with `--setting-sources user --strict-mcp-config`, so the
   checkout's `.claude/settings*.json` (hooks, `env`, `apiKeyHelper`) and `.mcp.json` servers
   never load: a PR cannot add a hook that runs during its own review. The flag reaches the run

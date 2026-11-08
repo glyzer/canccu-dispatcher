@@ -117,8 +117,13 @@ tname=tests-run
 ok "tests/run: a test file is linted and run" eq "$(tr_ --list tests/canccu-usage.sh)" $'lint: tests/canccu-usage.sh\ntests/canccu-usage.sh'
 ok "tests/run: a pattern picks the test files it matches" eq "$(tr_ --list dispatch)" "tests/canccu-dispatch.sh"
 ok "tests/run: monitor is the monitor's self-test" eq "$(tr_ --list monitor)" "monitor"
-ok "tests/run: a lib file is linted and its tests listed" \
-  eq "$(tr_ --list lib/canccu-usage.sh)" $'lint: lib/canccu-usage.sh\ntests/canccu-usage.sh'
+ok "tests/run: a lib file is linted and its tests listed (the docs test: it cites a section)" \
+  eq "$(tr_ --list lib/canccu-usage.sh)" $'lint: lib/canccu-usage.sh\ntests/canccu-usage.sh\ntests/canccu-docs.sh'
+ok "tests/run: every file that cites docs/canccu-dispatch.md maps to the docs test" \
+  eq "$(for f in lib/canccu-ping.sh bin/canccu-init lib/canccu-plan.jq lib/canccu_monitor/data.py; do
+          tr_ --list "$f" | grep -cx tests/canccu-docs.sh; done | tr '\n' ' ')" "1 1 1 1 "
+ok "tests/run: so does the CHANGELOG" grep -qx tests/canccu-docs.sh <<<"$(tr_ --list CHANGELOG.md)"
+ok "tests/run: a file that cites no section does not" not grep -qx tests/canccu-docs.sh <<<"$(tr_ --list lib/canccu-doctor.sh)"
 ok "tests/run: an absolute path maps like the relative one" \
   eq "$(tr_ --list "$root/lib/canccu-usage.sh")" "$(tr_ --list lib/canccu-usage.sh)"
 ok "tests/run: a path relative to the caller's directory maps too" \

@@ -57,7 +57,10 @@ your accept, not `review-gate`.
 
 The dispatcher posts a review only when the file was written after the review started and its
 last line is a verdict for exactly that head. A file that fails the check is never posted
-(`needs-you`). A posted review GitHub does not list yet is waited for `POST_WAIT` seconds before
+(`needs-you`). A failed post is retried every pass; a run's first failed post, or its second
+time-out in a row, labels the issue `needs-you` once, with a comment saying where the review file
+is, and the label goes again once the verdict is acted on, the run is void, or a new run starts.
+A posted review GitHub does not list yet is waited for `POST_WAIT` seconds before
 it counts as missing; a timed-out post is retried only after that wait, never at once. Each
 review run ends with one outcome line in the log: `posted as …`, `post failed …`, `post timed out
 …`, `no valid verdict (<why>)` or `void` (a push during the run).

@@ -29,11 +29,13 @@ shares and the throttle state, for example `draining (weekly 92%)`.
 
 ## Usage-limit back-off
 
-When any run's output says the account hit its limit ("usage limit reached", "You've hit your
-limit", "5-hour limit · resets 11:30pm (UTC)", "weekly limit", …), whatever its exit status:
-the issue keeps `in-progress`, its phase becomes `limited`, and `~/.canccu/backoff` stops every
-project until the reset time the message names plus 120 s, or for 30 minutes when it names none
-(only a time of day, with an optional zone, is read). A longer back-off already running is kept.
+When a run ends in an error or a crash and its output says the account hit its limit ("usage
+limit reached", "You've hit your limit", "5-hour limit · resets 11:30pm (UTC)", "weekly
+limit", …): the issue keeps `in-progress`, its phase becomes `limited`, and `~/.canccu/backoff`
+stops every project until the reset time the message names plus 120 s, or for 30 minutes when it
+names none. The reset is read as an epoch after a `|` ("Claude AI usage limit reached|<epoch>"),
+else as a time of day with an optional zone ("resets 3pm (Europe/Helsinki)", "resets at 15:30").
+A longer back-off already running is kept.
 `canccu-status` shows "usage limit until <time>". No `needs-you`, no comment.
 
 After the back-off a worker resumes with `continue`, a review or fix-check runs again at the same

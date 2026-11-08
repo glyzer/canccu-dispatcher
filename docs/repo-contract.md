@@ -67,7 +67,8 @@ tool's repo loads them as its own instructions.
    snippet's sections to it; where your file already says the same thing (a comment rule, a PR
    template), keep one version, and keep the snippet's headings and line names, which the prompts
    and the classifier look for.
-3. Replace each `<…>` with your repo's commands (one test file, the full check).
+3. Replace the two `<the … command>` placeholders with your repo's commands (one test file, the
+   full check). Keep `<n>`, `<n>-<slug>` and `docs/plans/issue-<n>.md` as they are.
 4. Adjust the file-size limit and the issue format if your repo has its own; keep the PR body
    lines as they are.
 5. Add both files through a PR. A PR that changes `CLAUDE.md` or `AGENTS.md` always waits for your

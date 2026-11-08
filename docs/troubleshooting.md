@@ -33,7 +33,7 @@ are in `workers/` ([`reference/engine.md`](reference/engine.md)).
 
 | You see | Why | Do |
 |---|---|---|
-| `REVIEWS BLOCKED: …` | The reviewer token file is missing or not mode 600 | `install -m 600 /dev/null ~/.canccu/reviewer-token`, paste the bot's token |
+| `REVIEWS BLOCKED: …` | `REVIEWER_LOGIN` is not set, or the reviewer token file is missing or not mode 600 | Set `REVIEWER_LOGIN` in `~/.canccu/config`; `install -m 600 /dev/null ~/.canccu/reviewer-token`, paste the bot's token |
 | `reviews refused: the reviewer token signs in as '…', not REVIEWER_LOGIN …` | The token belongs to another account, or was revoked | Put the bot's own token in the file; check `REVIEWER_LOGIN` |
 | `no CI checks on PR #<n>` | No CI ran on the PR: no workflow, or a path filter skipped it | Add a CI check that runs on every PR ([`repo-contract.md`](repo-contract.md)) |
 | `review-gate` fails with "REVIEWER_LOGIN is not set" | The repo variable is missing | Set the repo variable `REVIEWER_LOGIN` |
@@ -45,8 +45,9 @@ are in `workers/` ([`reference/engine.md`](reference/engine.md)).
 
 | You see | Why | Do |
 |---|---|---|
-| `awaiting accept (manual: …)` | The classifier's first reason ([`reference/merging.md`](reference/merging.md)) | Label the PR `accepted`, or `canccu-ship <n>` |
-| `AUTO-MERGE OFF: …` | `AUTO_MERGE_UNTIL` is set to something that is not a date, or has passed | Fix or clear it in the project's rules |
+| `awaiting accept (manual: …)` | The classifier's first reason ([`reference/merging.md`](reference/merging.md)) | Label the PR `accepted`, or `canccu-ship <n>` where the repo allows auto-merge |
+| `AUTO-MERGE OFF: …` | `AUTO_MERGE_UNTIL` is set to something that is not a `YYYY-MM-DD` date | Fix or clear it in the project's rules |
+| `awaiting accept (manual: on or after AUTO_MERGE_UNTIL …)` | The freeze date has come: every PR waits for your accept | Accept each PR, or move or clear the date |
 | A PR listed as "not ours" | A fork, another author, another branch name, or an issue the dispatcher does not manage | Expected: the dispatcher never touches it |
 | `needs-you` after a merge was armed | No merge within `MERGE_WAIT_MIN`, or someone disabled auto-merge | Look at the merge queue and the required checks |
 

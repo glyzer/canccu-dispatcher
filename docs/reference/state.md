@@ -35,7 +35,7 @@ In `~/.canccu/projects/<name>/`:
 | `questions/<K>.txt` | The question a worker stopped with, for its answerer |
 | `pings/<n>` | The state issue n was last pinged for ([`pings.md`](pings.md)) |
 | `digest/<date>.md` | The daily digest |
-| `merged.log` | One line per merge: time, issue, PR, `auto` or `accepted`, title |
+| `merged.log` | One line per merged PR of a managed issue: time, issue, PR, how (`auto`, `accepted`, or `by hand` when the dispatcher did not arm it), title |
 | `answers.log` | One line per question an answerer answered, with the link to its comment |
 | `dispatch.log` | One line per action, plus the raw output of the commands (prefixed `  │ `) |
 | `dispatch.pid`, `.dispatch.lock` | The running dispatcher and its lock |

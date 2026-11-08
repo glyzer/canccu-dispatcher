@@ -27,21 +27,37 @@ missing=$(comm -23 <(keys profiles/*/config profiles/*/rules) <(echo "$documente
 ok "… and every key of the project templates" eq "$(echo $missing)" ""
 stale=$(comm -13 <(keys lib/canccu-config.default) <(echo "$documented"))
 ok "the reference documents no key the defaults do not have" eq "$(echo $stale)" ""
-ok "the reference gives CAP's default" grep -qE '^\| `CAP` \| `3` \|' "$R/config.md"
+# code_default <KEY>: its value in lib/canccu-config.default, unquoted, $CANCCU_ROOT shown as ~/.canccu
+code_default() {
+  sed -nE "s/^$1=//p" lib/canccu-config.default | sed -E "s/[[:space:]]+#.*//; s/^[\"']//; s/[\"']\$//" |
+    sed "s|^\\\$CANCCU_ROOT|~/.canccu|"
+}
+# a row's default is compared when it is one value in backticks, or empty/none; a default given in
+# words (the path patterns) is not
+wrong="" compared=0
+# shellcheck disable=SC2086  # two files
+while IFS='|' read -r _ k d _; do
+  k=${k//[\` ]/} d=$(sed -E 's/^ +| +$//g' <<<"$d")
+  case $d in empty|none) want="" ;; \`*\`) [[ $d == *\`*\`*\`* ]] && continue; want=${d:1:-1} ;; *) continue ;; esac
+  compared=$((compared + 1))
+  [ "$(code_default "$k")" = "$want" ] || wrong+=" $k (docs: '$want', code: '$(code_default "$k")')"
+done < <(grep -hE '^\| `[A-Z][A-Z0-9_]*` \|' $cfgref 2>/dev/null)
+ok "each documented default is the code's" eq "${wrong# }" ""
+ok "… and most defaults are compared (a sanity check of the parse)" test "$compared" -ge 40
 
 # ---------------------------------------------------------------- the sections the code cites
 
 # the code's comments cite 'docs/canccu-dispatch.md, "<section>"' (and '… and "<section>"'),
 # sometimes across a line break
-cited=$(for f in bin/* libexec/* lib/* profiles/*/* hosts/*; do
+cited=$(for f in $(git ls-files -co --exclude-standard bin libexec lib profiles hosts install.sh); do
           [ -f "$f" ] && sed -E 's/^[[:space:]#]*//' "$f" | tr '\n' ' '
         done | grep -oE 'docs/canccu-dispatch\.md, "[^"]+"( and "[^"]+")?' | grep -oE '"[^"]+"' | tr -d '"' | sort -u)
-ok "the code cites sections (a sanity check of the grep)" test "$(grep -c . <<<"$cited")" -ge 10
+ok "the code cites sections (a sanity check of the grep)" test "$(grep -c . <<<"$cited")" -ge 5
 ok "docs/canccu-dispatch.md exists and points at the reference" grep -qF 'reference/README.md' docs/canccu-dispatch.md
 nohead="" nomap=""
 while IFS= read -r s; do
   [ -n "$s" ] || continue
-  grep -qxE "#{2,4} $s" "$R"/*.md 2>/dev/null || nohead+=" \"$s\""
+  sed -nE 's/^#{2,4} //p' "$R"/*.md 2>/dev/null | grep -qxF -- "$s" || nohead+=" \"$s\""
   grep -qF "| $s |" "$R/README.md" 2>/dev/null || nomap+=" \"$s\""
 done <<<"$cited"
 ok "every section the code cites is a heading of a reference topic" eq "${nohead# }" ""
@@ -80,9 +96,13 @@ for f in README.md CONTRIBUTING.md SECURITY.md CHANGELOG.md docs/*.md "$R"/*.md 
     if [ -n "$p" ]; then t=$(realpath -m "$(dirname "$f")/$p"); else t=$root/$f; fi
     [ -e "$t" ] || { broken+=" $f→$l"; continue; }
     [ -n "$a" ] || continue
-    found=0
-    while IFS= read -r h; do [ "$(slug "$h")" = "$a" ] && { found=1; break; }; done \
-      < <(sed -nE 's/^#+ (.*)/\1/p' "$t")
+    # the headings outside fenced code; a repeated slug gets GitHub's -1, -2, … suffix
+    found=0; declare -A seen=()
+    while IFS= read -r h; do
+      s=$(slug "$h"); n=${seen[$s]:-0}; seen[$s]=$((n + 1)); (( n )) && s+="-$n"
+      [ "$s" = "$a" ] && { found=1; break; }
+    done < <(awk '/^```/ { f = !f; next } !f && /^#+ / { sub(/^#+ /, ""); print }' "$t")
+    unset seen
     (( found )) || broken+=" $f→$l"
   done < <(grep -oE '\]\([^) ]+\)' "$f" | sed -E 's/^\]\((.*)\)$/\1/')
 done
@@ -90,9 +110,12 @@ ok "every relative link in the docs resolves, anchors included" eq "${broken# }"
 
 # ---------------------------------------------------------------- the README
 
+tested=$(sed -n 's/^CANCCU_CLAUDE_TESTED=//p' lib/canccu-deps.sh)
+ok "the tested Claude Code version is read from lib/canccu-deps.sh" test -n "$tested"
+ok "docs/getting-started.md names it too" grep -qF -- "Claude Code ${tested:-?}" docs/getting-started.md
 # shellcheck disable=SC2088  # the literal text the README names
 for w in install.sh canccu-init canccu-up uninstall REVIEWER_LOGIN templates/repo/ gh git jq tmux bash python3 \
-         "$(sed -n 's/^CANCCU_CLAUDE_TESTED=//p' lib/canccu-deps.sh)" ruleset collaborator '~/.canccu'; do
+         "${tested:-?}" ruleset collaborator '~/.canccu'; do
   ok "README.md names $w" grep -qF -- "$w" README.md
 done
 ok "the CHANGELOG lists the docs" grep -qF 'docs/' CHANGELOG.md

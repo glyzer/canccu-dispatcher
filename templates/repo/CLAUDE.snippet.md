@@ -1,9 +1,10 @@
 <!-- SPDX-License-Identifier: 0BSD -->
 <!--
   canccu-dispatcher's CLAUDE.md snippet. Copy everything below this comment into your repo's own
-  CLAUDE.md (create it if there is none), then replace each <…> with your repo's commands. Keep
-  the headings `<n>`, `execute` and `finish`: the worker prompt names this flow by them. Merging it
-  is described in canccu-dispatcher's docs/repo-contract.md.
+  CLAUDE.md (create it if there is none), then replace the two <the … command> placeholders with
+  your repo's commands; <n> and <slug> stay as they are. Keep the headings `<n>`, `execute` and
+  `finish`: the worker prompt names this flow by them. Merging it is described in
+  canccu-dispatcher's docs/repo-contract.md.
 -->
 
 ## How a session works on this repo

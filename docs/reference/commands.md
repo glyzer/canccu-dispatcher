@@ -33,7 +33,7 @@ Every command but `canccu-init` and `canccu-dispatcher` takes `--project <name>`
 | `canccu-run <n> [message]` | Starts or resumes the worker for issue n by hand (for an issue of a work package: the package). On a resume the message is the follow-up (default `continue`). Refuses while the issue's worker, reviewer or answerer runs |
 | `canccu-review <pr>` | Starts the independent reviewer for a PR of ours at its current head. Refuses without the reviewer token and for a PR that is not ours |
 | `canccu-classify <pr>` | Prints `auto` or `manual: <first reason>` ([`merging.md`](merging.md)) |
-| `canccu-ship <n>` | Your accept: arms the merge of our PR that closes issue n, pinned to its head |
+| `canccu-ship <n>` | Your accept: arms auto-merge for our PR that closes issue n, pinned to its head. Only where the repo allows auto-merge; otherwise label the PR `accepted` |
 | `canccu-stop <n>` | Stops the worker, reviewer and answerer of issue n (or of its package): sets the phase to `stopped` first, then kills their process trees and windows. Keeps the worktree and the session; `canccu-run <n>` continues it |
 | `canccu-pause` / `canccu-resume` | While paused nothing new starts; running runs continue |
 | `canccu-dispatcher --version`, `doctor`, `rollback`, `uninstall` | The installed tool itself ([`../install.md`](../install.md)) |

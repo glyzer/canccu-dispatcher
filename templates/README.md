@@ -18,7 +18,7 @@ head, was never edited, and the base branch has not changed since. That is the l
 canccu-dispatcher's reviewer writes last (`changes` instead of `pass` fails the gate). Comments
 by anyone else are ignored, and comment text is matched, never run.
 
-Setup, by a maintainer (`canccu-init` prints the same checklist):
+Setup, by a maintainer (`canccu-init` prints these steps in its checklist):
 
 1. Set the repo variable `REVIEWER_LOGIN` to the reviewer account's login (Settings → Secrets
    and variables → Actions → Variables). Unset, the gate fails every PR.

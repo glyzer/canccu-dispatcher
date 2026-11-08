@@ -43,8 +43,10 @@ tests_for() {
       echo tests/canccu-dispatch.sh tests/canccu-projects.sh tests/canccu-config.sh tests/canccu-cost.sh tests/canccu-compat.sh \
         tests/canccu-version.sh tests/canccu-hosts.sh ;;
     lib/canccu-units.sh|lib/canccu-packages.sh) echo tests/canccu-units.sh tests/canccu-cost.sh tests/canccu-health-review.sh ;;
-    lib/canccu-version.sh|VERSION|CHANGELOG.md)
+    lib/canccu-version.sh|VERSION)
       echo tests/canccu-version.sh tests/canccu-compat.sh tests/canccu-install.sh tests/canccu-install2.sh tests/canccu-doctor.sh ;;
+    CHANGELOG.md)
+      echo tests/canccu-version.sh tests/canccu-compat.sh tests/canccu-install.sh tests/canccu-install2.sh tests/canccu-doctor.sh tests/canccu-docs.sh ;;
     install.sh|lib/canccu-install*.sh|lib/canccu-deps.sh|bin/canccu-dispatcher|docs/install.md)
       echo tests/canccu-install.sh tests/canccu-install2.sh tests/canccu-doctor.sh tests/canccu-version.sh tests/canccu-repo.sh tests/canccu-docs.sh ;;
     lib/canccu-doctor.sh) echo tests/canccu-doctor.sh ;;
@@ -64,6 +66,9 @@ tests_for() {
     docs/*|*.md) echo tests/canccu-docs.sh ;;   # the docs test checks keys, sections and links
     *) ;;
   esac
+  # a file whose comments cite a section of the reference: the docs test checks the section exists
+  case $1 in tests/*) ;; *) [ -f "$1" ] && grep -qF 'docs/canccu-dispatch.md' "$1" && echo tests/canccu-docs.sh ;; esac
+  return 0
 }
 
 # is_shell <file>: a shell file: *.sh, a sh/bash shebang, or a `# shellcheck shell=` directive

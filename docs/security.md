@@ -46,8 +46,9 @@ A PR's checkout may carry text or settings a worker was steered into writing. So
 that reads someone else's work runs `--untrusted`: `claude --setting-sources user
 --strict-mcp-config`, which never loads the checkout's `.claude/settings*.json` (hooks, `env`,
 `apiKeyHelper`) or `.mcp.json` servers. A PR cannot add a hook that runs during its own review.
-Reviewers, fix-checks, answerers and planners run this way, each in a fresh session (never the
-worker's) and in its own worktree. Workers keep their project settings: they work on their own
+Reviewers, fix-checks and planners run this way, each in a fresh session (never the worker's)
+and in its own worktree; the answerer runs `--untrusted` in a fresh session in the issue's
+worktree (or the main clone when there is none). Workers keep their project settings: they work on their own
 branch from `origin/main`.
 
 PRs that are not ours (a fork, another author, an issue the dispatcher does not manage) are never
@@ -88,7 +89,9 @@ rule keeps personal paths out of this repo (`tests/leak-check.sh`).
 - **Reviewers and answerers act as you on GitHub.** They use the project's narrow login, which is
   `USER_LOGIN`'s: a prompt-injected reviewer could comment or label as you within that one repo,
   and an `accepted` label it adds looks like yours. `canccu-ship <n>`, which you run yourself, is
-  the strong accept. Running the reviewer as its own OS user would close this.
+  the strong accept, but only where the repo allows auto-merge: in a repo without it the label is
+  the only accept, and this limit applies in full. Running the reviewer as its own OS user would
+  close this.
 - **A worker trusts its issue.** Label `ready` only issues whose text you have read; on a public
   repo, comments by others are part of what a worker reads.
 - **A worker runs code.** Workers and reviewers run the repo's tests on the host as your user.
