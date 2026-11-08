@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Dependabot: the GitHub Actions only, which every workflow pins by commit SHA. The monitor's
+# Python packages are pinned by hand (lib/canccu-monitor.requirements.txt). The review-gate
+# template and this repo's copy of it must stay equal (tests/canccu-ci.sh), so one PR per action
+# updates both directories.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directories: ["/", "/templates/repo"]
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        group-by: dependency-name
+        patterns: ["*"]
+    commit-message:
+      prefix: "chore(deps)"

@@ -50,9 +50,13 @@ tests_for() {
     lib/canccu-ping.sh) echo tests/canccu-pings.sh tests/canccu-steps2.sh ;;
     lib/canccu-runs.sh|lib/canccu-answer.sh|lib/canccu-github.sh|lib/canccu-merge.sh|lib/canccu-pipeline.sh|lib/canccu-actions.sh|lib/canccu-queue.sh)
       echo tests/canccu-dispatch.sh tests/canccu-review.sh tests/canccu-cost.sh tests/canccu-health-review.sh tests/canccu-config.sh tests/canccu-compat.sh ;;
+    bin/canccu-init)
+      echo tests/canccu-dispatch.sh tests/canccu-projects.sh tests/canccu-config.sh tests/canccu-cost.sh tests/canccu-compat.sh tests/canccu-ci.sh ;;
     lib/canccu-*|bin/canccu-*|profiles/*)
       echo tests/canccu-dispatch.sh tests/canccu-projects.sh tests/canccu-config.sh tests/canccu-cost.sh tests/canccu-compat.sh ;;
-    .github/*|REUSE.toml|.file-size-exemptions|README.md|.gitignore) echo tests/canccu-repo.sh ;;
+    .github/scripts/release*|tests/fixtures/home/*) echo tests/canccu-release.sh tests/canccu-ci.sh tests/canccu-repo.sh ;;
+    .github/*|templates/*) echo tests/canccu-ci.sh tests/canccu-repo.sh ;;
+    REUSE.toml|.file-size-exemptions|README.md|.gitignore) echo tests/canccu-repo.sh ;;
     *) ;;   # docs and the like: no test
   esac
 }
@@ -66,7 +70,8 @@ is_shell() {
 }
 all_shell() {
   local f
-  for f in install.sh bin/* libexec/* lib/* hosts/* profiles/*/* tests/*.sh tests/lib/*.sh tests/run tests/fixtures/rules/*; do
+  for f in install.sh bin/* libexec/* lib/* hosts/* profiles/*/* tests/*.sh tests/lib/*.sh tests/run tests/fixtures/rules/* \
+    .github/scripts/* templates/repo/.github/scripts/*; do
     is_shell "$f" && echo "$f"
   done
 }

@@ -16,6 +16,7 @@ their offline tests; more documentation comes next.
   there are no defaults.
 - `bin/canccu-monitor` needs Python 3 and `rich` (`lib/canccu-monitor.requirements.txt`) in the
   venv `CANCCU_VENV` (default `~/.local/share/canccu/venv`).
+- `templates/repo/` holds the review gate a target repo adds (`templates/README.md`).
 - `tests/run` runs the local check; `CLAUDE.md` and `AGENTS.md` hold the rules for changes.
 
 Licence: AGPL-3.0-or-later (`LICENSE`).

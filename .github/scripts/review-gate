@@ -1,0 +1,170 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: 0BSD
+# review-gate: pass only on a fresh independent-review verdict. Shipped by canccu-dispatcher as a
+# template (templates/repo/.github/scripts/review-gate); its contract: canccu-dispatcher's
+# templates/README.md.
+# Usage: review-gate COMMENTS_JSON CURRENT_HEAD [RUN_HEAD [TIMELINE_JSON]]
+#        review-gate --self-test
+# COMMENTS_JSON is the PR's issue comments as one JSON array (GitHub REST shape);
+# TIMELINE_JSON, when given, is the PR's issue timeline as one JSON array.
+# Only comments written by the reviewer identity, the login in $REVIEWER_LOGIN (the repo
+# variable REVIEWER_LOGIN), count; everyone else's are ignored. Unset: the gate fails.
+# The newest reviewer comment that contains "Review verdict:" anywhere, or that was edited,
+# decides. The gate passes only when that comment was never edited, its last line
+# fully matches VERDICT_RE, the verdict is `pass`, its SHA equals CURRENT_HEAD (and
+# RUN_HEAD, the head this run was started for, when given), and the base branch has not
+# changed since the verdict was posted.
+# Comment text is only matched with jq; it is never executed.
+# Exit: 0 pass, 1 fail, 2 wrong usage or unreadable input.
+set -uo pipefail
+
+# the verdicts canccu-dispatcher's reviewer writes; any other word is unparseable, so it fails
+VERDICT_RE='^Review verdict: (pass|changes) ([0-9a-f]{40})$'
+
+fail() { echo "::error title=review-gate::$1"; summary "**review-gate failed:** $1"; exit 1; }
+summary() { [ -n "${GITHUB_STEP_SUMMARY:-}" ] && echo "$1" >> "$GITHUB_STEP_SUMMARY"; return 0; }
+
+if [ "${1:-}" = "--self-test" ]; then
+  self=$(cd "$(dirname "$0")" && pwd)/review-gate
+  t=$(mktemp -d); trap 'rm -rf "$t"' EXIT
+  A=$(printf 'a%.0s' {1..40}); B=$(printf 'b%.0s' {1..40})
+  D1=2030-01-01T00:00:00Z D2=2030-01-02T00:00:00Z D3=2030-01-03T00:00:00Z
+  c() { # login, created_at, body[, updated_at] (author_association is MEMBER for everyone on purpose)
+    jq -n --arg u "$1" --arg t "$2" --arg b "$3" --arg up "${4:-$2}" \
+      '{author_association:"MEMBER", created_at:$t, updated_at:$up, user:{login:$u}, body:$b}'
+  }
+  fail=0
+  # expect [--env K=V] [--timeline JSON] name expected-exit head run-head comments...
+  expect() {
+    local envs=(REVIEWER_LOGIN=review-bot GITHUB_STEP_SUMMARY=) timeline=""
+    while :; do
+      case "$1" in
+        --env) envs+=("$2"); shift 2 ;;
+        --timeline) timeline=$2; shift 2 ;;
+        *) break ;;
+      esac
+    done
+    local name=$1 want=$2 head=$3 runhead=$4; shift 4
+    if [ $# -eq 0 ]; then echo '[]' > "$t/c.json"; else printf '%s\n' "$@" | jq -s . > "$t/c.json"; fi
+    local args=("$t/c.json" "$head" "$runhead")
+    if [ -n "$timeline" ]; then printf '%s\n' "$timeline" > "$t/tl.json"; args+=("$t/tl.json"); fi
+    env "${envs[@]}" "$self" "${args[@]}" >/dev/null 2>&1; rc=$?
+    if [ "$rc" = "$want" ]; then echo "ok   $name"; else echo "FAIL $name (exit $rc, want $want)"; fail=1; fi
+  }
+  R=review-bot
+  expect "no comments fails" 1 "$A" ""
+  expect "pass on head passes" 0 "$A" "" "$(c $R $D1 "Review notes"$'\n\n'"Review verdict: pass $A")"
+  expect "trailing whitespace and CRLF ok" 0 "$A" "" "$(c $R $D1 "x"$'\r\n'"Review verdict: pass $A"$'\r\n\n ')"
+  expect "pass on old head fails" 1 "$B" "" "$(c $R $D1 "Review verdict: pass $A")"
+  expect "run head differs fails" 1 "$A" "$B" "$(c $R $D1 "Review verdict: pass $A")"
+  expect "changes fails" 1 "$A" "" "$(c $R $D1 "Review verdict: changes $A")"
+  expect "manual is no verdict: fails" 1 "$A" "" "$(c $R $D1 "Review verdict: manual — touches setup/ $A")"
+  expect "newest decides (changes after pass)" 1 "$A" "" "$(c $R $D1 "Review verdict: pass $A")" "$(c $R $D2 "Review verdict: changes $A")"
+  expect "newest decides (pass after changes)" 0 "$A" "" "$(c $R $D2 "Review verdict: pass $A")" "$(c $R $D1 "Review verdict: changes $A")"
+  expect "manual after pass is newest and fails" 1 "$A" "" "$(c $R $D1 "Review verdict: pass $A")" "$(c $R $D2 "Review verdict: manual — touches .github/ $A")"
+  expect "other author ignored, even a member" 1 "$A" "" "$(c some-maintainer $D1 "Review verdict: pass $A")"
+  expect "outside author cannot block" 0 "$A" "" "$(c $R $D1 "Review verdict: pass $A")" "$(c outsider $D2 "Review verdict: changes $A")"
+  expect "reviewer login matches case-insensitively" 0 "$A" "" "$(c Review-Bot $D1 "Review verdict: pass $A")"
+  expect "author pass after reviewer changes ignored" 1 "$A" "" "$(c $R $D1 "Review verdict: changes $A")" "$(c pr-author $D2 "Review verdict: pass $A")"
+  expect --env REVIEWER_LOGIN= "unset REVIEWER_LOGIN fails" 1 "$A" "" "$(c $R $D1 "Review verdict: pass $A")"
+  # Malformed verdict lines: the newest "Review verdict:" line decides, so they fail rather than fall back.
+  expect "malformed newer verdict beats older pass" 1 "$A" "" "$(c $R $D1 "Review verdict: pass $A")" "$(c $R $D2 "Review verdict: changes — fake tests $A")"
+  expect "verdict with a reason is malformed" 1 "$A" "" "$(c $R $D1 "Review verdict: pass $A")" "$(c $R $D2 "Review verdict: pass — looks fine $A")"
+  expect "short sha fails" 1 "$A" "" "$(c $R $D1 "Review verdict: pass ${A:0:7}")"
+  expect "unknown verdict fails" 1 "$A" "" "$(c $R $D1 "Review verdict: lgtm $A")"
+  expect "verdict not on last line fails" 1 "$A" "" "$(c $R $D1 "Review verdict: pass $A"$'\nthanks')"
+  expect "newer verdict with trailing footer beats older pass" 1 "$A" "" "$(c $R $D1 "Review verdict: pass $A")" \
+    "$(c $R $D2 "found a bug"$'\n\n'"Review verdict: changes $A"$'\n\n'"🤖 Generated with Claude Code")"
+  expect "newer bold verdict beats older pass" 1 "$A" "" "$(c $R $D1 "Review verdict: pass $A")" "$(c $R $D2 "**Review verdict: changes $A**")"
+  expect "newer indented verdict beats older pass" 1 "$A" "" "$(c $R $D1 "Review verdict: pass $A")" "$(c $R $D2 "notes"$'\n'"  Review verdict: changes $A")"
+  expect "newer quoted verdict beats older pass" 1 "$A" "" "$(c $R $D1 "Review verdict: pass $A")" "$(c $R $D2 "> Review verdict: changes $A")"
+  expect "reviewer comment without verdict ignored" 0 "$A" "" "$(c $R $D1 "Review verdict: pass $A")" "$(c $R $D2 "a note, no verdict")"
+  # Edited comments: anyone with write access can edit the reviewer's comment.
+  expect "edited pass fails" 1 "$A" "" "$(c $R $D1 "Review verdict: pass $A" $D2)"
+  expect "changes edited into pass fails" 1 "$A" "" "$(c $R $D1 "Review verdict: pass $A")" "$(c $R $D2 "Review verdict: pass $A" $D3)"
+  expect "verdict edited away does not revive older pass" 1 "$A" "" "$(c $R $D1 "Review verdict: pass $A")" "$(c $R $D2 "verdict removed" $D3)"
+  expect "older edited comment does not matter" 0 "$A" "" "$(c $R $D1 "first notes" $D2)" "$(c $R $D2 "Review verdict: pass $A")"
+  # Base branch changes.
+  expect --timeline "[{\"event\":\"base_ref_changed\",\"created_at\":\"$D3\"}]" "base changed after verdict fails" 1 "$A" "$A" "$(c $R $D2 "Review verdict: pass $A")"
+  expect --timeline "[{\"event\":\"base_ref_changed\",\"created_at\":\"$D1\"}]" "base changed before verdict passes" 0 "$A" "$A" "$(c $R $D2 "Review verdict: pass $A")"
+  expect --timeline "[{\"event\":\"automatic_base_change_succeeded\",\"created_at\":\"$D3\"}]" "automatic retarget after verdict fails" 1 "$A" "$A" "$(c $R $D2 "Review verdict: pass $A")"
+  expect --timeline "[{\"event\":\"base_ref_changed\"}]" "base change without time fails" 1 "$A" "$A" "$(c $R $D2 "Review verdict: pass $A")"
+  expect --timeline "[{\"event\":\"commented\",\"created_at\":\"$D3\"}]" "other timeline events ignored" 0 "$A" "$A" "$(c $R $D2 "Review verdict: pass $A")"
+  expect "shell text is not run" 1 "$A" "" "$(c $R $D1 "Review verdict: changes \$(touch $t/pwned) $A")"
+  if [ -e "$t/pwned" ]; then echo "FAIL comment text was executed"; fail=1; fi
+  echo 'not json' > "$t/bad.json"
+  REVIEWER_LOGIN=$R "$self" "$t/bad.json" "$A" >/dev/null 2>&1; rc=$?
+  if [ "$rc" = 2 ]; then echo "ok   unreadable comments exit 2"; else echo "FAIL unreadable comments (exit $rc)"; fail=1; fi
+  echo '[]' > "$t/ok.json"
+  REVIEWER_LOGIN=$R "$self" "$t/ok.json" "$A" "$A" "$t/bad.json" >/dev/null 2>&1; rc=$?
+  if [ "$rc" = 2 ]; then echo "ok   unreadable timeline exit 2"; else echo "FAIL unreadable timeline (exit $rc)"; fail=1; fi
+  "$self" >/dev/null 2>&1; rc=$?
+  if [ "$rc" = 2 ]; then echo "ok   missing arguments exit 2"; else echo "FAIL missing arguments (exit $rc)"; fail=1; fi
+  exit "$fail"
+fi
+
+if [ $# -lt 2 ] || [ ! -r "$1" ] || { [ -n "${4:-}" ] && [ ! -r "$4" ]; }; then
+  echo "usage: review-gate COMMENTS_JSON CURRENT_HEAD [RUN_HEAD [TIMELINE_JSON]] | --self-test" >&2; exit 2
+fi
+comments=$1 head=$2 runhead=${3:-} timeline=${4:-}
+for f in "$comments" ${timeline:+"$timeline"}; do
+  if ! jq -e 'type == "array"' "$f" >/dev/null 2>&1; then
+    echo "error: $f is not a JSON array" >&2; exit 2
+  fi
+done
+
+reviewer=${REVIEWER_LOGIN:-}
+if [ -z "$reviewer" ]; then
+  fail "the repository variable REVIEWER_LOGIN is not set, so no verdict can be trusted. A maintainer sets it to the reviewer account's login (Settings → Secrets and variables → Actions → Variables); see canccu-dispatcher's templates/README.md."
+fi
+
+if [ -n "$runhead" ] && [ "$runhead" != "$head" ]; then
+  fail "this run is for ${runhead:0:7}, but the PR head is now ${head:0:7}; the run for the new head decides."
+fi
+
+if ! newest=$(jq -c --arg who "$reviewer" '
+    [ .[]
+      | select((.user.login // "" | ascii_downcase) == ($who | ascii_downcase))
+      | ((.body // "") | gsub("\r"; "") | sub("\\s+$"; "") | split("\n") | last // "") as $line
+      | ((.updated_at // .created_at) != .created_at) as $edited
+      | select(((.body // "") | contains("Review verdict:")) or $edited)
+      | {created_at, edited: $edited, user: .user.login, line: $line} ]
+    | sort_by(.created_at) | last' "$comments" 2>/dev/null); then
+  echo "error: cannot read comments from $comments" >&2; exit 2
+fi
+
+if [ "$newest" = "null" ] || [ -z "$newest" ]; then
+  fail "no 'Review verdict: <pass|changes> <head sha>' comment from the reviewer identity ($reviewer) yet."
+fi
+
+if [ "$(jq -r .edited <<<"$newest")" = true ]; then
+  fail "verdict comment was edited; ask for a new review."
+fi
+
+line=$(jq -r .line <<<"$newest"); who=$(jq -r .user <<<"$newest"); at=$(jq -r .created_at <<<"$newest")
+if ! jq -n -e --arg l "$line" --arg re "$VERDICT_RE" '$l | test($re)' >/dev/null; then
+  fail "the newest verdict line (by $who) is unparseable; it must be 'Review verdict: <pass|changes> <40-character head sha>'. Ask for a new review."
+fi
+sha=${line##* }
+verdict=${line#Review verdict: }; verdict=${verdict% *}
+
+if [ "$sha" != "$head" ]; then
+  fail "the newest verdict ($verdict, by $who) is for ${sha:0:7}, but the PR head is ${head:0:7}; a push voids a review, so ask for a new one."
+fi
+if [ "$verdict" != "pass" ]; then
+  fail "the newest verdict on ${head:0:7} (by $who) is '$verdict', not 'pass'."
+fi
+
+if [ -n "$timeline" ]; then
+  if ! moved=$(jq -r --arg at "$at" '
+      [ .[] | select(.event == "base_ref_changed" or .event == "base_ref_force_pushed" or .event == "automatic_base_change_succeeded")
+        | select((.created_at // "9999") > $at) ] | length' "$timeline" 2>/dev/null); then
+    echo "error: cannot read timeline from $timeline" >&2; exit 2
+  fi
+  if [ "$moved" != 0 ]; then
+    fail "the base branch changed after the verdict; ask for a new review."
+  fi
+fi
+
+echo "review-gate passed: 'pass' on ${head:0:7} by $who."
+summary "**review-gate passed:** \`pass\` on \`${head:0:7}\` by $who."

@@ -201,6 +201,8 @@ for w8 in 'as a collaborator' 'repo scope' 'repo variable REVIEWER_LOGIN' 'revie
   ok "canccu-init checklist: $w8" grep -qF "$w8" <<<"$out"
 done
 ok "canccu-init checklist: never points at another project for the review-gate" not grep -q 'from a project that has them' <<<"$out"
+tdir=$(grep -oE '[^ ]*/templates/repo/\.github/' <<<"$out"); tdir=${tdir/#\~/$HOME}
+ok "canccu-init checklist: names this tree's review-gate templates" test -x "$tdir/scripts/review-gate"
 ok "canccu-init checklist: says REVIEWER_LOGIN is not set yet" grep -qF 'the reviewer bot (REVIEWER_LOGIN: not set yet' <<<"$out"
 ok "canccu-init: the new project resolves" eq "$(pick --project web)" "web canccu-web example-org/web"
 out=$(PATH="$fb:$PATH" "$root/bin/canccu-init" web example-org/other 2>&1); rc=$?
