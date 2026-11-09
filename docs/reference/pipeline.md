@@ -6,7 +6,9 @@ Part of the reference; the index is [`README.md`](README.md). The merge decision
 
 **Worker implements → independent reviewer reviews the PR → the PR merges when the review
 passes and CI is green.** A review that asks for changes gets one fix by the worker and one narrow
-fix-check of that fix, then the merge or you: never a second full review, never a loop.
+fix-check of that fix, then the merge or you: never a second full review, never a loop. Your
+`needs-work` on the fix-check's open items gives one more fix round and fix-check, not a new full
+review.
 
 ## One pass
 
@@ -38,7 +40,10 @@ Every `INTERVAL` seconds, under the project's lock:
        that pushed nothing → `needs-you`; if no fix was needed (a finding was wrong),
        `canccu-review <pr>` reviews the unchanged head again: its pass merges, its `changes`
        returns to `needs-you`. Otherwise a comment from you resumes the worker;
-     - `changes` from the fix-check → `needs-you` with the open items;
+     - `changes` from the fix-check → `needs-you` with the open items (saved, with that head as
+       `open_sha`; a `pass` clears it before the merge or accept step). Your `needs-work` there
+       is one more fix round (step 4) and a fix-check of `git diff <open_sha>..<head>` against
+       those items and your comments, not a full review;
      - a push after the fix-check voids it: a new fix-check of the whole fix diff runs;
      - no counting verdict line → `needs-you`.
      A verdict counts as acted on only once the merge, the accept request or the resume
@@ -64,7 +69,12 @@ Every `INTERVAL` seconds, under the project's lock:
    `USER_LOGIN`, and its worker starts in window `#<n>`.
 4. **Resume.** `plan-ok` → "The user approved the plan. Execute it with the superpowers skill
    executing-plans." `needs-work` → your comments since the newest of the accept request, the
-   arming of the merge and the verdict. A `needs-you` issue whose issue or PR got a new comment
+   arming of the merge and the verdict. A `needs-work` on a `needs-you` the fix-check's open
+   items left (`open_sha` set, still in the fix round, not parked at `merge`) is one more fix
+   round with a fix-check after it, unless a line of your comment is just `full review`; every
+   other `needs-work` (a refused accept, a stopped merge) starts a new cycle: the next review is
+   a full one. A `gh` error reading the comments decides nothing: `needs-work` stays for the
+   next pass. A `needs-you` issue whose issue or PR got a new comment
    from `USER_LOGIN` → that comment. `limited` after the back-off → `continue`. A PR armed for
    merge is disarmed before its worker resumes; resuming removes `needs-you`.
 5. **Accept and merging.** An `accept` PR labelled `accepted` by `USER_LOGIN` after the accept
