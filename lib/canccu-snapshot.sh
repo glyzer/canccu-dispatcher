@@ -187,13 +187,13 @@ snap_milestones() {
   for b in "$CANCCU_HOME"/steps/*; do
     n=${b##*/}; [[ $n =~ ^[0-9]+$ ]] && [ -f "$b" ] && [ "$(step_get "$n" phase)" = checkpoint ] && ready+="$(step_get "$n" checkpoint) "
   done
-  jq -nc --argjson ms "$ms" --argjson cps "$cps" --arg ready "$ready" --arg repo "$REPO" "$MILESTONE_KEY_JQ"'
+  jq -nc --slurpfile ms <(printf '%s' "$ms") --slurpfile cps <(printf '%s' "$cps") --arg ready "$ready" --arg repo "$REPO" "$MILESTONE_KEY_JQ"'
     ($ready | split(" ") | map(select(. != "") | tonumber)) as $r
-    | ([ $cps[] | select(any(.labels[]; .name == "checkpoint"))
+    | ([ $cps[0][] | select(any(.labels[]; .name == "checkpoint"))
          | {issue: .number, title, state: (.state | ascii_downcase), milestone: (.milestone.title // null),
             ready: (.number | IN($r[])), url: "https://github.com/\($repo)/issues/\(.number)"} ]) as $c
     | { checkpoints: $c,
-        milestones: ([ $ms[] | {title, open: .open_issues, closed: .closed_issues, due: .due_on,
+        milestones: ([ $ms[0][] | {title, open: .open_issues, closed: .closed_issues, due: .due_on,
                                  checkpoints: [ .title as $t | $c[] | select(.milestone == $t) | {issue, state, ready} ],
                                  k: (.title | milestone_key)} ]
                      | sort_by(.k, .title) | map(del(.k))) }'
@@ -236,8 +236,8 @@ write_status() {
   running=$(snap_running | jq -sc .) || running='[]'
   if [ -n "$err" ]; then
     # no issues or PRs were read: the titles come from the last snapshot; the CI step is unknown
-    running=$(jq -c --argjson prev "$prev" 'map(. as $i | if .title == "" and .issue != null
-               then .title = ([$prev.running[]? | select(.issue == $i.issue) | .title] | first // "") else . end)' <<<"$running") ||
+    running=$(jq -c --slurpfile prev <(printf '%s' "$prev") 'map(. as $i | if .title == "" and .issue != null
+               then .title = ([$prev[0].running[]? | select(.issue == $i.issue) | .title] | first // "") else . end)' <<<"$running") ||
       running='[]'
     ok=false stale=(running needs_you queue milestones steps step_overview)
     steps=$(jq -c '{steps: (.steps // []), current_step: (.current_step // null)}' <<<"$prev")
@@ -265,22 +265,25 @@ write_status() {
   started=${PASS_STARTED:-$(now)}
   durs=$(jq -c --arg d "$(( $(now) - started ))" '[(.pass.durations // [])[]? | numbers] + [$d | tonumber] | .[-5:]' <<<"$prev") ||
     durs="[$(( $(now) - started ))]"
+  # the sections go in as files: one of them (the queue, the step overview) can pass the 128 KiB
+  # Linux allows one command-line argument, and jq would not start
   jq -n --argjson schema "$STATUS_SCHEMA" --arg version "$CANCCU_VERSION" --arg project "$CANCCU_PROJECT" --arg repo "$REPO" --arg repo_name "$REPO_NAME" --arg pid "$$" \
     --arg interval "$INTERVAL" --arg now "$(now)" --argjson ok "$ok" --arg err "$err" \
     --argjson paused "$(paused && echo true || echo false)" --arg bu "$bu" \
     --arg running_n "$(running_count)" --arg cap "$CAP" --arg total "$(total_running)" --arg tcap "$TOTAL_CAP" \
     --arg spend "$spend" --arg nocost "$nocost" --arg started "$started" --argjson durs "$durs" --arg day "$(date -u -d "@$(now)" +%F)" --arg freeze "${AUTO_MERGE_UNTIL:-}" \
-    --argjson running "$running" --argjson needs "$needs" --argjson queue "$queue" \
-    --argjson ms "$ms" --argjson events "$events" --arg stale "${stale[*]}" --argjson steps "$steps" --argjson usage "$usage" \
-    --argjson overview "${overview:-[]}" --argjson others "$others" '
+    --slurpfile running <(printf '%s' "$running") --slurpfile needs <(printf '%s' "$needs") --slurpfile queue <(printf '%s' "$queue") \
+    --slurpfile ms <(printf '%s' "$ms") --slurpfile events <(printf '%s' "$events") --arg stale "${stale[*]}" \
+    --slurpfile steps <(printf '%s' "$steps") --slurpfile usage <(printf '%s' "$usage") \
+    --slurpfile overview <(printf '%s' "${overview:-[]}") --slurpfile others <(printf '%s' "$others") '
     { schema: $schema, version: $version, project: $project, repo: $repo, repo_name: $repo_name, pid: ($pid | tonumber), interval: ($interval | tonumber),
       pass: { at: ($now | tonumber), started: ($started | tonumber), duration: $durs[-1], durations: $durs, ok: $ok, error: (if $err == "" then null else $err end), paused: $paused,
               backoff_until: ($bu | tonumber? // null) },
       caps: { running: ($running_n | tonumber), cap: ($cap | tonumber), total_running: ($total | tonumber),
               total_cap: ($tcap | tonumber) },
       spend: { today_usd: (($spend | tonumber) * 100 | round / 100), runs_without_cost: ($nocost | tonumber), day: $day, freeze: (if $freeze == "" then null else $freeze end) },
-      running: $running, needs_you: $needs, queue: $queue, milestones: $ms.milestones, events: $events,
-      steps: $steps.steps, current_step: $steps.current_step, step_overview: $overview, other_runs: $others, usage: $usage,
+      running: $running[0], needs_you: $needs[0], queue: $queue[0], milestones: $ms[0].milestones, events: $events[0],
+      steps: $steps[0].steps, current_step: $steps[0].current_step, step_overview: $overview[0], other_runs: $others[0], usage: $usage[0],
       stale: ($stale | split(" ") | map(select(. != ""))) }' > "$tmp" && mv -f "$tmp" "$f" || {
     rm -f "$tmp"; log "could not write ${f/#$HOME/\~}"; }
   # for run_pass: this pass got to its snapshot

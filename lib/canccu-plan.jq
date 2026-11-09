@@ -1,18 +1,20 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # lib/canccu-plan.jq — validates a planner's package plan (schema 1). Run by plan_validate:
-#   jq -n --argjson plan P --argjson input I --argjson m M --argjson w W -f lib/canccu-plan.jq
+#   jq --slurpfile input I --argjson m M --argjson w W -f lib/canccu-plan.jq < P
+# (stdin and a file, never arguments: either value can pass the 128 KiB Linux allows one argument)
 # → {errors: [strings], left_out: [issue numbers]}. The schema is in docs/canccu-dispatch.md,
 # "Work packages per step". Issues the plan leaves out are no error: they join the next wave.
 
 def strs: type == "array" and all(.[]; type == "string");
-def known: [$input.issues[]?.number];
+def known: [$input[0].issues[]?.number];
 # the earlier waves' unfinished packages the dispatcher carries into this plan: a package may
 # depend on one (it waits for its merge); they are outside the graph (they never depend on these)
-def carried: [$input.carried[]?.name];
+def carried: [$input[0].carried[]?.name];
 # an earlier package of the step merged since (while the planner ran): met
-def merged: [$input.merged[]?.name];
+def merged: [$input[0].merged[]?.name];
 
-($plan.packages) as $ps
+. as $plan
+| ($plan.packages) as $ps
 | (if ($ps | type) == "array" then $ps else [] end) as $pk
 | [ $pk[] | select(type == "object") ] as $obj
 | [ $obj[] | .name | select(type == "string") ] as $names
@@ -43,7 +45,7 @@ def merged: [$input.merged[]?.name];
                or (.name | length) > 30 or .name == "health"
           then "package \($i + 1): bad name \(.name | tojson)" else empty end ]
     + [ $names | group_by(.) | .[] | select(length > 1) | "duplicate package name \(.[0])" ]
-    + [ $names | unique[] | select(IN($input.earlier[]?.name)) | "package name \(.) was used by an earlier package" ]
+    + [ $names | unique[] | select(IN($input[0].earlier[]?.name)) | "package name \(.) was used by an earlier package" ]
     + [ $obj[] | (.name // "?") as $x
         | (if (.issues | type) != "array" or (.issues | length) == 0 then "\($x): no issues"
            elif any(.issues[]; type != "number") then "\($x): issues must be numbers" else empty end),

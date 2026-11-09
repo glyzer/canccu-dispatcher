@@ -27,12 +27,13 @@ step_phases() {
 }
 
 # STEP_JQ: per open milestone, in milestone order: its track, work issues open and closed, epic,
-# checkpoint (the open one, else the newest closed one) and whether it is pending
+# checkpoint (the open one, else the newest closed one) and whether it is pending. Its values come
+# by --slurpfile (step_jq), each one as [value]
 STEP_JQ="$MILESTONE_KEY_JQ"'
   def work: [.labels[]?.name] | (index("epic") or index("checkpoint")) | not;
-  [ $ms[] | select(.number != null) | .title as $t
-    | ([ $is[] | select((.milestone.title // null) == $t) ]) as $mine
-    | ([ $cps[] | select((.milestone.title // null) == $t) ]) as $cp
+  [ $ms[0][] | select(.number != null) | .title as $t
+    | ([ $is[0][] | select((.milestone.title // null) == $t) ]) as $mine
+    | ([ $cps[0][] | select((.milestone.title // null) == $t) ]) as $cp
     | { milestone: .number, title: $t, k: ($t | milestone_key),
         track: (if ($t | test("^\\s*parallel tracks\\b"; "i")) then "parallel" else "main" end),
         work_open: ([ $mine[] | select(work) ] | length),
@@ -41,7 +42,7 @@ STEP_JQ="$MILESTONE_KEY_JQ"'
         checkpoint: (([ $cp[] | select(.state == "OPEN") ] | sort_by(.number) | first)
                      // ([ $cp[] ] | sort_by(.number) | last)
                      | if . == null then null else {issue: .number, state: (.state | ascii_downcase)} end),
-        phase: ($ph[(.number | tostring)] // null) }
+        phase: ($ph[0][(.number | tostring)] // null) }
     | .pending = (.work_open > 0 or (.checkpoint.state == "open")
                   or (.phase | IN("planning", "running", "health-due", "health", "checkpoint", "needs-you"))) ]
   | sort_by(.k, .title) | map(del(.k))'
@@ -51,13 +52,18 @@ STEP_JQ="$MILESTONE_KEY_JQ"'
 # are not pending, so their checkpoints are closed: a step waiting for its checkpoint-ok stays
 # current, which is the pause.
 current_steps_pure() {
-  jq -c -n --argjson ms "$1" --argjson cps "$2" --argjson is "$3" --argjson ph "$4" "$STEP_JQ"'
+  step_jq "$1" "$2" "$3" "$4" '
     | ([ .[] | select(.track == "main" and .pending) ] | .[:1]) + [ .[] | select(.track == "parallel" and .pending) ]
     | map(del(.pending))'
 }
 # step_list: every open milestone with its step data (for the snapshot), in milestone order
-step_list() {
-  jq -c -n --argjson ms "$MILESTONES" --argjson cps "$CHECKPOINTS" --argjson is "$ISSUES" --argjson ph "$(step_phases)" "$STEP_JQ"
+step_list() { step_jq "$MILESTONES" "$CHECKPOINTS" "$ISSUES" "$(step_phases)"; }
+# step_jq <milestones> <checkpoints> <open issues> <step phases> [filter]: STEP_JQ, then the
+# filter. The values go in as files: the open issues alone can pass the 128 KiB Linux allows one
+# command-line argument (MAX_ARG_STRLEN), and jq would not start
+step_jq() {
+  jq -c -n --slurpfile ms <(printf '%s' "$1") --slurpfile cps <(printf '%s' "$2") --slurpfile is <(printf '%s' "$3") \
+    --slurpfile ph <(printf '%s' "$4") "$STEP_JQ${5:-}"
 }
 current_step_ids() { jqr '.[].milestone' <<<"$CURRENT_STEPS"; }
 # cur <m> <jq path>: a field of a current step
