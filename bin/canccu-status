@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # canccu-status [--project <name>] — what the dispatcher is doing: the project's gh credential (TOKEN MISSING,
-# TOKEN CANNOT REACH <repo>, or a warning on the default login), paused / back-off, running workers and reviewers
+# TOKEN CANNOT REACH <repo>, or a warning on the default login), paused / back-off, the wait for a shared slot
+# ("waiting for a slot held by <project>"), running workers and reviewers
 # (issue, stage: review / fixing / fix-check or the phase, minutes, last log line), the runs it did
 # not start (a worker started by hand: key, kind, age), PRs awaiting
 # accept, issues needing you (a review that could not be posted too), open PRs that are not ours
@@ -28,6 +29,7 @@ lp=$(login_problem)
 [ -n "$lp" ] && echo "$lp: the dispatcher does nothing for this project until it is set"
 echo "usage: $(usage_text)"
 echo "project: $CANCCU_PROJECT (${CANCCU_HOME/#$HOME/\~}, tmux $TMUX_SESSION) · runs: $(running_count) of CAP $CAP · all projects: $(total_running) of TOTAL_CAP $TOTAL_CAP"
+w=$(waiting_for); [ -n "$w" ] && echo "waiting for a slot held by $w"
 cp=$(gh_credential_problem)
 if [ -n "$cp" ]; then echo "$cp: the dispatcher does nothing for this project until it works"
 elif [ -n "$CANCCU_GH_DIR" ]; then echo "gh: the project's own login (${CANCCU_GH_DIR/#$HOME/\~})"

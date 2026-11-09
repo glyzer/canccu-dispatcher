@@ -98,12 +98,14 @@ step_over_budget() { awk -v s="$(step_spend "$1" | cut -d' ' -f1)" -v b="${STEP_
 step_blocked_to_start() { step_over_budget "$1" || draining; }
 # step_of_unit <K>: the step a unit's runs are charged to (none for a fast-lane or old unit)
 step_of_unit() { is_managed "$1" && st_get "$1" step; return 0; }
+# unit_held <K>: step_run_held without saying so: the unit's step is at STEP_BUDGET
+unit_held() { local m; m=$(step_of_unit "$1"); [ -n "$m" ] && step_over_budget "$m"; }
 # step_run_held <K> <what>: the unit's step is at STEP_BUDGET: its run (a review, fix-check,
 # answer or resume) does not start (said once); the weekly drain never holds these: started
 # work finishes
 step_run_held() {
-  local m; m=$(step_of_unit "$1"); [ -n "$m" ] || return 1
-  step_over_budget "$m" || return 1
+  unit_held "$1" || return 1
+  local m; m=$(step_of_unit "$1")
   warn_once "held-$1" "#$1: $2 held: step $(step_title "$m") reached STEP_BUDGET"
 }
 # step_charge <K> <run key>: the run is the unit's step's (its budget)

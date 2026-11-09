@@ -150,9 +150,9 @@ planner_prompt() {
 start_planner() {
   local m=$1 w ns wt turns cost mins
   step_blocked_to_start "$m" && return 1
-  take_slot || return 1
   w=$(( $(step_get "$m" wave || true) + 1 ))
   ns=$(planner_issues "$m" | tr '\n' ' '); [ -n "${ns// }" ] || return 1
+  take_slot "plan-$m" || return 1   # after the issues: a planner with nothing to plan waits for no slot
   step_set "$m" plan_issues="$ns"
   wt=$(plan_wt "$m")
   mut git -C "$CLONE" fetch -q origin || { log "step $m: git fetch failed"; return 1; }

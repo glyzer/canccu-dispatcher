@@ -47,7 +47,7 @@ ask() {
   q_set "$n" "$q"
   st_set "$n" phase=question ${pr:+pr="$pr"}
   log "#$n worker asks: $(oneline 120 "$q")"
-  backing_off || ! room || start_answer "$n"
+  backing_off || ! room "$n" || start_answer "$n"
 }
 
 # start_answer <n>: a fresh session (key answer-<n>) in the issue's worktree, read-only by brief

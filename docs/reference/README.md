@@ -33,6 +33,7 @@ The code's comments cite sections as `docs/canccu-dispatch.md, "<section>"`. Eac
 | Projects | [`projects.md`](projects.md#projects) |
 | Adding a project | [`projects.md`](projects.md#adding-a-project) |
 | A narrow token per project | [`projects.md`](projects.md#a-narrow-token-per-project) |
+| Fair share of TOTAL_CAP | [`projects.md`](projects.md#fair-share-of-total_cap) |
 | Rules | [`rules.md`](rules.md#rules) |
 | Merge policy | [`merging.md`](merging.md#merge-policy) |
 | Work packages per step | [`packages.md`](packages.md#work-packages-per-step) |

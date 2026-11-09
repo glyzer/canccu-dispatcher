@@ -36,7 +36,7 @@ is stopped and its issue goes to `needs-you`.
 | `CLONE` | none | Its main clone; every worktree hangs off it. `canccu-init` writes `~/code/<repo>` or the path it was given |
 | `HOST_PROFILE` | empty | The host profile, `hosts/<name>.conf` (for example `max`); empty: none. Set it in `~/.canccu/config`, or `CANCCU_HOST_PROFILE` for one command. An unknown name is refused with the list |
 | `CAP` | `3` | The project's workers, reviewers and answerers running at once |
-| `TOTAL_CAP` | `3` | The same over all projects of this host together (they share one Claude account). Up to `~/.canccu/config` only |
+| `TOTAL_CAP` | `3` | The same over all projects of this host together (they share one Claude account), shared by need ([`projects.md`](projects.md#fair-share-of-total_cap)). Up to `~/.canccu/config` only |
 | `MODEL` | empty | Passed as `--model` to every run; empty: no `--model`, the account's default model |
 | `USER_LOGIN` | empty | Your GitHub login: whose PRs are ours, who is assigned and pinged, whose comments resume a worker. Unset: the dispatcher does nothing |
 | `REVIEWER_LOGIN` | empty | The reviewer bot's login: reviews and pings post as it, and only its verdicts count. The same login is the repo variable the `review-gate` check reads. Unset: no review starts |

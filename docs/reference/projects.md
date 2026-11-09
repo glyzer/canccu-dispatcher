@@ -24,7 +24,47 @@ global files: `config`, `reviewer-token` (one bot for all projects), `default-pr
 - **Caps.** A project's runs stay under its `CAP`, and all projects' runs together under
   `TOTAL_CAP`. A pass counts every project's live runs, and every engine start checks `TOTAL_CAP`
   again under `~/.canccu/.engine.lock`, so two dispatchers starting at once, or a `canccu-run` by
-  hand, cannot pass it.
+  hand, cannot pass it. The projects share the `TOTAL_CAP` slots by need (next section).
+
+## Fair share of TOTAL_CAP
+
+A project alone may fill every slot of `TOTAL_CAP` (its own `CAP` stays its bound). Once another
+project has work it cannot start for want of a slot, the busy one **yields at its next phase
+boundary**: a run of it that ends (a worker, review, fix-check, answerer or planner) frees a slot
+it does not take again while the other one waits, so the slot passes to the waiting project.
+Nothing running is stopped.
+
+- **The wait.** Every pass writes the project's `want` file ([`state.md`](state.md)): the units
+  it could not start because the shared slots were taken or owed (runnable fast-lane issues up to
+  its `CAP`, a review, fix-check, answerer or resume, every startable package of a step, its
+  planner or health pass). A unit held back by the project's own `CAP`, or by its own
+  reservations while a shared slot is free (a review or answerer of its own about to start,
+  [`pipeline.md`](pipeline.md)), does not count, nor does a run that would not start in a free
+  slot either (its step at `STEP_BUDGET`, a review while reviews are refused), nor a start that
+  failed for another reason. With no slot free at all the
+  fast lane reads only its first runnable issue (each one costs a blockers read on GitHub): the
+  wait grows again on a later pass. The wait holds for two `INTERVAL`s and five minutes, so the
+  wait of a dispatcher that stopped ends by itself (a dispatcher that exits removes it at once). A
+  pass that ends early (no credential, a `gh` error, a pass that dies) writes no wait; a dry run
+  writes nothing. A pass by hand (`canccu-dispatch --once`) writes its wait like the loop, and
+  it holds for the same time: while that project's dispatcher is stopped, the others yield to it
+  until then.
+- **The share.** Free slots go to the waiting projects with the fewest runs first: a project with
+  `r` runs owes every other waiting project with fewer runs the slots that bring it up to `r` (at
+  most its wait, never past its `CAP`), and may start only while free slots remain after those.
+  **On a tie** (as many runs) the project that started a run last owes the other one a slot
+  (`last_start`; by name when both started at the same moment): exactly one of two tied projects
+  yields, so no slot stays idle. A project with work and no run therefore gets the next freed
+  slot, also when the busy project's ending run leaves the two level; three projects with work and
+  three slots get one each.
+- **No daemon.** The decision reads only the projects' run locks and `want` files. Each start
+  checks it again under `~/.canccu/.engine.lock`, so two dispatchers deciding at once never pass
+  `TOTAL_CAP`, and a start by hand (`canccu-run`, `canccu-review`) yields too: `could not start …:
+  the free slot goes to <project>, which waits for one`. The engine exits 75 when it refuses a
+  start for want of a shared slot (`TOTAL_CAP`, the usage cap or the share); the pass then counts
+  that unit, and the rest of the fast lane or of the step's packages, as waiting.
+- `canccu-status` of a waiting project says `waiting for a slot held by <project>`: the projects
+  that owe it a slot (more runs, or as many and started last), busiest first.
 
 ## Adding a project
 
