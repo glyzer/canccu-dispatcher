@@ -38,12 +38,17 @@ Nothing running is stopped.
   it could not start because the shared slots were taken or owed (runnable fast-lane issues up to
   its `CAP`, a review, fix-check, answerer or resume, every startable package of a step, its
   planner or health pass). A unit held back by the project's own `CAP`, or by its own
-  reservations (a review or answerer of its own about to start, [`pipeline.md`](pipeline.md)),
-  does not count, nor does a start that failed for another reason. With no slot free at all the
+  reservations while a shared slot is free (a review or answerer of its own about to start,
+  [`pipeline.md`](pipeline.md)), does not count, nor does a run that would not start in a free
+  slot either (its step at `STEP_BUDGET`, a review while reviews are refused), nor a start that
+  failed for another reason. With no slot free at all the
   fast lane reads only its first runnable issue (each one costs a blockers read on GitHub): the
   wait grows again on a later pass. The wait holds for two `INTERVAL`s and five minutes, so the
   wait of a dispatcher that stopped ends by itself (a dispatcher that exits removes it at once). A
-  pass that ends early (no credential, a `gh` error) writes no wait; a dry run writes nothing.
+  pass that ends early (no credential, a `gh` error, a pass that dies) writes no wait; a dry run
+  writes nothing. A pass by hand (`canccu-dispatch --once`) writes its wait like the loop, and
+  it holds for the same time: while that project's dispatcher is stopped, the others yield to it
+  until then.
 - **The share.** Free slots go to the waiting projects with the fewest runs first: a project with
   `r` runs owes every other waiting project with fewer runs the slots that bring it up to `r` (at
   most its wait, never past its `CAP`), and may start only while free slots remain after those.
@@ -58,8 +63,8 @@ Nothing running is stopped.
   the free slot goes to <project>, which waits for one`. The engine exits 75 when it refuses a
   start for want of a shared slot (`TOTAL_CAP`, the usage cap or the share); the pass then counts
   that unit, and the rest of the fast lane or of the step's packages, as waiting.
-- `canccu-status` of a waiting project says `waiting for a slot held by <project>` (the projects
-  running, busiest first).
+- `canccu-status` of a waiting project says `waiting for a slot held by <project>`: the projects
+  that owe it a slot (more runs, or as many and started last), busiest first.
 
 ## Adding a project
 

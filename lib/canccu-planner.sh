@@ -161,7 +161,7 @@ start_planner() {
   read -r turns cost mins <<<"$BUDGET_PLAN"
   MODEL=${PLAN_MODEL:-$MODEL} engine "planner plan#$m" "plan-$m" --key "plan-$m" --dir "$wt" \
     --name "plan#$m" --untrusted "$REPO_NAME" "$(planner_prompt "$m" "$w" "$ns")" \
-    "turns=$turns" "cost=$cost" "min=$mins" || { [ $? = "$SLOT_REFUSED" ] && want_held "plan-$m"; return 1; }
+    "turns=$turns" "cost=$cost" "min=$mins" || return 1
   took_slot; step_key "$m" "plan-$m"
   step_set "$m" phase=planning planner_started="$(now)" planner_wave="$w"
   log "step $(step_title "$m"): planner started (wave $w, $(wc -w <<<"$ns") issues)"

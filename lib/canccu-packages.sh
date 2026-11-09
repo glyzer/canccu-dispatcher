@@ -57,7 +57,7 @@ start_packages() {
     case $rc in
       0) ;;
       2) continue ;;
-      "$SLOT_REFUSED") held=1; want_held "$m/$nm"; continue ;;
+      "$SLOT_REFUSED") held=1; continue ;;   # the engine noted its wait
       *) break ;;
     esac
     (( ex )) && busy=$nm
@@ -79,7 +79,7 @@ start_health() {
   step_blocked_to_start "$m" && return 1
   take_slot "$k" || return 1
   st_set "$k" pkg=health step="$m" health=1 members= branch="$k" risk=normal risk_reason="the health pass" exclusive=0
-  run_worker "$k" "$(health_prompt "$m" "$k")" "$BUDGET_HEALTH" || { [ $? = "$SLOT_REFUSED" ] && want_held "$k"; st_rm "$k"; return 1; }
+  if ! run_worker "$k" "$(health_prompt "$m" "$k")" "$BUDGET_HEALTH"; then st_rm "$k"; return 1; fi
   took_slot; new_cycle "$k"; step_key "$m" "$k"
   step_set "$m" phase=health health=running
   log "#$k started: the health pass of step $(step_title "$m")"

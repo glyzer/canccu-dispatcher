@@ -109,6 +109,7 @@ done
 repo=$1; shift
 [ -n "$key" ] || key=${1%% *}
 [ -e "$FAKE/refuse" ] && { echo "refused: cap reached" >&2; exit 2; }
+[ -e "$FAKE/refuse-$key" ] && { echo "refused: $key" >&2; exit 2; }   # this run only
 printf 'repo=%s\nkey=%s\nkind=worker\npid=%s\nwindow=\nstarted=%s\n' "$repo" "$key" "$FAKE_PID" "$(date +%s)" \
   > "$WORKERS_DIR/$repo-$key.lock"
 EOF

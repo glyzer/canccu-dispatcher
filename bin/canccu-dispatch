@@ -131,7 +131,7 @@ pass() {
         take_slot "$n" || { held=1; continue; }
         start_issue "$n"; rc=$?
         if (( rc == 0 )); then took_slot
-        elif (( rc == SLOT_REFUSED )); then held=1; want_held "$n"
+        elif (( rc == SLOT_REFUSED )); then held=1   # the engine noted its wait
         else break; fi
       done
     fi
@@ -220,7 +220,8 @@ run_pass() {
   ( quiet pass ); rc=$?
   if [ ! -e "$CANCCU_HOME/.pass-written" ]; then
     log "the pass ended early (exit $rc); its error is in dispatch.log"
-    ( ISSUES="[]" PRS="[]"; quiet write_status "the pass ended early (exit $rc); see dispatch.log" )
+    # its wait died with it: the wait of an earlier pass must not hold the other projects back
+    ( ISSUES="[]" PRS="[]"; quiet want_write; quiet write_status "the pass ended early (exit $rc); see dispatch.log" )
   fi
   [ -n "$BLOCKERS_CACHE" ] && rm -rf "$BLOCKERS_CACHE"
   return "$rc"

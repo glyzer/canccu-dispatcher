@@ -27,13 +27,16 @@ total_cap() { local u; u=$(usage_cap); echo $(( u < TOTAL_CAP ? u : TOTAL_CAP ))
 # check reserves one when its CI is green (its review or fix-check is about to start) or red
 # (counted too, though check_pr has already moved it to needs-you); pending CI, or no checks at
 # all, waits without one. Any issue labelled plan-ok or needs-work with no run alive reserves one
-# for its resume, in check too (docs/canccu-dispatch.md)
+# for its resume, in check too (docs/canccu-dispatch.md). A run that cannot start reserves
+# nothing: its step's budget holds it, or reviews are refused (no reviewer token).
 wanting() {
-  local n c=0
+  local n c=0 rv=1
+  [ -n "$(reviewer_token_problem)" ] && rv=0
   for n; do
+    unit_held "$n" && continue
     case $(st_get "$n" phase) in
       limited|question) c=$((c + 1)); continue ;;
-      check) ci_reserves "$(st_get "$n" pr)" && { c=$((c + 1)); continue; } ;;
+      check) (( rv )) && ci_reserves "$(st_get "$n" pr)" && { c=$((c + 1)); continue; } ;;
     esac
     { has_label "$n" plan-ok || has_label "$n" needs-work; } && ! run_alive "$n" && c=$((c + 1))
   done
@@ -184,7 +187,7 @@ dispatcher_running() {
 # all projects: the count and the start happen under one global lock (fd 7,
 # $CANCCU_ROOT/.engine.lock), which no run inherits. A start by hand yields too.
 engine() {
-  local o w
+  local o w rc
   if (( CANCCU_DRY )); then echo "  would: start $1"; DRY_STARTED=$((DRY_STARTED + 1)); return 0; fi
   mkdir -p "$CANCCU_ROOT" || return 1
   # the wait outlasts a holder's worst case (the 300 s start plus the 30 s unlock)
@@ -199,7 +202,10 @@ engine() {
     if [ -n "$w" ] && (( $(total_running) + o >= $(total_cap) )); then
       log "could not start $1: the free slot goes to $w, which waits for one"; exit "$SLOT_REFUSED"
     fi
-    engine_start "$@" ) 7>>"$CANCCU_ROOT/.engine.lock"
+    engine_start "$@" ) 7>>"$CANCCU_ROOT/.engine.lock"; rc=$?
+  # every caller's unit counts as waiting here, whatever kind of run it starts
+  (( rc == SLOT_REFUSED )) && want_slot "$2"
+  return "$rc"
 }
 engine_start() {
   local out rc l; l=$(run_lock "$2")

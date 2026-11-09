@@ -16,8 +16,9 @@
 SLOT_REFUSED=75
 
 declare -gA WANT_KEYS=()   # the units this pass could not start for want of a shared slot
-# want_slot <key>: note the unit as waiting, unless the project's own CAP is what holds it
-want_slot() { [ -n "${1:-}" ] && (( $(running_count) < CAP )) && WANT_KEYS[$1]=1; return 0; }
+# want_slot <key>: note the unit as waiting, unless the project's own CAP holds it, or its step's
+# budget (that run would not start in a free slot either: the others would yield it for nothing)
+want_slot() { [ -n "${1:-}" ] && (( $(running_count) < CAP )) && ! unit_held "$1" && WANT_KEYS[$1]=1; return 0; }
 # want_write: the pass's wait, for the other projects' dispatchers and canccu-status. Written by
 # every pass, also one that ends early with no wait, so an old wait never outlives its cause.
 want_write() {
@@ -34,14 +35,16 @@ want_of() {
 
 # last_start <project dir>: when the project's engine last started a run (ns; 0: never)
 last_start() { local v; v=$(cat "$1/last_start" 2>/dev/null); [[ $v =~ ^[0-9]+$ ]] && echo "$v" || echo 0; }
-# tie_first <project dir>: on a tie in runs that waiting project goes first: it started a run
-# before this one did (by name when both started at the same moment). Exactly one of two tied
-# projects yields, so no slot stays idle, and a waiter gets the next freed slot even when the
-# busy project's ending run leaves the two level.
-tie_first() {
-  local o m; o=$(last_start "$1") m=$(last_start "$CANCCU_HOME")
-  (( o < m )) || { (( o == m )) && [[ ${1##*/} < $CANCCU_PROJECT ]]; }
+# first_on_tie <project dir> <project dir>: on a tie in runs the first project goes first: it
+# started a run before the second did (by name when both started at the same moment). Exactly
+# one of two tied projects yields, so no slot stays idle, and a waiter gets the next freed slot
+# even when the busy project's ending run leaves the two level.
+first_on_tie() {
+  local a b; a=$(last_start "$1") b=$(last_start "$2")
+  (( a < b )) || { (( a == b )) && [[ ${1##*/} < ${2##*/} ]]; }
 }
+# tie_first <project dir>: that waiting project goes before this one on a tie
+tie_first() { first_on_tie "$1" "$CANCCU_HOME"; }
 # owed: "<slots> <project>": the free slots owed to the other projects that wait with fewer runs
 # than this one, or as many and first on the tie (each up to this one's count, its wait and its
 # CAP), and the first of them
@@ -74,25 +77,29 @@ free_slots() {
   echo $(( a < b ? a : b ))
 }
 
-# waiting_for: the projects holding the slots this one waits for (busiest first), or nothing
-# when it does not wait (canccu-status)
+# waiting_for: the projects that owe this one the slots it waits for (more runs, or as many and
+# this one first on the tie; busiest first), or nothing when it does not wait (canccu-status)
 waiting_for() {
-  local n _ d
+  local n _ d r mine
   read -r n _ <<<"$(want_of "$CANCCU_HOME")"; (( n > 0 )) || return 0
+  mine=$(running_count)
   for d in "$CANCCU_ROOT"/projects/*/; do
     d=${d%/}; [ "${d##*/}" = "$CANCCU_PROJECT" ] && continue
-    printf '%s %s\n' "$(count_live "$d"/workers/*.lock)" "${d##*/}"
-  done | awk '$1 > 0' | sort -k1,1nr -k2 | awk '{ print $2 }' | paste -sd, | sed 's/,/, /g'
+    r=$(count_live "$d"/workers/*.lock)
+    (( r > mine )) || { (( r == mine && r > 0 )) && first_on_tie "$CANCCU_HOME" "$d"; } || continue
+    printf '%s %s\n' "$r" "${d##*/}"
+  done | sort -k1,1nr -k2 | awk '{ print $2 }' | paste -sd, | sed 's/,/, /g'
 }
 
 # ---------------------------------------------------------------- the pass's slots
 
 START_FREE=0   # the slots this pass may still start (set by the pass, taken by every start)
 # OWN_FREE: the starts CAP still allows this pass after the project's own reservations. A unit
-# held back while it is above 0 is held by the shared slots, so it waits for one; held back by
-# the reservations (a review or an answerer of its own about to start), it is no wait.
+# held back while it is above 0, and no shared slot is free, waits for one. Held back while a
+# shared slot is free, its own reservations (a review or an answerer about to start) took that
+# slot: no wait, or a reservation that never starts would keep the others yielding for ever.
 OWN_FREE=0
-want_held() { (( OWN_FREE > 0 )) && want_slot "$1"; return 0; }
+want_held() { (( OWN_FREE > 0 && $(share_free) <= 0 )) && want_slot "$1"; return 0; }
 # take_slot <key>: a slot for the unit; held back by the shared slots, it waits (want_held)
 take_slot() { if (( START_FREE > 0 )); then room "${1:-}"; else want_held "${1:-}"; return 1; fi; }
 took_slot() { START_FREE=$(( START_FREE - 1 )) OWN_FREE=$(( OWN_FREE - 1 )); }
