@@ -500,13 +500,7 @@ ok "the taken-over review's start time is the reviewer's" eq "$(st 5 started)" "
 
 # ---------------------------------------------------------------- one review, one fix, one fix-check
 
-FINDING='1. src/a.ts:3 off by one; fix: use <='
-# sethead <sha>: the PR moves to a new head (the posted comments stay)
-sethead() {
-  pr 50 5 "$1" | prs
-  jq --arg h "$1" '.headRefOid = $h | .commits = [{oid: $h, committedDate: "2030-11-05T12:30:00Z"}]' "$FAKE/pr50.json" > "$FAKE/x" &&
-    mv "$FAKE/x" "$FAKE/pr50.json"
-}
+# FINDING, sethead and fxenv: the fix-check fixtures in tests/lib/harness.sh
 # runend <key> <file sha> <file content>: the reviewer run of PR 50 ended and wrote its file
 runend() {
   rm -f "$WORKERS_DIR/web-$1.lock"; last "$1" "done" "wrote it"
@@ -552,20 +546,6 @@ ok "flow 3: its pass on the new head merges" has gh.log "pr merge 50 -R example-
 ok "flow 3: phase merging" eq "$(st 5 phase) $(st 5 how)" "merging auto"
 ok "flow: the token is in no log, output or state" notoken "$FAKE/gh.log" "$FAKE/worker.log" "$E/out" "$CANCCU_HOME/dispatch.log" "$CANCCU_HOME/state" "$CANCCU_HOME/reviews"
 
-# fxenv <name> <fix-check comment | -> [config...]: a fix-check of HA..HB ran on PR 50 (head HB)
-fxenv() {
-  env_new "$1" "${@:3}"
-  { issue 5 in-progress; } | issues
-  p=$(pr 50 5 $HB); printf '%s\n' "$p" | prs
-  local cs=("$(vcomment 2030-11-05T11:00:00Z "$FINDING"$'\n\nReview verdict: changes '"$HA")")
-  [ "$2" != - ] && cs+=("$(vcomment 2030-11-05T11:30:00Z "$2")")
-  json pr50.json "$(detail "$p" 2030-11-05T11:20:00Z "${cs[@]}")"; route 'pr view 50 *' pr50.json
-  json files50.json '[{"filename": "src/a.ts"}]'; route 'api --paginate repos/example-org/web/pulls/50/files*' files50.json
-  json issue5.json '{"labels": [{"name": "in-progress"}], "comments": []}'; route 'issue view 5 *' issue5.json
-  mkdir -p "$CANCCU_HOME/reviews/50"; echo "$FINDING" > "$CANCCU_HOME/reviews/50/$HA.findings.md"
-  state 5 phase=review pr=50 review_sha=$HB stage=fixcheck review_mode=fixcheck reviewed_sha=$HA \
-    verdict_at=2030-11-05T11:00:00Z "started=$NOW"
-}
 fxenv fx-changes $'1. src/a.ts:3 off by one — not fixed (src/a.ts:3 still uses <)\n\nReview verdict: changes '"$HB"
 dispatch --once
 ok "fix-check changes → needs-you" has gh.log "issue edit 5 -R example-org/web --add-label needs-you"
