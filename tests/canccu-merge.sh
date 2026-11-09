@@ -90,14 +90,18 @@ json issue5.json '{"labels": [{"name": "in-progress"}], "comments": []}'; route 
 state 5 phase=check pr=50
 ok "a plan PR before plan-ok → manual: plan tier (not 'closes no issue')" eq "$(lib eval 'fetch; classify 50')" "manual: plan tier"
 state 5 phase=check pr=50 plan_ok=1
-ok "… after plan-ok it merges like any other" eq "$(lib eval 'fetch; classify 50')" auto
+ok "… after plan-ok the build must close the issue: Plan for #5 alone → manual" eq "$(lib eval 'fetch; classify 50')" "manual: PR #50 closes no issue after plan-ok (the build must close #5)"
+p2=$(pr 50 5 $HA green "" false $'Closes #5\n\nTier: feature'); printf '%s\n' "$p2" | prs
+json pr50.json "$(detail "$p2" 2030-11-05T10:00:00Z)"
+ok "… a build that closes it merges like any other" eq "$(lib eval 'fetch; classify 50')" auto
+printf '%s\n' "$p" | prs; json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z)"
 PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-review" 50 > "$E/out" 2>&1
 ok "canccu-review accepts a plan PR" grep -q -- '--key review-50 ' "$FAKE/worker.log"
 
 env_new plan-merged
 { issue 5 in-progress,awaiting-accept; } | issues
 state 5 phase=merging pr=50 merge_sha=$HA how=accepted "merge_at=$((NOW - 600))"
-json pr50.json "$(jq -n --arg b "$PLAN_BODY" '{state: "MERGED", body: $b, closingIssuesReferences: []}')"; route 'pr view 50 *' pr50.json
+json pr50.json "$(jq -n --arg b "$PLAN_BODY" '{state: "MERGED", body: $b, closingIssuesReferences: [], headRefName: "5-thing"}')"; route 'pr view 50 *' pr50.json
 echo sid > "$WORKERS_DIR/web-5.id"
 dispatch --once
 ok "the plan PR merged, the issue still open → no needs-you" hasnt gh.log "needs-you"
@@ -105,6 +109,7 @@ ok "… back to the queue: ready and plan-ok, in-progress and awaiting-accept of
   has gh.log "issue edit 5 -R example-org/web --add-label ready --add-label plan-ok --remove-label in-progress --remove-label awaiting-accept"
 ok "… no longer managed, its session gone" eq "$(test -e "$CANCCU_HOME/state/5" && echo managed)$(test -e "$WORKERS_DIR/web-5.id" && echo sid)" ""
 ok "… logged" grep -q '#5 PR #50: the plan merged; back to the queue with plan-ok' "$CANCCU_HOME/dispatch.log"
+ok "… its head branch deleted on GitHub (the build reuses the name)" has gh.log "api -X DELETE repos/example-org/web/git/refs/heads/5-thing"
 { issue 5 ready,plan-ok; } | issues
 : > "$FAKE/routes"; dispatch --once
 ok "next pass: it starts again, told to execute the merged plan" grep -q '^--quiet --name #5 web 5 You are working on .*The plan docs/plans/issue-5.md is approved and merged' "$FAKE/worker.log"
@@ -115,6 +120,29 @@ pr 50 5 $HA green "" false "$PLAN_BODY" | jq '.closingIssuesReferences = []' | j
 dispatch --once
 ok "auto-merge off, the plan PR merged meanwhile → back to the queue, no needs-you" \
   eq "$(grep -c 'needs-you' "$FAKE/gh.log") $(test -e "$CANCCU_HOME/state/5" && echo managed)" "0 "
+
+env_new built-after-plan-ok
+{ issue 5 in-progress; } | issues
+state 5 phase=merging pr=50 merge_sha=$HA how=auto "merge_at=$((NOW - 600))" plan_ok=1
+json pr50.json "$(jq -n --arg b "$PLAN_BODY" '{state: "MERGED", body: $b, closingIssuesReferences: [], headRefName: "5-thing"}')"; route 'pr view 50 *' pr50.json
+dispatch --once
+ok "a PR merged after plan-ok is the build, never a plan sent back to the queue" eq "$(test -e "$CANCCU_HOME/state/5" && echo managed) $(grep -c 'add-label plan-ok' "$FAKE/gh.log")" "managed 0"
+
+env_new plan-ok-resume
+{ issue 5 in-progress,plan-ok; } | issues
+pr 50 5 $HA none "" true "$PLAN_BODY" | jq '.closingIssuesReferences = []' | jq -s . > "$FAKE/prs.json"
+state 5 phase=needs-you pr=50 "ny_at=$((NOW - 600))" ny_kind=plan
+dispatch --once
+ok "the plan-ok resume tells the worker to close the issue in the same PR" grep -q 'web 5 The user approved the plan.*replace each `Plan for #<n>` line with `Closes #<n>`' "$FAKE/worker.log"
+
+env_new fresh-plan-prompt
+{ issue 5 in-progress; } | issues
+state 5 phase=work plan_ok=1
+ok "a fresh session of a build on a merged plan is told to execute it" grep -q 'The plan docs/plans/issue-5.md is approved and merged' <<<"$(lib eval 'fetch; unit_prompt 5')"
+
+env_new method-cached
+repo_settings false true false false
+ok "the merge method is read once per pass, however many merges" eq "$(lib eval 'fetch; merge_flags 0; merge_flags 1; echo "${MF[*]}"') $(grep -c 'mergeQueue {' "$FAKE/gh.log")" "--squash 1"
 
 echo "canccu-merge tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

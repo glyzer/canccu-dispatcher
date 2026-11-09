@@ -109,5 +109,69 @@ ok "a blocked label the dispatcher did not add stays, its blockers closed or not
 ok "… one it added goes once its blockers closed" has gh.log "issue edit 7 -R example-org/web --remove-label blocked --add-label ready"
 ok "… and its mark with it" test ! -e "$CANCCU_HOME/blocked/7"
 
+# ---------------------------------------------------------------- review findings
+
+env_new waits-md-status
+{ issue 5 in-progress; } | issues
+state 5 phase=work "started=$NOW"; last 5 done $'**Status**: blocked: #8 is open\n**PR URL**: none'
+dispatch --once
+ok "**Status**: blocked (the colon after the bold) → the quiet wait" eq "$(st 5 phase)" waiting
+
+env_new waits-keyword
+{ issue 5 in-progress; } | issues
+state 5 phase=work "started=$NOW"; last 5 done $'Status: PR ready, waiting for CI.\nPR URL: none'
+dispatch --once
+ok "a status that only says waiting is no blocked stop" not eq "$(st 5 phase)" waiting
+ok "… and no blocked label" hasnt gh.log "add-label blocked"
+
+env_new waits-label-fails
+{ issue 5 in-progress; } | issues
+state 5 phase=work "started=$NOW"; last 5 done $'Status: blocked: #8 is open.'
+echo 'fail:issue edit' >> "$FAKE/routes"
+dispatch --once
+ok "the blocked label cannot be set → no wait without it (the next pass tries again)" eq "$(st 5 phase)" work
+
+env_new mark-cleared
+{ issue 5 in-progress; } | issues
+state 5 phase=waiting reason=blocked
+mkdir -p "$CANCCU_HOME/blocked"; : > "$CANCCU_HOME/blocked/5"
+dispatch --once
+ok "the user removed the dispatcher's blocked → resumed, and the mark goes" eq "$(test -e "$CANCCU_HOME/blocked/5" && echo marked)$(grep -c '^--quiet --name #5 ' "$FAKE/worker.log")" 1
+env_new mark-stale
+{ issue 7 ""; } | issues
+mkdir -p "$CANCCU_HOME/blocked"; : > "$CANCCU_HOME/blocked/7"
+dispatch --once
+ok "a mark on an issue no longer labelled blocked goes" test ! -e "$CANCCU_HOME/blocked/7"
+{ issue 7 blocked "Blocked by #5"; } | issues
+json issue5.json '{"state": "CLOSED"}'; route 'issue view 5 *' issue5.json
+dispatch --once
+ok "… so a person's later blocked stays when its links close" hasnt gh.log "issue edit 7 "
+ok "… and is said once (theirs to lift)" grep -q '#7 is labelled `blocked` by someone else and its blocked-by links are all closed' "$CANCCU_HOME/dispatch.log"
+
+env_new waits-package
+{ issue 5 in-progress,blocked; issue 6 in-progress "Blocked by #8"; } | issues
+json issue8.json '{"state": "CLOSED"}'; route 'issue view 8 *' issue8.json
+state pkg-12-a pkg=a step=12 wave=1 "members=5 6" branch=pkg-12-a phase=waiting reason=blocked
+mkdir -p "$CANCCU_HOME/blocked"; : > "$CANCCU_HOME/blocked/5"
+dispatch --once
+ok "a package's wait: the lead's label goes once any member's links are all closed" has gh.log "issue edit 5 -R example-org/web --remove-label blocked"
+
+env_new fresh-after-question
+{ issue 5 in-progress; } | issues
+json issue5.json "$(jq -n --argjson c "$(comment 2030-11-05T12:00:30Z 'Answer: v2, per docs/x.md.')" '{comments: [$c], labels: []}')"
+route 'issue view 5 *' issue5.json
+state 5 phase=answer "started=$NOW" no_pr=1
+mkdir -p "$CANCCU_HOME/questions"; echo 'Question: v1 or v2?' > "$CANCCU_HOME/questions/5.txt"
+last answer-5 done 'ANSWERED'
+dispatch --once
+ok "a fresh session after an answer is told the question too" grep -q '^--quiet --name #5 web 5 You are working on .*Your earlier run stopped with this question: Question: v1 or v2?.*Answer: v2' "$FAKE/worker.log"
+
+env_new answer-blocked
+{ issue 5 in-progress,blocked; } | issues
+state 5 phase=question
+mkdir -p "$CANCCU_HOME/questions"; echo 'Question: v1 or v2?' > "$CANCCU_HOME/questions/5.txt"
+dispatch --once
+ok "no answerer for a blocked unit" not grep -q -- '--key answer-5' "$FAKE/worker.log"
+
 echo "canccu-waits tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

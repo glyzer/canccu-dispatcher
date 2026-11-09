@@ -4,11 +4,16 @@
 
 # ---------------------------------------------------------------- GitHub data (one pass)
 
-ISSUES='[]' PRS='[]' AUTO_MERGE_ALLOWED="" MERGE_METHOD=""
+ISSUES='[]' PRS='[]' AUTO_MERGE_ALLOWED="" MERGE_METHOD="" MF=()
 fetch() {
   AUTO_MERGE_ALLOWED="" MERGE_METHOD=""   # read again (auto_merge_read, merge_method_read) in each pass that merges
-  ISSUES=$(ghj issue list -R "$REPO" -s open -L 300 --json number,title,labels,milestone,body) &&
-  PRS=$(ghj pr list -R "$REPO" -s open -L 300 --json number,title,url,isDraft,headRefOid,headRefName,author,isCrossRepository,autoMergeRequest,labels,closingIssuesReferences,body,statusCheckRollup)
+  ISSUES=$(ghj issue list -R "$REPO" -s open -L 300 --json number,title,labels,milestone,body) && fetch_prs
+}
+# fetch_prs: this pass's open PRs (read again where a stale list would mislead: reap_worker)
+fetch_prs() {
+  local p
+  p=$(ghj pr list -R "$REPO" -s open -L 300 --json number,title,url,isDraft,headRefOid,headRefName,author,isCrossRepository,autoMergeRequest,labels,closingIssuesReferences,body,statusCheckRollup) &&
+    PRS=$p
 }
 
 # is_open, labels_of, has_label, title_of take a unit key too (lib/canccu-units.sh): a package is
@@ -259,6 +264,12 @@ classify() {
     [[ $refs == *" "* ]] && { echo "manual: PR #$pr closes more than one issue (${refs// /, })"; return; }
     n=$refs
     [ -z "$want" ] || [ "$n" = "$want" ] || { echo "manual: PR #$pr closes #$n, not #$want"; return; }
+  fi
+  # after plan-ok the PR is the build: a `Plan for` line alone would merge it and leave the issue open
+  if [ "$(st_get "$n" plan_ok)" = 1 ]; then
+    m=$(members_of "$n" | sort -n | tr '\n' ' '); m=${m% }
+    l=$(jqr '[.closingIssuesReferences[]?.number] | unique | map(tostring) | join(" ")' <<<"$j")
+    [ "$l" = "$m" ] || { echo "manual: PR #$pr closes ${l:-no issue} after plan-ok (the build must close #${m// /, #})"; return; }
   fi
   why=$(pr_not_ours "$j" "$n"); [ -n "$why" ] && { echo "manual: not ours: $why"; return; }
   files=$(pr_files_raw "$pr") || { echo "manual: gh error reading the files of PR #$pr"; return; }

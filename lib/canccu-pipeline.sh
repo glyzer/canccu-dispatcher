@@ -19,8 +19,11 @@ reap_worker() {
     done)
       q=$(worker_question "$(run_msg "$n")")
       # a run that finished with no PR is resumed afresh (resume); one nudged to stop mid-work is not
-      p=$(pr_for "$n"); [ -n "$p" ] || st_set "$n" no_pr=1
+      p=$(pr_for "$n")
       [ -n "$p" ] || is_health "$n" || b=$(worker_blocked "$(run_msg "$n")")
+      # a PR opened after this pass read the list: read it again before parking the run as blocked
+      [ -n "$b" ] && fetch_prs && p=$(pr_for "$n") && [ -n "$p" ] && b=""
+      [ -n "$p" ] || st_set "$n" no_pr=1
       # a question goes to the answerer even after a nudge (it waits for the reset anyway)
       if [ "$(st_get "$n" nudged)" = 1 ] && [ -z "$q" ]; then
         # stopped at a safe point at the usage stop: continue after the 5-hour reset
@@ -44,7 +47,9 @@ reap_worker() {
 # links close); a label already there is the user's. resume_step resumes it once the label goes.
 wait_blocked() {
   local n=$1 l; l=$(lead_of "$1")
-  if ! unit_blocked "$n" && edit_issue "$n" --add-label blocked; then
+  if ! unit_blocked "$n"; then
+    # without the label nothing would hold it: the next pass would resume it at once
+    edit_issue "$n" --add-label blocked || { log "#$n stopped blocked; adding \`blocked\` failed, again next pass"; return 0; }
     blocked_mark "$l"
     # this pass's list too, or resume_step would see it unblocked and resume it at once
     ISSUES=$(jq -c --argjson n "$l" 'map(if .number == $n then .labels += [{name: "blocked"}] else . end)' <<<"$ISSUES")
@@ -290,7 +295,7 @@ resume_step() {
   phase=$(st_get "$n" phase); pr=$(st_get "$n" pr)
   if has_label "$n" plan-ok; then
     room "$n" || return 0
-    resume "$n" "The user approved the plan. Execute it with the superpowers skill executing-plans." || return 0
+    resume "$n" "The user approved the plan. Execute it with the superpowers skill executing-plans. Build it in this PR: replace each \`Plan for #<n>\` line with \`Closes #<n>\` and set the real \`Tier:\` line." || return 0
     edit_issue "$n" --remove-label plan-ok   # only once the worker runs: a failed start keeps the signal
     st_set "$n" plan_ok=1; new_cycle "$n"
   elif has_label "$n" needs-work; then
@@ -312,7 +317,7 @@ resume_step() {
   elif [ "$phase" = limited ]; then
     room "$n" && resume "$n" "Continue where you stopped: the usage limit has reset."
   elif [ "$phase" = waiting ]; then
-    unit_blocked "$n" || { room "$n" && resume "$n" "The issue is no longer labelled \`blocked\`: check its blockers again, then do the work."; }
+    unit_blocked "$n" || { blocked_unmark "$(lead_of "$n")"; room "$n" && resume "$n" "The issue is no longer labelled \`blocked\`: check its blockers again, then do the work."; }
   fi
   return 0
 }

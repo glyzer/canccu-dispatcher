@@ -10,18 +10,20 @@
 pr_gone() {
   local j
   is_health "$1" && return 0
-  j=$(ghj pr view "$2" -R "$REPO" --json state,body,closingIssuesReferences) || return 0
+  j=$(ghj pr view "$2" -R "$REPO" --json state,body,closingIssuesReferences,headRefName) || return 0
   case $(jqr .state <<<"$j") in
     CLOSED) needs_you "$1" "PR #$2 was closed without merging" ;;
-    MERGED) plan_pr_merged "$1" "$j" && plan_back "$1" "$2" ;;
+    MERGED) plan_pr_merged "$1" "$j" && plan_back "$1" "$2" "$(jqr '.headRefName // ""' <<<"$j")" ;;
   esac
   return 0
 }
 
 # plan_pr_merged <K> <pr view json>: a merged PR that closes none of the unit's issues and says it
-# is a plan ("Plan for #n", or Tier: plan): the plan is on main, the issues stay open for the build
+# is a plan ("Plan for #n", or Tier: plan): the plan is on main, the issues stay open for the build.
+# After plan-ok it is the build itself (classify keeps one that closes nothing from merging).
 plan_pr_merged() {
   local m
+  [ "$(st_get "$1" plan_ok)" = 1 ] && return 1
   { [ -n "$(jqr "$PR_ISSUES_JQ"' plan_for[]' <<<"$2")" ] || is_plan_body "$(jqr '.body // ""' <<<"$2")"; } || return 1
   for m in $(members_of "$1"); do
     [ "$(jqr --argjson m "$m" 'any(.closingIssuesReferences[]?; .number == $m)' <<<"$2")" = true ] && return 1
@@ -29,13 +31,15 @@ plan_pr_merged() {
   return 0
 }
 
-# plan_back <K> <pr>: the unit's plan-only PR merged. The unit goes back to the queue as the lead
-# did by hand: no longer managed, its worktree, branch and session gone (a fresh start), its
-# issues `ready` and `plan-ok` (the start sets plan_ok and executes the plan) and no longer
-# in-progress, needs-you or awaiting-accept.
+# plan_back <K> <pr> <head branch>: the unit's plan-only PR merged. The unit goes back to the
+# queue as the lead did by hand: no longer managed, its worktree, branch and session gone (a fresh
+# start), its issues `ready` and `plan-ok` (the start sets plan_ok and executes the plan) and no
+# longer in-progress, needs-you or awaiting-accept. The head branch goes on GitHub too: the build
+# gets the same name, and a squash-merged branch left there would refuse its push.
 plan_back() {
   local k=$1 pr=$2 m l r
   unit_cleanup "$k" "$pr"
+  [ -n "${3:-}" ] && { mut gh api -X DELETE "repos/$REPO/git/refs/heads/$3" >/dev/null || log "#$k: branch $3 not deleted on GitHub (gone already?)"; }
   for m in $(members_of "$k"); do
     r=()
     for l in in-progress needs-you awaiting-accept; do has_label "$m" "$l" && r+=(--remove-label "$l"); done
@@ -123,9 +127,9 @@ merging_step() {
     needs_you "$n" "PR #$pr has not merged $MERGE_WAIT_MIN min after auto-merge was enabled; auto-merge disabled (check the merge queue)"
   elif [ "$(pr_get "$pr" '.autoMergeRequest != null')" = false ] && (( $(now) - at > 120 )) && ! in_merge_queue "$pr"; then
     # merged meanwhile (the queue's reason `merged`, or this pass's list is older): no rejection
-    j=$(ghj pr view "$pr" -R "$REPO" --json state,body,closingIssuesReferences 2>/dev/null)
+    j=$(ghj pr view "$pr" -R "$REPO" --json state,body,closingIssuesReferences,headRefName 2>/dev/null)
     if [ "$(jqr '.state // ""' <<<"$j" 2>/dev/null)" = MERGED ]; then
-      if plan_pr_merged "$n" "$j"; then plan_back "$n" "$pr"
+      if plan_pr_merged "$n" "$j"; then plan_back "$n" "$pr" "$(jqr '.headRefName // ""' <<<"$j")"
       else st_set "$n" merge_mode=merged merge_at="$(now)"; log "#$n PR #$pr: merged (auto-merge is off because it is done)"; fi
       return 0
     fi
@@ -161,26 +165,43 @@ unblock() {
   log "#$n unblocked: blocked$( (( ${#r[@]} )) && echo " → ready")"
 }
 
-# unblock_tick: each open issue with the dispatcher's own `blocked` (a quiet wait's) whose
-# blocked-by links (the dependencies API and its "Blocked by #k" lines) are all closed is
-# unblocked, whatever closed them: a merge (advance does that too, at once), the dispatcher
-# closing an epic, the lead closing a checkpoint, a hand. A `blocked` someone else set is theirs
-# to lift: never removed, whatever its links say. An issue with no link keeps the label. A link
-# that cannot be read (an API error, a body link off the capped open list whose state gh cannot
-# tell) keeps it blocked this pass. This pass's issue list takes the new labels (unblock), so the
-# start, a step's planner and the resume see it unblocked now.
+# links_closed <n>: issue n's blocked-by links (the dependencies API and its "Blocked by #k" lines)
+# are all closed: prints how many there are. Fails on an open link, or one that cannot be read (an
+# API error, a body link off the capped open list whose state gh cannot tell).
+links_closed() {
+  local n=$1 api b links
+  api=$(ghj api "repos/$REPO/issues/$n/dependencies/blocked_by" 2>/dev/null) || return 1
+  [ "$(jqr 'any(.[]; .state != "closed")' <<<"$api")" = false ] || return 1
+  links=$(jqr 'length' <<<"$api")
+  for b in $(blocked_by_refs "$n"); do
+    is_open "$b" && return 1
+    [ "$(ghj issue view "$b" -R "$REPO" --json state 2>/dev/null | jqr '.state // empty')" = CLOSED ] || return 1
+    links=$((links + 1))
+  done
+  echo "$links"
+}
+
+# unblock_tick: the dispatcher's own `blocked` (a quiet wait's) goes once the blocked-by links are
+# all closed, whatever closed them: a merge (advance does that too, at once), the dispatcher
+# closing an epic, the lead closing a checkpoint, a hand. A package's wait is on its lead issue but
+# waits on any member's links: every member's count. With no link at all the label stays. A
+# `blocked` someone else set is theirs to lift: never removed (said once when its links are all
+# closed). A mark whose label is gone goes too, so a person's later `blocked` is never taken for
+# the dispatcher's. This pass's issue list takes the new labels (unblock).
 unblock_tick() {
-  local n api b links
+  local n f m c links
+  for f in "$CANCCU_HOME"/blocked/*; do
+    [ -e "$f" ] || continue; n=${f##*/}
+    [ "$(jqr --argjson n "$n" 'any(.[]; .number == $n and all(.labels[]; .name != "blocked"))' <<<"$ISSUES")" = true ] && blocked_unmark "$n"
+  done
   for n in $(jqr '.[] | select(any(.labels[]; .name == "blocked")) | .number' <<<"$ISSUES"); do
-    blocked_ours "$n" || continue
-    api=$(ghj api "repos/$REPO/issues/$n/dependencies/blocked_by" 2>/dev/null) || continue
-    [ "$(jqr 'any(.[]; .state != "closed")' <<<"$api")" = false ] || continue
-    links=$(jqr 'length' <<<"$api")
-    for b in $(blocked_by_refs "$n"); do
-      is_open "$b" && continue 2
-      [ "$(ghj issue view "$b" -R "$REPO" --json state 2>/dev/null | jqr '.state // empty')" = CLOSED ] || continue 2
-      links=$((links + 1))
-    done
+    if ! blocked_ours "$n"; then
+      c=$(links_closed "$n") && (( c > 0 )) &&
+        warn_once "blocked-theirs-$n" "#$n is labelled \`blocked\` by someone else and its blocked-by links are all closed: remove the label to release it"
+      continue
+    fi
+    links=0
+    for m in $(members_of "$(unit_of_issue "$n")"); do c=$(links_closed "$m") || continue 2; links=$((links + c)); done
     (( links > 0 )) || continue
     unblock "$n"
   done
@@ -207,7 +228,7 @@ close_epics() {
 # unit_cleanup <K> <pr>: a unit whose PR merged leaves nothing behind: its worktree and branch,
 # the PR's review worktree, its session id and question
 unit_cleanup() {
-  local n=$1 pr=$2 wt br
+  local n=$1 pr=$2 wt br m
   wt=$(unit_wt "$n")
   if [ -e "$wt/.git" ]; then
     br=$(guard 10 git -C "$wt" branch --show-current)
@@ -216,6 +237,7 @@ unit_cleanup() {
   fi
   [ -e "$(review_wt "$pr")/.git" ] && mut git -C "$CLONE" worktree remove --force "$(review_wt "$pr")"
   mut rm -f "$WORKERS_DIR/$REPO_NAME-$n.id" "$(qfile "$n")"
+  for m in $(members_of "$n"); do blocked_unmark "$m"; done
 }
 
 # finish_unit <K>: a managed unit is closed: an issue; a package with every issue closed; the

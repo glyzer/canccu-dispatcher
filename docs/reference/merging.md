@@ -12,7 +12,8 @@ arming the merge makes the merge fail closed. The dispatcher never arms a merge 
 on the current head (or, for a manual PR, your accept of the classified head), and the required
 `review-gate` check reads the same verdict line ([`../repo-contract.md`](../repo-contract.md)).
 `<method>` comes from the repo's settings, read once per pass: none with a merge queue (the queue
-sets it), else `--squash` where allowed, else `--merge`, else `--rebase`; none if the read fails.
+sets it), else `--squash` where allowed, else `--merge`, else `--rebase`; none if the read fails
+(one read per pass, however many merges).
 A failed merge's `needs-you` quotes `gh`'s own error.
 
 **Without auto-merge** (the repo does not allow it) the dispatcher merges directly, with
@@ -32,6 +33,7 @@ applies:
 3. a PR that is not ours ([`commands.md`](commands.md));
 4. 3000 or more changed files (the files API lists no more);
 5. a plan-tier PR (`docs/plans/issue-<n>.md` in the diff, or `Tier: plan`) before `plan-ok`;
+   after `plan-ok`, a PR that does not close exactly the unit's issues (the build must close them);
 6. a path the rules' `GATED_PATHS` match, or agent configuration at any depth: `.claude/`,
    `.mcp.json`, `CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md`. A rename counts by its old path too;
 7. an issue (any issue of a package) labelled `manual-accept`;
