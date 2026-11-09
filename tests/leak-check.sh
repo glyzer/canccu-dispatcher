@@ -6,9 +6,10 @@
 #   The deny-list: extended regexes, one per line (# comments and blank lines skipped), matched
 #   in any case, from the file CANCCU_LEAK_WORDS names, else ~/.config/canccu-leak-words. The list
 #   is never committed; without one only the generic patterns are checked.
-#   Ignored: the repo's own owner/name (from the origin remote), noreply e-mails, e-mails at the
-#   reserved example domains (example.com, .org, .net and their subdomains; RFC 2606: no one
-#   owns them), git@github.com and /home/someone (the tests' invented home).
+#   Ignored: the repo's own owner/name (from the origin remote), noreply e-mails, git@github.com
+#   and /home/someone (the tests' invented home). E-mails at the reserved example domains
+#   (example.com, .org, .net and their subdomains; RFC 2606: no one owns them) pass the e-mail
+#   pattern only: a deny-list word, home path or private IP inside one still fails.
 #   Scans the working tree (tracked and untracked, not ignored files). --history also scans every
 #   object of every ref (git rev-list --objects --all) and every commit's author and committer
 #   names and e-mails and its message.
@@ -47,10 +48,11 @@ EOF
 # what is never a hit, taken out of each line before matching (sed -E; the own slug in any case)
 own=$(git remote get-url origin 2>/dev/null |
   sed -E 's#^(https://github\.com/|git@github\.com:|ssh://git@github\.com/)##; s#\.git$##; s#/$##')
-# an example-domain e-mail ends at the domain (a full stop may close the sentence), so that
-# example.com.evil.test still fails; the trailing character is put back for the next match
 strip='s/[A-Za-z0-9._%+-]+@users\.noreply\.github\.com//g; s/noreply@[A-Za-z0-9.-]+//g; s/git@github\.com//g; s#/home/someone##g'
-strip+='; s/[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+\.)*example\.(com|org|net)(\.?([^A-Za-z0-9.-]|$))/\3/Ig'
+# an example-domain e-mail loses only its @ (to a space): deleting the whole address would hide
+# a deny-list word, home path or private IP written into it. The domain must end there (a full
+# stop may close the sentence), so example.com.evil.test still fails.
+strip+='; s/([A-Za-z0-9._%+-]+)@(([A-Za-z0-9-]+\.)*example\.(com|org|net))(\.?([^A-Za-z0-9.-]|$))/\1 \2\5/Ig'
 if [[ $own =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
   strip+="; s#(^|[^A-Za-z0-9_.-])${own//./\\.}(\$|[^A-Za-z0-9_.-])#\\1\\2#Ig"
 fi
