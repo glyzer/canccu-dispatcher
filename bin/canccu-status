@@ -44,7 +44,10 @@ any=0
 while read -r k s; do
   awk -F '\t' -v r="$REPO_NAME" -v k="$k" '$1 == r && $2 == k { f = 1 } END { exit !f }' <<<"$others" && continue
   if is_managed "$k"; then what="#$k $(stage_of "$k")"; else what=$(run_label "$k"); fi
-  [[ $k == review-* ]] && e=$(cat "$CANCCU_HOME/reviews/${k#review-}.effort" 2>/dev/null) && [ -n "$e" ] && what+=" ($e)"
+  if [[ $k == review-* ]]; then   # recorded at its start; an empty model is the account default
+    e=$(cat "$CANCCU_HOME/reviews/${k#review-}.effort" 2>/dev/null) m=$(cat "$CANCCU_HOME/reviews/${k#review-}.model" 2>/dev/null)
+    [ -n "$e$m" ] && what+=" ($e${e:+${m:+ · }}$m)"
+  fi
   last=$(grep -E '^\[t[0-9]+\]' "$WORKERS_DIR/$REPO_NAME-$k.log" 2>/dev/null | tail -1)
   printf '  %-22s %5s  %s\n' "$what" "$(ago "${s:-$(now)}")" "$(clip "$last" $(( cols > 60 ? cols - 34 : 26 )))"
   any=1

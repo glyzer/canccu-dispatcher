@@ -7,5 +7,7 @@ REPO=@REPO@
 CLONE=$HOME/code/@REPO_NAME@
 DIGEST_ISSUE=               # a pinned "Daily digest" issue; empty: the digest is written, never posted
 # CAP=3                     # this project's runs at once (TOTAL_CAP in ~/.canccu/config caps all projects)
+# REVIEW_MODEL=             # the full reviewer's model; empty: MODEL
+# FIXCHECK_MODEL=           # the fix-check's model, e.g. a cheaper one (claude-sonnet-5-5); empty: MODEL
 # USER_LOGIN=                # your GitHub login (REVIEWER_LOGIN: the reviewer bot's); in ~/.canccu/config for every project
 # GH_CONFIG_DIR=$HOME/.canccu/projects/@NAME@/gh   # the default: this project's own gh login (canccu-init prints the steps)

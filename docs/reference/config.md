@@ -64,6 +64,8 @@ is stopped and its issue goes to `needs-you`.
 | `PACKAGE_LINES` | `1500` | The planner's size guide: changed lines per package |
 | `PACKAGE_MIN_ISSUES` | `1` | Above 1, the planner aims for at least this many issues per package, where they fit together |
 | `PLAN_MODEL` | empty | The planner's model; empty: `MODEL` |
+| `REVIEW_MODEL` | empty | The full reviewer's model; empty: `MODEL` ([`reviews.md`](reviews.md), "Model by kind") |
+| `FIXCHECK_MODEL` | empty | The fix-check's model, for example a cheaper one (`claude-sonnet-5-5`); empty: `MODEL` |
 | `USAGE_SLOW` | `60` | 5-hour usage share (%) from which one run at a time runs, over all projects ([`usage.md`](usage.md)) |
 | `USAGE_STOP` | `90` | 5-hour usage share (%) from which no run starts and running workers are asked to stop at a safe point |
 | `USAGE_WEEKLY_DRAIN` | `90` | Weekly usage share (%) from which nothing new starts; work already started finishes |

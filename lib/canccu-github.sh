@@ -159,6 +159,20 @@ risk_max() {
 risk_source() {
   local s; for s in plan:$1 PR:$2 reviewer:$3 paths:$4; do [ "${s#*:}" = high ] && { echo "${s%%:*}"; return; }; done
 }
+# effective_risk <unit> <pr body> <changed paths> [the PR comments' reviewer class]: a package's
+# risk class, the highest of the plan, the PR's Risk: line and the reviewer (the full review's too,
+# after its fix-check); the health pass is high when it touches HIGH_RISK_PATHS. A high class names
+# its first source ("high (plan)"). Empty for a unit with no class (a single issue).
+effective_risk() {
+  local n=$1 rp rpr rr rpath="" risk
+  [ -n "$(st_get "$n" pkg)" ] || return 0
+  rp=$(st_get "$n" risk) rpr=$(pr_risk_of "$2")
+  rr=$(risk_max "${4:-}" "$(st_get "$n" review_risk)")
+  is_health "$n" && { rpath=normal; [ -n "$HIGH_RISK_PATHS" ] && grep -qiE "$HIGH_RISK_PATHS" <<<"$3" && rpath=high; }
+  risk=$(risk_max "$rp" "$rpr" "$rr" "$rpath")
+  [ "$risk" = high ] && risk="high ($(risk_source "$rp" "$rpr" "$rr" "$rpath"))"
+  echo "$risk"
+}
 
 # ---------------------------------------------------------------- merge classifier
 
@@ -233,16 +247,7 @@ classify() {
   done
   # a Maintainer accept line of the full review still holds after its fix-check passes
   ma=$(maintainer_accept_of "$j"); [ -n "$ma" ] || ma=$(st_get "$n" review_maccept)
-  # a package's risk class: the highest of the plan, the PR's Risk: line and the reviewer (the full
-  # review's too, after its fix-check); the health pass is high when it touches HIGH_RISK_PATHS
-  local rp rpr rr rpath="" risk=""
-  if [ -n "$(st_get "$n" pkg)" ]; then
-    rp=$(st_get "$n" risk) rpr=$(pr_risk_of "$(jqr '.body // ""' <<<"$j")")
-    rr=$(risk_max "$(review_risk_of "$j")" "$(st_get "$n" review_risk)")
-    is_health "$n" && { rpath=normal; [ -n "$HIGH_RISK_PATHS" ] && grep -qiE "$HIGH_RISK_PATHS" <<<"$files" && rpath=high; }
-    risk=$(risk_max "$rp" "$rpr" "$rr" "$rpath")
-    [ "$risk" = high ] && risk="high ($(risk_source "$rp" "$rpr" "$rr" "$rpath"))"
-  fi
+  local risk; risk=$(effective_risk "$n" "$(jqr '.body // ""' <<<"$j")" "$files" "$(review_risk_of "$j")")
   classify_pure "$files" "$(jqr '.body // ""' <<<"$j")" "$labels" "$ma" "$repo" \
     "$([ "$(st_get "$n" plan_ok)" = 1 ] && echo 1 || echo 0)" "$risk"
 }

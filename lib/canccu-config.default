@@ -42,6 +42,8 @@ BUDGET_PACKAGE_MAX="600 200 360"   # cap on a package's budget (work, resume, re
 PACKAGE_LINES=1500          # the planner's size guide: changed lines per package
 PACKAGE_MIN_ISSUES=1        # above 1: the planner aims for at least this many issues per package (where they fit together)
 PLAN_MODEL=                 # the planner's model; empty: MODEL
+REVIEW_MODEL=               # the full reviewer's model; empty: MODEL
+FIXCHECK_MODEL=             # the fix-check's model (e.g. a cheaper one); empty: MODEL
 # the usage throttle (shares of the Claude account's limits, from the rate-limit reports in the runs' output)
 USAGE_SLOW=60               # 5-hour share (%) from which one run at a time runs, over all projects
 USAGE_STOP=90               # … from which no run starts and running workers are nudged to stop
@@ -49,9 +51,13 @@ USAGE_WEEKLY_DRAIN=90       # weekly share (%) from which nothing new starts; st
 
 # ---- rules: the project's rules file (~/.canccu/projects/<name>/rules) sets these. It lives
 # on this host, never in the repo, so a PR can never change its own gating.
-# risky paths (grep -iE on each changed path): a full review of a PR touching one runs at high effort
+# risky paths (grep -iE on each changed path): a full review of a PR touching one runs at high
+# effort, unless the PR has a risk class (a package's: then high only for a high class)
 RISKY_PATHS='^(\.github|deploy)/|migration|sign-?in|login|auth|rights|permission|session|secret|tenan|rls'
-# the same for a fix-check's fix diff: medium instead of low effort
+# paths (grep -E) that count as docs for a full review's effort, on top of docs/ and *.md, even
+# when RISKY_PATHS names them; never agent configuration or a gated path
+EFFORT_DOCS_PATHS=''
+# the same as RISKY_PATHS for a fix-check's fix diff: medium instead of low effort
 FIXCHECK_RISKY='(^|/)deploy/|sign-?in|login|auth|rights|permission|session|secret|tenan|(^|[/_.-])rls([/_.-]|$)|migrations?(/|_|\.|$)|\.sql$|schema'
 # gated paths (grep -E): a PR touching one waits for the user's accept. Agent configuration
 # (.claude/, .mcp.json, CLAUDE.md, AGENTS.md) is always gated on top of these.
