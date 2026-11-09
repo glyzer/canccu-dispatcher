@@ -73,6 +73,33 @@ ok "a private IP fails" has "$out" "i.txt:1"
 ok "the test home and git@github.com pass" hasnt "$out" "fine.txt"
 ok "… exit 1" eq "$rc" 1
 
+repo example-domains
+AT="@"
+printf 'git -c user.email=octo%sexample.com commit\n' "$AT" > ok1.txt
+printf 'mail review-bot%sexample.org.\n' "$AT" > ok2.txt
+printf 'mail <octo%smail.example.net>, OCTO%sEXAMPLE.COM\n' "$AT" "$AT" > ok3.txt
+printf 'mail octo%sexample.com.evil.test\n' "$AT" > bad1.txt
+printf 'mail octo%smyexample.com\n' "$AT" > bad2.txt
+printf 'mail octo%sexample.co\n' "$AT" > bad3.txt
+# the exemption is for the e-mail pattern only: what the other checks catch inside such an address
+# still fails
+printf 'mail %s%sexample.com\n' "$WORD" "$AT" > deny1.txt
+printf 'mail ci%scorp-%s.example.org\n' "$AT" "$WORD" > deny2.txt
+printf 'ip %s%sexample.net\n' "$IP" "$AT" > ip.txt
+printf 'cd %s%sexample.com/x\n' "${HOMEP%/src}" "$AT" > path.txt
+CANCCU_LEAK_WORDS=$T/words run
+ok "e-mails at example.com, .org and .net (and their subdomains, any case) pass" eq "$(grep -c '^ok[0-9]\.txt:' <<<"$out")" 0
+ok "a longer domain that starts with example.com fails" has "$out" "bad1.txt:1"
+ok "a domain that only ends in example.com fails" has "$out" "bad2.txt:1"
+ok "example.co is no reserved domain and fails" has "$out" "bad3.txt:1"
+ok "a deny-listed word as the local part fails" has "$out" "deny1.txt:1: deny-list"
+ok "a deny-listed word in a subdomain fails" has "$out" "deny2.txt:1: deny-list"
+ok "a private IP as the local part fails" has "$out" "ip.txt:1: home path, e-mail or private IP"
+ok "a home path before the @ fails" has "$out" "path.txt:1: home path, e-mail or private IP"
+git -c user.email="$WORD$AT""example.com" commit -q --allow-empty -m "plain"
+CANCCU_LEAK_WORDS=$T/words run --history
+ok "--history: a deny-listed author at example.com fails" has "$out" "author e-mail:1: deny-list"
+
 repo history
 printf '%s\n' "$WORD" > gone.txt && git add -A && git commit -qm "add" && git rm -q gone.txt && git commit -qm "rm"
 CANCCU_LEAK_WORDS=$T/words run
