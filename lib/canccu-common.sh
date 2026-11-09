@@ -134,6 +134,9 @@ iso() { date -u -d "@$1" +%Y-%m-%dT%H:%M:%SZ; }
 iso_epoch() { [ -n "$1" ] && date -u -d "$1" +%s 2>/dev/null; return 0; }
 # newest_of <epoch...>: the largest of the non-empty ones; nothing when all are empty
 newest_of() { printf '%s\n' "$@" | grep -E '^[0-9]+$' | sort -n | tail -1; }
+# A JSON value that can grow with the repo (issues, PRs, milestones, plans...) goes to jq by
+# --slurpfile x <(printf '%s' "$v") or stdin, never --argjson: Linux caps one argument at 128 KiB
+# (MAX_ARG_STRLEN). --slurpfile binds [value]: read $x[0], not $x.
 jqr() { guard 20 jq -r "$@"; }
 ghj() { guard 30 gh "$@"; }
 

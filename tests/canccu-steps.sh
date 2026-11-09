@@ -61,6 +61,9 @@ ok "plan: an unknown dependency"        eq "$(pv unknown-dep | jq -r '.errors[0]
 ok "plan: a self dependency"            eq "$(pv self-dep | jq -r '.errors[0]')" "a depends on itself"
 ok "plan: a left-out issue is no error" eq "$(pv left-out | jq -c '[.errors, .left_out]')" "[[],[107]]"
 ok "plan: a fenced file is not JSON"    eq "$(pv fenced | jq -r '.errors[0]')" "not JSON"
+ok "plan (#54 review): a file of two plans is not one plan" \
+  eq "$(cat "$root/tests/fixtures/plans/valid.json" "$root/tests/fixtures/plans/valid.json" > "$T/twice.json"
+        lib plan_validate "$T/twice.json" "$(cat "$root/tests/fixtures/plans/input.json")" 12 2 | jq -sc 'map(.errors)')" '[["not JSON"]]'
 ok "plan (review 3, finding 2): no depends_on is an empty list: valid, and its package is listed" \
   eq "$(jq 'del(.packages[].depends_on) | .packages |= .[:1]' "$root/tests/fixtures/plans/valid.json" > "$T/nodeps.json"
         lib plan_validate "$T/nodeps.json" "$(cat "$root/tests/fixtures/plans/input.json")" 12 2 | jq -c .errors) $(
@@ -69,6 +72,26 @@ ok "plan (review 3, finding 2): no depends_on is an empty list: valid, and its p
 ok "plan: a name an earlier package used (review #45, finding 6)" \
   eq "$(lib plan_validate "$root/tests/fixtures/plans/valid.json" "$(jq -c '.earlier = [{name: "auth-flow"}]' "$root/tests/fixtures/plans/input.json")" 12 2 | jq -r '.errors[0]')" \
   "package name auth-flow was used by an earlier package"
+
+# #54: values over 256 KiB (Linux takes at most 128 KiB per argument) still reach jq
+BIGIS=$(jq -nc '[range(1; 301) | {number: (1000 + .), title: "Issue \(.)", labels: [{name: "ready"}], body: ("b" * 1024),
+                 milestone: {title: "2 Contracts"}}]')
+BIGPK=$(jq -nc '[range(1; 301) | {name: "p\(.)", issues: [1000 + .], risk: "low", risk_reason: ("r" * 1024), areas: [], depends_on: []}]')
+ok "#54: the values are over 256 KiB" eq "$(( ${#BIGIS} > 262144 && ${#BIGPK} > 262144 ))" 1
+ok "#54: current_steps_pure takes 300 issues with 1 KiB bodies" eq "$(cs "[$M1,$M2]" "[$(cpi 5 CLOSED "1 Skeleton")]" "$BIGIS")" "[12]"
+ok "#54: plan_validate takes a large input" \
+  eq "$(lib plan_validate "$root/tests/fixtures/plans/valid.json" "$(jq -c --slurpfile is <(printf '%s' "$BIGIS") '.issues += $is[0]' \
+          "$root/tests/fixtures/plans/input.json")" 12 2 | jq -c '[.errors, (.left_out | length)]')" "[[],300]"
+ok "#54: carry_kept takes a large plan" \
+  eq "$(lib carry_kept "$(jq -c '{packages: (. + [{name: "x", issues: [201]}])}' <<<"$BIGPK")" \
+          '[{"name":"e","issues":[201],"depends_on":[]},{"name":"f","issues":[202],"depends_on":[]}]' | jq -c 'map(.name)')" '["f"]'
+ok "#54: plan_carry takes a large carried list" \
+  eq "$(lib plan_carry '{"packages":[{"name":"e","issues":[201],"depends_on":[]}]}' "$BIGPK" | jq '.packages | length')" 301
+ok "#54: plan_allowed takes a large carried list" eq "$(lib plan_allowed 12 "$BIGPK" | jq '.carried | length')" 300
+ok "#54 (review): a package the snapshot cannot look up again is left out, not a stub" \
+  eq "$(mkdir -p "$CANCCU_HOME/steps"
+        jq -nc '{packages: [{name: "ok", issues: [101], risk: "low"}, {name: "a\\b", issues: [102], risk: "low"}]}' > "$T/esc.json"
+        printf 'plan=%s\nwave=1\n' "$T/esc.json" > "$CANCCU_HOME/steps/12"; lib eval '. "$root/lib/canccu-snapshot.sh"; snap_packages 12' | jq -c '[.packages[].name]')" '["ok"]'
 
 # ---------------------------------------------------------------- the planner (task 5)
 

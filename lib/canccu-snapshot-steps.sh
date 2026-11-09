@@ -16,9 +16,9 @@ snap_packages() {
       needs-you) pr=$(st_get "$k" pr) ;;
       merged) pr=$(awk -F '\t' -v k="$k" '$1 == k { p = $6 } END { print p }' "$CANCCU_HOME/steps/$m.packages" 2>/dev/null) ;;
     esac
-    jq -nc --argjson f "$(jq -c --arg n "$nm" '.packages[] | select(.name == $n)' "$f")" --arg k "$k" --arg s "$s" --arg pr "$pr" \
+    jq -nc --slurpfile f <(jq -c --arg n "$nm" '.packages[] | select(.name == $n)' "$f") --arg k "$k" --arg s "$s" --arg pr "$pr" \
       --arg br "$(is_managed "$k" && unit_branch "$k")" --arg re "$(is_managed "$k" && risk_max "$(st_get "$k" risk)" "$(st_get "$k" review_risk)")" \
-      '$f + {key: $k, state: $s, pr: ($pr | tonumber? // null), branch: (if $br == "" then (if ($k | startswith("pkg-")) then $k else null end) else $br end),
+      '($f[0] // empty) as $f | $f + {key: $k, state: $s, pr: ($pr | tonumber? // null), branch: (if $br == "" then (if ($k | startswith("pkg-")) then $k else null end) else $br end),
              risk_effective: (if $re == "" then $f.risk else $re end)}'
   done < <(plan_packages "$m") | jq -sc --argjson w "$(step_get "$m" wave)" --arg at "$(step_get "$m" plan_at)" --arg lo "$(step_get "$m" left_out)" \
     '{wave: $w, at: ($at | tonumber? // null), left_out: ($lo | split(" ") | map(select(. != "") | tonumber)), packages: .}'
@@ -40,16 +40,16 @@ snap_steps() {
         --arg ph "$(step_get "$m" phase)" --arg w "$(step_get "$m" wave)" --arg ep "${ep:-$(step_get "$m" epic)}" \
         --arg err "$(step_get "$m" ny_reason)" --arg ci "${ci:-$(step_get "$m" checkpoint)}" --arg cs "$cs" \
         --arg sp "$sp" --arg nc "$nc" --arg lim "$STEP_BUDGET" --argjson over "$(step_over_budget "$m" && echo true || echo false)" \
-        --argjson plan "$(snap_packages "$m")" --arg hs "$hs" --arg hp "$hp" \
-        --argjson notes "$(nf=$CANCCU_HOME/steps/$m.notes; [ -f "$nf" ] || nf=/dev/null   # no notes file yet: no notes
-                           jq -Rn '[inputs | split("\t") | {at: (.[0] | tonumber? // null), kind: .[1], pr: (.[2] | tonumber? // null), text: .[3]}]' \
-                             < "$nf" 2>/dev/null || echo '[]')" \
+        --slurpfile plan <(snap_packages "$m") --arg hs "$hs" --arg hp "$hp" \
+        --slurpfile notes <(nf=$CANCCU_HOME/steps/$m.notes; [ -f "$nf" ] || nf=/dev/null   # no notes file yet: no notes
+                            jq -Rn '[inputs | split("\t") | {at: (.[0] | tonumber? // null), kind: .[1], pr: (.[2] | tonumber? // null), text: .[3]}]' \
+                              < "$nf" 2>/dev/null || echo '[]') \
         '{milestone: $m, title: $t, track: $tr, current: $cur, phase: (if $ph == "" then "idle" else $ph end),
           wave: ($w | tonumber? // 0), epic: ($ep | tonumber? // null), error: (if $err == "" then null else $err end),
           checkpoint: (if $ci == "" then null else {issue: ($ci | tonumber), state: (if $cs == "" then "open" else $cs end),
                        waiting: ($ph == "checkpoint")} end),
           budget: {usd: ($sp | tonumber * 100 | round / 100), limit: ($lim | tonumber), runs_without_cost: ($nc | tonumber), over: $over},
-          plan: $plan, health: {state: $hs, key: "pkg-\($m)-health", pr: ($hp | tonumber? // null)}, notes: $notes}'
+          plan: $plan[0], health: {state: $hs, key: "pkg-\($m)-health", pr: ($hp | tonumber? // null)}, notes: $notes[0]}'
     done | jq -sc --arg c "$(jqr '[.[] | select(.track == "main")][0].milestone // empty' <<<"$CURRENT_STEPS")" \
       '{steps: ., current_step: ($c | tonumber? // null)}'
 }
@@ -162,5 +162,5 @@ snap_step_overview() {
     [ -n "$m" ] || continue
     out+="$(snap_step_issues "$m" "$([ "$place" = next ] && echo peek)" | jq -sc --argjson m "$m" '{key: ($m | tostring), value: .}')"$'\n'
   done < <(jqr '.[] | select(.place == "current" or .place == "next") | "\(.milestone) \(.place)"' <<<"$list")
-  jq -c --argjson is "$(jq -sc 'from_entries' <<<"$out")" 'map(.issues = ($is[.milestone | tostring] // []))' <<<"$list"
+  jq -c --slurpfile is <(jq -sc 'from_entries' <<<"$out") 'map(.issues = ($is[0][.milestone | tostring] // []))' <<<"$list"
 }

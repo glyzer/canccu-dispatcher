@@ -154,5 +154,34 @@ ok "snapshot #62: events: a repeat that differs only in a try number folds into 
 st201=$(st 201 ny_stage)
 ok "state #62: needs_you records the stage it parked at (ny_stage)" eq "$st201" ci
 
+# #54: each read over Linux's 128 KiB per-argument limit (300 issues with 1 KiB bodies and long
+# titles, 300 checkpoints with long titles): the step logic and the snapshot still work
+env_new snap54
+jq -nc '[{number: 12, title: "3 Events", open_issues: 300, closed_issues: 0, due_on: null}]' > "$FAKE/ms.json"
+jq -nc '[range(1; 301) | {number: (1000 + .), title: ("Checkpoint \(.) " + ("c" * 1024)), state: "CLOSED", milestone: null,
+         labels: [{name: "checkpoint"}]}]' > "$FAKE/cps.json"
+jq -nc '[range(1; 301) | {number: (100 + .), title: ("Issue \(.) " + ("t" * 512)), labels: [], body: ("b" * 1024),
+         milestone: {title: "3 Events"}}]' > "$FAKE/issues.json"
+# the step's plan (one merged package with a 300 KiB reason) and 300 notes of 1 KiB
+mkdir -p "$CANCCU_HOME/steps"
+jq -nc '{schema: 1, step: 12, wave: 1, packages: [{name: "big", issues: [101], risk: "low", risk_reason: ("r" * 307200),
+         areas: [], depends_on: []}]}' > "$CANCCU_HOME/steps/12.plan-1.json"
+printf 'phase=running\nwave=1\nplan=%s\nplan_at=%s\nstarted_at=%s\ntitle=3 Events\n' \
+  "$CANCCU_HOME/steps/12.plan-1.json" "$((NOW - 600))" "$((NOW - 3600))" > "$CANCCU_HOME/steps/12"
+printf 'pkg-12-big\tbig\t1\t101\tlow\t50\tmerged\n' > "$CANCCU_HOME/steps/12.packages"
+jq -rn --arg at "$((NOW - 50))" 'range(300) | "\($at)\tfollow-up\t50\t" + ("n" * 1024)' > "$CANCCU_HOME/steps/12.notes"
+dispatch --once; S=$CANCCU_HOME/status.json
+ok "#54: the reads are over 256 KiB" eq "$(( $(wc -c < "$FAKE/issues.json") > 262144 && $(wc -c < "$FAKE/cps.json") > 262144 ))" 1
+# the calls whose stderr is kept; those that drop it (2>/dev/null) are caught by the values below
+ok "#54: no argument-limit error in the pass's output or log" not grep -q 'Argument list too long' "$E/out" "$CANCCU_HOME/dispatch.log"
+ok "#54: the step logic acts: the step is current" eq "$(sj '[.pass.ok, .current_step, (.stale | length)] | map(tostring) | join(" ")')" "true 12 0"
+ok "#54: the snapshot holds the milestones, the step's plan, notes and issues" \
+  eq "$(sj '[.milestones[0].title, .steps[0].milestone, (.steps[0].plan.packages[0].risk_reason | length), (.steps[0].notes | length),
+             (.step_overview[0].issues | length)] | map(tostring) | join(" ")')" "3 Events 12 307200 300 300"
+route 'issue list -R example-org/web -s open*' FAIL
+dispatch --once
+ok "#54: a pass that cannot read GitHub keeps the large previous snapshot" \
+  eq "$(sj '[.pass.ok, (.step_overview[0].issues | length), (.stale | index("steps") != null)] | map(tostring) | join(" ")')" "false 300 true"
+
 echo "canccu-snapshot2 tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

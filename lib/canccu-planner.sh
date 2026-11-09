@@ -20,8 +20,11 @@ step_key() { (( CANCCU_DRY )) || { mkdir -p "$CANCCU_HOME/steps" && echo "$2" >>
 # x}...]}) is the dispatcher's own (plan_allowed): never a file the planner can write.
 plan_validate() {
   local p i; i=$(jq -c . <<<"$2" 2>/dev/null) || i='{"issues":[]}'
-  if ! p=$(jq -ce . "$1" 2>/dev/null) || [ -z "$p" ]; then echo '{"errors":["not JSON"],"left_out":[]}'; return 0; fi
-  jq -c -n --argjson plan "$p" --argjson input "$i" --argjson m "$3" --argjson w "$4" -f "$_canccu_lib/canccu-plan.jq" 2>/dev/null ||
+  # exactly one value: canccu-plan.jq reads the plan on stdin, and would check each of several apart
+  if ! p=$(jq -cse 'if length == 1 then .[0] else error("not one value") end' "$1" 2>/dev/null) || [ -z "$p" ]; then
+    echo '{"errors":["not JSON"],"left_out":[]}'; return 0
+  fi
+  jq -c --slurpfile input <(printf '%s' "$i") --argjson m "$3" --argjson w "$4" -f "$_canccu_lib/canccu-plan.jq" <<<"$p" 2>/dev/null ||
     echo '{"errors":["the plan could not be checked"],"left_out":[]}'
 }
 
@@ -79,11 +82,11 @@ plan_allowed() {
   [ -n "$c" ] || c=$(carried_packages "$1") || c='[]'
   [ -n "$k" ] || k=$c
   for n in $(step_get "$1" plan_issues); do eligible_issue "$1" "$n" && ok+="$n "; done
-  jq -nc --arg ok "$ok" --arg used "$(step_pkg_names "$1" "$c" | grep . | sort -u | tr '\n' ' ')" --argjson k "$k" \
+  jq -nc --arg ok "$ok" --arg used "$(step_pkg_names "$1" "$c" | grep . | sort -u | tr '\n' ' ')" --slurpfile k <(printf '%s' "$k") \
     --arg merged "$(awk -F '\t' '$7 == "merged" { printf "%s ", $2 }' "$CANCCU_HOME/steps/$1.packages" 2>/dev/null)" \
     '{issues: ($ok | split(" ") | map(select(. != "") | {number: tonumber})),
       earlier: ($used | split(" ") | map(select(. != "") | {name: .})),
-      carried: [$k[] | {name}],
+      carried: [$k[0][] | {name}],
       merged: ($merged | split(" ") | map(select(. != "") | {name: .}))}'
 }
 # CARRY_JQ: carry_kept($new): of the carried packages (the input), those a plan holding the issues
@@ -100,13 +103,14 @@ CARRY_JQ='
 # carry_kept <plan JSON> <carried JSON>: the carried packages the plan keeps (CARRY_JQ); with a plan
 # too malformed to read its issues, all of them (its validation fails anyway)
 carry_kept() {
-  jq -ce --argjson p "$1" "$CARRY_JQ"'carry_kept([$p.packages[]?.issues[]? | numbers])' <<<"$2" 2>/dev/null || printf '%s\n' "$2"
+  jq -ce --slurpfile p <(printf '%s' "$1") "$CARRY_JQ"'carry_kept([$p[0].packages[]?.issues[]? | numbers])' <<<"$2" 2>/dev/null ||
+    printf '%s\n' "$2"
 }
 # plan_carry <plan JSON> <carried JSON>: the plan with the carried packages it keeps after its own
 # (carry_kept); a dependency on a package that is not in the result (merged since, or dropped) is
 # dropped, so nothing waits on a package the plan does not have
 plan_carry() {
-  jq -ce --argjson c "$2" "$CARRY_JQ"'[.packages[].issues[]] as $new | .packages += ($c | carry_kept($new))
+  jq -ce --slurpfile c <(printf '%s' "$2") "$CARRY_JQ"'[.packages[].issues[]] as $new | .packages += ($c[0] | carry_kept($new))
     | [.packages[].name] as $in
     | .packages |= map(.depends_on = ((.depends_on // []) | map(select(IN($in[])))))' <<<"$1"
 }
