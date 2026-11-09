@@ -4,25 +4,19 @@
 Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 `canccu-dispatcher --version` prints it.
 
-## [0.1.0] — unreleased
+## [0.1.0] — 2026-11-09
 
-- The docs: a README that takes a new user to a first merged PR; guides in `docs/` (getting
-  started, the repo contract, upgrading, several hosts, troubleshooting, the security model); the
-  reference split into short per-topic files under `docs/reference/`, with an index; and
-  `tests/canccu-docs.sh`, which fails when a config key, a section the code cites or a link is
-  missing.
-- The repo-contract snippets `templates/repo/CLAUDE.snippet.md` and `AGENTS.snippet.md` (0BSD):
-  the flow and the rules the prompts rely on, to merge into a target repo's own files.
-- `CONTRIBUTING.md` and `SECURITY.md`.
-- The review gate as templates for a target repo (`templates/repo/`, 0BSD); this repo runs the
-  same files. `canccu-init` points at them.
-- CI: a second job, `CI (oldstable)`, runs the local check on Debian 12; the job `CI` also
-  install-tests the release tarball. `release.yml` publishes a release from a `v*` tag.
-- Issue templates (feature, bug, idea), a PR template, and Dependabot for the pinned actions.
-- The installer: `install.sh` puts a release under `PREFIX/lib/canccu-dispatcher/releases/<version>/`,
-  switches `current` to it atomically and links the commands into `PREFIX/bin/` (docs/install.md).
-- `canccu-dispatcher --version`, `doctor`, `rollback` and `uninstall`.
-- Host profiles (`HOST_PROFILE`, `hosts/<profile>.conf`); `hosts/max.conf` pins today's defaults.
-- The version in `canccu-status`'s first line, in the status snapshot (`version`) and in the
-  monitor's header.
-- The dispatcher, run engine, monitor and tests, imported with neutral defaults.
+The first public version.
+
+- Import: the dispatcher, run engine, monitor and tests, with neutral defaults; host profiles
+  (`HOST_PROFILE`, `hosts/<profile>.conf`) and the version in `canccu-status`, its snapshot and
+  the monitor's header.
+- Installer: `install.sh` installs versioned releases under a `PREFIX` and switches between them
+  atomically (docs/install.md); `canccu-dispatcher --version`, `doctor`, `rollback` and
+  `uninstall`.
+- CI and release: the local check on the newest runner and on Debian 12, an install test of the
+  release tarball, `release.yml` publishing a release from a `v*` tag, the review gate as
+  templates for a target repo (`templates/repo/`), issue and PR templates, and Dependabot.
+- Docs: a README to a first merged PR, guides in `docs/`, the reference in short per-topic files
+  under `docs/reference/` (checked by `tests/canccu-docs.sh`), the repo-contract snippets,
+  `CONTRIBUTING.md` and `SECURITY.md`.
