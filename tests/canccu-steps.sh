@@ -61,6 +61,9 @@ ok "plan: an unknown dependency"        eq "$(pv unknown-dep | jq -r '.errors[0]
 ok "plan: a self dependency"            eq "$(pv self-dep | jq -r '.errors[0]')" "a depends on itself"
 ok "plan: a left-out issue is no error" eq "$(pv left-out | jq -c '[.errors, .left_out]')" "[[],[107]]"
 ok "plan: a fenced file is not JSON"    eq "$(pv fenced | jq -r '.errors[0]')" "not JSON"
+ok "plan (#54 review): a file of two plans is not one plan" \
+  eq "$(cat "$root/tests/fixtures/plans/valid.json" "$root/tests/fixtures/plans/valid.json" > "$T/twice.json"
+        lib plan_validate "$T/twice.json" "$(cat "$root/tests/fixtures/plans/input.json")" 12 2 | jq -sc 'map(.errors)')" '[["not JSON"]]'
 ok "plan (review 3, finding 2): no depends_on is an empty list: valid, and its package is listed" \
   eq "$(jq 'del(.packages[].depends_on) | .packages |= .[:1]' "$root/tests/fixtures/plans/valid.json" > "$T/nodeps.json"
         lib plan_validate "$T/nodeps.json" "$(cat "$root/tests/fixtures/plans/input.json")" 12 2 | jq -c .errors) $(
@@ -85,6 +88,10 @@ ok "#54: carry_kept takes a large plan" \
 ok "#54: plan_carry takes a large carried list" \
   eq "$(lib plan_carry '{"packages":[{"name":"e","issues":[201],"depends_on":[]}]}' "$BIGPK" | jq '.packages | length')" 301
 ok "#54: plan_allowed takes a large carried list" eq "$(lib plan_allowed 12 "$BIGPK" | jq '.carried | length')" 300
+ok "#54 (review): a package the snapshot cannot look up again is left out, not a stub" \
+  eq "$(mkdir -p "$CANCCU_HOME/steps"
+        jq -nc '{packages: [{name: "ok", issues: [101], risk: "low"}, {name: "a\\b", issues: [102], risk: "low"}]}' > "$T/esc.json"
+        printf 'plan=%s\nwave=1\n' "$T/esc.json" > "$CANCCU_HOME/steps/12"; lib eval '. "$root/lib/canccu-snapshot.sh"; snap_packages 12' | jq -c '[.packages[].name]')" '["ok"]'
 
 # ---------------------------------------------------------------- the planner (task 5)
 

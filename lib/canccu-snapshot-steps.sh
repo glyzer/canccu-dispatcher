@@ -18,7 +18,7 @@ snap_packages() {
     esac
     jq -nc --slurpfile f <(jq -c --arg n "$nm" '.packages[] | select(.name == $n)' "$f") --arg k "$k" --arg s "$s" --arg pr "$pr" \
       --arg br "$(is_managed "$k" && unit_branch "$k")" --arg re "$(is_managed "$k" && risk_max "$(st_get "$k" risk)" "$(st_get "$k" review_risk)")" \
-      '$f[0] as $f | $f + {key: $k, state: $s, pr: ($pr | tonumber? // null), branch: (if $br == "" then (if ($k | startswith("pkg-")) then $k else null end) else $br end),
+      '($f[0] // empty) as $f | $f + {key: $k, state: $s, pr: ($pr | tonumber? // null), branch: (if $br == "" then (if ($k | startswith("pkg-")) then $k else null end) else $br end),
              risk_effective: (if $re == "" then $f.risk else $re end)}'
   done < <(plan_packages "$m") | jq -sc --argjson w "$(step_get "$m" wave)" --arg at "$(step_get "$m" plan_at)" --arg lo "$(step_get "$m" left_out)" \
     '{wave: $w, at: ($at | tonumber? // null), left_out: ($lo | split(" ") | map(select(. != "") | tonumber)), packages: .}'

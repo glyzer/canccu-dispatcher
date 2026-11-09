@@ -20,7 +20,10 @@ step_key() { (( CANCCU_DRY )) || { mkdir -p "$CANCCU_HOME/steps" && echo "$2" >>
 # x}...]}) is the dispatcher's own (plan_allowed): never a file the planner can write.
 plan_validate() {
   local p i; i=$(jq -c . <<<"$2" 2>/dev/null) || i='{"issues":[]}'
-  if ! p=$(jq -ce . "$1" 2>/dev/null) || [ -z "$p" ]; then echo '{"errors":["not JSON"],"left_out":[]}'; return 0; fi
+  # exactly one value: canccu-plan.jq reads the plan on stdin, and would check each of several apart
+  if ! p=$(jq -cse 'if length == 1 then .[0] else error("not one value") end' "$1" 2>/dev/null) || [ -z "$p" ]; then
+    echo '{"errors":["not JSON"],"left_out":[]}'; return 0
+  fi
   jq -c --slurpfile input <(printf '%s' "$i") --argjson m "$3" --argjson w "$4" -f "$_canccu_lib/canccu-plan.jq" <<<"$p" 2>/dev/null ||
     echo '{"errors":["the plan could not be checked"],"left_out":[]}'
 }

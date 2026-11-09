@@ -172,7 +172,8 @@ printf 'pkg-12-big\tbig\t1\t101\tlow\t50\tmerged\n' > "$CANCCU_HOME/steps/12.pac
 jq -rn --arg at "$((NOW - 50))" 'range(300) | "\($at)\tfollow-up\t50\t" + ("n" * 1024)' > "$CANCCU_HOME/steps/12.notes"
 dispatch --once; S=$CANCCU_HOME/status.json
 ok "#54: the reads are over 256 KiB" eq "$(( $(wc -c < "$FAKE/issues.json") > 262144 && $(wc -c < "$FAKE/cps.json") > 262144 ))" 1
-ok "#54: no jq call runs into the argument limit" not grep -q 'Argument list too long' "$E/out" "$CANCCU_HOME/dispatch.log"
+# the calls whose stderr is kept; those that drop it (2>/dev/null) are caught by the values below
+ok "#54: no argument-limit error in the pass's output or log" not grep -q 'Argument list too long' "$E/out" "$CANCCU_HOME/dispatch.log"
 ok "#54: the step logic acts: the step is current" eq "$(sj '[.pass.ok, .current_step, (.stale | length)] | map(tostring) | join(" ")')" "true 12 0"
 ok "#54: the snapshot holds the milestones, the step's plan, notes and issues" \
   eq "$(sj '[.milestones[0].title, .steps[0].milestone, (.steps[0].plan.packages[0].risk_reason | length), (.steps[0].notes | length),
