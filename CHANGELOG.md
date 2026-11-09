@@ -6,6 +6,14 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 
 ## [0.1.0] — unreleased
 
+- The docs: a README that takes a new user to a first merged PR; guides in `docs/` (getting
+  started, the repo contract, upgrading, several hosts, troubleshooting, the security model); the
+  reference split into short per-topic files under `docs/reference/`, with an index; and
+  `tests/canccu-docs.sh`, which fails when a config key, a section the code cites or a link is
+  missing.
+- The repo-contract snippets `templates/repo/CLAUDE.snippet.md` and `AGENTS.snippet.md` (0BSD):
+  the flow and the rules the prompts rely on, to merge into a target repo's own files.
+- `CONTRIBUTING.md` and `SECURITY.md`.
 - The review gate as templates for a target repo (`templates/repo/`, 0BSD); this repo runs the
   same files. `canccu-init` points at them.
 - CI: a second job, `CI (oldstable)`, runs the local check on Debian 12; the job `CI` also

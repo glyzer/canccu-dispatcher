@@ -18,7 +18,7 @@ head, was never edited, and the base branch has not changed since. That is the l
 canccu-dispatcher's reviewer writes last (`changes` instead of `pass` fails the gate). Comments
 by anyone else are ignored, and comment text is matched, never run.
 
-Setup, by a maintainer (`canccu-init` prints the same checklist):
+Setup, by a maintainer (`canccu-init` prints these steps in its checklist):
 
 1. Set the repo variable `REVIEWER_LOGIN` to the reviewer account's login (Settings → Secrets
    and variables → Actions → Variables). Unset, the gate fails every PR.
@@ -27,3 +27,13 @@ Setup, by a maintainer (`canccu-init` prints the same checklist):
 
 The workflow token only reads, except `actions: write` in the job that re-runs the gate when the
 reviewer posts a verdict. Every action is pinned by its commit SHA; Dependabot updates them.
+
+## The CLAUDE.md and AGENTS.md snippets
+
+- `CLAUDE.snippet.md`: the `<n>` / `execute` / `finish` flow the worker prompt names.
+- `AGENTS.snippet.md`: the comment and file-size rules the health pass checks, and the PR body
+  lines the reviewer and the classifier read.
+
+They are named `*.snippet.md`, never `CLAUDE.md` or `AGENTS.md`, so no session in this repo loads
+them as instructions. A target repo merges them into its own `CLAUDE.md` and `AGENTS.md`:
+`docs/repo-contract.md` says how.
