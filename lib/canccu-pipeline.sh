@@ -227,13 +227,41 @@ adopt() {
 # user too)
 user_comments() {
   local n=$1 pr=$2 since; since=$(iso "${3:-0}")
-  { ghj issue view "$(lead_of "$n")" -R "$REPO" --json comments; [ -n "$pr" ] && ghj pr view "$pr" -R "$REPO" --json comments; } |
+  # a gh error on either read fails the call (pipefail), never a silently shorter list
+  { ghj issue view "$(lead_of "$n")" -R "$REPO" --json comments || exit 1
+    if [ -n "$pr" ]; then ghj pr view "$pr" -R "$REPO" --json comments || exit 1; fi; } |
     jqr -s --arg u "$USER_LOGIN" --arg s "$since" --arg m "$CANCCU_MARK" '
       [ .[].comments[] | select(.author.login == $u and .createdAt > $s
                                 and (.body | contains($m) | not)
                                 and (.body | test("Review verdict:") | not)
                                 and (.body | test("^[\\s*_]*(Answer|Needs the product owner):") | not)) ]
       | sort_by(.createdAt) | map(.body) | join("\n\n---\n\n")'
+}
+
+# full_review_asked <comments>: the lead asks for a new full review with a line that is just
+# `full review` (any case; spaces, `*`, `_`, backticks and a final . or ! allowed): the words
+# inside a sentence ("no need for a full review") are no marker
+full_review_asked() { grep -qiE '^[[:space:]*_`]*full review[[:space:]*_`.!]*$' <<<"$1"; }
+
+# extra_round <n> <pr> <comments>: needs-work on a needs-you left in the fix round by a fix-check's
+# open items (open_sha; not a refused accept, not a stopped merge, which park at merge) and no
+# `full review` line: one more fix round, then a fix-check of open_sha..head against those items
+# and the lead's comments. 1 when this needs-work is not one; 0 once handled or deferred.
+extra_round() {
+  local n=$1 pr=$2 c=$3 osha items cm=""
+  osha=$(st_get "$n" open_sha)
+  [ "$(st_get "$n" phase)" = needs-you ] && [ -n "$osha" ] && [ "$(st_get "$n" ny_stage)" != merge ] || return 1
+  case $(st_get "$n" stage) in fixing|fixcheck) ;; *) return 1 ;; esac
+  full_review_asked "$c" && return 1
+  items=$(cat "$(open_file "$pr" "$osha")" 2>/dev/null)
+  [ -n "$items" ] || items="The open items of the fix-check were not saved: read the newest PR comment ending in 'Review verdict: changes $osha' (gh pr view $pr -R $REPO --comments)."
+  resume "$n" "The user asked for one more fix round on PR #$pr (needs-work) for the open items of its fix-check. Fix them and address their comments, rerun the checks, push once, and stop when CI is green. A narrow fix-check of this fix diff against those items follows, then the merge or the maintainer. The open items: $items Their comments: ${c:-none found; read the latest comments on the PR and the issue}" || return 0
+  [ -n "$c" ] && cm=$'\n\n'"The user's needs-work comments (also to be fixed): $c"
+  # rebuilt from the saved items each time, so a second needs-work in the round never appends
+  save_findings "$n" "$pr" "$(findings_file "$pr" "$osha")" "$items$cm"
+  edit_issue "$n" --remove-label needs-work
+  st_set "$n" stage=fixing reviewed_sha="$osha"
+  log "#$n PR #$pr: needs-work on the fix-check's open items; one more fix round, then a fix-check of ${osha:0:7}..head"
 }
 
 resume_step() {
@@ -250,7 +278,10 @@ resume_step() {
     # the user's comments since the PR reached them: the accept request, else the merge or the verdict
     # the newest of them; none at all (no verdict yet) → since the worker started
     since=$(newest_of "$(st_get "$n" accept_at)" "$(st_get "$n" merge_at)" "$(iso_epoch "$(st_get "$n" verdict_at)")")
-    c=$(user_comments "$n" "$pr" "${since:-$(st_get "$n" started)}")
+    # a gh error decides nothing (it could hide a `full review` line): needs-work stays for the next pass
+    c=$(user_comments "$n" "$pr" "${since:-$(st_get "$n" started)}") ||
+      { log "#$n PR #$pr: gh error reading the comments for needs-work; retrying next pass"; return 0; }
+    extra_round "$n" "$pr" "$c" && return 0
     resume "$n" "The user rejected PR #$pr (needs-work). Address their comments, rerun the checks, push once, and stop when CI is green. Their comments: ${c:-none found; read the latest comments on the PR and the issue}" || return 0
     edit_issue "$n" --remove-label needs-work
     has_label "$n" awaiting-accept && edit_issue "$n" --remove-label awaiting-accept

@@ -53,7 +53,8 @@ tests_for() {
     hosts/*) echo tests/canccu-hosts.sh tests/canccu-doctor.sh tests/canccu-docs.sh ;;
     lib/canccu-ping.sh) echo tests/canccu-pings.sh tests/canccu-steps2.sh ;;
     lib/canccu-runs.sh|lib/canccu-answer.sh|lib/canccu-github.sh|lib/canccu-merge.sh|lib/canccu-pipeline.sh|lib/canccu-actions.sh|lib/canccu-queue.sh)
-      echo tests/canccu-dispatch.sh tests/canccu-review.sh tests/canccu-cost.sh tests/canccu-health-review.sh tests/canccu-config.sh tests/canccu-compat.sh ;;
+      echo tests/canccu-dispatch.sh tests/canccu-review.sh tests/canccu-review2.sh tests/canccu-cost.sh tests/canccu-health-review.sh tests/canccu-config.sh \
+        tests/canccu-compat.sh ;;
     bin/canccu-init)
       echo tests/canccu-dispatch.sh tests/canccu-projects.sh tests/canccu-config.sh tests/canccu-cost.sh tests/canccu-compat.sh tests/canccu-ci.sh ;;
     lib/canccu-*|bin/canccu-*|profiles/*)
