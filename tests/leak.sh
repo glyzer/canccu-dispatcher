@@ -73,6 +73,20 @@ ok "a private IP fails" has "$out" "i.txt:1"
 ok "the test home and git@github.com pass" hasnt "$out" "fine.txt"
 ok "… exit 1" eq "$rc" 1
 
+repo example-domains
+AT="@"
+printf 'git -c user.email=octo%sexample.com commit\n' "$AT" > ok1.txt
+printf 'mail review-bot%sexample.org.\n' "$AT" > ok2.txt
+printf 'mail <octo%smail.example.net>, OCTO%sEXAMPLE.COM\n' "$AT" "$AT" > ok3.txt
+printf 'mail octo%sexample.com.evil.test\n' "$AT" > bad1.txt
+printf 'mail octo%smyexample.com\n' "$AT" > bad2.txt
+printf 'mail octo%sexample.co\n' "$AT" > bad3.txt
+run
+ok "e-mails at example.com, .org and .net (and their subdomains, any case) pass" eq "$(grep -c '^ok[0-9]\.txt:' <<<"$out")" 0
+ok "a longer domain that starts with example.com fails" has "$out" "bad1.txt:1"
+ok "a domain that only ends in example.com fails" has "$out" "bad2.txt:1"
+ok "example.co is no reserved domain and fails" has "$out" "bad3.txt:1"
+
 repo history
 printf '%s\n' "$WORD" > gone.txt && git add -A && git commit -qm "add" && git rm -q gone.txt && git commit -qm "rm"
 CANCCU_LEAK_WORDS=$T/words run

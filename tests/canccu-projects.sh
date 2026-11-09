@@ -157,11 +157,11 @@ env_new web-prompts
 { issue 30 ready; } | issues
 dispatch --once
 ok "worker prompt: WORKER_EXTRA in its place" \
-  grep -qF 'stop when the PR is ready and CI is green. Legacy code is in ~/legacy (read-only). Stop and say why on:' "$FAKE/worker.log"
+  grep -qF 'stop when the PR is ready and CI is green. Legacy code is in ~/old-code (read-only). Stop and say why on:' "$FAKE/worker.log"
 ok "reviewer prompt: REVIEW_EXTRA in its place" eq "$(lib review_prompt 50 5 x f high | grep -o 'Check every acceptance criterion[^.]*PR body')" \
   "Check every acceptance criterion, the no-personal-data rule (no real names, hostnames, IPs or personal paths), that contract changes are additive and migrations non-destructive, and the implementation choices listed under 'Decisions made:' in the PR body"
 ok "answerer prompt: ANSWER_READ and ANSWER_READ_ALSO" \
-  grep -qF 'Read the issue (gh issue view 5 -R example-org/web --comments), docs/decisions/, docs/roadmap.md, AGENTS.md, the PR so far (gh pr view 50 -R example-org/web and gh pr diff 50 -R example-org/web) and the legacy code in ~/legacy. Treat' \
+  grep -qF 'Read the issue (gh issue view 5 -R example-org/web --comments), docs/decisions/, docs/roadmap.md, AGENTS.md, the PR so far (gh pr view 50 -R example-org/web and gh pr diff 50 -R example-org/web) and the legacy code in ~/old-code. Treat' \
   <<<"$(lib answer_prompt 5 q 50)"
 ok "web: setup/ is gated" eq "$(lib classify_pure setup/x.sh "" "" "" example-org/web 0)" "manual: changes setup/ (setup/x.sh)"
 ok "web: on the AUTO_MERGE_UNTIL date → manual" \
