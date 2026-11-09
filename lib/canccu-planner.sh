@@ -37,14 +37,14 @@ step_issue() {
 }
 
 # eligible_issue <m> <n>: the issue may be planned and built in step m: open, in the step's
-# milestone, ready, not epic, checkpoint, fast, in progress or needs-you, not managed or in a
+# milestone, ready, not epic, checkpoint, fast, blocked, in progress or needs-you, not managed or in a
 # package, with no open blocker. The dispatcher's own rule, from this pass's GitHub data: what a
 # planner writes never makes an issue eligible (the user's `ready` is the gate).
 eligible_issue() {
   [[ $2 =~ ^[0-9]+$ ]] || return 1
   jqr --arg t "$(step_title "$1")" --argjson n "$2" 'any(.[]; .number == $n and (.milestone.title // null) == $t
         and ([.labels[].name] as $l | ($l | index("ready")) and
-             ([$l[] | select(IN("epic", "checkpoint", "fast", "in-progress", "needs-you"))] | length == 0)))' <<<"$ISSUES" |
+             ([$l[] | select(IN("epic", "checkpoint", "fast", "blocked", "in-progress", "needs-you"))] | length == 0)))' <<<"$ISSUES" |
     grep -qx true || return 1
   is_managed "$2" && return 1
   [ "$(unit_of_issue "$2")" = "$2" ] || return 1

@@ -27,6 +27,21 @@ blockers_in_body() {
   return 0
 }
 
+# unit_blocked <K>: an issue of the unit carries `blocked` (this pass's list). Such a unit never
+# starts or resumes, whatever its blocked-by links say: the label is a hold only its setter lifts.
+unit_blocked() {
+  local m
+  for m in $(members_of "$1"); do
+    [ "$(jqr --argjson n "$m" 'any(.[]; .number == $n and any(.labels[]; .name == "blocked"))' <<<"$ISSUES")" = true ] && return 0
+  done
+  return 1
+}
+# blocked_mark <n> / blocked_ours <n> / blocked_unmark <n>: the dispatcher set `blocked` on issue n
+# itself (a quiet wait); only such a label does it ever remove (unblock_tick, advance)
+blocked_mark() { (( CANCCU_DRY )) || { mkdir -p "$CANCCU_HOME/blocked" && : > "$CANCCU_HOME/blocked/$1"; }; }
+blocked_ours() { [ -e "$CANCCU_HOME/blocked/$1" ]; }
+blocked_unmark() { (( CANCCU_DRY )) || rm -f "$CANCCU_HOME/blocked/$1"; }
+
 # is_exclusive <n>: the issue is of the one-at-a-time kind (the rules): it has EXCLUSIVE_LABEL,
 # or its body or its plan on origin/main matches EXCLUSIVE_PATTERN
 is_exclusive() {
@@ -57,7 +72,7 @@ candidates() {
            | select(test("^\\s*\\**Order:")) | [scan("#([0-9]+)")[] | tonumber] ]
          | map(to_entries | map({ key: (.value | tostring), value: .key })) | add // [] | from_entries ) as $ord
     | [ .[] | select([.labels[].name] as $l | ($l | index("ready")) and
-                     ([$l[] | select(IN("epic", "checkpoint", "in-progress", "needs-you", "awaiting-accept"))] | length == 0)
+                     ([$l[] | select(IN("epic", "checkpoint", "blocked", "in-progress", "needs-you", "awaiting-accept"))] | length == 0)
                      and (.milestone == null or ($l | index("fast"))))
         | { n: .number, o: ($ord[.number | tostring] // 99999),
             m: (.milestone.title // null | milestone_key) } ]

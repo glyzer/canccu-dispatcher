@@ -20,8 +20,12 @@ Every `INTERVAL` seconds, under the project's lock:
    reviews, answers and resumes. Backing off from a usage limit: nothing starts and nothing
    resumes.
 2. **Reap.** For each managed issue whose run has finished:
+   - A worker that finished with no PR and a status line saying it is blocked, not started or
+     waiting → phase `waiting`, quietly: no `needs-you`, no answerer (even if it asked too). Its
+     issue gets `blocked`, marked as the dispatcher's own; the run resumes once the label goes.
    - A worker that stopped with a question (a line starting `Question:`) → the answerer.
-   - A worker that finished → phase `check`, then its PR decides:
+   - A worker that finished → phase `check`, then its PR decides (a PR for issue `n`: one that
+     closes it, a plan-only PR with a `Plan for #n` line, or one on its branch `<n>-…`):
      - no PR → `needs-you` with the worker's last message;
      - a draft PR with `docs/plans/issue-<n>.md` in its diff or a `Tier: plan` line →
        `needs-you`, "plan ready for OK"; another draft → `needs-you`;
@@ -53,9 +57,10 @@ Every `INTERVAL` seconds, under the project's lock:
    - A blocked, over-budget, stalled or crashed run → `needs-you` with the reason.
    - A usage limit in any run's output → phase `limited` and a global back-off until the reset
      the message names ([`usage.md`](usage.md)). No `needs-you`, no comment.
-   - **Unblock.** Each open `blocked` issue whose blocked-by links (the dependencies API and
-     `Blocked by #x` lines in the body) are all closed → `ready`. An issue labelled `blocked` with
-     no link is left alone: a human set it.
+   - **Unblock.** Each open issue with the dispatcher's own `blocked` (a `waiting` run's) whose
+     blocked-by links (the dependencies API and `Blocked by #x` lines in the body) are all closed
+     → the label goes (`ready` for an issue nobody manages). A `blocked` set by anyone else is
+     never removed, whatever its links say: whoever set it lifts it.
 3. **Start.** The fast lane first, then each current step's bookkeeping, planner or health pass,
    then its packages ([`packages.md`](packages.md)). Starts stay under `CAP` and `TOTAL_CAP`,
    counting the runs plus the managed issues about to take a slot (a review about to start, a
@@ -63,7 +68,7 @@ Every `INTERVAL` seconds, under the project's lock:
    projects waiting with fewer runs ([`projects.md`](projects.md#fair-share-of-total_cap)). An
    issue whose CI is still pending holds no slot, nor does a run that cannot start: its step at
    `STEP_BUDGET`, or a review while reviews are refused. The first runnable issue is open, `ready`, not `epic`,
-   `in-progress`, `needs-you` or `awaiting-accept`, not managed yet, with every blocked-by issue
+   `blocked`, `in-progress`, `needs-you` or `awaiting-accept`, not managed yet, with every blocked-by issue
    closed, and not of the one-at-a-time kind ([`rules.md`](rules.md)) while another is open.
    Order: the leading number of the milestone's title (`1 Skeleton`, `2 Contracts`, …; a title
    without a number after the numbered ones; no milestone last), then the position in an epic's
@@ -77,13 +82,21 @@ Every `INTERVAL` seconds, under the project's lock:
    other `needs-work` (a refused accept, a stopped merge) starts a new cycle: the next review is
    a full one. A `gh` error reading the comments decides nothing: `needs-work` stays for the
    next pass. A `needs-you` issue whose issue or PR got a new comment
-   from `USER_LOGIN` → that comment. `limited` after the back-off → `continue`. A PR armed for
+   from `USER_LOGIN` → that comment. `limited` after the back-off → `continue`. `waiting` whose
+   `blocked` is gone → "check its blockers again, then do the work". An issue labelled `blocked`
+   is never started or resumed. A run that finished with no PR is not `--resume`d: a fresh
+   session gets the whole task plus the message. A PR armed for
    merge is disarmed before its worker resumes; resuming removes `needs-you`.
 5. **Accept and merging.** An `accept` PR labelled `accepted` by `USER_LOGIN` after the accept
    request, whose head is still the classified one → the merge is armed (`canccu-ship <n>` does
    the same by hand, where the repo allows auto-merge). A push after classification removes `accepted` and the PR is reviewed
    again. A push while the merge is armed disarms it and reviews again; auto-merge switched off
-   by someone, or no merge within `MERGE_WAIT_MIN` → `needs-you`.
+   by someone, or no merge within `MERGE_WAIT_MIN` → `needs-you`. Auto-merge off because the PR
+   already merged (the merge queue's reason `merged`) is a merge, not a rejection.
+   A merged plan-only PR (`Plan for #n` or `Tier: plan`, closing none of the issues) sends the
+   unit back to the queue: no longer managed, its worktree, branch and session gone, its issues
+   `ready` and `plan-ok`, without `in-progress`, `needs-you` and `awaiting-accept`. The next start
+   sets `plan_ok`, drops `plan-ok` and tells the worker to execute the merged plan.
 6. **After the merge.** For each managed issue whose PR merged: a line in `merged.log`; its
    worktrees, local branch, session id and question file go; `in-progress`, `awaiting-accept`
    and `needs-you` come off; the main clone is fast-forwarded. An epic whose sub-issues are all
@@ -104,4 +117,4 @@ Every `INTERVAL` seconds, under the project's lock:
 `work` (worker running) → `check` (waiting for the PR and CI) → `review` (reviewer or
 fix-check running) → `merging` (merge armed) or `accept` (waiting for your accept). A question:
 `question` (waiting for a slot) → `answer` → `work` or `needs-you`. Waiting: `needs-you`,
-`limited` (usage limit) and `stopped` (`canccu-stop`).
+`limited` (usage limit), `waiting` (blocked, until `blocked` goes) and `stopped` (`canccu-stop`).

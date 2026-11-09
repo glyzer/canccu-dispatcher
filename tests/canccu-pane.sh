@@ -13,6 +13,7 @@ json pr50.json '{"state": "MERGED", "title": "feat: thing"}'; route 'pr view 50 
 json issue5.json '{"state": "CLOSED", "labels": [{"name": "in-progress"}]}'; route 'issue view 5 *' issue5.json
 route 'api repos/example-org/web/issues/4/dependencies/blocked_by' FAIL
 mkdir -p "$WORKERS_DIR/worktrees/web/issue-5"; touch "$WORKERS_DIR/worktrees/web/issue-5/.git"
+mkdir -p "$CANCCU_HOME/blocked"; for b in 6; do : > "$CANCCU_HOME/blocked/$b"; done   # the dispatcher's own labels
 touch "$FAKE/noisy"
 out=$(PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-dispatch" --dry-run 2>/dev/null)
 ok "--dry-run still prints what it would do" grep -q '^  would: ' <<<"$out"

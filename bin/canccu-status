@@ -75,6 +75,7 @@ for n in $(managed); do
             [ "$(st_get "$n" post_ny)" = 1 ] && waiting+="  #$n · the $(stage_of "$n") of PR #$(st_get "$n" pr) could not be posted ($f tries); retried each pass"$'\n' ;;
     needs-you) waiting+="  #$n · $(st_get "$n" reason) · $(ago "$(st_get "$n" ny_at)")"$'\n' ;;
     limited) waiting+="  #$n · usage limit; resumes after the back-off"$'\n' ;;
+    waiting) waiting+="  #$n · waits: $(st_get "$n" reason) (resumes once \`blocked\` goes)"$'\n' ;;
     stopped) waiting+="  #$n · stopped by canccu-stop; canccu-run $n continues it"$'\n' ;;
   esac
 done

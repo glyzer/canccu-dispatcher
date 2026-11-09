@@ -59,6 +59,8 @@ case "$1 $2" in
   "issue edit"|"issue comment"|"issue close"|"pr edit"|"pr merge"|"pr comment"|"label create")
     grep -qxF "fail:$1 $2" <<<"$routes" && exit 1
     grep -qxF "fail124:$1 $2" <<<"$routes" && exit 124
+    # $FAKE/merge-error: a merge fails with that error, as gh prints it
+    [ "$1 $2" = "pr merge" ] && [ -e "$FAKE/merge-error" ] && { cat "$FAKE/merge-error" >&2; exit 1; }
     # $FAKE/no-auto-merge: the repo does not allow auto-merge (a private repo on a free plan)
     if [ -e "$FAKE/no-auto-merge" ] && [ "$1 $2" = "pr merge" ] && [[ " $* " == *" --auto "* ]]; then
       echo "GraphQL: Auto merge is not allowed for this repository (enablePullRequestAutoMerge)" >&2; exit 1

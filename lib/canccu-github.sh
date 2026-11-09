@@ -4,9 +4,9 @@
 
 # ---------------------------------------------------------------- GitHub data (one pass)
 
-ISSUES='[]' PRS='[]' AUTO_MERGE_ALLOWED=""
+ISSUES='[]' PRS='[]' AUTO_MERGE_ALLOWED="" MERGE_METHOD=""
 fetch() {
-  AUTO_MERGE_ALLOWED=""   # read again (auto_merge_read) in each pass that merges
+  AUTO_MERGE_ALLOWED="" MERGE_METHOD=""   # read again (auto_merge_read, merge_method_read) in each pass that merges
   ISSUES=$(ghj issue list -R "$REPO" -s open -L 300 --json number,title,labels,milestone,body) &&
   PRS=$(ghj pr list -R "$REPO" -s open -L 300 --json number,title,url,isDraft,headRefOid,headRefName,author,isCrossRepository,autoMergeRequest,labels,closingIssuesReferences,body,statusCheckRollup)
 }
@@ -45,6 +45,17 @@ pr_not_ours() {
   fi
   printf '%s' "$why"
 }
+# PR_ISSUES_JQ: jq defs; pr_issues: the issues a PR (gh's JSON) is for: those it closes and
+# those a line "Plan for #n" names (a plan-only PR does not close its issue: the build follows);
+# with neither, the one its branch <n>-… (or issue-<n>-…) names
+PR_ISSUES_JQ='def plan_for: [(.body // "") | split("\n")[] | select(test("^[\\s*_>`-]*plan for #[0-9]+"; "i"))
+    | capture("#(?<n>[0-9]+)").n | tonumber];
+  def pr_issues: ([.closingIssuesReferences[]?.number] + plan_for | unique) as $r
+    | if ($r | length) > 0 then $r
+      else [(.headRefName // "") | capture("^(issue-)?(?<n>[0-9]+)(-|$)").n | tonumber] end;'
+# pr_issues <pr json>: those issues, one per line
+pr_issues() { jqr "$PR_ISSUES_JQ"' pr_issues[]' <<<"$1"; }
+
 # not_ours <pr>: why an open PR is none of the dispatcher's business; nothing when it is ours
 not_ours() {
   local j n why=""
@@ -52,12 +63,13 @@ not_ours() {
   # a package's PR: its branch names the unit
   n=$(unit_of_branch "$(jqr '.headRefName // ""' <<<"$j")")
   if [ -n "$n" ]; then pr_not_ours "$j" "$n"; return 0; fi
-  for n in $(jqr '.closingIssuesReferences[]?.number' <<<"$j"); do
+  for n in $(pr_issues "$j"); do
     why=$(pr_not_ours "$j" "$n" adoptable); [ -z "$why" ] && return 0
   done
   echo "${why:-PR #$1 closes no issue}"
 }
-# pr_for <n>: the newest open PR that closes issue n and is not foreign (pr_foreign)
+# pr_for <n>: the newest open PR for issue n (pr_issues, or its branch <n>-…) that is not foreign
+# (pr_foreign)
 pr_for() {
   local p
   if is_pkg "$1"; then
@@ -66,7 +78,8 @@ pr_for() {
     done
     return 0
   fi
-  for p in $(jqr --argjson n "$1" '[.[] | select(any(.closingIssuesReferences[]?; .number == $n)) | .number] | sort | reverse | .[]' <<<"$PRS"); do
+  for p in $(jqr --argjson n "$1" "$PR_ISSUES_JQ"' [.[] | select((pr_issues | index($n)) or ((.headRefName // "") | test("^(issue-)?\($n)(-|$)")))
+               | .number] | sort | reverse | .[]' <<<"$PRS"); do
     [ -z "$(pr_foreign "$(pr_get "$p" .)" "$1")" ] && { echo "$p"; return; }
   done
 }
@@ -81,6 +94,17 @@ auto_merge_read() {
   [ -n "$AUTO_MERGE_ALLOWED" ] && return 0
   AUTO_MERGE_ALLOWED=$(ghj api "repos/$REPO" --jq .allow_auto_merge 2>/dev/null)
   case $AUTO_MERGE_ALLOWED in true|false) ;; *) AUTO_MERGE_ALLOWED=unknown ;; esac
+}
+# merge_method_read: MERGE_METHOD is the method flag a merge passes: queue (none: the merge queue
+# sets it), else the first the repo allows of --squash, --merge, --rebase; unknown on a gh error
+# (auto-merge then passes none, a direct merge --squash, as before). Read once per pass.
+merge_method_read() {
+  [ -n "$MERGE_METHOD" ] && return 0
+  MERGE_METHOD=$(ghj api graphql -F o="${REPO%%/*}" -F r="${REPO#*/}" \
+    -f query='query($o: String!, $r: String!) { repository(owner: $o, name: $r) { mergeQueue { id } squashMergeAllowed mergeCommitAllowed rebaseMergeAllowed } }' \
+    -q '.data.repository | if .mergeQueue != null then "queue" elif .squashMergeAllowed == true then "--squash"
+          elif .mergeCommitAllowed == true then "--merge" elif .rebaseMergeAllowed == true then "--rebase" else "unknown" end' 2>/dev/null)
+  case $MERGE_METHOD in queue|--squash|--merge|--rebase) ;; *) MERGE_METHOD=unknown ;; esac
 }
 # is_full_sha <sha>: a full 40-character commit sha, the only kind --match-head-commit is given
 is_full_sha() { [[ $1 =~ ^[0-9a-f]{40}$ ]]; }
@@ -217,13 +241,13 @@ classify_pure() {
   echo auto
 }
 
-# classify <pr> [issue] [repo]: the same from GitHub; any gh error → manual. A PR that closes no
-# issue or several, another issue than the one given, or that is not ours → manual.
+# classify <pr> [issue] [repo]: the same from GitHub; any gh error → manual. A PR for no issue or
+# several (pr_issues), another issue than the one given, or that is not ours → manual.
 classify() {
   local pr=$1 want=${2:-} repo=${3:-$REPO} j n refs files labels why ma m l
   [ "$repo" = "$REPO" ] || { echo "manual: another repo ($repo)"; return; }
   j=$(pr_detail "$pr") || { echo "manual: gh error reading PR #$pr"; return; }
-  refs=$(jqr '[.closingIssuesReferences[]?.number] | unique | map(tostring) | join(" ")' <<<"$j")
+  refs=$(jqr "$PR_ISSUES_JQ"' pr_issues | map(tostring) | join(" ")' <<<"$j")
   [ -n "$want" ] || want=$(unit_of_branch "$(jqr '.headRefName // ""' <<<"$j")")
   if is_pkg "$want"; then
     # a package's PR closes exactly its issues (the health pass: none)

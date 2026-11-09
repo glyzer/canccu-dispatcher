@@ -315,6 +315,7 @@ senv waves-unblocked 0
 json deps106.json '[{"number": 80, "state": "closed"}, {"number": 95, "state": "closed"}]'
 route 'api repos/example-org/web/issues/106/dependencies/blocked_by' deps106.json
 wave 1 "$P2"; state pkg-12-a pkg=a step=12 wave=1 "members=101 103" branch=pkg-12-a phase=needs-you
+mkdir -p "$CANCCU_HOME/blocked"; for b in 106; do : > "$CANCCU_HOME/blocked/$b"; done   # the dispatcher's own labels
 dispatch --once
 ok "waves: an issue unblocked mid-step (blockers closed, no merge) → ready" has gh.log "issue edit 106 -R example-org/web --remove-label blocked --add-label ready"
 ok "… and the next wave's planner includes it (not #104: it waits for its needs-you dependency)" eq "$(plans) $(pissues)" "1 #106"

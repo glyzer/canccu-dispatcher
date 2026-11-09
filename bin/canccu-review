@@ -20,10 +20,11 @@ p=$(reviewer_token_problem); [ -z "$p" ] || die "refused: $p (the review must po
 fetch || die "gh error reading $REPO"
 j=$(pr_detail "$pr") || die "gh error reading PR #$pr"
 [ "$(jqr .state <<<"$j")" = OPEN ] || die "PR #$pr is not open"
-# a work package's PR (its branch names it), else the issue it closes
+# a work package's PR (its branch names it), else the issue it is for: closed, or planned by a
+# plan-only PR ("Plan for #n"), or named by its branch
 n=$(unit_of_branch "$(jqr '.headRefName // ""' <<<"$j")")
-[ -n "$n" ] || n=$(jqr '.closingIssuesReferences[0].number // empty' <<<"$j")
-[ -n "$n" ] || die "PR #$pr closes no issue"
+[ -n "$n" ] || n=$(pr_issues "$j" | head -1)
+[ -n "$n" ] || die "PR #$pr is for no issue (no Closes #n, Plan for #n or branch <n>-…)"
 why=$(pr_not_ours "$j" "$n"); [ -z "$why" ] || die "refused: not ours: $why"
 start_review "$pr" "$n" "$(jqr .headRefOid <<<"$j")" ||
   die "the reviewer did not start; see $CANCCU_HOME/dispatch.log"

@@ -48,48 +48,87 @@ needs_you() {
 # resume <n> <message>: the issue's worker continues its session with the message. A PR armed
 # for auto-merge is disarmed first (armed), and `accepted` dropped: the worker is about to change it.
 resume() {
-  local n=$1 pr; pr=$(st_get "$n" pr)
+  local n=$1 pr msg=$2; pr=$(st_get "$n" pr)
+  blocked_held "$n" "the resumed worker" && return 1
   step_run_held "$n" "the resumed worker" && return 1
   if [ -n "$pr" ] && [ "$(st_get "$n" phase)" = merging ]; then
     armed "$n" "$pr" && mut gh pr merge "$pr" -R "$REPO" --disable-auto
     pr_has_label "$pr" accepted && mut gh pr edit "$pr" -R "$REPO" --remove-label accepted
   fi
+  # a run that finished with no PR (it stopped blocked, asked, or built nothing) is not resumed:
+  # reloading its context costs more than it holds. A fresh session gets the whole task.
+  if [ "$(st_get "$n" no_pr)" = 1 ] && [ -z "$(pr_for "$n")" ]; then
+    mut rm -f "$WORKERS_DIR/$REPO_NAME-$n.id"; msg="$(unit_prompt "$n") $msg"
+  fi
   # workers never review: a resumed worker is told so as well
-  run_worker "$n" "$2 Do not review your own work; run the checks only." \
+  run_worker "$n" "$msg Do not review your own work; run the checks only." \
     "$( [ -n "$(st_get "$n" pkg)" ] && pkg_budget "$BUDGET_RESUME" "$(unit_size "$n")" || echo "$BUDGET_RESUME")" || return 1
   has_label "$n" needs-you && edit_issue "$n" --remove-label needs-you
   log "#$n resumed: $(oneline 100 "$2")"
 }
 
-# start_issue <n> [extra]: claim and start a new worker; extra is appended to its prompt
-start_issue() {
-  local n=$1 title prompt c=0
-  title=$(title_of "$n")
+# blocked_held <K> <what>: the unit is labelled `blocked`, so nothing of it runs (said once)
+blocked_held() { unit_blocked "$1" || return 1; warn_once "blocked-$1" "#$1 is labelled \`blocked\`: $2 waits until the label goes"; }
+
+# issue_prompt <n> [title]: a new worker's whole task for issue n
+issue_prompt() {
+  local n=$1 title=${2:-} prompt
+  [ -n "$title" ] || title=$(title_of "$n")
   [ -n "$title" ] || title=$(ghj issue view "$n" -R "$REPO" --json title | jqr .title)
   # shellcheck disable=SC2059
   printf -v prompt "$WORKER_PROMPT" "$REPO" "$n" "$n" "$n" "$n-$(slug "$title")" "${WORKER_EXTRA:+ $WORKER_EXTRA}"
+  printf '%s' "$prompt"
+}
+# unit_prompt <K>: the whole task of a unit's worker, for a fresh session
+unit_prompt() {
+  if is_health "$1"; then health_prompt "$(st_get "$1" step)" "$1"
+  elif is_pkg "$1"; then package_prompt "$1"
+  else issue_prompt "$1"; fi
+}
+
+# start_issue <n> [extra]: claim and start a new worker; extra is appended to its prompt
+start_issue() {
+  local n=$1 title prompt c=0 p="" pl=()
+  title=$(title_of "$n")
+  [ -n "$title" ] || title=$(ghj issue view "$n" -R "$REPO" --json title | jqr .title)
+  prompt=$(issue_prompt "$n" "$title")
+  # plan-ok on an issue nobody manages: its plan PR merged (plan_back); the build executes it
+  has_label "$n" plan-ok && { p=1 pl=(--remove-label plan-ok); prompt+=" $(plan_merged_text "docs/plans/issue-$n.md")"; }
   [ -n "${2:-}" ] && prompt+=" The user adds: $2"
   is_exclusive "$n" && c=1
   run_worker "$n" "$prompt" "$BUDGET_WORK" || return   # SLOT_REFUSED: no shared slot, the issue waits
-  edit_issue "$n" --add-label in-progress --remove-label ready --add-assignee "$USER_LOGIN"
-  st_set "$n" exclusive=$c; new_cycle "$n"
+  edit_issue "$n" --add-label in-progress --remove-label ready --add-assignee "$USER_LOGIN" "${pl[@]}"
+  st_set "$n" exclusive=$c plan_ok=$p; new_cycle "$n"
   log "#$n started: $title"
+}
+
+# plan_merged_text <plan file>: what a worker starting on a merged, approved plan is told
+plan_merged_text() { echo "The plan $1 is approved and merged on main: execute it with the superpowers skill executing-plans; the PR closes the issue."; }
+
+# merge_flags <direct 0|1>: the method a merge passes (merge_method_read): none for the merge
+# queue; unknown → none for auto-merge, --squash for a direct merge (as before)
+merge_flags() {
+  merge_method_read
+  case $MERGE_METHOD in --*) echo "$MERGE_METHOD" ;; unknown) (( $1 )) && echo --squash ;; esac
+  return 0
 }
 
 # merge_auto <n> <pr> <how> <head>: merge exactly that head. Where the repo allows auto-merge (or
 # the setting is unknown): arm it; a push in between fails it. Where it does not (the setting, or
 # --auto's "not allowed" error): merge_direct, now or on a later pass (merge_mode=direct).
 merge_auto() {
-  local n=$1 pr=$2 how=$3 head=$4
+  local n=$1 pr=$2 how=$3 head=$4 m
   is_full_sha "$head" || { needs_you "$n" "the head of PR #$pr ($head) is not a full commit sha; not merged"; return 1; }
   auto_merge_read
   if [ "$AUTO_MERGE_ALLOWED" != false ]; then
-    if mut_out gh pr merge "$pr" -R "$REPO" --auto --match-head-commit "$head"; then
+    m=$(merge_flags 0)
+    # shellcheck disable=SC2086  # m: one flag or none
+    if mut_out gh pr merge "$pr" -R "$REPO" --auto $m --match-head-commit "$head"; then
       st_set "$n" phase=merging how="$how" merge_sha="$head" merge_at="$(now)" merge_mode=
       log "#$n PR #$pr: auto-merge enabled ($how)"; return 0
     fi
     if ! grep -qiE 'auto.?merge is not allowed' <<<"$MUT_OUT"; then
-      needs_you "$n" "\`gh pr merge $pr --auto --match-head-commit ${head:0:7}\` failed; merge it by hand or check the merge queue"; return 1
+      needs_you "$n" "\`gh pr merge $pr --auto${m:+ $m} --match-head-commit ${head:0:7}\` failed; merge it by hand or check the merge queue. gh: $(oneline 300 "$MUT_OUT")"; return 1
     fi
     AUTO_MERGE_ALLOWED=false
   fi
@@ -104,13 +143,13 @@ armed() { [ -z "$(st_get "$1" merge_mode)" ] || [ "$(pr_get "$2" '.autoMergeRequ
 # REVIEW_CHECKS check still runs there (a required review-gate would refuse the merge)
 direct_ci() { local c; c=$(ci_state "$1"); [ "$c" = green ] && review_checks_running "$1" && c=pending; echo "$c"; }
 
-# merge_direct <n> <pr>: without auto-merge, merge merge_sha with --squash --match-head-commit, but
+# merge_direct <n> <pr>: without auto-merge, merge merge_sha (merge_flags) --match-head-commit, but
 # only while it is the PR's head (a push: merging_step reviews again) and CI is green on it
 # (direct_ci; pending or none: wait; red: needs-you). merge_mode=merged after (merge_at: then):
 # the PR is still in this pass's list, and finish_unit logs the merge once the issue closes. 1
 # after a needs-you.
 merge_direct() {
-  local n=$1 pr=$2 sha; sha=$(st_get "$n" merge_sha)
+  local n=$1 pr=$2 sha m; sha=$(st_get "$n" merge_sha)
   is_full_sha "$sha" || { needs_you "$n" "the head of PR #$pr ($sha) is not a full commit sha; not merged"; return 1; }
   [ "$(pr_get "$pr" .headRefOid)" = "$sha" ] || return 0
   case $(direct_ci "$pr") in
@@ -118,8 +157,10 @@ merge_direct() {
     red) needs_you "$n" "CI is red on PR #$pr at ${sha:0:7}; not merged"; return 1 ;;
     *) return 0 ;;
   esac
-  if ! mut gh pr merge "$pr" -R "$REPO" --squash --match-head-commit "$sha"; then
-    needs_you "$n" "\`gh pr merge $pr --squash --match-head-commit ${sha:0:7}\` failed; merge it by hand"; return 1
+  m=$(merge_flags 1)
+  # shellcheck disable=SC2086  # m: one flag or none
+  if ! mut_out gh pr merge "$pr" -R "$REPO" $m --match-head-commit "$sha"; then
+    needs_you "$n" "\`gh pr merge $pr${m:+ $m} --match-head-commit ${sha:0:7}\` failed; merge it by hand. gh: $(oneline 300 "$MUT_OUT")"; return 1
   fi
   st_set "$n" merge_mode=merged merge_at="$(now)"
   log "#$n PR #$pr: merged directly ($(st_get "$n" how))"

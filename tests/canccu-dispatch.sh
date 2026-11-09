@@ -725,6 +725,7 @@ json pr50.json '{"state": "MERGED", "title": "feat: thing"}'; route 'pr view 50 
 json issue5.json '{"state": "CLOSED", "labels": [{"name": "in-progress"}]}'; route 'issue view 5 *' issue5.json
 json subs9.json '[{"number": 5, "state": "closed"}, {"number": 6, "state": "closed"}]'
 route 'api --paginate repos/example-org/web/issues/9/sub_issues' subs9.json
+mkdir -p "$CANCCU_HOME/blocked"; for b in 6 7; do : > "$CANCCU_HOME/blocked/$b"; done   # the dispatcher's own labels
 echo sid > "$WORKERS_DIR/web-5.id"
 dispatch --once
 ok "merge logged" grep -qP "^$NOW\t5\t50\tauto\tfeat: thing$" "$CANCCU_HOME/merged.log"
@@ -749,11 +750,12 @@ route 'api repos/example-org/web/issues/11/dependencies/blocked_by' deps11.json
 route 'api repos/example-org/web/issues/14/dependencies/blocked_by' FAIL
 json deps15.json '[{"number": 22, "state": "open"}]'
 route 'api repos/example-org/web/issues/15/dependencies/blocked_by' deps15.json
+mkdir -p "$CANCCU_HOME/blocked"; for b in 6 7 8 9 11 12 14 15; do : > "$CANCCU_HOME/blocked/$b"; done   # the dispatcher's own labels
 dispatch --once
 ok "unblock: a body blocker closed by hand (no merge) → ready" has gh.log "issue edit 6 -R example-org/web --remove-label blocked --add-label ready"
 ok "… logged as unblocked" grep -q '#6 unblocked: blocked → ready' "$E/out"
 ok "unblock: API blockers all closed (an epic, a checkpoint) → ready" has gh.log "issue edit 8 -R example-org/web --remove-label blocked --add-label ready"
-ok "unblock: no blocked-by link (a human set the label) → left alone" hasnt gh.log "issue edit 7 "
+ok "unblock: no blocked-by link → left alone" hasnt gh.log "issue edit 7 "
 ok "unblock: a body blocker still open → stays blocked" hasnt gh.log "issue edit 9 "
 ok "unblock: one API blocker still open → stays blocked" hasnt gh.log "issue edit 11 "
 ok "unblock: a body blocker off the open list that cannot be confirmed closed → stays blocked" hasnt gh.log "issue edit 12 "
@@ -762,11 +764,13 @@ ok "unblock: body blocker closed, API blocker open → stays blocked" hasnt gh.l
 env_new unblock-start
 { issue 6 blocked "Blocked by #5"; } | issues
 json issue5.json '{"state": "CLOSED"}'; route 'issue view 5 *' issue5.json
+mkdir -p "$CANCCU_HOME/blocked"; for b in 6; do : > "$CANCCU_HOME/blocked/$b"; done   # the dispatcher's own labels
 dispatch --once
 ok "unblock: the issue is ready in this very pass (it starts)" started 6
 env_new unblock-edit-fails
 { issue 6 blocked "Blocked by #5"; } | issues
 json issue5.json '{"state": "CLOSED"}'; route 'issue view 5 *' issue5.json
+mkdir -p "$CANCCU_HOME/blocked"; for b in 6; do : > "$CANCCU_HOME/blocked/$b"; done   # the dispatcher's own labels
 echo 'fail:issue edit' >> "$FAKE/routes"
 dispatch --once
 ok "unblock: a failed label edit → not logged as unblocked, nothing starts" eq "$(grep -c '#6 unblocked' "$E/out")$(started 6 && echo started)" 0

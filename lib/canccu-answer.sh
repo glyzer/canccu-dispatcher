@@ -21,6 +21,13 @@ worker_question() {
   printf '%s' "$q"
 }
 
+# worker_blocked <report>: what a worker that stopped before building waits on, from its status
+# line ("Status: blocked: #8 is open", "not started", "stopped and waiting"), or nothing
+worker_blocked() {
+  grep -m1 -iE '^[^a-z]*status:?(\*\*)?[[:space:]]' <<<"$1" | grep -iE '\b(blocked|not started|waiting|waits)\b' |
+    sed -E 's/^[^:]*[Ss]tatus:?[*_]*[[:space:]]*//'
+}
+
 DRY_Q=""
 qfile() { echo "$CANCCU_HOME/questions/$1.txt"; }
 q_get() { if (( CANCCU_DRY )) && [ -n "$DRY_Q" ]; then printf '%s' "$DRY_Q"; else cat "$(qfile "$1")" 2>/dev/null; fi; }
