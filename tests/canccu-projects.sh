@@ -6,37 +6,7 @@
 
 # ---------------------------------------------------------------- projects
 
-# prepo <project>: its invented repo (tools is a user's, the others an organisation's)
-prepo() { if [ "$1" = tools ]; then echo example-user/tools; else echo "example-org/$1"; fi; }
-# penv <name> <project...>: a CANCCU_ROOT with those projects, each on the generic template's
-# rules: REPO o/<p>, CLONE code/<p>, its own fixtures issues-<p>.json and prs-<p>.json
-penv() {
-  tname=$1; shift; E=$T/$tname
-  unset CANCCU_PROJECT CANCCU_HOME WORKERS_DIR
-  export CANCCU_ROOT=$E/root FAKE=$E/fake CANCCU_NOW=$NOW
-  mkdir -p "$FAKE" "$CANCCU_ROOT/projects"
-  printf '%s\n' "$FAKE_TOKEN" > "$E/reviewer-token"; chmod 600 "$E/reviewer-token"
-  jq -n --arg l "$BOT" '{login: $l}' > "$FAKE/user.json"
-  echo '[]' > "$FAKE/empty.json"; echo '[]' > "$FAKE/runs.json"
-  jq -n '["ready","blocked","in-progress","epic","needs-you","plan-ok","awaiting-accept","needs-work","accepted","manual-accept","checkpoint","checkpoint-ok","fast"] | map({name: .})' \
-    > "$FAKE/labels.json"
-  : > "$FAKE/routes"; : > "$FAKE/gh.log"; : > "$FAKE/worker.log"; : > "$FAKE/routes.default"
-  for p; do
-    mkdir -p "$CANCCU_ROOT/projects/$p/state" "$CANCCU_ROOT/projects/$p/workers" "$E/code/$p"
-    { echo "REPO=$(prepo "$p")"; echo "CLONE=$E/code/$p"; echo "USER_LOGIN=octo"; echo "REVIEWER_LOGIN=review-bot"; echo "DIGEST_HOUR_UTC=24"
-      echo "REVIEWER_TOKEN_FILE=$E/reviewer-token"; } > "$CANCCU_ROOT/projects/$p/config"
-    sed "s/@NAME@/$p/g" "$root/profiles/default/rules" > "$CANCCU_ROOT/projects/$p/rules"
-    echo '[]' > "$FAKE/issues-$p.json"; echo '[]' > "$FAKE/prs-$p.json"
-    printf '%s\t%s\n' "issue list -R $(prepo "$p") *" "issues-$p.json" "pr list -R $(prepo "$p") -s open*" "prs-$p.json" \
-      'label list*' labels.json 'api repos/*/dependencies/*' empty.json 'run list*' runs.json 'api user*' user.json \
-      >> "$FAKE/routes.default"
-  done
-}
-pconf() { local p=$1; shift; printf '%s\n' "$@" >> "$CANCCU_ROOT/projects/$p/config"; }
-pissues() { local p=$1; shift; for n; do issue "$n" ready; done | jq -s . > "$FAKE/issues-$p.json"; }
 pick() { ( PATH="$fb:$PATH"; . "$root/lib/canccu-common.sh"; echo "$CANCCU_PROJECT $TMUX_SESSION $REPO" ) 2>&1; }
-pstarted() { grep -qE "^--quiet --name #$2 $1 $2 " "$FAKE/worker.log"; }
-plib() { local p=$1; shift; ( PATH="$fb:$PATH"; . "$root/lib/canccu-common.sh" --project "$p"; "$@" ) 2>&1; }
 
 # choosing a project
 penv pick-one tools
@@ -77,7 +47,7 @@ ok "… and logs in tools's log" grep -q 'paused (canccu-pause, project tools)' 
 penv two tools shop
 echo tools > "$CANCCU_ROOT/default-project"; echo 'TOTAL_CAP=10' > "$CANCCU_ROOT/config"
 pconf tools CAP=1; pconf shop CAP=2
-pissues tools 1 2 3; pissues shop 11 12 13
+projissues tools 1 2 3; projissues shop 11 12 13
 dispatch --project tools --once
 dispatch --project shop --once
 ok "a starts its CAP 1" eq "$(pstarted tools 1 && echo y)$(pstarted tools 2 && echo y)" y
@@ -106,7 +76,7 @@ ok "… while shop's runs" eq "$rcb" 0
 penv total tools shop
 echo tools > "$CANCCU_ROOT/default-project"; echo 'TOTAL_CAP=2' > "$CANCCU_ROOT/config"
 pconf tools CAP=3 TOTAL_CAP=10; pconf shop CAP=3 TOTAL_CAP=10
-pissues tools 1 2 3; pissues shop 11 12 13
+projissues tools 1 2 3; projissues shop 11 12 13
 dispatch --project tools --once
 dispatch --project shop --once
 ok "TOTAL_CAP 2: tools starts 2 of its CAP 3" eq "$(grep -c -- '--name #' "$FAKE/worker.log")" 2
@@ -124,7 +94,7 @@ ok "slots freed in tools: shop starts" eq "$(pstarted shop 11 && echo y)$(pstart
 
 # the usage-limit back-off is shared: one Claude account
 penv shared-backoff tools shop
-echo tools > "$CANCCU_ROOT/default-project"; pissues shop 11
+echo tools > "$CANCCU_ROOT/default-project"; projissues shop 11
 echo $((NOW + 600)) > "$CANCCU_ROOT/backoff"
 dispatch --project shop --once
 ok "a back-off (from any project) stops shop's starts too" not pstarted shop 11
@@ -141,7 +111,7 @@ ok "… which shop's status shows" grep -q 'usage limit until' <<<"$(PATH="$fb:$
 
 # the one-at-a-time lock comes from the rules only (the generic template has none)
 penv no-lock tools
-pissues tools 10 11
+projissues tools 10 11
 jq '.[0].labels += [{name: "module:contracts"}] | .[1].body = "edits contracts/x.yaml"' "$FAKE/issues-tools.json" > "$FAKE/t" &&
   mv "$FAKE/t" "$FAKE/issues-tools.json"
 dispatch --project tools --once
@@ -438,7 +408,7 @@ ok "… the token is in no log or snapshot" noptok "$CANCCU_HOME/dispatch.log" "
 penv token-two tools shop
 echo tools > "$CANCCU_ROOT/default-project"; echo 'TOTAL_CAP=10' > "$CANCCU_ROOT/config"
 ghlogin "$CANCCU_ROOT/projects/tools/gh"; touch "$CANCCU_ROOT/projects/tools/gh/noreach"; ghlogin "$CANCCU_ROOT/projects/shop/gh"
-pissues tools 1; pissues shop 11
+projissues tools 1; projissues shop 11
 dispatch --project tools --once; dispatch --project shop --once
 ok "two projects: a (cannot reach) starts nothing, b starts its issue" eq "$(pstarted tools 1 && echo a)$(pstarted shop 11 && echo b)" b
 ok "… shop's run has shop's config dir, never a's" \
