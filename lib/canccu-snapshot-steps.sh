@@ -95,7 +95,7 @@ issue_own_status() {
   if is_managed "$u"; then
     case $(st_get "$u" phase) in
       accept) echo accept ;; needs-you|question) echo needs-you ;;
-      limited) printf 'blocked\tthe usage limit\n' ;; stopped) printf 'blocked\tstopped (canccu-run continues it)\n' ;;
+      limited) printf 'blocked\tthe usage limit\n' ;; waiting) printf 'blocked\t%s\n' "$(st_get "$u" reason)" ;; stopped) printf 'blocked\tstopped (canccu-run continues it)\n' ;;
       *) echo running ;;
     esac
     return 0

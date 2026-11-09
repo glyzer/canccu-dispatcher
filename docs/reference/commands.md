@@ -45,7 +45,7 @@ The dispatcher creates any that are missing (`canccu-init` does too):
 | Label | On | Means |
 |---|---|---|
 | `ready` | issue | You agreed the spec: the dispatcher may start it |
-| `blocked` | issue | Waits for its blocked-by issues; the dispatcher swaps it for `ready` once they are all closed |
+| `blocked` | issue | Never started or resumed while it is on. Yours: you remove it. Set by the dispatcher (a worker that stopped blocked): it goes once the issue's blocked-by issues are all closed |
 | `in-progress` | issue | The dispatcher manages it |
 | `epic` | issue | A roadmap step's umbrella issue; never started |
 | `needs-you` | issue, PR | Waits for you: the latest comments say why |

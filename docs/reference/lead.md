@@ -21,8 +21,10 @@ An issue is the worker's spec and the reviewer's checklist, so write it for both
 - a last line `Risk: low|normal|high — <why>`.
 
 Label it `ready` once you agree with it; until then the dispatcher lists it under "waiting for the
-product owner" in `canccu-status` and never starts it. `blocked` plus a `Blocked by #x` line (or a
-GitHub blocked-by link) holds it until #x closes; the dispatcher then swaps the label for `ready`.
+product owner" in `canccu-status` and never starts it. A `Blocked by #x` line (or a GitHub
+blocked-by link) on a `ready` issue holds it until #x closes. `blocked` holds it whatever its links
+say, until you remove the label: the dispatcher removes only a `blocked` it set itself (a worker
+that stopped blocked).
 
 ## Steps and epics
 

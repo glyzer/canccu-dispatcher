@@ -28,12 +28,13 @@ total_cap() { local u; u=$(usage_cap); echo $(( u < TOTAL_CAP ? u : TOTAL_CAP ))
 # (counted too, though check_pr has already moved it to needs-you); pending CI, or no checks at
 # all, waits without one. Any issue labelled plan-ok or needs-work with no run alive reserves one
 # for its resume, in check too (docs/canccu-dispatch.md). A run that cannot start reserves
-# nothing: its step's budget holds it, or reviews are refused (no reviewer token).
+# nothing: its step's budget holds it, it is labelled `blocked`, or reviews are refused (no reviewer token).
 wanting() {
   local n c=0 rv=1
   [ -n "$(reviewer_token_problem)" ] && rv=0
   for n; do
     unit_held "$n" && continue
+    unit_blocked "$n" && continue   # nothing of it runs (blocked_held)
     case $(st_get "$n" phase) in
       limited|question) c=$((c + 1)); continue ;;
       check) (( rv )) && ci_reserves "$(st_get "$n" pr)" && { c=$((c + 1)); continue; } ;;
@@ -221,7 +222,7 @@ engine_start() {
 }
 
 # the last %s is the project's WORKER_EXTRA (its rules)
-WORKER_PROMPT='You are working on %s issue #%s in this worktree. Follow AGENTS.md and the `<n>` / `execute` / `finish` flow in CLAUDE.md, with these overrides: propose a tier and continue without waiting on fix and feature tiers (put the feature plan in the PR description); on the plan tier write docs/plans/issue-%s.md, open a draft PR and stop. Use the superpowers skills test-driven-development, systematic-debugging and verification-before-completion. On the plan tier use writing-plans for docs/plans/issue-%s.md, and executing-plans after plan-ok. Do NOT use brainstorming, using-git-worktrees, finishing-a-development-branch, requesting-code-review, subagent-driven-development, dispatching-parallel-agents or writing-skills: the dispatcher owns worktrees, branches, reviews and questions, and the issue is the agreed spec. Create your branch %s from origin/main in this worktree. Before marking the PR ready, run the checks of every module you touched (an independent reviewer reviews the PR afterwards). While working, run only the tests of the files you change; run the full suite once, just before pushing; never paste whole test logs into the conversation. Do not review your own work; run the checks only. Add a `Tier: fix|feature|plan` line. Decide implementation details yourself (names, libraries already in the stack, error handling, test shape) and list them under `Decisions made:` in the PR body; the reviewer checks them. If you must stop with a question, write it on its own line starting `Question:` and stop. When resumed with review findings, fix them, rerun the checks, push once. To bring in main, run `git merge origin/main` and push normally; never rebase or force-push a PR branch (the squash-merge flattens it). Do NOT enable auto-merge, never merge, and never add or remove the `accepted` label: stop when the PR is ready and CI is green.%s Stop and say why on: a question, a destructive migration, a breaking contract change, a blocked command, or CI red after two fix rounds. End with a 5-line report: status, PR URL, what changed, verification, next action.'
+WORKER_PROMPT='You are working on %s issue #%s in this worktree. Follow AGENTS.md and the `<n>` / `execute` / `finish` flow in CLAUDE.md, with these overrides: propose a tier and continue without waiting on fix and feature tiers (put the feature plan in the PR description); on the plan tier write docs/plans/issue-%s.md, open a draft PR whose body says `Plan for #<n>` instead of `Closes #<n>` (merging the plan must not close the issue) and stop. Use the superpowers skills test-driven-development, systematic-debugging and verification-before-completion. On the plan tier use writing-plans for docs/plans/issue-%s.md, and executing-plans after plan-ok. Do NOT use brainstorming, using-git-worktrees, finishing-a-development-branch, requesting-code-review, subagent-driven-development, dispatching-parallel-agents or writing-skills: the dispatcher owns worktrees, branches, reviews and questions, and the issue is the agreed spec. Create your branch %s from origin/main in this worktree. Before marking the PR ready, run the checks of every module you touched (an independent reviewer reviews the PR afterwards). While working, run only the tests of the files you change; run the full suite once, just before pushing; never paste whole test logs into the conversation. Do not review your own work; run the checks only. Add a `Tier: fix|feature|plan` line. Decide implementation details yourself (names, libraries already in the stack, error handling, test shape) and list them under `Decisions made:` in the PR body; the reviewer checks them. If you must stop with a question, write it on its own line starting `Question:` and stop. If the issue is still blocked (an open blocker), build nothing, open no PR and stop with the status `blocked` and what it waits on. When resumed with review findings, fix them, rerun the checks, push once. To bring in main, run `git merge origin/main` and push normally; never rebase or force-push a PR branch (the squash-merge flattens it). Do NOT enable auto-merge, never merge, and never add or remove the `accepted` label: stop when the PR is ready and CI is green.%s Stop and say why on: a question, a destructive migration, a breaking contract change, a blocked command, or CI red after two fix rounds. End with a 5-line report: status, PR URL, what changed, verification, next action.'
 
 # pr_what <K>: what the unit's PR closes, as the reviewer and fix-check prompts say it
 pr_what() {
@@ -256,6 +257,7 @@ review_prompt() {
 # issue's session id when it has one)
 run_worker() {
   local n=$1 b turns cost mins
+  blocked_held "$n" "the worker" && return 1
   read -r turns cost mins <<<"$3"
   local w args; w=$(unit_window "$n"); args=(--name "$w")
   (( CANCCU_DRY )) || rm -f "$WORKERS_DIR/$REPO_NAME-$n.nudge"; is_managed "$n" && st_set "$n" nudged=
@@ -263,7 +265,7 @@ run_worker() {
   if is_pkg "$n"; then ensure_unit_wt "$n" || return 1; args+=(--key "$n" --dir "$(unit_wt "$n")" --keep-session); fi
   engine "worker $w" "$n" "${args[@]}" "$REPO_NAME" "$n $(oneline 8000 "$2")" \
     "turns=$turns" "cost=$cost" "min=$mins" || return   # the engine's exit: SLOT_REFUSED is a wait
-  st_set "$n" phase=work started="$(now)"
+  st_set "$n" phase=work started="$(now)" no_pr=
   claim_color "$n"; paint_window "$w" "$n"
 }
 

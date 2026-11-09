@@ -21,6 +21,14 @@ worker_question() {
   printf '%s' "$q"
 }
 
+# worker_blocked <report>: what a worker that stopped before building waits on, from a status
+# line that starts with "blocked" or "not started" ("**Status:** blocked: #8 is open",
+# "**Status**: not started"), or nothing. "waiting" alone is no such stop: a normal report says it.
+worker_blocked() {
+  grep -m1 -iE '^[^a-z]*status(\*\*|__)?:?(\*\*|__)?[[:space:]]' <<<"$1" |
+    sed -E 's/^[^:]*[Ss][Tt][Aa][Tt][Uu][Ss](\*\*|__)?:?(\*\*|__)?[[:space:]]*//' | grep -iE '^(blocked|not started)\b'
+}
+
 DRY_Q=""
 qfile() { echo "$CANCCU_HOME/questions/$1.txt"; }
 q_get() { if (( CANCCU_DRY )) && [ -n "$DRY_Q" ]; then printf '%s' "$DRY_Q"; else cat "$(qfile "$1")" 2>/dev/null; fi; }
@@ -56,6 +64,7 @@ start_answer() {
   q=$(q_get "$n"); pr=$(st_get "$n" pr); asked=$(st_get "$n" answers)
   dir=$(unit_wt "$n"); [ -d "$dir" ] || dir=$CLONE
   step_run_held "$n" "the answerer" && return 1
+  blocked_held "$n" "the answerer" && return 1   # its answer could not be acted on anyway
   read -r turns cost mins <<<"$BUDGET_ANSWER"
   engine "answerer answer#$n" "answer-$n" --key "answer-$n" --dir "$dir" --name "answer#$n" --untrusted "$REPO_NAME" \
     "$(answer_prompt "$(lead_of "$n")" "$q" "$pr")" "turns=$turns" "cost=$cost" "min=$mins" || return 1

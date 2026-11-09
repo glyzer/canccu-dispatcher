@@ -44,6 +44,7 @@ In `~/.canccu/projects/<name>/`:
 | `paused` | Present while paused (`canccu-pause`) |
 | `status.json` | The status snapshot, written after every pass ([`snapshot.md`](snapshot.md)) |
 | `.warned-*` | The last recurring warning of a kind, so it is logged once |
+| `blocked/<n>` | Issue `n`'s `blocked` was set by the dispatcher (a `waiting` run): the only kind it removes |
 
 ## A unit's state
 
@@ -57,6 +58,7 @@ default), `review_maccept` (the full review's
 cycle), `posted` (the head whose review was posted),
 `ny_kind` (what a `needs-you` waits for: `plan`, `question` or empty), `ny_stage` (where it
 parked), `ny_wait` (`ci`: it only waited on CI), `exclusive` (of the one-at-a-time kind),
+`no_pr` (its last run finished with no PR: the next resume starts a fresh session), `plan_ok`,
 `accept_sha`, `merge_sha` and timestamps. A package adds `pkg`, `step`, `wave`, `members`,
 `branch`, `risk`, `risk_reason`, `review_risk` and `health`.
 

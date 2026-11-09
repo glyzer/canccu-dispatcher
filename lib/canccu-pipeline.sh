@@ -7,7 +7,7 @@
 # reap_worker, reap_review, reap_answer: the pass read the phase before the run ended; canccu-stop
 # sets phase=stopped before it kills the run, so a run whose phase moved on meanwhile is not reaped
 reap_worker() {
-  local n=$1 started last kind status q r
+  local n=$1 started last kind status q r b="" p
   run_alive "$n" && return 0
   [ "$(st_get "$n" phase)" = work ] || return 0
   [ -e "$(run_lock "$n")" ] && mut "$CANCCU_WORKER" --unlock "$REPO_NAME" "$n" >/dev/null
@@ -18,13 +18,20 @@ reap_worker() {
   case $kind in
     done)
       q=$(worker_question "$(run_msg "$n")")
+      # a run that finished with no PR is resumed afresh (resume); one nudged to stop mid-work is not
+      p=$(pr_for "$n")
+      [ -n "$p" ] || is_health "$n" || b=$(worker_blocked "$(run_msg "$n")")
+      # a PR opened after this pass read the list: read it again before parking the run as blocked
+      [ -n "$b" ] && fetch_prs && p=$(pr_for "$n") && [ -n "$p" ] && b=""
+      [ -n "$p" ] || st_set "$n" no_pr=1
       # a question goes to the answerer even after a nudge (it waits for the reset anyway)
       if [ "$(st_get "$n" nudged)" = 1 ] && [ -z "$q" ]; then
         # stopped at a safe point at the usage stop: continue after the 5-hour reset
         # the reset it was nudged for; already passed: no back-off (it continues next pass)
         r=$(st_get "$n" nudge_reset); [[ $r =~ ^[0-9]+$ ]] && (( r > $(now) )) && set_backoff "$r"
-        st_set "$n" phase=limited nudged= nudge_reset=
+        st_set "$n" phase=limited nudged= nudge_reset= no_pr=
         log "#$n stopped at a safe point (usage); resumes after the reset"
+      elif [ -n "$b" ]; then st_set "$n" nudged=; wait_blocked "$n" "$b"
       elif [ -n "$q" ]; then st_set "$n" nudged=; ask "$n" "$q"
       else st_set "$n" phase=check check_at="$(now)"; log "#$n worker done"; fi ;;
     usage)
@@ -32,6 +39,23 @@ reap_worker() {
       st_set "$n" phase=limited; log "#$n hit the usage limit; resumes after the back-off" ;;
     *) needs_you "$n" "the worker stopped: $status" "$(run_msg "$n")" ;;
   esac
+}
+
+# wait_blocked <K> <what it waits on>: a worker stopped blocked or not started, with no PR: a quiet
+# wait (phase waiting), never needs-you or the answerer, even when it also asked a question. The
+# lead issue gets `blocked`, marked as the dispatcher's (unblock_tick lifts it once its blocked-by
+# links close); a label already there is the user's. resume_step resumes it once the label goes.
+wait_blocked() {
+  local n=$1 l; l=$(lead_of "$1")
+  if ! unit_blocked "$n"; then
+    # without the label nothing would hold it: the next pass would resume it at once
+    edit_issue "$n" --add-label blocked || { log "#$n stopped blocked; adding \`blocked\` failed, again next pass"; return 0; }
+    blocked_mark "$l"
+    # this pass's list too, or resume_step would see it unblocked and resume it at once
+    ISSUES=$(jq -c --argjson n "$l" 'map(if .number == $n then .labels += [{name: "blocked"}] else . end)' <<<"$ISSUES")
+  fi
+  st_set "$n" phase=waiting reason="$(oneline 200 "$2")"
+  log "#$n waits (no PR): $(oneline 120 "$2")"
 }
 
 # reap_review <n>: the reviewer (a full review or a fix-check) wrote its review to a file and
@@ -202,13 +226,13 @@ ci_unpark() {
   log "#$n PR #$pr: CI is no longer pending; back to check"
 }
 
-# adopt: an open PR of ours (USER_LOGIN, not a fork, branch <n>-…) closing an in-progress issue
+# adopt: an open PR of ours (USER_LOGIN, not a fork, branch <n>-…) for an in-progress issue (pr_issues)
 # nobody manages, with no worker running
 adopt() {
   local pr n c j
   for pr in $(jqr '.[].number' <<<"$PRS"); do
     j=$(pr_get "$pr" .)
-    for n in $(jqr '.closingIssuesReferences[]?.number' <<<"$j"); do
+    for n in $(pr_issues "$j"); do
       is_managed "$n" && continue
       [ "$(unit_of_issue "$n")" = "$n" ] || continue   # a package's issue is never adopted alone
       [ -z "$(pr_foreign "$j" "$n")" ] || continue
@@ -271,7 +295,7 @@ resume_step() {
   phase=$(st_get "$n" phase); pr=$(st_get "$n" pr)
   if has_label "$n" plan-ok; then
     room "$n" || return 0
-    resume "$n" "The user approved the plan. Execute it with the superpowers skill executing-plans." || return 0
+    resume "$n" "The user approved the plan. Execute it with the superpowers skill executing-plans. Build it in this PR: replace each \`Plan for #<n>\` line with \`Closes #<n>\` and set the real \`Tier:\` line." || return 0
     edit_issue "$n" --remove-label plan-ok   # only once the worker runs: a failed start keeps the signal
     st_set "$n" plan_ok=1; new_cycle "$n"
   elif has_label "$n" needs-work; then
@@ -292,6 +316,8 @@ resume_step() {
     [ -n "$c" ] && room "$n" && resume "$n" "The user answered: $c"
   elif [ "$phase" = limited ]; then
     room "$n" && resume "$n" "Continue where you stopped: the usage limit has reset."
+  elif [ "$phase" = waiting ]; then
+    unit_blocked "$n" || { blocked_unmark "$(lead_of "$n")"; room "$n" && resume "$n" "The issue is no longer labelled \`blocked\`: check its blockers again, then do the work."; }
   fi
   return 0
 }

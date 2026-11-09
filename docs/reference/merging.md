@@ -5,15 +5,20 @@ Part of the reference; the index is [`README.md`](README.md).
 
 ## Merge policy
 
-**Auto** (`gh pr merge <pr> --auto --match-head-commit <head>`; with a merge queue, the queue
-merges) when CI is green and the latest verdict on the PR's current head is `pass`, unless the PR
+**Auto** (`gh pr merge <pr> --auto <method> --match-head-commit <head>`; with a merge queue, the
+queue merges) when CI is green and the latest verdict on the PR's current head is `pass`, unless the PR
 is manual. `<head>` is always the full 40-character sha: a push between reading the verdict and
 arming the merge makes the merge fail closed. The dispatcher never arms a merge before a `pass`
 on the current head (or, for a manual PR, your accept of the classified head), and the required
 `review-gate` check reads the same verdict line ([`../repo-contract.md`](../repo-contract.md)).
+`<method>` comes from the repo's settings, read once per pass: none with a merge queue (the queue
+sets it), else `--squash` where allowed, else `--merge`, else `--rebase`; none if the read fails
+(one read per pass, however many merges).
+A failed merge's `needs-you` quotes `gh`'s own error.
 
 **Without auto-merge** (the repo does not allow it) the dispatcher merges directly, with
-`gh pr merge <pr> --squash --match-head-commit <head>`, only while the reviewed (or accepted) head
+`gh pr merge <pr> <method> --match-head-commit <head>` (`--squash` if the settings cannot be
+read), only while the reviewed (or accepted) head
 is still the PR's head, CI is green on it and no `REVIEW_CHECKS` check still runs there. Pending
 CI waits up to `MERGE_WAIT_MIN`, no checks up to `NO_CHECKS_MIN`; red CI → `needs-you`.
 
@@ -21,11 +26,14 @@ CI waits up to `MERGE_WAIT_MIN`, no checks up to `NO_CHECKS_MIN`; red CI → `ne
 applies:
 
 1. another repo than `REPO`;
-2. a PR that closes no issue, more than one, or another issue than the one being handled (a
-   package's PR: not exactly the package's issues; the health pass's: any);
+2. a PR for no issue, more than one, or another issue than the one being handled (a
+   package's PR: not exactly the package's issues; the health pass's: any). A PR is for the
+   issues it closes and those a `Plan for #n` line names (a plan-only PR, which must not close
+   its issue); with neither, the issue its branch `<n>-…` names;
 3. a PR that is not ours ([`commands.md`](commands.md));
 4. 3000 or more changed files (the files API lists no more);
 5. a plan-tier PR (`docs/plans/issue-<n>.md` in the diff, or `Tier: plan`) before `plan-ok`;
+   after `plan-ok`, a PR that does not close exactly the unit's issues (the build must close them);
 6. a path the rules' `GATED_PATHS` match, or agent configuration at any depth: `.claude/`,
    `.mcp.json`, `CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md`. A rename counts by its old path too;
 7. an issue (any issue of a package) labelled `manual-accept`;
