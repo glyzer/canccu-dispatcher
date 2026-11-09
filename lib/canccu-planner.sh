@@ -150,9 +150,9 @@ planner_prompt() {
 start_planner() {
   local m=$1 w ns wt turns cost mins
   step_blocked_to_start "$m" && return 1
-  take_slot || return 1
   w=$(( $(step_get "$m" wave || true) + 1 ))
   ns=$(planner_issues "$m" | tr '\n' ' '); [ -n "${ns// }" ] || return 1
+  take_slot "plan-$m" || return 1   # after the issues: a planner with nothing to plan waits for no slot
   step_set "$m" plan_issues="$ns"
   wt=$(plan_wt "$m")
   mut git -C "$CLONE" fetch -q origin || { log "step $m: git fetch failed"; return 1; }
@@ -161,7 +161,7 @@ start_planner() {
   read -r turns cost mins <<<"$BUDGET_PLAN"
   MODEL=${PLAN_MODEL:-$MODEL} engine "planner plan#$m" "plan-$m" --key "plan-$m" --dir "$wt" \
     --name "plan#$m" --untrusted "$REPO_NAME" "$(planner_prompt "$m" "$w" "$ns")" \
-    "turns=$turns" "cost=$cost" "min=$mins" || return 1
+    "turns=$turns" "cost=$cost" "min=$mins" || { [ $? = "$SLOT_REFUSED" ] && want_held "plan-$m"; return 1; }
   took_slot; step_key "$m" "plan-$m"
   step_set "$m" phase=planning planner_started="$(now)" planner_wave="$w"
   log "step $(step_title "$m"): planner started (wave $w, $(wc -w <<<"$ns") issues)"

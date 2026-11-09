@@ -90,7 +90,10 @@ ok "canccu-status shows both caps" grep -q '^project: shop (.*, tmux canccu-shop
 ok "no run inherits the engine lock (fd 7) or the dispatcher's (fd 8)" not grep -qwE '7|8' "$FAKE/worker.fds"
 rm -f "$CANCCU_ROOT"/projects/tools/workers/*.lock
 dispatch --project shop --once
-ok "slots freed in tools: shop starts" eq "$(pstarted shop 11 && echo y)$(pstarted shop 12 && echo y)" yy
+ok "slots freed in tools: shop starts one; the other is tools's, which waits for it too" \
+  eq "$(pstarted shop 11 && echo y)$(pstarted shop 12 && echo y)" y
+dispatch --project tools --once
+ok "… tools takes it" pstarted tools 3
 
 # the usage-limit back-off is shared: one Claude account
 penv shared-backoff tools shop

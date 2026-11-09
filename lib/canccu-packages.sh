@@ -4,10 +4,6 @@
 # runs through the pipeline like an issue, keyed by its unit key (lib/canccu-units.sh).
 # docs/canccu-dispatch.md, "Work packages per step".
 
-START_FREE=0   # the slots this pass may still start (set by the pass, taken by every start)
-take_slot() { (( START_FREE > 0 )) && room; }
-took_slot() { START_FREE=$(( START_FREE - 1 )); }
-
 # package_prompt <K>: the worker prompt of a package (one issue: branch <n>-<slug>)
 package_prompt() {
   local k=$1 nm br list closes plan m
@@ -24,7 +20,7 @@ common_rules() {
 
 # start_package <m> <name> <issues "a b"> <risk> <reason>: claim the package's issues and start its worker
 start_package() {
-  local m=$1 nm=$2 is=$3 k br c=0 i n budget
+  local m=$1 nm=$2 is=$3 k br c=0 i n budget rc
   # every issue is checked against GitHub here, whatever the plan says: only the dispatcher's
   # rule (eligible_issue) lets an issue be built
   for i in $is; do eligible_issue "$m" "$i" || { log "step $(step_title "$m"): package $nm not started: #$i is not an eligible issue of the step"; return 2; }; done
@@ -33,7 +29,7 @@ start_package() {
   for i in $is; do is_exclusive "$i" && c=1; done
   st_set "$k" pkg="$nm" step="$m" wave="$(step_get "$m" wave)" members="$is" branch="$br" risk="$4" risk_reason="$(oneline 200 "$5")" exclusive=$c
   n=$(unit_size "$k"); budget=$(pkg_budget "$BUDGET_WORK" "$n")
-  if ! run_worker "$k" "$(package_prompt "$k")" "$budget"; then st_rm "$k"; return 1; fi
+  run_worker "$k" "$(package_prompt "$k")" "$budget" || { rc=$?; st_rm "$k"; (( rc == SLOT_REFUSED )) && return "$rc"; return 1; }
   took_slot
   edit_members "$k" --add-label in-progress --remove-label ready --add-assignee "$USER_LOGIN"
   new_cycle "$k"; step_key "$m" "$k"
@@ -44,7 +40,7 @@ start_package() {
 # slots are free (also while the next wave is planned: a dependant whose waiting dependency merged
 # meanwhile starts at once); the one-at-a-time lock holds for packages too
 start_packages() {
-  local m=$1 nm is rk dep busy i ex
+  local m=$1 nm is rk dep busy i ex rc held=0
   case $(step_get "$m" phase) in running|planning) ;; *) return 0 ;; esac
   [ "$(step_get "$m" ny_kind)" != stop ] || return 0
   step_blocked_to_start "$m" && return 0
@@ -54,8 +50,16 @@ start_packages() {
     [ "$(package_status "$m" "$nm")" = pending ] || continue
     ex=0; for i in $is; do is_exclusive "$i" && ex=1; done
     (( ex )) && [ -n "$busy" ] && continue
-    take_slot || break
-    start_package "$m" "$nm" "$is" "$rk" "$(jqr --arg n "$nm" '.packages[] | select(.name == $n) | .risk_reason' "$(step_get "$m" plan)")" || { [ $? = 2 ] && continue; break; }
+    # once one finds no shared slot, it and every other startable package wait for one
+    if (( held )); then want_held "$m/$nm"; continue; fi
+    take_slot "$m/$nm" || { held=1; continue; }
+    start_package "$m" "$nm" "$is" "$rk" "$(jqr --arg n "$nm" '.packages[] | select(.name == $n) | .risk_reason' "$(step_get "$m" plan)")"; rc=$?
+    case $rc in
+      0) ;;
+      2) continue ;;
+      "$SLOT_REFUSED") held=1; want_held "$m/$nm"; continue ;;
+      *) break ;;
+    esac
     (( ex )) && busy=$nm
   done < <(plan_packages "$m")
   return 0
@@ -73,9 +77,9 @@ start_health() {
   local m=$1 k="pkg-$1-health"
   [ "$(step_get "$m" ny_kind)" != stop ] || return 1
   step_blocked_to_start "$m" && return 1
-  take_slot || return 1
+  take_slot "$k" || return 1
   st_set "$k" pkg=health step="$m" health=1 members= branch="$k" risk=normal risk_reason="the health pass" exclusive=0
-  if ! run_worker "$k" "$(health_prompt "$m" "$k")" "$BUDGET_HEALTH"; then st_rm "$k"; return 1; fi
+  run_worker "$k" "$(health_prompt "$m" "$k")" "$BUDGET_HEALTH" || { [ $? = "$SLOT_REFUSED" ] && want_held "$k"; st_rm "$k"; return 1; }
   took_slot; new_cycle "$k"; step_key "$m" "$k"
   step_set "$m" phase=health health=running
   log "#$k started: the health pass of step $(step_title "$m")"

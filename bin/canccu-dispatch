@@ -71,7 +71,7 @@ digest() {
 # ---------------------------------------------------------------- one pass
 
 pass() {
-  local n m go cred open=() closed=()
+  local n m go cred wn held rc open=() closed=()
   USAGE_NOW=$(usage_read)   # one usage reading for the whole pass
   # a test stands for a pass that dies half-way (an unbound variable, a die in a helper)
   [ -n "${CANCCU_TEST_PASS_DIES:-}" ] && exit 3
@@ -80,16 +80,16 @@ pass() {
   cred=$(gh_credential_problem)
   if [ -n "$cred" ]; then
     warn_once credential "$cred: project $CANCCU_PROJECT does nothing until it works (canccu-status shows it; canccu-init prints how to set the token up)"
-    write_status "$cred"; return 1
+    want_write; write_status "$cred"; return 1   # a pass that starts nothing waits for no slot
   fi
   (( CANCCU_DRY )) || rm -f "$CANCCU_HOME/.warned-credential"
   cred=$(login_problem)
   if [ -n "$cred" ]; then
     warn_once user-login "$cred: project $CANCCU_PROJECT does nothing until it is set"
-    write_status "$cred"; return 1
+    want_write; write_status "$cred"; return 1
   fi
   (( CANCCU_DRY )) || rm -f "$CANCCU_HOME/.warned-user-login"
-  fetch || { log "gh error reading issues or PRs; skipping this pass"; write_status "gh error reading issues or PRs"; return 1; }
+  fetch || { log "gh error reading issues or PRs; skipping this pass"; want_write; write_status "gh error reading issues or PRs"; return 1; }
   usage_tick
   if fetch_steps; then (( CANCCU_DRY )) || rm -f "$CANCCU_HOME/.warned-steps"
   else warn_once steps "gh error reading the milestones: no step acts this pass (the fast lane and the runs go on)"; fi
@@ -107,7 +107,7 @@ pass() {
     case $(st_get "$n" phase) in
       check) check_pr "$n" ;;
       needs-you) ci_unpark "$n" && check_pr "$n" ;;
-      question) backing_off || ! room || start_answer "$n" ;;
+      question) backing_off || ! room "$n" || start_answer "$n" ;;
     esac
   done
   # 3. start
@@ -118,9 +118,22 @@ pass() {
   elif backing_off; then go=0; (( CANCCU_DRY )) && echo "  backing off (usage limit) until $(date -d "@$(backoff_until)" '+%F %T')"
   elif draining; then go=0; (( CANCCU_DRY )) && echo "  draining: nothing new starts"
   else
-    START_FREE=$(( $(free_slots) - $(wanting "${open[@]}") ))
-    if (( START_FREE > 0 )); then
-      for n in $(runnable "$START_FREE"); do start_issue "$n" || break; took_slot; done
+    wn=$(wanting "${open[@]}")
+    START_FREE=$(( $(free_slots) - wn )) OWN_FREE=$(( CAP - $(running_count) - wn ))
+    # the runnable issues up to what CAP allows: once one finds no shared slot, it and the rest
+    # wait for one. With no shared slot free only the first is read (each costs a blockers read
+    # on GitHub): the wait is one, and grows again once that one has its slot. A start that fails
+    # for another reason ends the fast lane for this pass.
+    held=0
+    if (( OWN_FREE > 0 )); then
+      for n in $(if (( START_FREE > 0 )); then runnable "$OWN_FREE"; else runnable 1; fi); do
+        if (( held )); then want_held "$n"; continue; fi
+        take_slot "$n" || { held=1; continue; }
+        start_issue "$n"; rc=$?
+        if (( rc == 0 )); then took_slot
+        elif (( rc == SLOT_REFUSED )); then held=1; want_held "$n"
+        else break; fi
+      done
     fi
   fi
   if (( STEPS_OK )); then
@@ -137,7 +150,8 @@ pass() {
   for n in "${closed[@]}"; do finish_unit "$n"; done
   # 7. digest
   digest
-  # the status snapshot for canccu-monitor
+  # the wait for a shared slot, then the status snapshot for canccu-monitor
+  want_write
   write_status
 }
 
@@ -214,6 +228,7 @@ run_pass() {
 quiet ensure_labels
 if [ "${1:-}" = --once ]; then run_pass; exit; fi
 log "canccu-dispatch started: project $CANCCU_PROJECT ($REPO), every ${INTERVAL}s, CAP $CAP, TOTAL_CAP $TOTAL_CAP"
+trap 'rm -f "$CANCCU_HOME/want"' EXIT   # a stopped dispatcher waits for no slot
 while :; do
   run_pass
   sleep "$INTERVAL"

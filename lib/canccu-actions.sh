@@ -70,7 +70,7 @@ start_issue() {
   printf -v prompt "$WORKER_PROMPT" "$REPO" "$n" "$n" "$n" "$n-$(slug "$title")" "${WORKER_EXTRA:+ $WORKER_EXTRA}"
   [ -n "${2:-}" ] && prompt+=" The user adds: $2"
   is_exclusive "$n" && c=1
-  run_worker "$n" "$prompt" "$BUDGET_WORK" || return 1
+  run_worker "$n" "$prompt" "$BUDGET_WORK" || return   # SLOT_REFUSED: no shared slot, the issue waits
   edit_issue "$n" --add-label in-progress --remove-label ready --add-assignee "$USER_LOGIN"
   st_set "$n" exclusive=$c; new_cycle "$n"
   log "#$n started: $title"

@@ -6,26 +6,23 @@
 
 run_lock() { lock_path "$REPO_NAME" "$1"; }
 run_alive() { local l; l=$(run_lock "$1"); [ -e "$l" ] && lock_alive "$l"; }
-# count_runs <lock...>: the live engine runs among those locks
-count_runs() {
+# count_live <lock...>: the live engine runs among those locks
+count_live() {
   local l c=0
   for l; do
     [ -e "$l" ] && [ "$(lock_get "$l" kind)" = worker ] && lock_alive "$l" && c=$((c + 1))
   done
-  echo $((c + DRY_STARTED))
+  echo "$c"
 }
+# count_runs <lock...>: count_live, plus the runs a dry run would have started
+count_runs() { echo $(( $(count_live "$@") + DRY_STARTED )); }
 # running_count: this project's live runs (workers, reviewers, answerers; CAP)
 running_count() { count_runs "$WORKERS_DIR"/*.lock; }
 # total_running: the live runs of every project together (TOTAL_CAP: one Claude account)
 total_running() { count_runs "$CANCCU_ROOT"/projects/*/workers/*.lock; }
 # total_cap: TOTAL_CAP, lowered by the usage throttle (one run when slow, none at the stop)
 total_cap() { local u; u=$(usage_cap); echo $(( u < TOTAL_CAP ? u : TOTAL_CAP )); }
-room() { (( $(running_count) < CAP && $(total_running) < $(total_cap) )); }
-# free_slots: how many runs may start now under both caps (may be 0 or less)
-free_slots() {
-  local a b; a=$(( CAP - $(running_count) )) b=$(( $(total_cap) - $(total_running) ))
-  echo $(( a < b ? a : b ))
-}
+# room and free_slots, under CAP and the fair share of TOTAL_CAP: lib/canccu-share.sh
 # wanting <n...>: managed issues that want a slot soon; Start leaves those slots free. A PR in
 # check reserves one when its CI is green (its review or fix-check is about to start) or red
 # (counted too, though check_pr has already moved it to needs-you); pending CI, or no checks at
@@ -183,18 +180,24 @@ dispatcher_running() {
 # (GH_CONFIG_DIR, a path) and git's credential helper for it, exported in canccu-common.sh, so its
 # gh and git calls use the project's own login. A caller may set extra_dirs (more
 # --add-dir directories for this run only).
-# TOTAL_CAP holds across the dispatchers of all projects: the count and the start happen under
-# one global lock (fd 7, $CANCCU_ROOT/.engine.lock), which no run inherits.
+# TOTAL_CAP and its fair share (a slot owed to a waiting project) hold across the dispatchers of
+# all projects: the count and the start happen under one global lock (fd 7,
+# $CANCCU_ROOT/.engine.lock), which no run inherits. A start by hand yields too.
 engine() {
+  local o w
   if (( CANCCU_DRY )); then echo "  would: start $1"; DRY_STARTED=$((DRY_STARTED + 1)); return 0; fi
   mkdir -p "$CANCCU_ROOT" || return 1
   # the wait outlasts a holder's worst case (the 300 s start plus the 30 s unlock)
   ( flock -w 360 7 || { log "could not start $1: ${CANCCU_ROOT/#$HOME/\~}/.engine.lock stayed busy"; exit 1; }
     if (( $(total_running) >= TOTAL_CAP )); then
-      log "could not start $1: TOTAL_CAP ($TOTAL_CAP) runs over all projects are running"; exit 1
+      log "could not start $1: TOTAL_CAP ($TOTAL_CAP) runs over all projects are running"; exit "$SLOT_REFUSED"
     fi
     if (( $(total_running) >= $(usage_cap) )); then
-      log "could not start $1: usage $(usage_text)"; exit 1
+      log "could not start $1: usage $(usage_text)"; exit "$SLOT_REFUSED"
+    fi
+    read -r o w <<<"$(owed)"
+    if [ -n "$w" ] && (( $(total_running) + o >= $(total_cap) )); then
+      log "could not start $1: the free slot goes to $w, which waits for one"; exit "$SLOT_REFUSED"
     fi
     engine_start "$@" ) 7>>"$CANCCU_ROOT/.engine.lock"
 }
@@ -206,7 +209,8 @@ engine_start() {
           WORKER_ADD_DIRS="$ADD_DIRS${extra_dirs:+ $extra_dirs}" WORKER_EXCLUSIVE_RE="$EXCLUSIVE_WORKER_RE" \
           WORKER_STALL_MIN="$STALL_MIN" WORKER_CAP="$CAP" WORKER_REPO_CAP="$CAP" \
           "$CANCCU_WORKER" --quiet ${MODEL:+--model "$MODEL"} "${@:3}" 2>&1 3>&- 7>&- 8>&-); rc=$?   # fd 3: the pane (quiet), 7: the engine lock, 8: the dispatcher's
-  (( rc == 0 )) || log "could not start $1 (exit $rc): $(oneline 300 "$out")"
+  if (( rc == 0 )); then date +%s%N > "$CANCCU_HOME/last_start"   # the fair share's tie rule
+  else log "could not start $1 (exit $rc): $(oneline 300 "$out")"; fi
   return $rc
 }
 
@@ -252,7 +256,7 @@ run_worker() {
   # a package runs in the worktree the dispatcher made and keeps its session for the fix round
   if is_pkg "$n"; then ensure_unit_wt "$n" || return 1; args+=(--key "$n" --dir "$(unit_wt "$n")" --keep-session); fi
   engine "worker $w" "$n" "${args[@]}" "$REPO_NAME" "$n $(oneline 8000 "$2")" \
-    "turns=$turns" "cost=$cost" "min=$mins" || return 1
+    "turns=$turns" "cost=$cost" "min=$mins" || return   # the engine's exit: SLOT_REFUSED is a wait
   st_set "$n" phase=work started="$(now)"
   claim_color "$n"; paint_window "$w" "$n"
 }

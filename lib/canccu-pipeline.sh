@@ -179,7 +179,7 @@ check_pr() {
     needs_you "$n" "the worker pushed no fix for the review's findings on PR #$pr (the head is still the reviewed ${rsha:0:7}). If no fix was needed (a finding was wrong), \`canccu-review $pr\` reviews the head again: its pass merges, its \`changes\` comes back here; otherwise comment the way on and the worker resumes"; return
   fi
   backing_off && return
-  room || return
+  room "$n" || return
   if (( fix )) && [ -n "$rsha" ]; then start_fixcheck "$pr" "$n" "$rsha" "$head"
   else start_review "$pr" "$n" "$head"; fi
 }
@@ -269,12 +269,12 @@ resume_step() {
   run_alive "$n" && return 0
   phase=$(st_get "$n" phase); pr=$(st_get "$n" pr)
   if has_label "$n" plan-ok; then
-    room || return 0
+    room "$n" || return 0
     resume "$n" "The user approved the plan. Execute it with the superpowers skill executing-plans." || return 0
     edit_issue "$n" --remove-label plan-ok   # only once the worker runs: a failed start keeps the signal
     st_set "$n" plan_ok=1; new_cycle "$n"
   elif has_label "$n" needs-work; then
-    room || return 0
+    room "$n" || return 0
     # the user's comments since the PR reached them: the accept request, else the merge or the verdict
     # the newest of them; none at all (no verdict yet) → since the worker started
     since=$(newest_of "$(st_get "$n" accept_at)" "$(st_get "$n" merge_at)" "$(iso_epoch "$(st_get "$n" verdict_at)")")
@@ -288,9 +288,9 @@ resume_step() {
     new_cycle "$n"
   elif [ "$phase" = needs-you ]; then
     c=$(user_comments "$n" "$pr" "$(st_get "$n" ny_at)")
-    [ -n "$c" ] && room && resume "$n" "The user answered: $c"
+    [ -n "$c" ] && room "$n" && resume "$n" "The user answered: $c"
   elif [ "$phase" = limited ]; then
-    room && resume "$n" "Continue where you stopped: the usage limit has reset."
+    room "$n" && resume "$n" "Continue where you stopped: the usage limit has reset."
   fi
   return 0
 }

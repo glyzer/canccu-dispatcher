@@ -371,6 +371,8 @@ run_progress() {
 . "$_canccu_lib/canccu-units.sh"
 # shellcheck source=canccu-runs.sh
 . "$_canccu_lib/canccu-runs.sh"
+# shellcheck source=canccu-share.sh
+. "$_canccu_lib/canccu-share.sh"
 # shellcheck source=canccu-answer.sh
 . "$_canccu_lib/canccu-answer.sh"
 # shellcheck source=canccu-github.sh
