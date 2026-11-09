@@ -279,3 +279,28 @@ effenv() {   # effenv <name> <files json> <pr body>: PR 50 of managed issue 5 wa
   json files50.json "$2"; route 'api --paginate repos/example-org/web/pulls/50/files*' files50.json
   state 5 phase=check "check_at=$NOW" pr=50
 }
+
+# ---------------------------------------------------------------- the fix-check fixtures
+
+# used by tests/canccu-review.sh and tests/canccu-review2.sh; FINDING: the full review's finding on HA
+FINDING='1. src/a.ts:3 off by one; fix: use <='
+# sethead <sha>: the PR moves to a new head (the posted comments stay)
+sethead() {
+  pr 50 5 "$1" | prs
+  jq --arg h "$1" '.headRefOid = $h | .commits = [{oid: $h, committedDate: "2030-11-05T12:30:00Z"}]' "$FAKE/pr50.json" > "$FAKE/x" &&
+    mv "$FAKE/x" "$FAKE/pr50.json"
+}
+# fxenv <name> <fix-check comment | -> [config...]: a fix-check of HA..HB ran on PR 50 (head HB)
+fxenv() {
+  env_new "$1" "${@:3}"
+  { issue 5 in-progress; } | issues
+  p=$(pr 50 5 $HB); printf '%s\n' "$p" | prs
+  local cs=("$(vcomment 2030-11-05T11:00:00Z "$FINDING"$'\n\nReview verdict: changes '"$HA")")
+  [ "$2" != - ] && cs+=("$(vcomment 2030-11-05T11:30:00Z "$2")")
+  json pr50.json "$(detail "$p" 2030-11-05T11:20:00Z "${cs[@]}")"; route 'pr view 50 *' pr50.json
+  json files50.json '[{"filename": "src/a.ts"}]'; route 'api --paginate repos/example-org/web/pulls/50/files*' files50.json
+  json issue5.json '{"labels": [{"name": "in-progress"}], "comments": []}'; route 'issue view 5 *' issue5.json
+  mkdir -p "$CANCCU_HOME/reviews/50"; echo "$FINDING" > "$CANCCU_HOME/reviews/50/$HA.findings.md"
+  state 5 phase=review pr=50 review_sha=$HB stage=fixcheck review_mode=fixcheck reviewed_sha=$HA \
+    verdict_at=2030-11-05T11:00:00Z "started=$NOW"
+}

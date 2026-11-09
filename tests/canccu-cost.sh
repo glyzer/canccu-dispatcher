@@ -124,6 +124,9 @@ ok "tests/run: every file that cites docs/canccu-dispatch.md maps to the docs te
           tr_ --list "$f" | grep -cx tests/canccu-docs.sh; done | tr '\n' ' ')" "1 1 1 1 "
 ok "tests/run: so does the CHANGELOG" grep -qx tests/canccu-docs.sh <<<"$(tr_ --list CHANGELOG.md)"
 ok "tests/run: a file that cites no section does not" not grep -qx tests/canccu-docs.sh <<<"$(tr_ --list lib/canccu-doctor.sh)"
+for f in lib/canccu-pipeline.sh lib/canccu-actions.sh lib/canccu-runs.sh; do
+  ok "tests/run: $f maps to the needs-work tests too" grep -qx tests/canccu-review2.sh <<<"$(tr_ --list "$f")"
+done
 ok "tests/run: an absolute path maps like the relative one" \
   eq "$(tr_ --list "$root/lib/canccu-usage.sh")" "$(tr_ --list lib/canccu-usage.sh)"
 ok "tests/run: a path relative to the caller's directory maps too" \

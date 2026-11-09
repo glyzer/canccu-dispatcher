@@ -44,7 +44,18 @@ Its file is posted like a review, so `review-gate` passes on the new head.
 
 **Effort:** `low` by default; `medium` above 300 changed lines in the fix diff, when it touches
 `FIXCHECK_RISKY`, or when the diff cannot be read. `pass` → classify as for a review (the full
-review's `Maintainer accept:` still counts). `changes` → `needs-you` with the open items.
+review's `Maintainer accept:` still counts). `changes` → `needs-you` with the open items, saved
+as `reviews/<pr>/<head>.open.md`, the head kept as `open_sha`; its own `Maintainer accept:` and
+`Risk:` lines are kept with the full review's, so a later pass that does not copy them still
+waits for you.
+
+**Your `needs-work` on those open items** (still in the fix round, not after a stopped merge) is
+one more fix round: the worker resumes with the open items and your comments, the findings file
+`reviews/<pr>/<open_sha>.findings.md` is rebuilt from both (never appended to; a pointer to the
+fix-check's PR comment when the items were not saved), then a fix-check of `<open_sha>..<new
+head>` runs against them; each of your comments counts as a blocking item. A line in your
+comment that is just `full review` (any case; `*`, `_`, backticks and a final `.` or `!`
+allowed) asks for a new full review instead, as does a `needs-work` on a refused accept.
 
 ## The verdict line
 

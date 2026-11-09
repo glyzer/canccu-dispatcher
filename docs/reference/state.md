@@ -31,7 +31,7 @@ In `~/.canccu/projects/<name>/`:
 | `state/<K>` | One file per unit the dispatcher manages (`<n>`, `pkg-<m>-<name>`, `pkg-<m>-health`), `key=value` lines (below) |
 | `steps/<m>` | A step's state, with `steps/<m>.keys` (its run keys, for its budget), `.packages` (one line per finished package), `.notes` (follow-ups and roadmap notes), `.plan-<w>.json` (each wave's plan) and `.plan-<w>.rejected.json` |
 | `workers/` | The run engine's state: locks, logs, `.last` reports, session ids, worktrees, `usage.json`, `spend.log`, `.nudge` files ([`engine.md`](engine.md)) |
-| `reviews/<pr>/<sha>.md` | A reviewer's review of that head, which the dispatcher posts; `<sha>.findings.md` the full review's findings for the fix-check; `reviews/<pr>.sha`, `.mode` and `.effort` what the PR's latest reviewer works on |
+| `reviews/<pr>/<sha>.md` | A reviewer's review of that head, which the dispatcher posts; `<sha>.findings.md` the full review's findings for the fix-check (or, after your `needs-work` on a fix-check's open items, those items and your comments, rebuilt each time from `<sha>.open.md`, the open items that fix-check left); `reviews/<pr>.sha`, `.mode` and `.effort` what the PR's latest reviewer works on |
 | `questions/<K>.txt` | The question a worker stopped with, for its answerer |
 | `pings/<n>` | The state issue n was last pinged for ([`pings.md`](pings.md)) |
 | `digest/<date>.md` | The daily digest |
@@ -47,8 +47,11 @@ In `~/.canccu/projects/<name>/`:
 
 `state/<K>` holds, among others: `phase` ([`pipeline.md`](pipeline.md)), `pr`, `color` (its
 palette index), `stage` (`review` → `fixing` → `fixcheck`), `reviewed_sha` (the head the full
-review asked for changes on), `review_mode`, `review_sha`, `review_effort`, `review_maccept` (the
-full review's `Maintainer accept:` reason), `posted` (the head whose review was posted),
+review asked for changes on; after a `needs-work` on a fix-check's open items, that fix-check's
+head), `review_mode`, `review_sha`, `review_effort`, `review_maccept` (the full review's
+`Maintainer accept:` reason; a fix-check's own, given with its `changes`, is added), `open_sha`
+(the head a fix-check left open items on; cleared by a `pass` before its merge step and by a new
+cycle), `posted` (the head whose review was posted),
 `ny_kind` (what a `needs-you` waits for: `plan`, `question` or empty), `ny_stage` (where it
 parked), `ny_wait` (`ci`: it only waited on CI), `exclusive` (of the one-at-a-time kind),
 `accept_sha`, `merge_sha` and timestamps. A package adds `pkg`, `step`, `wave`, `members`,

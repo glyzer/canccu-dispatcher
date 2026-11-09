@@ -143,17 +143,25 @@ Reject: comment here and label issue #$(lead_of "$n") \`needs-work\`."
 }
 
 # new_cycle <n>: a new start, an adoption, plan-ok or needs-work: the next review is a full one
-new_cycle() { st_set "$1" stage= reviewed_sha= review_maccept= review_risk=; }
+new_cycle() { st_set "$1" stage= reviewed_sha= review_maccept= review_risk= open_sha=; }
+
+# save_findings <n> <pr> <file> <text>: the items a fix-check checks (findings_file), or the open
+# items a fix-check left (open_file), always written whole: a second needs-work never appends
+save_findings() {
+  (( CANCCU_DRY )) && return 0
+  mkdir -p "${3%/*}" && printf '%s\n' "$4" > "$3" || log "#$1 PR #$2: cannot save ${3##*/}"
+}
 
 # act_verdict <n> <pr> <pr_detail json>. The flow is one full review, one fix by the worker, one
 # fix-check, then merge or the maintainer: no further loop. A `changes` from the full review
 # resumes the worker once with the findings (stage fixing; the next review is the fix-check of
 # reviewed_sha..head). A `changes` once the findings were given (from the fix-check, or a full
-# review started by hand meanwhile) → needs-you with the open items. The verdict counts as acted
-# on (verdict_at) only once the merge, the accept request or the resume has happened: a failed
-# step sees it again next pass.
+# review started by hand meanwhile) → needs-you with the open items, kept (open_sha and its open
+# file) for the lead's needs-work: one more fix round and a fix-check of those (resume_step). The
+# verdict counts as acted on (verdict_at) only once the merge, the accept request or the resume has
+# happened: a failed step sees it again next pass.
 act_verdict() {
-  local n=$1 pr=$2 j=$3 v c head at stage what body
+  local n=$1 pr=$2 j=$3 v c head at stage what body ma mo
   v=$(verdict_of "$j" "$(st_get "$n" verdict_at)"); head=$(jqr .headRefOid <<<"$j"); at=$(verdict_at "$j")
   stage=$(st_get "$n" stage)
   what=review; [ "$(st_get "$n" review_mode)" = fixcheck ] && what=fix-check
@@ -161,6 +169,9 @@ act_verdict() {
     pass)
       c=$(classify "$pr" "$n")
       log "#$n PR #$pr: $what pass · $c"
+      # the open items are fixed: cleared before the merge step, so a failed merge or accept
+      # leaves none behind for a later needs-work, which then starts a new cycle
+      st_set "$n" open_sha=
       if [ "$c" = auto ]; then merge_auto "$n" "$pr" auto "$head" || return 0
       else to_accept "$n" "$pr" "$c" "$head"; fi
       st_set "$n" verdict_at="$at" ;;
@@ -168,14 +179,19 @@ act_verdict() {
       body=$(verdict_body "$j")
       case $stage in
         fixing|fixcheck)
-          needs_you "$n" "the $what of PR #$pr still finds open items after the fix (one review, one fix, one fix-check: no further loop)" "$body"
-          st_set "$n" verdict_at="$at" ;;
+          save_findings "$n" "$pr" "$(open_file "$pr" "$head")" "$body"
+          # its own Maintainer accept and Risk lines are kept like the full review's: the fix-check
+          # after a needs-work may not copy them, and its pass must still wait for the maintainer
+          ma=$(oneline 200 "$(maintainer_accept_of "$j")") mo=$(st_get "$n" review_maccept)
+          if [ -n "$ma" ] && [ "$ma" != "$mo" ]; then
+            st_set "$n" review_maccept="$(oneline 200 "${mo:+$mo; }$ma")"
+          fi
+          st_set "$n" review_risk="$(risk_max "$(review_risk_of "$j")" "$(st_get "$n" review_risk)")"
+          needs_you "$n" "the $what of PR #$pr still finds open items after the fix (one review, one fix, one fix-check: no further loop). \`needs-work\` gives one more fix round and a fix-check of these items; with \`needs-work\`, a line \`full review\` in your comment asks for a new full review instead" "$body"
+          st_set "$n" verdict_at="$at" open_sha="$head" ;;
         *)
           resume "$n" "The independent reviewer asked for changes on PR #$pr (full comment: gh pr view $pr -R $REPO --comments). This is your one fix round: fix every finding, rerun the checks, push once, and stop when CI is green. A narrow fix-check of your fix diff follows, then the merge or the maintainer. The review: $body" || return 0
-          if (( ! CANCCU_DRY )); then
-            mkdir -p "$CANCCU_HOME/reviews/$pr" && printf '%s\n' "$body" > "$(findings_file "$pr" "$head")" ||
-              log "#$n PR #$pr: cannot save the findings of ${head:0:7}"
-          fi
+          save_findings "$n" "$pr" "$(findings_file "$pr" "$head")" "$body"
           st_set "$n" stage=fixing reviewed_sha="$head" verdict_at="$at" review_maccept="$(oneline 200 "$(maintainer_accept_of "$j")")" \
             review_risk="$(review_risk_of "$j")"
           log "#$n PR #$pr: review changes; the worker fixes the findings of ${head:0:7}" ;;
