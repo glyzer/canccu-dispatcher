@@ -4,6 +4,18 @@
 Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 `canccu-dispatcher --version` prints it.
 
+## [0.1.1] — 2026-11-09
+
+Fixes carried over from the dotfiles original, and one new fix.
+
+- An extra fix round now ends in a fix-check, not a new full review (#28, PR #48).
+- Review effort follows the risk class, and the review and fix-check models can be set per kind
+  (`FIXCHECK_MODEL`) (#30, PR #51).
+- A fair share of `TOTAL_CAP` across projects: a project over its share yields at the next phase
+  boundary (#16, PR #53).
+- Large JSON values (issues, PRs, milestones, plans) reach jq as files, not arguments. Step logic
+  no longer stops when a repo's open issues pass Linux's 128 KiB argument limit (#54, PR #55).
+
 ## [0.1.0] — 2026-11-09
 
 The first public version.
