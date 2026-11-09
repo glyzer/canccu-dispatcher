@@ -102,9 +102,9 @@ merge_method_read() {
   [ -n "$MERGE_METHOD" ] && return 0
   MERGE_METHOD=$(ghj api graphql -F o="${REPO%%/*}" -F r="${REPO#*/}" \
     -f query='query($o: String!, $r: String!) { repository(owner: $o, name: $r) { mergeQueue { id } squashMergeAllowed mergeCommitAllowed rebaseMergeAllowed } }' \
-    -q '.data.repository | if .mergeQueue != null then "queue" elif .squashMergeAllowed == true then "--squash"
-          elif .mergeCommitAllowed == true then "--merge" elif .rebaseMergeAllowed == true then "--rebase" else "unknown" end' 2>/dev/null)
-  case $MERGE_METHOD in queue|--squash|--merge|--rebase) ;; *) MERGE_METHOD=unknown ;; esac
+    -q '.data.repository | if .mergeQueue != null then "queue" elif .squashMergeAllowed == true then "squash"
+          elif .mergeCommitAllowed == true then "merge" elif .rebaseMergeAllowed == true then "rebase" else "unknown" end' 2>/dev/null)
+  case $MERGE_METHOD in queue) ;; squash|merge|rebase) MERGE_METHOD=--$MERGE_METHOD ;; *) MERGE_METHOD=unknown ;; esac
 }
 # is_full_sha <sha>: a full 40-character commit sha, the only kind --match-head-commit is given
 is_full_sha() { [[ $1 =~ ^[0-9a-f]{40}$ ]]; }
