@@ -70,7 +70,8 @@ are closed: one line goes to `steps/<m>.packages`.
 
 `low`, `normal` or `high`: the highest of the plan's, the PR's `Risk:` line and the reviewer's
 (the full review's still counts after the fix-check). `high` makes the PR manual (`manual: risk
-high (<source>)`) and the review high effort; the other manual rules apply as always
+high (<source>)`) and the review high effort; a `low` or `normal` package is reviewed at
+medium effort ([`reviews.md`](reviews.md)); the other manual rules apply as always
 ([`merging.md`](merging.md)).
 
 ### Waves

@@ -358,7 +358,7 @@ ok "docs-only (any tier) → medium" eq "$(ef $'docs/x.md\t400\nREADME.md\t10' '
 ok "feature tier, plain code → high" eq "$(ef $'src/a.ts\t12' 'Tier: feature')" high
 ok "no tier line, plain code → high" eq "$(ef $'src/a.ts\t12' '')" high
 ok "fix tier, 100+ changed lines → high" eq "$(ef $'src/a.ts\t60\nsrc/b.ts\t45' 'Tier: fix')" high
-for p in modules/ui/a.ts packages/x/b.ts contracts/screen.yaml .github/workflows/ci.yml setup/x.sh deploy/k8s.yaml \
+for p in modules/ui/a.ts packages/x/b.ts .github/workflows/ci.yml setup/x.sh deploy/k8s.yaml \
          db/migrations/0003_add.sql src/auth/session.ts src/rights.ts apps/api/tenancy/rls.sql src/secrets.ts src/signin/form.tsx; do
   ok "fix tier, small, but touches $p → high" eq "$(ef "src/a.ts	3"$'\n'"$p	2" 'Tier: fix')" high
 done
@@ -371,7 +371,7 @@ ok "the reviewer prompt names medium effort" grep -q 'review#50 .*Run the code-r
 ok "the effort is recorded" eq "$(st 5 review_effort)" medium
 PATH="$fb:$PATH" "$root/bin/canccu-status" > "$E/status" 2>&1
 ok "canccu-status shows the running review's effort" grep -q '^  review PR #50 (medium) ' "$E/status"
-effenv effort-high '[{"filename": "contracts/screen.yaml", "changes": 2}]' 'Tier: fix'
+effenv effort-high '[{"filename": "src/auth/session.ts", "changes": 2}]' 'Tier: fix'
 dispatch --once
 ok "the reviewer prompt names high effort" grep -q 'review#50 .*Run the code-review skill at high effort' "$FAKE/worker.log"
 effenv effort-error '[]' 'Tier: fix'

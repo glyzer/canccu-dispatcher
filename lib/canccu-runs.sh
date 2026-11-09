@@ -261,25 +261,37 @@ review_wt() { echo "$WORKERS_DIR/worktrees/$REPO_NAME/review-$1"; }
 
 review_file() { echo "$CANCCU_HOME/reviews/$1/$2.md"; }
 
-# review_effort_pure <"path<TAB>changed lines" lines> <pr body> → high | medium. medium only for a
-# docs-only diff, or a fix-tier diff under 100 changed lines; never when a path is risky
-# (RISKY_PATHS) or gated (gated_re). No files → high.
+# review_effort_pure <"path<TAB>changed lines" lines> <pr body> [risk class] → high | medium.
+# Agent configuration and gated paths (gated_re) → high; no files → high. With a risk class (a
+# package's, effective_risk): high → high, low or normal → medium, whatever the paths. Without one,
+# by the paths: medium for a docs-only diff (docs/, *.md and the rules' EFFORT_DOCS_PATHS, which
+# count as docs even when RISKY_PATHS names them) or a fix-tier diff under 100 changed lines; high
+# when another path is risky (RISKY_PATHS), and otherwise.
 review_effort_pure() {
-  local stats=$1 body=$2 paths total
+  local stats=$1 body=$2 risk=${3:-} paths total
   paths=$(cut -f1 <<<"$stats" | grep .) || { echo high; return; }
-  [ -n "$RISKY_PATHS" ] && grep -qiE "$RISKY_PATHS" <<<"$paths" && { echo high; return; }
   # agent configuration is the most injection-prone: never a light review, even as "docs"
   grep -qE "$(gated_re)" <<<"$paths" && { echo high; return; }
+  case $risk in high) echo high; return ;; low|normal) echo medium; return ;; esac
+  if [ -n "$EFFORT_DOCS_PATHS" ]; then paths=$(grep -vE "$EFFORT_DOCS_PATHS" <<<"$paths") || { echo medium; return; }; fi
+  [ -n "$RISKY_PATHS" ] && grep -qiE "$RISKY_PATHS" <<<"$paths" && { echo high; return; }
   grep -qvE '^docs/|\.md$' <<<"$paths" || { echo medium; return; }
   total=$(awk -F '\t' '{ t += $2 } END { print t + 0 }' <<<"$stats")
   if grep -qiE '^[[:space:]*_]*Tier:[[:space:]*_]*fix\b' <<<"$body" && (( total < 100 )); then echo medium; else echo high; fi
 }
-# review_effort <pr>: the same from GitHub; any gh error → high
+# review_effort <pr> [unit]: the same from GitHub, with the unit's risk class; any gh error → high
 review_effort() {
-  local stats
+  local stats body risk=""
   stats=$(ghj api --paginate "repos/$REPO/pulls/$1/files" \
             -q '.[] | "\(.filename)\t\(.changes // 0)", (.previous_filename // empty | "\(.)\t0")') || stats=""
-  review_effort_pure "$stats" "$(pr_get "$1" '.body // ""')"
+  body=$(pr_get "$1" '.body // ""')
+  [ -n "${2:-}" ] && risk=$(effective_risk "$2" "$body" "$(cut -f1 <<<"$stats")")
+  review_effort_pure "$stats" "$body" "${risk%% *}"
+}
+
+# review_model <review|fixcheck>: REVIEW_MODEL or FIXCHECK_MODEL; MODEL when that one is empty
+review_model() {
+  if [ "$1" = fixcheck ]; then echo "${FIXCHECK_MODEL:-$MODEL}"; else echo "${REVIEW_MODEL:-$MODEL}"; fi
 }
 
 # fixcheck_effort_pure <git diff --numstat lines> → low | medium. medium when the fix diff is
@@ -325,7 +337,7 @@ start_fixcheck() { start_reviewer "$1" "$2" "$4" fixcheck "$3"; }
 # checkout's project settings (--untrusted) and without any GitHub token. It may write only its
 # review file's directory besides the worktree.
 start_reviewer() {
-  local pr=$1 n=$2 sha=$3 mode=$4 rsha=${5:-} wt turns cost mins prompt problem login f effort name what
+  local pr=$1 n=$2 sha=$3 mode=$4 rsha=${5:-} wt turns cost mins prompt problem login f effort model name what
   problem=$(reviewer_token_problem)
   if [ -z "$problem" ] && (( ! CANCCU_DRY )); then
     login=$(reviewer_login) || login=""
@@ -344,27 +356,29 @@ start_reviewer() {
   # a file left from before this review never counts; the sha the reviewer works on is recorded
   if [ "$mode" = fixcheck ]; then effort=$(fixcheck_effort "$rsha" "$sha")
     prompt=$(fixcheck_prompt "$pr" "$n" "$rsha" "$sha" "$f" "$effort" "$(cat "$(findings_file "$pr" "$rsha")" 2>/dev/null)")
-  else effort=$(review_effort "$pr"); [ "$(st_get "$n" risk)" = high ] && effort=high
+  else effort=$(review_effort "$pr" "$n")
     prompt=$(review_prompt "$pr" "$n" "$sha" "$f" "$effort"); fi
   (( CANCCU_DRY )) || { mkdir -p "${f%/*}" && rm -f "$f"; } || { log "PR #$pr: cannot prepare $f"; return 1; }
-  extra_dirs=${f%/*} engine "$what $name" "review-$pr" --key "review-$pr" --dir "$wt" --name "$name" \
+  model=$(review_model "$mode")
+  MODEL=$model extra_dirs=${f%/*} engine "$what $name" "review-$pr" --key "review-$pr" --dir "$wt" --name "$name" \
     --untrusted "$REPO_NAME" "$prompt" "turns=$turns" "cost=$cost" "min=$mins" || return 1
   # what the running reviewer does, recorded once it runs: a refused start leaves the last run's
   (( CANCCU_DRY )) || { echo "$sha" > "$CANCCU_HOME/reviews/$pr.sha" && echo "$effort" > "$CANCCU_HOME/reviews/$pr.effort" &&
-                    echo "$mode" > "$CANCCU_HOME/reviews/$pr.mode"; } || log "PR #$pr: cannot record the reviewer's sha, effort and mode"
+                    echo "$model" > "$CANCCU_HOME/reviews/$pr.model" && echo "$mode" > "$CANCCU_HOME/reviews/$pr.mode"; } ||
+    log "PR #$pr: cannot record the reviewer's sha, effort, model and mode"
   (( CANCCU_DRY )) || rm -f "$CANCCU_HOME/.warned-reviewer"
   [ -n "$n" ] && step_charge "$n" "review-$pr"
   if [ -n "$n" ] && is_managed "$n"; then
     # a post failure of an earlier run never carries over: its label goes, its counts restart
     clear_post_ny "$n"
-    st_set "$n" phase=review pr="$pr" review_sha="$sha" started="$(now)" posted= review_effort="$effort" review_mode="$mode" \
-      post_fails= post_to=
+    st_set "$n" phase=review pr="$pr" review_sha="$sha" started="$(now)" posted= review_effort="$effort" review_model="$model" \
+      review_mode="$mode" post_fails= post_to=
     # a full review started by hand after the findings were given does not restart the flow
     if [ "$mode" = fixcheck ]; then st_set "$n" stage=fixcheck
     else case $(st_get "$n" stage) in fixing|fixcheck) ;; *) st_set "$n" stage=review ;; esac; fi
     claim_color "$n"; paint_window "$name" "$n"
   fi
-  log "#$n PR #$pr: $what started at ${sha:0:7}${rsha:+ (fix diff ${rsha:0:7}..${sha:0:7})} ($effort effort)"
+  log "#$n PR #$pr: $what started at ${sha:0:7}${rsha:+ (fix diff ${rsha:0:7}..${sha:0:7})} ($effort effort, ${model:-the account default})"
 }
 
 # running_review_sha <pr>: the head the running (or last) reviewer of the PR was started on

@@ -26,11 +26,24 @@ verdict: pass <sha>` or `Review verdict: changes <sha>`. Only correctness and se
 (an unmet acceptance criterion counts) make the verdict `changes`; nits go under
 "Non-blocking:". The dispatcher checks the file and posts it as `REVIEWER_LOGIN`.
 
-**Effort by risk.** `high` when the diff touches `RISKY_PATHS`, `GATED_PATHS` or agent
-configuration (never a light review for those, even as "docs"), for a high-risk package, on any
-`gh` error, and by default. `medium` for a docs-only diff (`docs/` or `*.md`) and for a
-`Tier: fix` diff under 100 changed lines that touches none of those. `canccu-status` shows the
-effort next to the running review.
+**Effort by risk.** Always `high` when the diff touches `GATED_PATHS` or agent configuration
+(never a light review for those, even as "docs"), and on any `gh` error. Then:
+
+- **A PR with a risk class** (a package's effective class, as for its merge: the highest of the
+  plan's, the PR's `Risk:` line and the reviewer's; the health pass is `high` when it touches
+  `HIGH_RISK_PATHS`, else `normal`): `high` → `high`; `low` or `normal` → `medium`, whatever
+  paths it touches.
+- **A PR without one** (a single issue): `high` when the diff touches `RISKY_PATHS`; `medium`
+  for a docs-only diff and for a `Tier: fix` diff under 100 changed lines that touches none of
+  those; `high` otherwise. Docs are `docs/`, `*.md` and the rules' `EFFORT_DOCS_PATHS`, which
+  count as docs even when `RISKY_PATHS` names them.
+
+**Model by kind.** A full review runs on `REVIEW_MODEL`, a fix-check on `FIXCHECK_MODEL`; each
+is `MODEL` when empty. A project that runs fix-checks on a cheaper model (`claude-sonnet-5-5`)
+and leaves `REVIEW_MODEL` empty keeps every full review, a high-risk PR's too, on `MODEL`. The
+log line of the start names the effort and the model, and `canccu-status` shows both next to the
+running review: `review PR #50 (medium · claude-opus-5-5)` (the effort alone when no model is
+set).
 
 ## Fix-check
 

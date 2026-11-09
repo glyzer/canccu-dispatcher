@@ -21,7 +21,8 @@ old path too).
 
 | Key | Default | Meaning |
 |---|---|---|
-| `RISKY_PATHS` | `.github/`, `deploy/`, migrations, sign-in, login, auth, rights, permissions, sessions, secrets, tenancy, RLS | `grep -iE` on the changed paths: the full review runs at high effort ([`reviews.md`](reviews.md)) |
+| `RISKY_PATHS` | `.github/`, `deploy/`, migrations, sign-in, login, auth, rights, permissions, sessions, secrets, tenancy, RLS | `grep -iE` on the changed paths: the full review of a PR without a risk class (a single issue) runs at high effort; a package's review follows its risk class ([`reviews.md`](reviews.md)) |
+| `EFFORT_DOCS_PATHS` | empty | `grep -E`: paths that count as docs for the full review's effort, on top of `docs/` and `*.md`, even when `RISKY_PATHS` names them (for example `^contracts/` when the contracts are specs). Never a gated path or agent configuration |
 | `FIXCHECK_RISKY` | `deploy/`, sign-in, login, auth, rights, permissions, sessions, secrets, tenancy, RLS, migrations, `*.sql`, schemas | The same for a fix-check's fix diff: medium instead of low effort |
 | `GATED_PATHS` | `^\.github/` | `grep -E`: a PR touching one waits for your accept ([`merging.md`](merging.md)). Agent configuration (`.claude/`, `.mcp.json`, `CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md`, at any depth) is always gated on top |
 | `SECURITY_REVIEW_WHEN` | sign-in, rights, sessions, secrets, tenancy/RLS or `deploy/` | Words in the reviewer's prompt: it also runs the security-review skill when the diff touches these |

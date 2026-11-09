@@ -3,6 +3,7 @@
 # The rules of the invented test project web (example-org/web): every rules key set, so the
 # suite sees each one in its place. Not a template: canccu-init ships profiles/default only.
 RISKY_PATHS='^(\.github|deploy|modules|packages|contracts|setup)/|migration|sign-?in|login|auth|rights|permission|session|secret|tenan|rls'
+EFFORT_DOCS_PATHS='^contracts/'
 FIXCHECK_RISKY='(^|/)deploy/|(^|/)contracts?/|sign-?in|login|auth|rights|permission|session|secret|tenan|(^|[/_.-])rls([/_.-]|$)|migrations?(/|_|\.|$)|\.sql$|schema'
 GATED_PATHS='^(\.github|setup)/'
 SECURITY_REVIEW_WHEN='sign-in, rights, sessions, secrets, tenancy/RLS or deploy/'
