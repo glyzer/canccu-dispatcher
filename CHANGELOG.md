@@ -4,6 +4,23 @@
 Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 `canccu-dispatcher --version` prints it.
 
+## [0.1.2] — 2026-11-10
+
+Fewer false alarms and wasted runs, plan-only PRs, and the repo's own merge method (PR #60).
+
+- `blocked` is a hold: a labelled issue is never started or resumed. The dispatcher removes only
+  a `blocked` it set itself. To wait on a dependency, use a `ready` issue with a blocked-by link
+  instead. **Breaking:** a `blocked` that someone else set is no longer swapped for `ready` when
+  its links close (#59).
+- A worker that ends with no PR and a `Status: blocked` or `not started` line waits quietly
+  (phase `waiting`, the dispatcher's own `blocked`), with no needs-you and no answerer. A run that
+  ended with no PR starts a fresh session instead of resuming the old one (#59).
+- Plan-only PRs: a PR is matched by its `Closes` lines, a `Plan for #n` line or its `<n>-…`
+  branch. After a plan PR merges, its issues get `ready` and `plan-ok`, and the next start builds
+  the merged plan (#46).
+- Merges pass the repo's allowed method when it has no merge queue (squash, else merge, else
+  rebase). A PR that has already merged counts as merged, not as a rejection (#45).
+
 ## [0.1.1] — 2026-11-09
 
 Ports from the original dispatcher, and one new fix.
