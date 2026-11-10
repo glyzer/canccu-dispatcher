@@ -52,7 +52,7 @@ is stopped and its issue goes to `needs-you`.
 | `BUDGET_FIXCHECK` | `30 6 20` | The fix-check after the worker fixed the review's findings |
 | `BUDGET_ANSWER` | `40 10 20` | The answerer of a worker's question |
 | `ANSWER_MAX` | `3` | Answerer rounds per issue; another question after that goes to `needs-you` |
-| `STALL_MIN` | `10` | A run whose log has not grown for this many minutes is killed as stalled |
+| `STALL_MIN` | `10` | A run whose log has not grown, and whose tool processes spent no CPU, for this many minutes is killed as stalled ([`engine.md`](engine.md)) |
 | `DIGEST_HOUR_UTC` | `6` | The daily digest is written on the first pass at or after this hour (UTC) |
 | `DIGEST_ISSUE` | empty | The issue the digest is posted on as a comment; empty: the digest is only written to `digest/<date>.md` |
 | `PING` | `on` | `on`: when something needs you, one comment as `REVIEWER_LOGIN` @mentions `USER_LOGIN` ([`pings.md`](pings.md)); `off`: never |

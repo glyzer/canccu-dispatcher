@@ -62,7 +62,7 @@ default), `review_maccept` (the full review's
 cycle), `posted` (the head whose review was posted),
 `ny_kind` (what a `needs-you` waits for: `plan`, `question` or empty), `ny_stage` (where it
 parked), `ny_wait` (`ci`: it only waited on CI), `exclusive` (of the one-at-a-time kind),
-`nb_at` (the verdict whose non-blocking findings were filed), `no_pr` (its last run finished with no PR: the next resume starts a fresh session), `fixes` and `fixes_pr` (the automatic fix runs on that PR, against `FIX_ATTEMPTS`), `main_merged` (the head a scripted merge of main pushed), `conflict_sha` (the head a conflict run started on), `mm_err` (scripted merges failed in a row), `plan_ok`,
+`nb_at` (the verdict whose non-blocking findings were filed), `finish_tried` (its finish session after a run that left work but no PR was had), `no_pr` (its last run finished with no PR: the next resume starts a fresh session), `fixes` and `fixes_pr` (the automatic fix runs on that PR, against `FIX_ATTEMPTS`), `main_merged` (the head a scripted merge of main pushed), `conflict_sha` (the head a conflict run started on), `mm_err` (scripted merges failed in a row), `plan_ok`,
 `accept_sha`, `merge_sha` and timestamps. A package adds `pkg`, `step`, `wave`, `members`,
 `branch`, `risk`, `risk_reason`, `review_risk` and `health`.
 

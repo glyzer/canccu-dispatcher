@@ -163,6 +163,9 @@ echo "$*" >> "$FAKE/claude.args"
 if [ -f .claude/settings.json ] && [ -f .claude/hook.sh ] && [[ " $* " != *" --setting-sources user "* ]]; then
   sh .claude/hook.sh
 fi
+# $FAKE/claude.do: what its tools run (silently); $FAKE/claude.stream: stream events before the result
+[ -f "$FAKE/claude.do" ] && bash "$FAKE/claude.do" > /dev/null 2>&1
+[ -f "$FAKE/claude.stream" ] && cat "$FAKE/claude.stream"
 echo '{"type":"result","subtype":"success","is_error":false,"num_turns":1,"total_cost_usd":0,"result":"ok"}'
 EOF
 chmod +x "$fb"/*

@@ -85,6 +85,7 @@ run_exit() {
     blocked) echo "blocked|$status" ;;
     stopped:*) echo "budget|$status" ;;
     stalled*) echo "stalled|$status" ;;
+    "error: ended with background work pending") echo "background|$status" ;;
     *) if usage_hit "$body"; then echo "usage|$status"
        else echo "crashed|${status:-unreadable exit report}"; fi ;;
   esac

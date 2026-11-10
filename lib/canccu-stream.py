@@ -4,7 +4,8 @@
 Usage: python3 canccu-stream.py <log file> <summary file> <turn budget> [usage file]  < stream
 Appends readable lines to the log ([tN] assistant text and tool calls, │ tool results),
 counts top-level turns, and writes a flat JSON summary at the end (turns, last_text,
-have_result, and from the result event: subtype, is_error, num_turns, cost, message, denials, and
+have_result, bg_pending: the background commands and subagents it started that no later event
+mentions as done, and from the result event: subtype, is_error, num_turns, cost, message, denials, and
 its usage: tokens_in, tokens_out, cache_read, cache_write).
 With a usage file, each rate_limit_event (the account's 5-hour and weekly usage shares) is
 written there, atomically, with the time it was seen: canccu-dispatch's usage throttle reads it.
@@ -12,12 +13,20 @@ Exits 3 as soon as turn budget+1 starts (worker then kills claude), 0 at end of 
 """
 import json
 import os
+import re
 import sys
 import time
 
 log_path, summary_path, budget = sys.argv[1], sys.argv[2], int(sys.argv[3])
 usage_path = sys.argv[4] if len(sys.argv) > 4 else ""
 turns, last_id, last_text, result, code = 0, None, "", None, 0
+# a headless run ends with its turn: work it left in the background is lost, and the run must not
+# pass for done (#26). launched: tool_use_id → None until its result names the task's ids;
+# pending: task id → its tool_use_id, cleared by a later user or system event that names it
+# (and does not say it still runs: a poll of its output).
+launched, pending = {}, {}
+RUNNING = re.compile(r"\bstatus\W{0,4}running\b|still running", re.I)
+TASK_ID = re.compile(r"\b(?:ID|Id|id|agentId|task_id|shell_id|bash_id)[\"']?\s*[:=]\s*[\"']?([A-Za-z0-9_-]{4,})")
 
 
 def tool_line(block):
@@ -56,15 +65,29 @@ with open(log_path, "a", encoding="utf-8") as log:
                     write("", f"[t{turns}] turn budget of {budget} reached, stopping")
                     code = 3
                     break
+            for b in msg.get("content", []):
+                if b.get("type") == "tool_use" and (b.get("input") or {}).get("run_in_background") is True:
+                    launched[b.get("id")] = None
             texts = [b.get("text", "") for b in msg.get("content", []) if b.get("type") == "text"]
             tools = [tool_line(b) for b in msg.get("content", []) if b.get("type") == "tool_use"]
             write(f"[t{turns}] ", "\n".join(texts + tools))
             if any(t.strip() for t in texts):
                 last_text = "\n".join(texts)
         elif kind == "user" and ev.get("parent_tool_use_id") is None:
+            for t in [t for t in pending if t in raw and not RUNNING.search(raw)]:
+                del pending[t]
             for block in (ev.get("message") or {}).get("content", []):
                 if isinstance(block, dict) and block.get("type") == "tool_result":
                     write("        │ ", result_text(block))
+                    use = block.get("tool_use_id")
+                    if use in launched and launched[use] is None:
+                        ids = set(TASK_ID.findall(result_text(block))) or {use}
+                        launched[use] = ids
+                        if not block.get("is_error"):
+                            pending.update((t, use) for t in ids)
+        elif kind == "system":
+            for t in [t for t in pending if t in raw and not RUNNING.search(raw)]:
+                del pending[t]
         elif kind == "result":
             result = ev
         elif kind == "rate_limit_event" and usage_path:
@@ -76,7 +99,8 @@ with open(log_path, "a", encoding="utf-8") as log:
             except OSError:
                 pass
 
-summary = {"turns": turns, "last_text": last_text, "have_result": result is not None}
+summary = {"turns": turns, "last_text": last_text, "have_result": result is not None,
+           "bg_pending": len(set(pending.values()))}
 if result is not None:
     denials = []
     for d in result.get("permission_denials") or []:

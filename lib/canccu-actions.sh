@@ -253,7 +253,7 @@ act_verdict() {
           fi
           # only the blocking findings: the fix run fixes them and the fix-check checks them
           b=$(blocking_of "$body")
-          resume "$n" "The independent reviewer asked for changes on PR #$pr (full comment: gh pr view $pr -R $REPO --comments). This is your one fix round: fix every blocking finding below, rerun the checks, push once, and stop when CI is green. Leave its non-blocking findings alone: they went to a follow-up issue. A narrow fix-check of your fix diff follows, then the merge or the maintainer. The blocking findings: $b" fix || return 0
+          resume "$n" "The independent reviewer asked for changes on PR #$pr (full comment: gh pr view $pr -R $REPO --comments). This is your one fix round: fix every blocking finding below, rerun the checks, push once and stop: the dispatcher watches CI. Leave its non-blocking findings alone: they went to a follow-up issue. A narrow fix-check of your fix diff follows, then the merge or the maintainer. The blocking findings: $b" fix || return 0
           fix_count "$n" "$pr"
           save_findings "$n" "$pr" "$(findings_file "$pr" "$head")" "$b"
           st_set "$n" stage=fixing reviewed_sha="$head" verdict_at="$at" review_maccept="$(oneline 200 "$(maintainer_accept_of "$j")")" \

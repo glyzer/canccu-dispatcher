@@ -129,13 +129,16 @@ and the `<n>` / `execute` / `finish` flow in `CLAUDE.md`, with these overrides:
   brainstorming, using-git-worktrees, finishing-a-development-branch, requesting-code-review,
   subagent-driven-development, dispatching-parallel-agents or writing-skills: the dispatcher owns
   worktrees, branches, reviews and questions, and the issue is the agreed spec;
-- create the branch `<n>-<slug>` from `origin/main`; run only the affected tests while working
-  and the full suite once before pushing; do not review its own work;
+- create the branch `<n>-<slug>` from `origin/main`; run only the tests of the changed files,
+  in the foreground, never the full suite locally (CI runs it); run nothing in the background
+  (a headless run ends with its turn); commit and push early (after the tests-first commit and
+  when the tests pass); do not review its own work;
 - add `Tier:` and `Decisions made:` to the PR body; stop with a `Question:` line when it must ask;
 - bring in main with `git merge origin/main`, never rebase or force-push; never merge, enable
-  auto-merge or touch `accepted`; stop when the PR is ready and CI is green;
+  auto-merge or touch `accepted`; stop as soon as the PR is open and ready, without waiting for
+  CI: the dispatcher watches it and starts the fix session on red (`FIX_ATTEMPTS`);
 - the rules' `WORKER_EXTRA`; stop and say why on a question, a destructive migration, a breaking
-  contract change, a blocked command, or CI red after two fix rounds; end with a 5-line report.
+  contract change or a blocked command; end with a 5-line report.
 
 A package's prompt is the same for all its issues on one branch `pkg-<m>-<name>`, with one PR,
 `Package:` and `Risk:` lines, and `Follow-up:` and `Roadmap note:` lines for work outside it

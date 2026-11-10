@@ -40,6 +40,31 @@ new_uuid() { cat /proc/sys/kernel/random/uuid; }
 # tree_pids <pid>: the pid and all its descendants. `timeout` puts claude in its own process
 # group, so a tmux hangup or a plain `kill <wrapper>` never reaches it; walk the tree instead.
 tree_pids() { local k; echo "$1"; for k in $(pgrep -P "$1" 2>/dev/null); do tree_pids "$k"; done; }
+# tool_ticks <pid>: "<pid> <cpu ticks>" for each process the run's tools started: the tree below
+# claude, the child of the run's `timeout`. Claude's own ticks are left out: it spends CPU while it
+# hangs too, a test runner it started spends it only while it works (#26)
+tool_ticks() {
+  local p c="" f
+  for p in $(tree_pids "$1"); do
+    [ "$(cat "/proc/$p/comm" 2>/dev/null)" = timeout ] && { c=$(pgrep -P "$p" 2>/dev/null | head -n1); break; }
+  done
+  [ -n "$c" ] || return 0
+  for p in $(tree_pids "$c"); do
+    [ "$p" = "$c" ] && continue
+    f=$(cat "/proc/$p/stat" 2>/dev/null) || continue
+    # the fields after the command, which may hold spaces: utime and stime are the 12th and 13th
+    read -ra f <<<"${f##*) }"
+    echo "$p $(( f[11] + f[12] ))"
+  done
+}
+# tools_busy <pid> <file>: a tool process of the run is new or spent CPU since the ticks in file
+# (rewritten with the current ones)
+tools_busy() {
+  local now; now=$(tool_ticks "$1")
+  printf '%s\n' "$now" > "$2.new"
+  [ -n "$now" ] && awk 'FILENAME == ARGV[1] { t[$1] = $2; next } !($1 in t) || $2 > t[$1] { busy = 1 } END { exit !busy }' "$2" "$2.new" 2>/dev/null
+  local r=$?; mv -f "$2.new" "$2"; return $r
+}
 # kill_tree <pid>: TERM the whole tree, KILL what is left after 3 s
 kill_tree() {
   local pids; pids=$(tree_pids "$1")
