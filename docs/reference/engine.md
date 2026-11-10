@@ -34,9 +34,9 @@ canccu-worker --kill <repo> <key>
 - **Budgets**: `turns=`, `cost=` (USD) and `min=` are required; the run is stopped at any of
   them. A run whose log is silent for `STALL_MIN` minutes is killed as stalled.
 - **The exit report** is `workers/<repo>-<key>.last`; its first line carries the status (`done`,
-  `error: …`, `blocked`, `stopped: <which budget>`, `stalled: …`, `crashed (exit N)`). Each finished run adds a line to
-  `workers/spend.log`: the time, the repo, the key and the exact cost, or `?` when claude reported
-  none.
+  `error: …`, `blocked`, `stopped: <which budget>`, `stalled: …`, `crashed (exit N)`). Each finished or killed run adds one line to
+  `workers/spend.log` (the format: [`state.md`](state.md#the-spend-log)). `WORKER_EFFORT` (the
+  dispatcher sets it from `HEALTH_EFFORT` for the health pass) becomes `--effort`.
 - `ADD_DIRS` become `--add-dir` flags; the rules' `EXCLUSIVE_WORKER_RE` stops two matching issues
   from running at once in a repo.
 - **No run holds a GitHub token**: `GH_TOKEN`, `GITHUB_TOKEN` and `REVIEWER_TOKEN_FILE` are removed

@@ -18,6 +18,7 @@ reap_worker() {
   # the classifier's denials mark the exit `blocked` even when the run worked around them and
   # finished: an open PR is the proof of the work, so check_pr judges it like any done run
   [ "$kind" = blocked ] && [ -n "$(pr_for "$n")" ] && kind="done"
+  p=$(pr_for "$n"); spend_note "$n" "${started:-0}" "pr=${p:-none}" "rounds=$(fix_rounds "$n")"
   case $kind in
     done)
       q=$(worker_question "$(run_msg "$n")")
@@ -76,6 +77,7 @@ reap_review() {
   head=$(jqr .headRefOid <<<"$j")
   if [ "$(jqr .state <<<"$j")" != OPEN ] || [ "$head" != "$sha" ]; then
     outcome "$n" "$pr" "$sha" "void: the PR changed during the run (now ${head:0:7}); re-checking"
+    spend_note "review-$pr" "$(st_get "$n" started)" verdict=void
     clear_post_ny "$n"
     st_set "$n" phase=check check_at="$(now)"; return
   fi
@@ -90,6 +92,7 @@ reap_review() {
     kind=none last="$WORKERS_DIR/$REPO_NAME-review-$pr.last" started=$(st_get "$n" started) f=$(review_file "$pr" "$sha")
     [ -e "$last" ] && (( $(stat -c %Y "$last") >= ${started:-0} )) &&
       IFS='|' read -r kind status <<<"$(run_exit "$last")"
+    spend_review_note "$n" "$pr" "$f" "$sha" "${started:-0}"
     if [ -e "$f" ] && (( $(stat -c %Y "$f") >= ${started:-0} )) && [ -n "$(file_verdict "$f" "$sha")" ]; then
       post_review "$n" "$pr" "$f" "$sha"; prc=$?
       (( prc == 2 )) && { st_set "$n" posted="$sha" posted_at="$(now)" post_uncertain=1; return; }
@@ -142,6 +145,7 @@ reap_answer() {
   fi
   out=$(run_msg "answer-$n")
   mark=$(grep -oE '\b(ANSWERED|ESCALATE)\b' <<<"$out" | tail -1)
+  spend_note "answer-$n" "${started:-0}" "answer=$(tr '[:upper:]' '[:lower:]' <<<"${mark:-none}")"
   if [ "$kind" = "done" ] && [ "$mark" = ANSWERED ]; then
     c=$(issue_comment_by "$n" "${started:-0}" '^[[:space:]*_]*Answer:'); url=${c%%$'\t'*}
     [ -n "$c" ] && c=${c#*$'\t'} || c=$out
@@ -172,7 +176,7 @@ check_pr() {
     if [ -n "$c" ]; then
       # contract_back: the draft waited for its contract PR, which is on main now
       room "$n" || return 0
-      resume "$n" "The contract PR #$c merged into main. Run git merge origin/main in your branch, finish the package's work in PR #$pr and mark it ready." || return 0
+      resume "$n" "The contract PR #$c merged into main. Run git merge origin/main in your branch, finish the package's work in PR #$pr and mark it ready." merge || return 0
       st_set "$n" contract_merged=
     elif is_plan_pr "$n" "$pr"; then
       needs_you "$n" "plan ready for OK: $(pr_get "$pr" .url) — label this issue \`plan-ok\` to approve, or comment" "" plan work
@@ -181,7 +185,7 @@ check_pr() {
   fi
   [ -z "$c" ] || st_set "$n" contract_merged=
   case $(ci_state "$pr") in
-    red) needs_you "$n" "CI is red on PR #$pr" "$(run_msg "$n")" "" ci; return ;;
+    red) spend_note "$n" "$(st_get "$n" started)" ci=red; needs_you "$n" "CI is red on PR #$pr" "$(run_msg "$n")" "" ci; return ;;
     pending)
       at=$(st_get "$n" check_at); at=${at:-$(now)}
       (( $(now) - at > CI_WAIT_MIN * 60 )) && needs_you "$n" "CI on PR #$pr is still pending after $CI_WAIT_MIN min" "" "" ci &&
@@ -194,6 +198,7 @@ check_pr() {
         st_set "$n" ny_wait=ci
       return ;;
   esac
+  spend_note "$n" "$(st_get "$n" started)" ci=green
   j=$(pr_detail "$pr") || { log "#$n PR #$pr: gh error; retrying next pass"; return; }
   head=$(jqr .headRefOid <<<"$j")
   if [ -n "$(verdict_of "$j" "$(st_get "$n" verdict_at)")" ]; then act_verdict "$n" "$pr" "$j"; return; fi
@@ -307,7 +312,7 @@ extra_round() {
   full_review_asked "$c" && return 1
   items=$(cat "$(open_file "$pr" "$osha")" 2>/dev/null)
   [ -n "$items" ] || items="The open items of the fix-check were not saved: read the newest PR comment ending in 'Review verdict: changes $osha' (gh pr view $pr -R $REPO --comments)."
-  resume "$n" "The user asked for one more fix round on PR #$pr (needs-work) for the open items of its fix-check. Fix them and address their comments, rerun the checks, push once, and stop when CI is green. A narrow fix-check of this fix diff against those items follows, then the merge or the maintainer. The open items: $items Their comments: ${c:-none found; read the latest comments on the PR and the issue}" || return 0
+  resume "$n" "The user asked for one more fix round on PR #$pr (needs-work) for the open items of its fix-check. Fix them and address their comments, rerun the checks, push once, and stop when CI is green. A narrow fix-check of this fix diff against those items follows, then the merge or the maintainer. The open items: $items Their comments: ${c:-none found; read the latest comments on the PR and the issue}" fix || return 0
   [ -n "$c" ] && cm=$'\n\n'"The user's needs-work comments (also to be fixed): $c"
   # rebuilt from the saved items each time, so a second needs-work in the round never appends
   save_findings "$n" "$pr" "$(findings_file "$pr" "$osha")" "$items$cm"
@@ -338,7 +343,7 @@ resume_step() {
     c=$(user_comments "$n" "$pr" "${since:-$(st_get "$n" started)}") ||
       { log "#$n PR #$pr: gh error reading the comments for needs-work; retrying next pass"; return 0; }
     extra_round "$n" "$pr" "$c" && return 0
-    resume "$n" "The user rejected PR #$pr (needs-work). Address their comments, rerun the checks, push once, and stop when CI is green. Their comments: ${c:-none found; read the latest comments on the PR and the issue}" || return 0
+    resume "$n" "The user rejected PR #$pr (needs-work). Address their comments, rerun the checks, push once, and stop when CI is green. Their comments: ${c:-none found; read the latest comments on the PR and the issue}" fix || return 0
     edit_issue "$n" --remove-label needs-work
     has_label "$n" awaiting-accept && edit_issue "$n" --remove-label awaiting-accept
     new_cycle "$n"

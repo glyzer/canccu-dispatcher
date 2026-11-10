@@ -45,7 +45,7 @@ needs_you() {
   log "#$n needs-you: $reason$(its_url "$(issue_url "$n")")"
 }
 
-# resume <n> <message>: the issue's worker continues its session with the message. A PR armed
+# resume <n> <message> [run type: build (default), fix, merge]: the issue's worker continues its session with the message. A PR armed
 # for auto-merge is disarmed first (armed), and `accepted` dropped: the worker is about to change it.
 resume() {
   local n=$1 pr msg=$2 q; pr=$(st_get "$n" pr)
@@ -64,7 +64,7 @@ resume() {
   fi
   # workers never review: a resumed worker is told so as well
   run_worker "$n" "$msg Do not review your own work; run the checks only." \
-    "$( [ -n "$(st_get "$n" pkg)" ] && pkg_budget "$BUDGET_RESUME" "$(unit_size "$n")" || echo "$BUDGET_RESUME")" || return 1
+    "$( [ -n "$(st_get "$n" pkg)" ] && pkg_budget "$BUDGET_RESUME" "$(unit_size "$n")" || echo "$BUDGET_RESUME")" "${3:-build}" || return 1
   has_label "$n" needs-you && edit_issue "$n" --remove-label needs-you
   log "#$n resumed: $(oneline 100 "$2")"
 }
@@ -235,7 +235,7 @@ act_verdict() {
           needs_you "$n" "the $what of PR #$pr still finds open items after the fix (one review, one fix, one fix-check: no further loop). \`needs-work\` gives one more fix round and a fix-check of these items; with \`needs-work\`, a line \`full review\` in your comment asks for a new full review instead" "$body"
           st_set "$n" verdict_at="$at" open_sha="$head" ;;
         *)
-          resume "$n" "The independent reviewer asked for changes on PR #$pr (full comment: gh pr view $pr -R $REPO --comments). This is your one fix round: fix every finding, rerun the checks, push once, and stop when CI is green. A narrow fix-check of your fix diff follows, then the merge or the maintainer. The review: $body" || return 0
+          resume "$n" "The independent reviewer asked for changes on PR #$pr (full comment: gh pr view $pr -R $REPO --comments). This is your one fix round: fix every finding, rerun the checks, push once, and stop when CI is green. A narrow fix-check of your fix diff follows, then the merge or the maintainer. The review: $body" fix || return 0
           save_findings "$n" "$pr" "$(findings_file "$pr" "$head")" "$body"
           st_set "$n" stage=fixing reviewed_sha="$head" verdict_at="$at" review_maccept="$(oneline 200 "$(maintainer_accept_of "$j")")" \
             review_risk="$(review_risk_of "$j")"

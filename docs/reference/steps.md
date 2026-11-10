@@ -26,7 +26,8 @@ touched: files over the size limit split up; dead code for dropped features and 
 removed; comments follow the comment rule; duplicated logic merged; no behaviour change; no
 `Closes` line. Its rules come from the target repo's `AGENTS.md` ([`../repo-contract.md`](../repo-contract.md)).
 It is `normal` risk, `high` when its diff touches `HIGH_RISK_PATHS`. Nothing to change: no PR
-and the line `Health: nothing to do`. Once per step.
+and the line `Health: nothing to do`. Once per step. It runs on `HEALTH_MODEL` at `HEALTH_EFFORT`
+(empty: `MODEL` and the account's default effort) and ends with a short report for the lead.
 
 ## Checkpoint
 
