@@ -61,8 +61,11 @@ worker's last report (`.last`) and the standing orders of its first run.
 
 - **Merge of main**: by script, never an AI run, when git merges cleanly: `git merge --no-edit
   origin/main` in the worktree and a normal push to the PR's branch (never a rebase or a
-  force-push). Only when the worktree has the PR's branch checked out and nothing uncommitted. A
-  conflict aborts the merge, and a fresh session gets the conflicting paths.
+  force-push). Only when the worktree has the PR's branch checked out and no uncommitted changes
+  (untracked files do not count); else the fix run is told main is not in and to merge it first.
+  A conflict aborts the merge, and a fresh session gets the conflicting paths: once per head, so
+  a run that pushed no resolution leads to `needs-you`. A fetch or push that fails 3 passes in a
+  row leads to `needs-you` with git's error.
 - **Red CI**: main is merged in first and CI runs again (another merged PR may have caused it);
   still red with main in, a fresh fix session gets the failing GitHub Actions job's log tail
   (`gh run view --job <id> --log-failed`).

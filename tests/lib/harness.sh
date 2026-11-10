@@ -124,8 +124,11 @@ printf '%s\t%s\t%s\n' "${GH_CONFIG_DIR:-<default>}" "${GIT_CONFIG_COUNT:-<unset>
 case " $a " in *" diff --numstat "*) cat "$FAKE/numstat" 2>/dev/null || exit 128 ;; esac
 # a worktree's branch (branch --show-current: $FAKE/branch), how far main is ahead (rev-list
 # --count: $FAKE/behind), its commits (log --oneline: $FAKE/gitlog); $FAKE/merge-conflict: a merge
-# of main fails, and diff --diff-filter=U lists that file's lines as the conflicting paths
+# of main fails, and diff --diff-filter=U lists that file's lines as the conflicting paths;
+# $FAKE/dirty: status --porcelain prints it; $FAKE/push-fail: a push is rejected
 case " $a " in
+  *" status --porcelain "*) [ -e "$FAKE/dirty" ] && cat "$FAKE/dirty" ;;
+  *" push origin HEAD:"*) [ -e "$FAKE/push-fail" ] && { echo "remote: rejected by a pre-receive hook" >&2; exit 1; } ;;
   *" branch --show-current "*) [ -e "$FAKE/branch" ] && cat "$FAKE/branch" ;;
   *" rev-list --count "*) [ -e "$FAKE/behind" ] && cat "$FAKE/behind" ;;
   *" log --oneline "*) [ -e "$FAKE/gitlog" ] && cat "$FAKE/gitlog" ;;

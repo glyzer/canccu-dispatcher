@@ -130,6 +130,33 @@ echo other-branch > "$FAKE/branch"; echo 3 > "$FAKE/behind"
 dispatch --once
 ok "the worktree on another branch → no merge there" hasnt git.log "merge --no-edit"
 
+redenv red-dirty
+printf ' M src/a.ts\n' > "$FAKE/dirty"; echo 3 > "$FAKE/behind"
+dispatch --once
+l=$(wline)
+ok "uncommitted changes in the worktree → no merge by script" hasnt git.log "merge --no-edit"
+ok "… the fix run is not told main is in; it merges main first" grep -q 'CI is red on PR #50; main was not merged in by script (uncommitted changes in the worktree)\. First run git merge origin/main' <<<"$l"
+ok "… untracked files alone do not stop the merge (status -uno)" has git.log "status --porcelain --untracked-files=no"
+
+redenv red-push-fail
+echo 3 > "$FAKE/behind"; touch "$FAKE/push-fail"
+dispatch --once
+ok "a rejected push of the merge → no run, again next pass" eq "$(wc -l < "$FAKE/worker.log") $(st 5 mm_err)" "0 1"
+dispatch --once; dispatch --once
+ok "… the third failure in a row → needs-you with git's error" has gh.log "merging main into it by script failed 3 times"
+ok "… naming the error" has gh.log "rejected by a pre-receive hook"
+ok "… still no run" eq "$(wc -l < "$FAKE/worker.log")" 0
+
+redenv red-conflict-again
+echo 2 > "$FAKE/behind"; printf 'src/a.ts\n' > "$FAKE/merge-conflict"
+dispatch --once
+c=$(st 5 conflict_sha); ok "… the conflict run is noted for the head" eq "$c" "$HA"
+rm -f "$WORKERS_DIR/web-5.lock"; last 5 done "gave up"; state 5 phase=check pr=50 "check_at=$NOW" "conflict_sha=$c"
+dispatch --once
+ok "a conflict run that left the head as it was → needs-you, not a second run" \
+  eq "$(grep -c 'Merging origin/main into the branch of PR #50 conflicts' "$FAKE/worker.log")" 1
+ok "… naming the conflict" has gh.log "merging origin/main into it conflicts in: src/a.ts"
+
 redenv red-backoff
 echo 0 > "$FAKE/behind"; echo "$((NOW + 3600))" > "$CANCCU_ROOT/backoff"
 dispatch --once
@@ -161,6 +188,12 @@ redenv cap-zero FIX_ATTEMPTS=0
 echo 0 > "$FAKE/behind"
 dispatch --once
 ok "FIX_ATTEMPTS=0: red CI → needs-you as before" eq "$(wc -l < "$FAKE/worker.log")/$(grep -c 'CI is red on PR #50' "$FAKE/gh.log")" 0/1
+
+review_env bad-values 'Review verdict: changes' review FIX_ATTEMPTS=two FIX_EFFORT=hgih
+dispatch --once
+ok "a FIX_ATTEMPTS that is no number counts as 2: the fix round runs" eq "$(grep -c 'asked for changes' "$FAKE/worker.log")" 1
+ok "… a bad FIX_EFFORT is left out (the engine would refuse it on every pass), and said" \
+  eq "$(grep -c -- '--effort' "$FAKE/worker.log") $(grep -c 'FIX_EFFORT=hgih is no effort' "$CANCCU_HOME/dispatch.log")" "0 1"
 
 echo "canccu-followup tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

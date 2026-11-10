@@ -67,11 +67,14 @@ resume() {
     how=fresh fl=(--fresh)
   elif ! resume_on "$kind"; then
     # the task first: the handoff and the standing orders after it are what may be cut
-    msg="$(oneline 3000 "$msg") $(handoff "$n")" how=fresh fl=(--fresh)
+    msg="$(oneline 5000 "$msg") $(handoff "$n")" how=fresh fl=(--fresh)
   fi
   if fix_kind "$kind"; then
     model=${FIX_MODEL:-$MODEL}
-    [ -n "$FIX_EFFORT" ] && fl+=(--effort "$FIX_EFFORT")
+    case ${FIX_EFFORT:-} in
+      "") ;; low|medium|high|xhigh|max) fl+=(--effort "$FIX_EFFORT") ;;
+      *) log "FIX_EFFORT=$FIX_EFFORT is no effort (low, medium, high, xhigh, max): the fix run goes without --effort" ;;
+    esac
   fi
   # workers never review: a resumed worker is told so as well
   MODEL=$model run_worker "$n" "$msg Do not review your own work; run the checks only." \
@@ -248,7 +251,7 @@ act_verdict() {
           st_set "$n" verdict_at="$at" open_sha="$head" ;;
         *)
           if ! fix_left "$n" "$pr"; then
-            needs_you "$n" "the review of PR #$pr asks for changes and no automatic fix run is left ($FIX_ATTEMPTS per PR, FIX_ATTEMPTS): comment the way on and the worker follows up" "$body"
+            needs_you "$n" "the review of PR #$pr asks for changes and no automatic fix run is left ($(fix_max) per PR, FIX_ATTEMPTS): comment the way on and the worker follows up" "$body"
             st_set "$n" verdict_at="$at"; return 0
           fi
           resume "$n" "The independent reviewer asked for changes on PR #$pr (full comment: gh pr view $pr -R $REPO --comments). This is your one fix round: fix every finding, rerun the checks, push once, and stop when CI is green. A narrow fix-check of your fix diff follows, then the merge or the maintainer. The review: $body" fix || return 0
