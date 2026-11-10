@@ -249,16 +249,18 @@ adopt() {
 
 # user_comments <n> <pr> <since epoch>: the user's comments on the issue and PR since then,
 # without the dispatcher's own (its marker), review verdicts, or the answerer's (it posts as the
-# user too)
+# user too). A verdict is what verdict_of reads: its last non-empty line matches VERDICT_RE; a
+# lead's quote-reply holds a verdict line too but ends in the lead's own words, and counts.
 user_comments() {
   local n=$1 pr=$2 since; since=$(iso "${3:-0}")
   # a gh error on either read fails the call (pipefail), never a silently shorter list
   { ghj issue view "$(lead_of "$n")" -R "$REPO" --json comments || exit 1
     if [ -n "$pr" ]; then ghj pr view "$pr" -R "$REPO" --json comments || exit 1; fi; } |
-    jqr -s --arg u "$USER_LOGIN" --arg s "$since" --arg m "$CANCCU_MARK" '
+    jqr -s --arg u "$USER_LOGIN" --arg s "$since" --arg m "$CANCCU_MARK" --arg vre "$VERDICT_RE" '
       [ .[].comments[] | select(.author.login == $u and .createdAt > $s
                                 and (.body | contains($m) | not)
-                                and (.body | test("Review verdict:") | not)
+                                and (.body | gsub("\r"; "") | split("\n") | map(select(test("\\S")))
+                                     | last // "" | test($vre; "i") | not)
                                 and (.body | test("^[\\s*_]*(Answer|Needs the product owner):") | not)) ]
       | sort_by(.createdAt) | map(.body) | join("\n\n---\n\n")'
 }

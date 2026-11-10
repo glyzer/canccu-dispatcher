@@ -129,6 +129,15 @@ nwenv nw-force $'Broader problems with the layout.\n\nFull review'
 dispatch --once
 ok "needs-work with a full review line: the worker resumes as before" grep -q 'web 5 The user rejected PR #50 (needs-work)' "$FAKE/worker.log"
 ok "… a new cycle: the next review is a full one" eq "$(st 5 stage)|$(st 5 reviewed_sha)|$(st 5 open_sha)" "||"
+# a quote-reply of the fix-check: its verdict line is quoted, the comment ends in the lead's own words
+nwenv nw-quoted $'> 1. src/a.ts:3 still uses <\n>\n> Review verdict: changes '"$HB"$'\n\nFull review'
+dispatch --once
+ok "a quoted verdict line, then full review: the comment counts, a new cycle" \
+  eq "$(grep -c 'The user rejected PR #50 (needs-work).*Full review' "$FAKE/worker.log")|$(st 5 stage)|$(st 5 open_sha)" "1||"
+# a comment that ends in a verdict line is a verdict (posted as the user), never the lead's words
+nwenv nw-verdict $'Full review\n\nReview verdict: changes '"$HB"
+dispatch --once
+ok "a comment ending in a verdict line is dropped: one more fix round" eq "$(st 5 stage) $(st 5 reviewed_sha)" "fixing $HB"
 for m in 'full review' '**Full review.**' '`full review`' '  _FULL REVIEW!_  '; do
   ok "full review marker: '$m'" fra $'Something else.\n'"$m"
 done
