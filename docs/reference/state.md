@@ -51,7 +51,8 @@ In `~/.canccu/projects/<name>/`:
 `state/<K>` holds, among others: `phase` ([`pipeline.md`](pipeline.md)), `pr`, `color` (its
 palette index), `stage` (`review` → `fixing` → `fixcheck`), `reviewed_sha` (the head the full
 review asked for changes on; after a `needs-work` on a fix-check's open items, that fix-check's
-head), `review_mode`, `review_sha`, `review_effort`, `review_model` (empty: the account
+head), `review_mode`, `review_sha` (the effort and model are in `reviews/<pr>.effort` and `.model`;
+an empty model is the account
 default), `review_maccept` (the full review's
 `Maintainer accept:` reason; a fix-check's own, given with its `changes`, is added), `open_sha`
 (the head a fix-check left open items on; cleared by a `pass` before its merge step and by a new

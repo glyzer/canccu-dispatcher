@@ -282,7 +282,9 @@ classify() {
   done
   # a Maintainer accept line of the full review still holds after its fix-check passes
   ma=$(maintainer_accept_of "$j"); [ -n "$ma" ] || ma=$(st_get "$n" review_maccept)
-  local risk; risk=$(effective_risk "$n" "$(jqr '.body // ""' <<<"$j")" "$files" "$(review_risk_of "$j")")
-  classify_pure "$files" "$(jqr '.body // ""' <<<"$j")" "$labels" "$ma" "$repo" \
+  local body risk rrisk=""; body=$(jqr '.body // ""' <<<"$j")
+  [ -n "$(st_get "$n" pkg)" ] && rrisk=$(review_risk_of "$j")
+  risk=$(effective_risk "$n" "$body" "$files" "$rrisk")
+  classify_pure "$files" "$body" "$labels" "$ma" "$repo" \
     "$([ "$(st_get "$n" plan_ok)" = 1 ] && echo 1 || echo 0)" "$risk"
 }

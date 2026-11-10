@@ -368,7 +368,7 @@ ok "no files (gh error) → high" eq "$(ef '' 'Tier: fix')" high
 effenv effort-medium '[{"filename": "src/a.ts", "changes": 12}]' 'Tier: fix'
 dispatch --once
 ok "the reviewer prompt names medium effort" grep -q 'review#50 .*Run the code-review skill at medium effort' "$FAKE/worker.log"
-ok "the effort is recorded" eq "$(st 5 review_effort)" medium
+ok "the effort is recorded" eq "$(cat "$CANCCU_HOME/reviews/50.effort")" medium
 PATH="$fb:$PATH" "$root/bin/canccu-status" > "$E/status" 2>&1
 ok "canccu-status shows the running review's effort" grep -q '^  review PR #50 (medium) ' "$E/status"
 effenv effort-high '[{"filename": "src/auth/session.ts", "changes": 2}]' 'Tier: fix'
