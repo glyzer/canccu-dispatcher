@@ -13,9 +13,24 @@ pr_gone() {
   j=$(ghj pr view "$2" -R "$REPO" --json state,body,closingIssuesReferences,headRefName) || return 0
   case $(jqr .state <<<"$j") in
     CLOSED) needs_you "$1" "PR #$2 was closed without merging" ;;
-    MERGED) plan_pr_merged "$1" "$j" && plan_back "$1" "$2" "$(jqr '.headRefName // ""' <<<"$j")" ;;
+    MERGED)
+      if is_contract_pr "$1" "$(jqr '.headRefName // ""' <<<"$j")"; then contract_back "$1" "$2"
+      else plan_pr_merged "$1" "$j" && plan_back "$1" "$2" "$(jqr '.headRefName // ""' <<<"$j")"; fi ;;
   esac
   return 0
+}
+
+# contract_back <K> <pr>: the unit's contract-first PR merged (is_contract_pr); its issues stay
+# open. Its review and merge round is over: the unit's own PR starts afresh in check, which
+# resumes the worker on a draft (contract_merged) to bring in main and finish.
+contract_back() {
+  local k=$1 pr=$2 main
+  main=$(pr_for "$k")
+  st_set "$k" phase=check check_at="$(now)" pr="$main" contract_merged="$pr" \
+    merge_mode= merge_at= merge_sha= how= accept_sha= accept_at=
+  new_cycle "$k"
+  has_label "$k" awaiting-accept && edit_issue "$k" --remove-label awaiting-accept
+  log "#$k PR #$pr: the contract PR merged; the package goes on in PR #${main:-?}"
 }
 
 # plan_pr_merged <K> <pr view json>: a merged PR that closes none of the unit's issues and says it
@@ -134,8 +149,35 @@ merging_step() {
       return 0
     fi
     needs_you "$n" "auto-merge was disabled or the merge queue rejected PR #$pr"
+  elif [ "$(st_get "$n" queue_kick)" != "$head" ] && (( $(now) - at > ${NO_CHECKS_MIN:-10} * 60 )); then
+    queue_kick "$n" "$pr" "$head"
   fi
   return 0
+}
+
+# queue_kick <n> <pr> <head>: GitHub sometimes starts no merge_group run for a queue entry, which
+# then waits for checks until the queue's own timeout. An entry still waiting NO_CHECKS_MIN after it
+# was queued, with no run for its merge group, is dequeued and enqueued again (that starts them),
+# once per head: still stuck, MERGE_WAIT_MIN's needs-you follows. A gh error reading decides nothing.
+queue_kick() {
+  local n=$1 pr=$2 r id at oid c
+  r=$(ghj api graphql -F o="${REPO%%/*}" -F r="${REPO#*/}" -F p="$pr" \
+        -f query='query($o: String!, $r: String!, $p: Int!) { repository(owner: $o, name: $r) { pullRequest(number: $p) { id mergeQueueEntry { state enqueuedAt headCommit { oid } } } } }' \
+        -q '.data.repository.pullRequest | select(.mergeQueueEntry.state == "AWAITING_CHECKS") | "\(.id) \(.mergeQueueEntry.enqueuedAt) \(.mergeQueueEntry.headCommit.oid // "")"') || return 0
+  read -r id at oid <<<"$r"
+  [ -n "$id" ] && [ -n "$at" ] && (( $(now) - $(iso_epoch "$at") > ${NO_CHECKS_MIN:-10} * 60 )) || return 0
+  if [ -n "$oid" ]; then
+    c=$(ghj api "repos/$REPO/actions/runs?event=merge_group&head_sha=$oid&per_page=1" -q .total_count) || return 0
+    [ "$c" = 0 ] || return 0
+  fi
+  st_set "$n" queue_kick="$head"
+  mut gh api graphql -f id="$id" -f query='mutation($id: ID!) { dequeuePullRequest(input: {id: $id}) { clientMutationId } }' >/dev/null ||
+    { log "#$n PR #$pr: its merge group has no runs, and the dequeue failed; MERGE_WAIT_MIN still applies"; return 0; }
+  if ! mut_out gh api graphql -f id="$id" -f query='mutation($id: ID!) { enqueuePullRequest(input: {pullRequestId: $id}) { clientMutationId } }'; then
+    needs_you "$n" "PR #$pr was dequeued to restart its merge group, but could not be enqueued again; add it to the merge queue by hand. gh: $(oneline 300 "$MUT_OUT")"
+    return 0
+  fi
+  log "#$n PR #$pr: the merge queue started no merge_group run in ${NO_CHECKS_MIN:-10} min; dequeued and enqueued again"
 }
 
 # ---------------------------------------------------------------- 6. after merge

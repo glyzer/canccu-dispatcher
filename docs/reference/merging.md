@@ -15,6 +15,12 @@ on the current head (or, for a manual PR, your accept of the classified head), a
 sets it), else `--squash` where allowed, else `--merge`, else `--rebase`; none if the read fails
 (one read per pass, however many merges).
 A failed merge's `needs-you` quotes `gh`'s own error.
+A queue entry still waiting for checks `NO_CHECKS_MIN` after it was queued, with no
+`merge_group` run for its merge group (GitHub sometimes starts none), is dequeued and enqueued
+again once per head, which starts them; the log says so. Still stuck, `MERGE_WAIT_MIN` applies.
+A PR whose enqueue fails is out of the queue: `needs-you`.
+A contract-first PR (on the unit's branch plus `-contract`) closes none of the unit's issues
+and is classified like the unit's own PR otherwise ([`pipeline.md`](pipeline.md)).
 
 **Without auto-merge** (the repo does not allow it) the dispatcher merges directly, with
 `gh pr merge <pr> <method> --match-head-commit <head>` (`--squash` if the settings cannot be

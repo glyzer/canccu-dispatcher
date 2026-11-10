@@ -83,6 +83,32 @@ ok "the template's self-test passes" eval '"$TR/scripts/review-gate" --self-test
 ok "… and runs every case" eq "$(grep -c '^ok ' "$T/st") $(grep -c '^FAIL' "$T/st")" "$(grep -c '^ok ' "$T/st") 0"
 ok "the gate workflow runs the self-test" grep -qF '.github/scripts/review-gate --self-test' "$TR/workflows/review-gate.yml"
 ok "the gate's job keeps the required-check name review-gate" grep -qx '    name: review-gate' "$TR/workflows/review-gate.yml"
+# the rerun job's script, run against a fake gh: two gate runs for the head (a push and a body
+# edit), the older one red, and one of another branch
+rr=$T/rerun; mkdir -p "$rr/bin"
+awk '/- name: Re-run review-gate on the PR head/ { f = 1 } f && /^        run: \|/ { r = 1; next } r && /^          / { print substr($0, 11); next } r { exit }' \
+  "$TR/workflows/review-gate.yml" > "$rr/script"
+cat > "$rr/bin/gh" <<'GH'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$RR/gh.log"
+case "$*" in
+  "api repos/example-org/web/pulls/50 "*) echo "$(printf 'a%.0s' {1..40}) 50-thing example-org/web" ;;
+  "api repos/example-org/web/actions/workflows/review-gate.yml/runs"*) cat "$RR/runs.json" ;;
+  "api repos/example-org/web/actions/runs/"*) echo completed ;;
+esac
+GH
+printf '#!/bin/sh\n' > "$rr/bin/sleep"; chmod +x "$rr/bin/gh" "$rr/bin/sleep"
+jq -n '{workflow_runs: [
+  {id: 12, status: "completed", conclusion: "success", head_branch: "50-thing", head_repository: {full_name: "example-org/web"}, pull_requests: [{number: 50}]},
+  {id: 11, status: "completed", conclusion: "failure", head_branch: "50-thing", head_repository: {full_name: "example-org/web"}, pull_requests: [{number: 50}]},
+  {id: 13, status: "completed", conclusion: "failure", head_branch: "other", head_repository: {full_name: "example-org/web"}, pull_requests: []}]}' > "$rr/runs.json"
+RR=$rr PATH="$rr/bin:$PATH" REPO=example-org/web PR=50 bash "$rr/script" > "$rr/out" 2>&1
+ok "gate rerun: every run of the head is re-run, oldest first, not another branch's" \
+  eq "$(grep '^run rerun' "$rr/gh.log" | tr '\n' '|')" "run rerun 11 -R example-org/web|run rerun 12 -R example-org/web|"
+ok "… each one waited for before the next" \
+  eq "$(grep -E '^(run rerun|api repos/example-org/web/actions/runs/)' "$rr/gh.log" | sed -E 's/ (-R|--jq) .*//' | tr '\n' '|')" \
+  "run rerun 11|api repos/example-org/web/actions/runs/11|run rerun 12|api repos/example-org/web/actions/runs/12|"
+
 ok "templates/LICENSE is 0BSD" grep -q 'Zero-Clause BSD' templates/LICENSE
 ok "the templates carry the 0BSD SPDX line" eq "$(grep -l 'SPDX-License-Identifier: 0BSD' "$TR/workflows/review-gate.yml" "$TR/scripts/review-gate" | wc -l)" 2
 ok "the templates point at this tool's docs, not another repo's files" \

@@ -141,6 +141,56 @@ ok "… one line in the step's packages" eq "$(cut -f1,2,4,6,7 "$CANCCU_HOME/ste
 ok "… its notes kept" grep -q 'a later thing' "$CANCCU_HOME/steps/12.notes"
 ok "… merged.log names the package" grep -qP '\tpkg-12-auth\t50\t' "$CANCCU_HOME/merged.log"
 
+# ---------------------------------------------------------------- a contract-first PR (#63)
+
+# the repo's rule "a contract change is its own PR and merges first": the package's worker opens it
+# on <branch>-contract with only Refs lines, beside the package's draft
+cpr() {   # cpr <name>: package pkg-12-auth, its draft PR 50 and its contract PR 51
+  env_new "$1"
+  { issue 101 in-progress "" "3 Events"; issue 103 in-progress "" "3 Events"; } | issues
+  pkgstate pkg-12-auth "101 103" "risk_reason=a form" phase=check pr=50 "check_at=$NOW"
+  p=$(ppr 50 "101 103" "$HA" pkg-12-auth green "" | jq '.isDraft = true')
+  c=$(ppr 51 "" "$HB" pkg-12-auth-contract green $'Refs #101\nPackage: auth\nRisk: normal — the contract')
+  printf '%s\n' "$p" "$c" | prs
+  json pr51.json "$(detail "$c" 2030-11-05T10:00:00Z)"; route 'pr view 51 *' pr51.json
+  json files51.json '[{"filename": "contracts/a.yaml"}]'; route 'api --paginate repos/example-org/web/pulls/51/files*' files51.json
+  json i101.json '{"labels": [{"name": "in-progress"}]}'; route 'issue view 101 *' i101.json
+  json i103.json '{"labels": [{"name": "in-progress"}]}'; route 'issue view 103 *' i103.json
+}
+cpr contract-ours
+ok "contract: a PR on the package's <branch>-contract is ours" eq "$(lib pr_foreign "$c" pkg-12-auth)" ""
+ok "… its branch names the package" eq "$(lib unit_of_branch pkg-12-auth-contract)" pkg-12-auth
+ok "… not another package's" eq "$(lib unit_of_branch pkg-12-auth-contract-x)" ""
+ok "… it is the unit's PR while it is open (it merges first)" eq "$(lf pr_for pkg-12-auth)" 51
+ok "… not listed as not ours" eq "$(lf not_ours 51)" ""
+ok "… classified as usual though it closes no issue" eq "$(lf classify 51 pkg-12-auth)" auto
+ok "… also from its branch alone" eq "$(lf classify 51)" auto
+c=$(jq '.closingIssuesReferences = [{number: 101}]' <<<"$c"); json pr51.json "$(detail "$c" 2030-11-05T10:00:00Z)"
+ok "… one that closes a member is no contract PR → manual" grep -q '^manual: PR #51 closes 101' <<<"$(lf classify 51 pkg-12-auth)"
+cpr contract-review
+PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-review" 51 > "$E/out" 2>&1
+ok "contract: canccu-review accepts it" grep -q -- '--key review-51 ' "$FAKE/worker.log"
+out=$(lf review_prompt 51 pkg-12-auth "$HB" /tmp/f high)
+ok "contract: the review prompt checks only the contract's part of the criteria" grep -qF "This is the unit's contract-first PR: it closes no issue" <<<"$out"
+ok "… the draft's prompt is unchanged" grep -qF "Check every acceptance criterion of every linked issue" <<<"$(lf review_prompt 50 pkg-12-auth "$HA" /tmp/f high)"
+cpr contract-pass
+dispatch --once
+ok "contract: a pass reviews it, not the draft" eq "$(grep -c -- '--key review-51 ' "$FAKE/worker.log") $(st pkg-12-auth pr)" "1 51"
+ok "… no needs-you for the draft" hasnt gh.log "needs-you"
+
+cpr contract-merged
+p=$(ppr 50 "101 103" "$HA" pkg-12-auth green "" | jq '.isDraft = true'); printf '%s\n' "$p" | prs
+pkgstate pkg-12-auth "101 103" phase=merging pr=51 "merge_sha=$HB" how=auto "merge_at=$((NOW - 600))" stage=fixcheck "reviewed_sha=$HC"
+json pr51.json '{"state": "MERGED", "body": "Refs #101", "closingIssuesReferences": [], "headRefName": "pkg-12-auth-contract"}'
+echo sid > "$WORKERS_DIR/web-pkg-12-auth.id"
+dispatch --once
+ok "contract: once it merged → back to check on the draft, no needs-you" eq "$(st pkg-12-auth phase) $(st pkg-12-auth pr)" "check 50"
+ok "… its review round is over" eq "$(st pkg-12-auth stage)|$(st pkg-12-auth reviewed_sha)|$(st pkg-12-auth merge_sha)" "||"
+ok "… logged" grep -q 'pkg-12-auth PR #51: the contract PR merged; the package goes on in PR #50' "$CANCCU_HOME/dispatch.log"
+dispatch --once
+ok "… the next pass resumes the package's worker on its draft" grep -q -- '--key pkg-12-auth .*contract PR #51 merged' "$FAKE/worker.log"
+ok "… once" eq "$(dispatch --once; grep -c -- '--key pkg-12-auth ' "$FAKE/worker.log")" 1
+
 # ---------------------------------------------------------------- the fast lane and the old state (task 10)
 
 env_new fast

@@ -51,7 +51,9 @@ while read -r k s; do
     [ -n "$e$m" ] && what+=" ($e${e:+${m:+ · }}$m)"
   fi
   last=$(grep -E '^\[t[0-9]+\]' "$WORKERS_DIR/$REPO_NAME-$k.log" 2>/dev/null | tail -1)
-  printf '  %-22s %5s  %s\n' "$what" "$(ago "${s:-$(now)}")" "$(clip "$last" $(( cols > 60 ? cols - 34 : 26 )))"
+  # the label's real width: one with an effort and a model overflows the 22 columns
+  w=$(( ${#what} > 22 ? ${#what} : 22 ))
+  printf '  %-22s %5s  %s\n' "$what" "$(ago "${s:-$(now)}")" "$(clip "$last" $(( cols > 60 ? (cols - w - 12 > 10 ? cols - w - 12 : 10) : 26 )))"
   any=1
 done < <(live_runs)
 (( any )) || echo "  none"
