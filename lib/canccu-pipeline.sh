@@ -172,7 +172,7 @@ check_pr() {
     if [ -n "$c" ]; then
       # contract_back: the draft waited for its contract PR, which is on main now
       room "$n" || return 0
-      resume "$n" "The contract PR #$c merged into main. Run git merge origin/main in your branch, finish the package's work in PR #$pr and mark it ready." || return 0
+      resume "$n" "The contract PR #$c merged into main. Run git merge origin/main in your branch, finish the package's work in PR #$pr and mark it ready." merge || return 0
       st_set "$n" contract_merged=
     elif is_plan_pr "$n" "$pr"; then
       needs_you "$n" "plan ready for OK: $(pr_get "$pr" .url) — label this issue \`plan-ok\` to approve, or comment" "" plan work
