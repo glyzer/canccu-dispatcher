@@ -61,7 +61,7 @@ ok "usage: a nudged worker that ends done → limited, back-off until the reset"
   eq "$(st 5 phase) $(( $(cat "$CANCCU_ROOT/backoff") >= NOW + 3600 ))" "limited 1"
 rm -f "$CANCCU_ROOT/backoff"; use 20 10
 dispatch --once
-ok "… it continues after the reset" grep -q -- '--name #5 web 5 Continue where you stopped' "$FAKE/worker.log"
+ok "… it continues after the reset" grep -q -- '--name #5 --fresh web 5 Continue where you stopped' "$FAKE/worker.log"
 ok "… and its nudge file is gone" test ! -e "$WORKERS_DIR/web-5.nudge"
 
 env_new usage-hook
@@ -84,7 +84,7 @@ state 5 phase=work "started=$NOW" nudged=1 "nudge_reset=$((NOW - 60))"
 rm -f "$WORKERS_DIR/web-5.lock"; last 5 done $'WIP pushed.\nNext action: x'
 dispatch --once
 ok "usage (review 3, finding 3): ended after its reset → no back-off for anyone, it continues" \
-  eq "$(test -s "$CANCCU_ROOT/backoff" && echo backoff || echo none) $(grep -c -- '--name #5 web 5 Continue where you stopped' "$FAKE/worker.log")" "none 1"
+  eq "$(test -s "$CANCCU_ROOT/backoff" && echo backoff || echo none) $(grep -c -- '--name #5 --fresh web 5 Continue where you stopped' "$FAKE/worker.log")" "none 1"
 
 # ---------------------------------------------------------------- USAGE_WEEKLY_DRAIN: drain mode
 

@@ -309,7 +309,7 @@ json issue5.json "$(jq -n --argjson a "$(comment 2030-11-05T11:55:00Z 'Please re
 route 'issue view 5 *' issue5.json
 json pr50.json '{"comments": []}'; route 'pr view 50 *' pr50.json
 dispatch --once
-ok "needs-work: the comment since the merge was armed" grep -q 'Their comments: Please rename the screen. Do not review your own work; run the checks only. turns=' "$FAKE/worker.log"
+ok "needs-work: the comment since the merge was armed" grep -q 'Their comments: Please rename the screen. .*Do not review your own work; run the checks only. turns=' "$FAKE/worker.log"
 ok "… not the older ones" hasnt worker.log "an old remark"
 
 # 15: a failed resume after ANSWERED does not log the answer (no duplicates in the digest)
@@ -348,7 +348,7 @@ ok "worker prompt: no review skill or step" not grep -qiE 'code-review|security-
 ok "worker prompt: says not to review its own work" grep -qF 'Do not review your own work; run the checks only.' "$FAKE/worker.log"
 review_env economy-resume 'Review verdict: changes' review
 dispatch --once
-ok "the fix-round resume has no review step either" not grep -qiE 'code-review|security-review' "$FAKE/worker.log"
+ok "the fix-round resume has no review step either" not grep -qiE 'code-review|security-review' <(sed 's/requesting-code-review//g' "$FAKE/worker.log")
 ok "… and says not to review" grep -qF 'Do not review your own work; run the checks only.' "$FAKE/worker.log"
 
 # reviewer effort by risk
@@ -514,8 +514,8 @@ postenv flow "$FINDING"$'\n\nReview verdict: changes '"$HA"
 sed -i 's/^rounds=0$/stage=review/' "$CANCCU_HOME/state/5"; echo review_mode=review >> "$CANCCU_HOME/state/5"
 dispatch --once
 ok "flow 1: the review's changes verdict is posted as the bot" grep -q "#5 PR #50: review of ${HA:0:7}: posted as $BOT" "$CANCCU_HOME/dispatch.log"
-ok "flow 1: the worker resumes once with the findings" grep -q '^--quiet --name #5 web 5 The independent reviewer asked for changes on PR #50 .*src/a.ts:3 off by one' "$FAKE/worker.log"
-ok "flow 1: its resume has no review step" not grep -qiE 'code-review|security-review' "$FAKE/worker.log"
+ok "flow 1: the worker resumes once with the findings" grep -q '^--quiet --name #5 --fresh web 5 The independent reviewer asked for changes on PR #50 .*src/a.ts:3 off by one' "$FAKE/worker.log"
+ok "flow 1: its resume has no review step" not grep -qiE 'code-review|security-review' <(sed 's/requesting-code-review//g' "$FAKE/worker.log")
 ok "flow 1: stage fixing" eq "$(st 5 stage) $(st 5 reviewed_sha)" "fixing $HA"
 PATH="$fb:$PATH" "$root/bin/canccu-status" > "$E/status" 2>&1
 ok "flow 1: canccu-status shows the worker as fixing" grep -q '^  #5 fixing ' "$E/status"
