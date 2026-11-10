@@ -7,6 +7,8 @@
 # not start (a worker started by hand: key, kind, age), PRs awaiting
 # accept, issues needing you (a review that could not be posted too), open PRs that are not ours
 # (never reviewed, merged or commented on), the next 5 runnable issues and the latest digest.
+# canccu-status [--project <name>] --spend — the cost of every merged PR, every run of it (lost
+# runs and fix rounds too), grouped by model and run type (lib/canccu-spend.sh, spend_report).
 # docs/canccu-dispatch.md
 set -uo pipefail
 self=$(realpath "$0")
@@ -14,6 +16,7 @@ self=$(realpath "$0")
 . "$(dirname "$self")/../lib/canccu-common.sh"
 # shellcheck source=../lib/canccu-snapshot-steps.sh
 . "$(dirname "$self")/../lib/canccu-snapshot-steps.sh"
+[ "${1:-}" = --spend ] && { spend_report; exit 0; }
 
 clip() { (( ${#1} <= $2 )) && printf '%s' "$1" || printf '%s…' "${1:0:$2-1}"; }
 cols=${COLUMNS:-$(tput cols 2>/dev/null)}; [[ $cols =~ ^[0-9]+$ ]] || cols=100

@@ -347,7 +347,7 @@ paint_window() {
 # ---------------------------------------------------------------- spend and progress
 
 # spend_today: "<USD> <runs without a cost>" for this project's runs that ended today (UTC), from
-# the engine's spend.log ("<epoch> <repo> <key> <cost or ?>", one line per finished run). The USD
+# the engine's spend.log ("<epoch> <repo> <key> <cost or ?> …", one line per finished run). The USD
 # are the exact costs claude reported; a run it reported none for (stopped at a budget, stalled,
 # crashed) is counted apart, so the sum is a lower bound then. A live run has no cost yet.
 spend_today() {
@@ -374,6 +374,8 @@ run_progress() {
 . "$_canccu_lib/canccu-units.sh"
 # shellcheck source=canccu-runs.sh
 . "$_canccu_lib/canccu-runs.sh"
+# shellcheck source=canccu-spend.sh
+. "$_canccu_lib/canccu-spend.sh"
 # shellcheck source=canccu-share.sh
 . "$_canccu_lib/canccu-share.sh"
 # shellcheck source=canccu-answer.sh

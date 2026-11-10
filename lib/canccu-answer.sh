@@ -66,7 +66,7 @@ start_answer() {
   step_run_held "$n" "the answerer" && return 1
   blocked_held "$n" "the answerer" && return 1   # its answer could not be acted on anyway
   read -r turns cost mins <<<"$BUDGET_ANSWER"
-  engine "answerer answer#$n" "answer-$n" --key "answer-$n" --dir "$dir" --name "answer#$n" --untrusted "$REPO_NAME" \
+  RUN_TYPE=answer engine "answerer answer#$n" "answer-$n" --key "answer-$n" --dir "$dir" --name "answer#$n" --untrusted "$REPO_NAME" \
     "$(answer_prompt "$(lead_of "$n")" "$q" "$pr")" "turns=$turns" "cost=$cost" "min=$mins" || return 1
   st_set "$n" phase=answer started="$(now)" answers=$(( ${asked:-0} + 1 )); step_charge "$n" "answer-$n"
   claim_color "$n"; paint_window "answer#$n" "$n"
