@@ -176,7 +176,7 @@ run() {
       *) status="error: $(sget subtype)" ;;
     esac
     # its turn ended with background work still running: lost with the run, so not done (#26)
-    [ "$status" = done ] && (( $(sget bg_pending) + 0 > 0 )) && status="error: ended with background work pending" &&
+    [ "$status" = "done" ] && (( $(sget bg_pending) + 0 > 0 )) && status="error: ended with background work pending" &&
       msg+=$'\n\n'"The run ended its turn while a command or subagent it started in the background was still running."
     [ -n "$denials" ] && status="blocked" && msg+=$'\n\n'"Blocked by the permission classifier (run it yourself or widen the allow list, then send resume):"$'\n'"$denials"
   elif [ "$stop" = turns ]; then
