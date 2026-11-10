@@ -15,6 +15,9 @@ reap_worker() {
   if [ -e "$last" ] && (( $(stat -c %Y "$last") >= ${started:-0} )); then
     IFS='|' read -r kind status <<<"$(run_exit "$last")"
   else kind=none status="ended without an exit report"; fi
+  # the classifier's denials mark the exit `blocked` even when the run worked around them and
+  # finished: an open PR is the proof of the work, so check_pr judges it like any done run
+  [ "$kind" = blocked ] && [ -n "$(pr_for "$n")" ] && kind=done
   case $kind in
     done)
       q=$(worker_question "$(run_msg "$n")")
@@ -224,6 +227,21 @@ ci_unpark() {
   has_label "$n" needs-you && edit_issue "$n" --remove-label needs-you
   st_set "$n" phase=check ny_wait=
   log "#$n PR #$pr: CI is no longer pending; back to check"
+}
+
+# ready_unpark <n>: a needs-you of a finished worker (ny_stage work: it stopped, not a review or a
+# fix round) whose label the lead removed with no comment, and whose PR waits for review (open,
+# not a draft, CI green), goes back to check; check_pr (called next) starts the review. A comment
+# since it parked leaves it to resume_step. 0 when it is back in check.
+ready_unpark() {
+  local n=$1 pr c
+  [ "$(st_get "$n" ny_stage)" = work ] && ! has_label "$n" needs-you || return 1
+  pr=$(st_get "$n" pr); [ -n "$pr" ] && pr_is_open "$pr" || return 1
+  [ "$(pr_get "$pr" .isDraft)" = false ] && [ "$(ci_state "$pr")" = green ] || return 1
+  c=$(user_comments "$n" "$pr" "$(st_get "$n" ny_at)") || return 1
+  [ -z "$c" ] || return 1
+  st_set "$n" phase=check check_at="$(now)" no_pr=
+  log "#$n PR #$pr: needs-you lifted, the PR waits for review; back to check"
 }
 
 # adopt: an open PR of ours (USER_LOGIN, not a fork, branch <n>-…) for an in-progress issue (pr_issues)

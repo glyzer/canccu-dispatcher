@@ -106,7 +106,7 @@ pass() {
   for n in "${open[@]}"; do
     case $(st_get "$n" phase) in
       check) check_pr "$n" ;;
-      needs-you) ci_unpark "$n" && check_pr "$n" ;;
+      needs-you) { ci_unpark "$n" || ready_unpark "$n"; } && check_pr "$n" ;;
       question) backing_off || ! room "$n" || start_answer "$n" ;;
     esac
   done
