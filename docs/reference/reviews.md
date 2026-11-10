@@ -26,6 +26,17 @@ verdict: pass <sha>` or `Review verdict: changes <sha>`. Only correctness and se
 (an unmet acceptance criterion counts) make the verdict `changes`; nits go under
 "Non-blocking:". The dispatcher checks the file and posts it as `REVIEWER_LOGIN`.
 
+**Non-blocking findings go to a follow-up issue.** From every verdict comment (a review's or a
+fix-check's, `pass` or `changes`, once per verdict) the dispatcher takes the items under
+"Non-blocking:" and files them in one open issue per wave: `Follow-ups: non-blocking review
+findings, step <title>, wave <w>` for a package, `…, health pass` for the health pass, and
+`… (fast lane)` for every other issue. The first findings make the issue (not labelled `ready`:
+you decide), later ones are comments on it while it is open; a closed one makes a new issue. The
+fix run of a `changes` verdict gets only the blocking findings, and the fix-check checks only
+those. A `gh` error is logged and blocks nothing: the items stay in the PR comment.
+`canccu-status --findings` lists the most common findings and the files cited most, across the
+review records (`FINDINGS_TOP` lines at most, 15 by default).
+
 **Effort by risk.** Always `high` when the diff touches `GATED_PATHS` or agent configuration
 (never a light review for those, even as "docs"), and on any `gh` error. Then:
 

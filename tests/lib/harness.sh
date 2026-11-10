@@ -57,7 +57,7 @@ q="" args=("$@")
 for ((i = 0; i < ${#args[@]}; i++)); do case ${args[i]} in -q|--jq) q=${args[i+1]} ;; esac; done
 { routes=$(< "$FAKE/routes"); routes+=$'\n'$(< "$FAKE/routes.default"); } 2>/dev/null
 case "$1 $2" in
-  "issue edit"|"issue comment"|"issue close"|"pr edit"|"pr merge"|"pr comment"|"label create")
+  "issue edit"|"issue comment"|"issue close"|"issue create"|"pr edit"|"pr merge"|"pr comment"|"label create")
     grep -qxF "fail:$1 $2" <<<"$routes" && exit 1
     grep -qxF "fail124:$1 $2" <<<"$routes" && exit 124
     # $FAKE/merge-error: a merge fails with that error, as gh prints it
@@ -75,6 +75,8 @@ case "$1 $2" in
       [ -e "$f" ] && jq --arg b "$body" --arg u "$u" \
         '.comments += [{author: {login: $u}, createdAt: "2030-11-05T12:05:\(.comments | length + 10)Z", body: $b}]' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
     fi
+    # a new issue prints its link, like the real gh: number 900, or the one in $FAKE/new-issue
+    [ "$1 $2" = "issue create" ] && echo "https://github.com/example-org/web/issues/$(cat "$FAKE/new-issue" 2>/dev/null || echo 900)"
     # $FAKE/comment-urls: an issue comment prints its link, like the real gh
     [ -e "$FAKE/comment-urls" ] && [ "$1 $2" = "issue comment" ] && echo "https://github.com/example-org/web/issues/$3#issuecomment-$3"
     # $FAKE/noisy: a write prints like the real gh does (URLs on stdout, notes on stderr)
