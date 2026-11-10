@@ -79,7 +79,9 @@ Every `INTERVAL` seconds, under the project's lock:
    `Order: #a → #b` line, then the issue number. It is labelled `in-progress`, assigned to
    `USER_LOGIN`, and its worker starts in window `#<n>`.
 4. **Resume.** `plan-ok` → "The user approved the plan. Execute it with the superpowers skill
-   executing-plans. Build it in this PR: replace each `Plan for #<n>` line with `Closes #<n>`…" `needs-work` → your comments since the newest of the accept request, the
+   executing-plans. Build it in this PR: replace each `Plan for #<n>` line with `Closes #<n>`…", followed by
+   your comments on the issue and PR since the `needs-you` (your answers to the plan's questions;
+   a `gh` error reading them keeps `plan-ok` for the next pass). `needs-work` → your comments since the newest of the accept request, the
    arming of the merge and the verdict. A `needs-work` on a `needs-you` the fix-check's open
    items left (`open_sha` set, still in the fix round, not parked at `merge`) is one more fix
    round with a fix-check after it, unless a line of your comment is just `full review`; every

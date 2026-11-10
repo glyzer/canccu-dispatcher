@@ -690,10 +690,28 @@ ok "canccu-ship → merging (accepted)" eq "$(st 5 phase) $(st 5 how)" "merging 
 env_new resume-plan-ok
 { issue 5 in-progress,needs-you,plan-ok; } | issues
 state 5 phase=needs-you pr=50 "ny_at=$NOW"
+json issue5.json '{"comments": []}'; route 'issue view 5 *' issue5.json; json pr50.json '{"comments": []}'; route 'pr view 50 *' pr50.json
 dispatch --once
 ok "plan-ok → label removed" has gh.log "issue edit 5 -R example-org/web --remove-label plan-ok"
 ok "plan-ok → resumed" grep -q 'web 5 The user approved the plan. Execute it.' "$FAKE/worker.log"
 ok "plan-ok recorded" eq "$(st 5 plan_ok)" 1
+ok "plan-ok, no comment → no answer in the resume" not grep -q 'answered the questions' "$FAKE/worker.log"
+env_new resume-plan-ok-answer
+{ issue 5 in-progress,needs-you,plan-ok; } | issues
+state 5 phase=needs-you pr=50 "ny_at=$NOW"
+json issue5.json "$(jq -n --argjson a "$(comment 2030-11-05T12:30:00Z 'split; build package 1 only')" \
+  --argjson c "$(comment 2030-11-05T11:00:00Z 'old note')" '{comments: [$a, $c]}')"
+route 'issue view 5 *' issue5.json
+json pr50.json '{"comments": []}'; route 'pr view 50 *' pr50.json
+dispatch --once
+ok "plan-ok + an answer → the resume carries it" grep -q 'web 5 The user approved the plan. .*The user answered the questions of the plan: split; build package 1 only Do not review' "$FAKE/worker.log"
+ok "… and not the comments from before the needs-you" not grep -q 'old note' "$FAKE/worker.log"
+env_new resume-plan-ok-gh-error
+{ issue 5 in-progress,needs-you,plan-ok; } | issues
+state 5 phase=needs-you pr=50 "ny_at=$NOW"
+route 'issue view 5 *' FAIL
+dispatch --once
+ok "plan-ok, gh error on the comments → not resumed, plan-ok kept" eq "$(grep -c 'approved the plan' "$FAKE/worker.log")/$(grep -c 'remove-label plan-ok' "$FAKE/gh.log")" 0/0
 env_new resume-answer
 { issue 5 in-progress,needs-you; } | issues
 state 5 phase=needs-you "ny_at=$NOW"

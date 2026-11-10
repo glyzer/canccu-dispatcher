@@ -403,6 +403,7 @@ ok "worker prompt: no review skill apart from the forbidden name" not grep -qiE 
 env_new skills-plan-ok
 { issue 5 in-progress,needs-you,plan-ok; } | issues
 state 5 phase=needs-you pr=50 "ny_at=$NOW"
+json issue5.json '{"comments": []}'; route 'issue view 5 *' issue5.json; json pr50.json '{"comments": []}'; route 'pr view 50 *' pr50.json
 dispatch --once
 ok "plan-ok resume names executing-plans" grep -q 'web 5 The user approved the plan. Execute it with the superpowers skill executing-plans.' "$FAKE/worker.log"
 effenv skills-reviewer '[{"filename": "src/a.ts", "changes": 12}]' 'Tier: fix'
@@ -678,6 +679,7 @@ ok "lib: stage_of" eq "$(lib stage_of 5) $(lib stage_of 6) $(lib stage_of 7)" "f
 env_new cycle-plan-ok
 { issue 5 in-progress,needs-you,plan-ok; } | issues
 state 5 phase=needs-you pr=50 "ny_at=$NOW" stage=fixcheck reviewed_sha=$HA review_maccept=x
+json issue5.json '{"comments": []}'; route 'issue view 5 *' issue5.json; json pr50.json '{"comments": []}'; route 'pr view 50 *' pr50.json
 dispatch --once
 ok "plan-ok starts a new cycle" eq "$(st 5 stage)|$(st 5 reviewed_sha)|$(st 5 review_maccept)" "||"
 
