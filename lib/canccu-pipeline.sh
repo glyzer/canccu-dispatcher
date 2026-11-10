@@ -157,7 +157,7 @@ reap_answer() {
 
 # check_pr <n>: the worker is done; the PR and its CI decide what happens next
 check_pr() {
-  local n=$1 pr j head at rsha fix
+  local n=$1 pr j head at rsha fix c
   pr=$(pr_for "$n")
   if [ -z "$pr" ]; then
     # the health pass's PR left the open list (closed or merged): health_pr_closed or finish_unit
@@ -167,12 +167,19 @@ check_pr() {
     needs_you "$n" "the worker finished without an open PR" "$(run_msg "$n")" "" work; return
   fi
   st_set "$n" pr="$pr"
+  c=$(st_get "$n" contract_merged)
   if [ "$(pr_get "$pr" .isDraft)" = true ]; then
-    if is_plan_pr "$n" "$pr"; then
+    if [ -n "$c" ]; then
+      # contract_back: the draft waited for its contract PR, which is on main now
+      room "$n" || return 0
+      resume "$n" "The contract PR #$c merged into main. Run git merge origin/main in your branch, finish the package's work in PR #$pr and mark it ready." || return 0
+      st_set "$n" contract_merged=
+    elif is_plan_pr "$n" "$pr"; then
       needs_you "$n" "plan ready for OK: $(pr_get "$pr" .url) — label this issue \`plan-ok\` to approve, or comment" "" plan work
     else needs_you "$n" "PR #$pr is still a draft" "$(run_msg "$n")" "" work; fi
     return
   fi
+  [ -z "$c" ] || st_set "$n" contract_merged=
   case $(ci_state "$pr") in
     red) needs_you "$n" "CI is red on PR #$pr" "$(run_msg "$n")" "" ci; return ;;
     pending)

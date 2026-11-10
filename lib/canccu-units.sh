@@ -88,12 +88,15 @@ pkg_budget() {
 }
 # unit_size <K>: how many issues the unit covers (1 for an issue or the health pass)
 unit_size() { local c; c=$(members_of "$1" | grep -c .); echo $(( c > 0 ? c : 1 )); }
-# unit_of_branch <branch>: the managed package whose branch it is, else nothing
+# unit_of_branch <branch>: the managed package whose branch it is (or its contract branch,
+# is_contract_pr), else nothing
 unit_of_branch() {
-  local f
+  local f b
   [[ $1 == pkg-* ]] || return 0
   for f in "$CANCCU_HOME"/state/pkg-*; do
-    [ -f "$f" ] && [ "$(st_get "${f##*/}" branch)" = "$1" ] && { echo "${f##*/}"; return 0; }
+    [ -f "$f" ] || continue
+    b=$(st_get "${f##*/}" branch)
+    [ -n "$b" ] && { [ "$b" = "$1" ] || [ "$b-contract" = "$1" ]; } && { echo "${f##*/}"; return 0; }
   done
   return 0
 }

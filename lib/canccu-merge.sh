@@ -13,9 +13,24 @@ pr_gone() {
   j=$(ghj pr view "$2" -R "$REPO" --json state,body,closingIssuesReferences,headRefName) || return 0
   case $(jqr .state <<<"$j") in
     CLOSED) needs_you "$1" "PR #$2 was closed without merging" ;;
-    MERGED) plan_pr_merged "$1" "$j" && plan_back "$1" "$2" "$(jqr '.headRefName // ""' <<<"$j")" ;;
+    MERGED)
+      if is_contract_pr "$1" "$(jqr '.headRefName // ""' <<<"$j")"; then contract_back "$1" "$2"
+      else plan_pr_merged "$1" "$j" && plan_back "$1" "$2" "$(jqr '.headRefName // ""' <<<"$j")"; fi ;;
   esac
   return 0
+}
+
+# contract_back <K> <pr>: the unit's contract-first PR merged (is_contract_pr); its issues stay
+# open. Its review and merge round is over: the unit's own PR starts afresh in check, which
+# resumes the worker on a draft (contract_merged) to bring in main and finish.
+contract_back() {
+  local k=$1 pr=$2 main
+  main=$(pr_for "$k")
+  st_set "$k" phase=check check_at="$(now)" pr="$main" contract_merged="$pr" \
+    merge_mode= merge_at= merge_sha= how= accept_sha= accept_at=
+  new_cycle "$k"
+  has_label "$k" awaiting-accept && edit_issue "$k" --remove-label awaiting-accept
+  log "#$k PR #$pr: the contract PR merged; the package goes on in PR #${main:-?}"
 }
 
 # plan_pr_merged <K> <pr view json>: a merged PR that closes none of the unit's issues and says it

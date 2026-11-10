@@ -32,6 +32,11 @@ Every `INTERVAL` seconds, under the project's lock:
    - A worker that stopped with a question (a line starting `Question:`) → the answerer.
    - A worker that finished → phase `check`, then its PR decides (a PR for issue `n`: one that
      closes it, a plan-only PR with a `Plan for #n` line, or one on its branch `<n>-…`):
+     - an open contract-first PR (on the unit's branch plus `-contract`, closing none of its
+       issues, for a repo whose rule is "a contract change is its own PR and merges first") is
+       the unit's PR until it merges: it is reviewed, classified and merged like any other.
+       Once merged, the unit's own PR is back in `check`; a draft resumes the worker to bring
+       in main and finish;
      - no PR → `needs-you` with the worker's last message;
      - a draft PR with `docs/plans/issue-<n>.md` in its diff or a `Tier: plan` line →
        `needs-you`, "plan ready for OK"; another draft → `needs-you`;
