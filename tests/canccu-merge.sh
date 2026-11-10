@@ -63,6 +63,48 @@ merging_off rejected '{"state": "OPEN", "body": "Closes #5", "closingIssuesRefer
 dispatch --once
 ok "auto-merge off on an open PR → needs-you, as before" has gh.log "auto-merge was disabled or the merge queue rejected PR #50"
 
+# ---------------------------------------------------------------- a merge group with no runs (#23)
+
+# GitHub sometimes never starts the merge_group runs of a queue entry: it sits in AWAITING_CHECKS
+# until the queue's timeout. A dequeue plus enqueue starts them.
+# queued <name> <entry state> <enqueued at> <merge_group run count>: PR 50 armed 20 min ago, queued
+queued() {
+  env_new "$1"
+  { issue 5 in-progress; } | issues
+  pr 50 5 $HA green | prs
+  state 5 phase=merging pr=50 merge_sha=$HA how=auto "merge_at=$((NOW - 1200))"
+  jq -n --arg s "$2" --arg t "$3" '{data: {repository: {pullRequest: {id: "PR_50",
+    mergeQueueEntry: {state: $s, enqueuedAt: $t, headCommit: {oid: "mq50"}}}}}}' > "$FAKE/mqe.json"
+  route 'api graphql *enqueuedAt*' mqe.json
+  json ok.json '{"data": {}}'; route 'api graphql *queuePullRequest*' ok.json
+  json mq.json '{"data": {"repository": {"pullRequest": {"mergeQueueEntry": {"state": "QUEUED"}}}}}'
+  route 'api graphql *mergeQueueEntry*' mq.json
+  jq -n --argjson c "$4" '{total_count: $c}' > "$FAKE/mgruns.json"
+  route 'api repos/example-org/web/actions/runs?event=merge_group&head_sha=mq50*' mgruns.json
+}
+old_t=$(date -u -d "@$((NOW - 900))" +%FT%TZ) new_t=$(date -u -d "@$((NOW - 120))" +%FT%TZ)
+queued queue-stuck AWAITING_CHECKS "$old_t" 0
+dispatch --once
+ok "queue: an entry with no merge_group run after NO_CHECKS_MIN → dequeued" grep -q '^api graphql .*dequeuePullRequest' "$FAKE/gh.log"
+ok "… and enqueued again" grep -q '^api graphql .*enqueuePullRequest' "$FAKE/gh.log"
+ok "… reported" grep -q '#5 PR #50: the merge queue started no merge_group run in 10 min; dequeued and enqueued again' "$CANCCU_HOME/dispatch.log"
+ok "… no needs-you" hasnt gh.log "needs-you"
+: > "$FAKE/gh.log"; dispatch --once
+ok "… once per head" not grep -q 'dequeuePullRequest' "$FAKE/gh.log"
+queued queue-young AWAITING_CHECKS "$new_t" 0
+dispatch --once
+ok "queue: a young entry is left alone" not grep -q 'dequeuePullRequest' "$FAKE/gh.log"
+queued queue-running AWAITING_CHECKS "$old_t" 2
+dispatch --once
+ok "queue: an entry whose runs started is left alone" not grep -q 'dequeuePullRequest' "$FAKE/gh.log"
+queued queue-mergeable MERGEABLE "$old_t" 0
+dispatch --once
+ok "queue: an entry not waiting for checks is left alone" not grep -q 'dequeuePullRequest' "$FAKE/gh.log"
+queued queue-enqueue-fails AWAITING_CHECKS "$old_t" 0
+sed -i '1i api graphql *enqueuePullRequest(*\tFAIL' "$FAKE/routes"
+dispatch --once
+ok "queue: the enqueue fails → needs-you, the PR is out of the queue" has gh.log "was dequeued to restart its merge group, but could not be enqueued again"
+
 # ---------------------------------------------------------------- the plan-only PR
 
 PLAN_BODY=$'Plan for #5\n\nTier: plan\nRisk: low — a plan'

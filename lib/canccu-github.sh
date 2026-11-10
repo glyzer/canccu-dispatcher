@@ -31,7 +31,7 @@ pr_foreign() {
   if is_pkg "$2"; then
     jqr --arg b "$(unit_branch "$2")" --arg u "$USER_LOGIN" 'if .isCrossRepository != false then "PR #\(.number) is from a fork"
       elif (.author.login // "") != $u then "PR #\(.number) is by \(.author.login // "nobody"), not \($u)"
-      elif $b == "" or (.headRefName // "") != $b then "PR #\(.number) branch \(.headRefName) is not \($b)"
+      elif $b == "" or ((.headRefName // "") | . != $b and . != "\($b)-contract") then "PR #\(.number) branch \(.headRefName) is not \($b)"
       else empty end' <<<"$1"
     return
   fi
@@ -50,6 +50,12 @@ pr_not_ours() {
   fi
   printf '%s' "$why"
 }
+# A unit's contract-first PR (a repo's rule "a contract change is its own PR and merges first") is
+# the one on its branch plus -contract. It closes none of the unit's issues: it is reviewed and
+# merged first (pr_for prefers it while open), then the unit goes on in its own PR (contract_back).
+# is_contract_pr <K> <head branch>
+is_contract_pr() { local b; b=$(unit_branch "$1"); [ -n "$b" ] && [ "$2" = "$b-contract" ]; }
+
 # PR_ISSUES_JQ: jq defs; pr_issues: the issues a PR (gh's JSON) is for: those it closes and
 # those a line "Plan for #n" names (a plan-only PR does not close its issue: the build follows);
 # with neither, the one its branch <n>-… (or issue-<n>-…) names
@@ -76,9 +82,14 @@ not_ours() {
 # pr_for <n>: the newest open PR for issue n (pr_issues, or its branch <n>-…) that is not foreign
 # (pr_foreign)
 pr_for() {
-  local p
+  local p b; b=$(unit_branch "$1")
+  if [ -n "$b" ]; then
+    for p in $(jqr --arg b "$b-contract" '[.[] | select(.headRefName == $b) | .number] | sort | reverse | .[]' <<<"$PRS"); do
+      [ -z "$(pr_foreign "$(pr_get "$p" .)" "$1")" ] && { echo "$p"; return; }
+    done
+  fi
   if is_pkg "$1"; then
-    for p in $(jqr --arg b "$(unit_branch "$1")" '[.[] | select(.headRefName == $b) | .number] | sort | reverse | .[]' <<<"$PRS"); do
+    for p in $(jqr --arg b "$b" '[.[] | select(.headRefName == $b) | .number] | sort | reverse | .[]' <<<"$PRS"); do
       [ -z "$(pr_foreign "$(pr_get "$p" .)" "$1")" ] && { echo "$p"; return; }
     done
     return 0
@@ -249,12 +260,20 @@ classify_pure() {
 # classify <pr> [issue] [repo]: the same from GitHub; any gh error → manual. A PR for no issue or
 # several (pr_issues), another issue than the one given, or that is not ours → manual.
 classify() {
-  local pr=$1 want=${2:-} repo=${3:-$REPO} j n refs files labels why ma m l
+  local pr=$1 want=${2:-} repo=${3:-$REPO} j n refs files labels why ma m l head contract=0
   [ "$repo" = "$REPO" ] || { echo "manual: another repo ($repo)"; return; }
   j=$(pr_detail "$pr") || { echo "manual: gh error reading PR #$pr"; return; }
   refs=$(jqr "$PR_ISSUES_JQ"' pr_issues | map(tostring) | join(" ")' <<<"$j")
-  [ -n "$want" ] || want=$(unit_of_branch "$(jqr '.headRefName // ""' <<<"$j")")
-  if is_pkg "$want"; then
+  head=$(jqr '.headRefName // ""' <<<"$j")
+  [ -n "$want" ] || want=$(unit_of_branch "$head")
+  # a single issue's contract branch <n>-…-contract names its issue
+  [ -n "$want" ] || { [[ $refs != *" "* ]] && is_contract_pr "$refs" "$head" && want=$refs; }
+  if [ -n "$want" ] && is_contract_pr "$want" "$head"; then
+    # its merge must leave the issues open for the unit's own PR
+    l=$(jqr '[.closingIssuesReferences[]?.number] | unique | map(tostring) | join(" ")' <<<"$j")
+    [ -z "$l" ] || { echo "manual: PR #$pr closes $l on the contract branch $head"; return; }
+    n=$want contract=1
+  elif is_pkg "$want"; then
     # a package's PR closes exactly its issues (the health pass: none)
     m=$(members_of "$want" | sort -n | tr '\n' ' '); m=${m% }
     [ "$refs" = "$m" ] || { echo "manual: PR #$pr closes ${refs:-no issue}, not the package's ${m:-none}"; return; }
@@ -266,7 +285,7 @@ classify() {
     [ -z "$want" ] || [ "$n" = "$want" ] || { echo "manual: PR #$pr closes #$n, not #$want"; return; }
   fi
   # after plan-ok the PR is the build: a `Plan for` line alone would merge it and leave the issue open
-  if [ "$(st_get "$n" plan_ok)" = 1 ]; then
+  if [ "$(st_get "$n" plan_ok)" = 1 ] && (( ! contract )); then
     m=$(members_of "$n" | sort -n | tr '\n' ' '); m=${m% }
     l=$(jqr '[.closingIssuesReferences[]?.number] | unique | map(tostring) | join(" ")' <<<"$j")
     [ "$l" = "$m" ] || { echo "manual: PR #$pr closes ${l:-no issue} after plan-ok (the build must close #${m// /, #})"; return; }
@@ -282,7 +301,9 @@ classify() {
   done
   # a Maintainer accept line of the full review still holds after its fix-check passes
   ma=$(maintainer_accept_of "$j"); [ -n "$ma" ] || ma=$(st_get "$n" review_maccept)
-  local risk; risk=$(effective_risk "$n" "$(jqr '.body // ""' <<<"$j")" "$files" "$(review_risk_of "$j")")
-  classify_pure "$files" "$(jqr '.body // ""' <<<"$j")" "$labels" "$ma" "$repo" \
+  local body risk rrisk=""; body=$(jqr '.body // ""' <<<"$j")
+  [ -n "$(st_get "$n" pkg)" ] && rrisk=$(review_risk_of "$j")
+  risk=$(effective_risk "$n" "$body" "$files" "$rrisk")
+  classify_pure "$files" "$body" "$labels" "$ma" "$repo" \
     "$([ "$(st_get "$n" plan_ok)" = 1 ] && echo 1 || echo 0)" "$risk"
 }

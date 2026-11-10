@@ -26,7 +26,8 @@ Setup, by a maintainer (`canccu-init` prints these steps in its checklist):
 3. Require the checks `CI` and `review-gate` in a ruleset on the default branch.
 
 The workflow token only reads, except `actions: write` in the job that re-runs the gate when the
-reviewer posts a verdict. Every action is pinned by its commit SHA; Dependabot updates them.
+reviewer posts a verdict. That job re-runs every gate run of the PR's head, one at a time: a push
+and a body edit each start one, and either one left red keeps the PR out of the merge queue. Every action is pinned by its commit SHA; Dependabot updates them.
 
 ## The CLAUDE.md and AGENTS.md snippets
 

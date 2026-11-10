@@ -173,5 +173,46 @@ mkdir -p "$CANCCU_HOME/questions"; echo 'Question: v1 or v2?' > "$CANCCU_HOME/qu
 dispatch --once
 ok "no answerer for a blocked unit" not grep -q -- '--key answer-5' "$FAKE/worker.log"
 
+# ---------------------------------------------------------------- blocked exit, finished work (#25)
+
+# the worker's permission classifier denied a call the run then worked around: the exit report says
+# `blocked`, though the PR is open and green; paused projects review too
+env_new blocked-exit-pr
+{ issue 5 in-progress; } | issues
+p=$(pr 50 5 $HA); printf '%s\n' "$p" | prs
+json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z)"; route 'pr view 50 *' pr50.json
+state 5 phase=work "started=$NOW"; last 5 blocked $'PR ready.\nPR URL: https://github.com/example-org/web/pull/50'
+touch "$CANCCU_HOME/paused"
+dispatch --once
+ok "a blocked exit with an open PR → the review, no needs-you, paused too" eq "$(st 5 phase)" review
+ok "… no needs-you label" hasnt gh.log "needs-you"
+
+env_new blocked-exit-no-pr
+{ issue 5 in-progress; } | issues
+state 5 phase=work "started=$NOW"; last 5 blocked $'Blocked by the permission classifier.'
+dispatch --once
+ok "a blocked exit with no PR → still needs-you" eq "$(st 5 phase)" needs-you
+
+# a needs-you the lead lifts with no comment: the run is done and its PR waits for review
+env_new lifted-needs-you
+{ issue 5 in-progress; } | issues
+p=$(pr 50 5 $HA); printf '%s\n' "$p" | prs
+json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z)"; route 'pr view 50 *' pr50.json
+json c5.json '{"comments": []}'; route 'issue view 5 *' c5.json
+state 5 phase=needs-you pr=50 "ny_at=$((NOW - 600))" ny_stage=work "reason=the worker stopped: blocked"
+touch "$CANCCU_HOME/paused"
+dispatch --once
+ok "needs-you lifted, PR open and green → the review starts" grep -q -- '--key review-50' "$FAKE/worker.log"
+ok "… the worker is not resumed" not started 5
+
+env_new kept-needs-you
+{ issue 5 in-progress,needs-you; } | issues
+p=$(pr 50 5 $HA); printf '%s\n' "$p" | prs
+json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z)"; route 'pr view 50 *' pr50.json
+json c5.json '{"comments": []}'; route 'issue view 5 *' c5.json
+state 5 phase=needs-you pr=50 "ny_at=$((NOW - 600))" ny_stage=work
+dispatch --once
+ok "needs-you still there → nothing happens" eq "$(st 5 phase)" needs-you
+
 echo "canccu-waits tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

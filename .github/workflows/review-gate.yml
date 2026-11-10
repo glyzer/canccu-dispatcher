@@ -60,7 +60,7 @@ jobs:
           .github/scripts/review-gate "$RUNNER_TEMP/comments.json" "$head" "$RUN_HEAD" "$RUNNER_TEMP/timeline.json"
 
   # A comment event runs on the default branch, so its own check would not land on the PR.
-  # Instead, re-run the review-gate run of the PR's head, which then reads the comments again.
+  # Instead, re-run the review-gate runs of the PR's head, which then read the comments again.
   # Fires on a reviewer comment that has (or, when edited, had) a verdict, and on any edit of
   # a reviewer comment (an edited reviewer comment fails the gate). Any other comment only
   # starts a skipped run.
@@ -73,7 +73,7 @@ jobs:
        contains(github.event.changes.body.from || '', 'Review verdict:') ||
        github.event.action == 'edited')
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     permissions:
       actions: write
       pull-requests: read
@@ -89,28 +89,46 @@ jobs:
         run: |
           read -r head href hrepo < <(gh api "repos/$REPO/pulls/$PR" \
             --jq '"\(.head.sha) \(.head.ref) \(.head.repo.full_name // "-")"')
-          # Only this PR's run: same head SHA, branch and repo, and this PR number when
-          # GitHub lists one (it lists none for fork PRs).
-          for _ in $(seq 1 30); do
-            run=$(gh api "repos/$REPO/actions/workflows/review-gate.yml/runs?event=pull_request&head_sha=$head&per_page=20" |
+          # Every run of this PR's head, oldest first: a push and a body edit each start one, and
+          # each leaves its own review-gate check. Re-running only one leaves the other red, and
+          # the PR never merges. Only this PR's runs: same head SHA, branch and repo, and this PR
+          # number when GitHub lists one (it lists none for fork PRs).
+          runs() {
+            gh api "repos/$REPO/actions/workflows/review-gate.yml/runs?event=pull_request&head_sha=$head&per_page=50" |
               jq -r --argjson pr "$PR" --arg ref "$href" --arg hrepo "$hrepo" '
                 [ .workflow_runs[]
                   | select(.head_branch == $ref and .head_repository.full_name == $hrepo)
                   | select((.pull_requests | length) == 0 or any(.pull_requests[]; .number == $pr)) ]
-                | first | select(.) | "\(.id) \(.status)"')
-            case "${run#* }" in
-              "")
-                echo "::notice title=review-gate::No review-gate run for ${head:0:7} yet; it reads the verdict when it runs."
-                exit 0 ;;
-              completed)
-                gh run rerun "${run%% *}" -R "$REPO"
-                echo "Re-ran review-gate run ${run%% *} for ${head:0:7}."
-                exit 0 ;;
-              action_required|waiting)
-                echo "::notice title=review-gate::Run ${run%% *} for ${head:0:7} waits for a maintainer's approval; it reads the verdict when it runs."
-                exit 0 ;;
-            esac
+                | sort_by(.id) | .[] | "\(.id) \(.status)"'
+          }
+          # a run still going may have read the comments before this verdict: wait for it
+          busy() { grep -qvE ' (completed|action_required|waiting)$' <<<"$1"; }
+          for _ in $(seq 1 30); do
+            list=$(runs)
+            busy "$list" || break
             sleep 15
           done
-          echo "::error title=review-gate::run ${run%% *} for ${head:0:7} did not finish in time; re-run it by hand."
-          exit 1
+          if [ -z "$list" ]; then
+            echo "::notice title=review-gate::No review-gate run for ${head:0:7} yet; it reads the verdict when it runs."
+            exit 0
+          fi
+          if busy "$list"; then
+            echo "::error title=review-gate::a review-gate run for ${head:0:7} did not finish in time; re-run them by hand."
+            exit 1
+          fi
+          rc=0
+          while read -r id status; do
+            if [ "$status" != completed ]; then
+              echo "::notice title=review-gate::Run $id for ${head:0:7} waits for a maintainer's approval; it reads the verdict when it runs."
+              continue
+            fi
+            gh run rerun "$id" -R "$REPO" || { rc=1; continue; }
+            echo "Re-ran review-gate run $id for ${head:0:7}."
+            # one at a time: the gate's concurrency group cancels a run in progress when another starts
+            sleep 5
+            for _ in $(seq 1 40); do
+              [ "$(gh api "repos/$REPO/actions/runs/$id" --jq .status)" = completed ] && break
+              sleep 10
+            done
+          done <<<"$list"
+          exit "$rc"

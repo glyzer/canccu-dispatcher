@@ -36,7 +36,9 @@ verdict: pass <sha>` or `Review verdict: changes <sha>`. Only correctness and se
 - **A PR without one** (a single issue): `high` when the diff touches `RISKY_PATHS`; `medium`
   for a docs-only diff and for a `Tier: fix` diff under 100 changed lines that touches none of
   those; `high` otherwise. Docs are `docs/`, `*.md` and the rules' `EFFORT_DOCS_PATHS`, which
-  count as docs even when `RISKY_PATHS` names them.
+  count as docs even when `RISKY_PATHS` names them; their lines do not count toward the 100
+  either. An `EFFORT_DOCS_PATHS` that is not a valid regex makes every review `high` (with a
+  warning in the log).
 
 **Model by kind.** A full review runs on `REVIEW_MODEL`, a fix-check on `FIXCHECK_MODEL`; each
 is `MODEL` when empty. A project that runs fix-checks on a cheaper model (`claude-sonnet-5-5`)
