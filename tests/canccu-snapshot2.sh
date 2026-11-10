@@ -129,7 +129,7 @@ state 201 phase=check pr=60 "check_at=$((NOW - 100 * 60))" color=1
 state 202 phase=check pr=61 "check_at=$((NOW - 120))" color=2
 state 203 phase=check pr=62 "check_at=$((NOW - 12 * 60))" stage=fixcheck color=3
 # the review's findings: why check_pr stopped decides the stage, not the phase
-state 204 phase=check pr=64 "check_at=$((NOW - 60))" color=5
+state 204 phase=check pr=64 "check_at=$((NOW - 60))" color=5 fixes=2 fixes_pr=64   # its fix runs used up
 state 205 phase=check "check_at=$((NOW - 60))" color=6
 state 206 phase=check pr=66 "check_at=$((NOW - 100 * 60))" stage=fixing color=7
 state pkg-12-auth pkg=auth step=12 wave=1 "members=101 103" phase=accept pr=50 "accept_at=$((NOW - 600))" "reason=manual: risk high" "accept_sha=$HA" color=4
@@ -144,7 +144,7 @@ ok "snapshot #62: running: a PR with no checks → ci none, its wait cap NO_CHEC
   eq "$(sj '.running[] | select(.issue == 202) | "\(.pipeline) \(.ci) \(.minutes) \(.min_cap) \(.review_verdict)"')" "no-checks none 2 10 null"
 ok "snapshot #62: running: a fix round waiting on CI is at the CI step (its cap CI_WAIT_MIN), the review asked for changes" \
   eq "$(sj '.running[] | select(.issue == 203) | "\(.pipeline) \(.ci) \(.minutes) \(.min_cap) \(.review_verdict)"')" "ci pending 12 90 changes"
-ok "snapshot #62: red CI → needs_you stage ci (not review)" eq "$(sj '.needs_you[] | select(.issue == 204) | .stage')" ci
+ok "snapshot #62: red CI, no fix run left → needs_you stage ci (not review)" eq "$(sj '.needs_you[] | select(.issue == 204) | .stage')" ci
 ok "snapshot #62: the worker finished without a PR → needs_you stage work" eq "$(sj '.needs_you[] | select(.issue == 205) | .stage')" work
 ok "snapshot #62: CI pending past its cap in a fix round → needs_you stage ci (not fix-check)" \
   eq "$(sj '.needs_you[] | select(.issue == 206) | "\(.stage) \(.reason)"')" "ci CI on PR #66 is still pending after 90 min"

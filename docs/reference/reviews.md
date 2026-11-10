@@ -65,7 +65,7 @@ as `reviews/<pr>/<head>.open.md`, the head kept as `open_sha`; its own `Maintain
 waits for you.
 
 **Your `needs-work` on those open items** (still in the fix round, not after a stopped merge) is
-one more fix round: the worker resumes with the open items and your comments, the findings file
+one more fix round: the worker follows up (a fresh session unless `RESUME_ON` names `needs-work`) with the open items and your comments, the findings file
 `reviews/<pr>/<open_sha>.findings.md` is rebuilt from both (never appended to; a pointer to the
 fix-check's PR comment when the items were not saved), then a fix-check of `<open_sha>..<new
 head>` runs against them; each of your comments counts as a blocking item. A line in your

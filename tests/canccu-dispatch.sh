@@ -198,7 +198,7 @@ dispatch --once
 ok "… still backed off on the next pass: nothing starts" eq "$(wc -l < "$FAKE/worker.log")" 0
 echo $((NOW - 1)) > "$CANCCU_ROOT/backoff"
 dispatch --once
-ok "after the reset → resumed with continue" grep -q '^--quiet --name #5 web 5 Continue where you stopped: the usage limit has reset.' "$FAKE/worker.log"
+ok "after the reset → resumed with continue" grep -q '^--quiet --name #5 --fresh web 5 Continue where you stopped: the usage limit has reset.' "$FAKE/worker.log"
 ok "… phase work, still the same fix round" eq "$(st 5 phase) $(st 5 stage) $(st 5 reviewed_sha)" "work fixing $HA"
 ok "… no needs-you, no comment" eq "$(grep -cE 'needs-you|issue comment 5' "$FAKE/gh.log")" 0
 rm -f "$WORKERS_DIR/web-5.lock"; last 5 error "You've hit your 5-hour limit"   # the resumed run ends on the limit
@@ -396,7 +396,7 @@ ok "older-head verdict → no merge" hasnt gh.log "pr merge"
 
 review_env loop-1 'Review verdict: changes' review
 dispatch --once
-ok "changes from the full review → the worker resumes once with the findings" grep -q '^--quiet --name #5 web 5 The independent reviewer asked for changes on PR #50 (.*This is your one fix round.*src/a.ts:3 off by one.*turns=80 cost=20 min=45$' "$FAKE/worker.log"
+ok "changes from the full review → the worker resumes once with the findings" grep -q '^--quiet --name #5 --fresh web 5 The independent reviewer asked for changes on PR #50 (.*This is your one fix round.*src/a.ts:3 off by one.*turns=80 cost=20 min=45$' "$FAKE/worker.log"
 ok "… stage fixing, the reviewed sha kept" eq "$(st 5 stage) $(st 5 reviewed_sha) $(st 5 phase)" "fixing $HA work"
 ok "… the findings saved for the fix-check" grep -qF 'src/a.ts:3 off by one' "$CANCCU_HOME/reviews/50/$HA.findings.md"
 ok "no round counter any more" eq "$(grep -c '^rounds=' "$CANCCU_HOME/state/5")" 0
@@ -720,7 +720,7 @@ json issue5.json "$(jq -n --argjson a "$(comment 2030-11-05T12:30:00Z 'Use port 
   --argjson c "$(comment 2030-11-05T11:00:00Z 'old answer')" '{comments: [$a, $b, $c]}')"
 route 'issue view 5 *' issue5.json
 dispatch --once
-ok "user comment → resumed with it" grep -q 'web 5 The user answered: Use port 8080. Do not review your own work; run the checks only. turns=' "$FAKE/worker.log"
+ok "user comment → resumed with it" grep -q 'web 5 The user answered: Use port 8080. This run is a fresh session.* Do not review your own work; run the checks only. turns=' "$FAKE/worker.log"
 ok "needs-you dropped on resume" has gh.log "issue edit 5 -R example-org/web --remove-label needs-you"
 env_new resume-paused-backoff
 { issue 5 in-progress; issue 6 ready; } | issues
@@ -909,7 +909,7 @@ env_new canccu-run-ship
 { issue 5 in-progress; } | issues
 state 5 phase=needs-you
 PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-run" 5 ship it after the fix > "$E/out" 2>&1
-ok "canccu-run never hands the engine a leading word" grep -q 'web 5 The user says: ship it after the fix Do not review your own work; run the checks only. turns=' "$FAKE/worker.log"
+ok "canccu-run never hands the engine a leading word" grep -q 'web 5 The user says: ship it after the fix This run is a fresh session.* Do not review your own work; run the checks only. turns=' "$FAKE/worker.log"
 
 echo "canccu-dispatch tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

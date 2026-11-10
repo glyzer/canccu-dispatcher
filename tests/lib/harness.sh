@@ -15,6 +15,7 @@ NOW=$(date -u -d 2030-11-05T12:00:00Z +%s)
 export FAKE_PID=$$
 HA=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1111 HB=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb2222
 HC=cccccccccccccccccccccccccccccccccccc3333 BOT=review-bot
+export FAKE_MERGED=dddddddddddddddddddddddddddddddddddd4444   # the fake git's head after a merge of main
 FAKE_TOKEN=fake-reviewer-token-for-tests
 export FAKE_BOT=$BOT
 # the venv with rich for the monitor tests (CANCCU_VENV, else the usual one); unset afterwards, so
@@ -106,7 +107,7 @@ case $1 in
 esac
 key=""
 while [[ $1 == --* ]]; do
-  case $1 in --key) key=$2; shift 2 ;; --dir|--name|--model) shift 2 ;; *) shift ;; esac
+  case $1 in --key) key=$2; shift 2 ;; --dir|--name|--model|--effort) shift 2 ;; *) shift ;; esac
 done
 repo=$1; shift
 [ -n "$key" ] || key=${1%% *}
@@ -121,6 +122,20 @@ cat > "$fb/git" <<'EOF'
 a="$*"; printf '%s\n' "$a" >> "$FAKE/git.log"
 printf '%s\t%s\t%s\n' "${GH_CONFIG_DIR:-<default>}" "${GIT_CONFIG_COUNT:-<unset>}" "$a" >> "$FAKE/git.cfg"
 case " $a " in *" diff --numstat "*) cat "$FAKE/numstat" 2>/dev/null || exit 128 ;; esac
+# a worktree's branch (branch --show-current: $FAKE/branch), how far main is ahead (rev-list
+# --count: $FAKE/behind), its commits (log --oneline: $FAKE/gitlog); $FAKE/merge-conflict: a merge
+# of main fails, and diff --diff-filter=U lists that file's lines as the conflicting paths;
+# $FAKE/dirty: status --porcelain prints it; $FAKE/push-fail: a push is rejected
+case " $a " in
+  *" status --porcelain "*) [ -e "$FAKE/dirty" ] && cat "$FAKE/dirty" ;;
+  *" push origin HEAD:"*) [ -e "$FAKE/push-fail" ] && { echo "remote: rejected by a pre-receive hook" >&2; exit 1; } ;;
+  *" branch --show-current "*) [ -e "$FAKE/branch" ] && cat "$FAKE/branch" ;;
+  *" rev-list --count "*) [ -e "$FAKE/behind" ] && cat "$FAKE/behind" ;;
+  *" log --oneline "*) [ -e "$FAKE/gitlog" ] && cat "$FAKE/gitlog" ;;
+  *" rev-parse HEAD "*) [ -e "$FAKE/branch" ] && echo "$FAKE_MERGED" ;;
+  *" merge --no-edit "*) [ -e "$FAKE/merge-conflict" ] && exit 1 ;;
+  *" --diff-filter=U "*) [ -e "$FAKE/merge-conflict" ] && cat "$FAKE/merge-conflict" ;;
+esac
 # $FAKE/noisy: the branch is named, and writes print like the real git does
 if [ -e "$FAKE/noisy" ]; then
   case " $a " in

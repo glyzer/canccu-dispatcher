@@ -43,7 +43,11 @@ is stopped and its issue goes to `needs-you`.
 | `REVIEWER_TOKEN_FILE` | `~/.canccu/reviewer-token` | The bot's token, mode 600, one for all projects. Only the dispatcher's own `gh` calls that post a review or a ping read it ([`../security.md`](../security.md)). Missing or another mode: no review starts, and `canccu-status` says so |
 | `GH_CONFIG_DIR` | empty | The project's own `gh` config dir, logged in with its narrow token. Empty: `~/.canccu/projects/<name>/gh` when it exists, else the default `gh` login, with a warning in `canccu-status` ([`projects.md`](projects.md)) |
 | `BUDGET_WORK` | `250 80 150` | A worker on a new issue |
-| `BUDGET_RESUME` | `80 20 45` | A resumed worker: review fixes, a plan OK, an answer, your comment |
+| `BUDGET_RESUME` | `80 20 45` | A follow-up run of a worker: review fixes, a red-CI fix, a plan OK, an answer, your comment |
+| `RESUME_ON` | `answer,plan` | The follow-up kinds that `--resume` the worker's session: `answer` (an answer to its `Question:`), `plan` (plan-ok), `fix` (a review fix round), `ci` (a red-CI fix), `needs-work`, `merge` (a merge of main the worker has to do: one that conflicts, or main after a contract PR merged), `limited` (after a usage stop), `blocked` (its blockers closed), `user` (any other comment of yours, `canccu-run`), or `all`. Every other follow-up starts a fresh session with a short handoff ([`engine.md`](engine.md), "Follow-up runs") |
+| `FIX_ATTEMPTS` | `2` | Automatic fix runs per PR, review fix rounds and red-CI fixes together; then `needs-you`. `0`: red CI goes to `needs-you` at once, as before; no whole number: 2 |
+| `FIX_MODEL` | empty | The fix run's model (a review fix round, a red-CI fix, `needs-work`); empty: `MODEL`. Set it per machine in `~/.canccu/config` |
+| `FIX_EFFORT` | empty | The fix run's `--effort` (`low`, `medium`, `high`, `xhigh`, `max`); empty (or none of those, which is logged): no `--effort`, the account's. Set it per machine in `~/.canccu/config` |
 | `BUDGET_REVIEW` | `60 15 40` | The independent reviewer |
 | `BUDGET_FIXCHECK` | `30 6 20` | The fix-check after the worker fixed the review's findings |
 | `BUDGET_ANSWER` | `40 10 20` | The answerer of a worker's question |

@@ -60,7 +60,7 @@ default), `review_maccept` (the full review's
 cycle), `posted` (the head whose review was posted),
 `ny_kind` (what a `needs-you` waits for: `plan`, `question` or empty), `ny_stage` (where it
 parked), `ny_wait` (`ci`: it only waited on CI), `exclusive` (of the one-at-a-time kind),
-`no_pr` (its last run finished with no PR: the next resume starts a fresh session), `plan_ok`,
+`no_pr` (its last run finished with no PR: the next resume starts a fresh session), `fixes` and `fixes_pr` (the automatic fix runs on that PR, against `FIX_ATTEMPTS`), `main_merged` (the head a scripted merge of main pushed), `conflict_sha` (the head a conflict run started on), `mm_err` (scripted merges failed in a row), `plan_ok`,
 `accept_sha`, `merge_sha` and timestamps. A package adds `pkg`, `step`, `wave`, `members`,
 `branch`, `risk`, `risk_reason`, `review_risk` and `health`.
 
@@ -92,7 +92,7 @@ the rest were added after them. `-` is an unknown value.
 | 2 | repo | The repo's name |
 | 3 | key | The run's key: `<n>` or `pkg-<m>-<name>` (a worker), `review-<pr>` (a review or fix-check), `answer-<K>`, `plan-<m>` |
 | 4 | cost | The exact USD claude reported, or `?` (stopped at a budget, stalled, crashed, killed) |
-| 5 | type | `plan`, `build` (a new or resumed worker), `fix` (a resumed worker fixing review findings or a `needs-work`), `merge` (a resumed worker bringing in main after its contract PR merged), `review`, `fix-check`, `answer`, `health` |
+| 5 | type | `plan`, `build` (a new or resumed worker), `fix` (a worker's follow-up fixing review findings, a red CI or a `needs-work`), `merge` (a worker's follow-up bringing in main: after its contract PR merged, or a merge of main that conflicts), `review`, `fix-check`, `answer`, `health` |
 | 6 | model | The `--model` the run got; `-`: the account's default |
 | 7 | effort | The `--effort` the run got; for a review or fix-check, the code-review skill's effort it was told; `-`: none |
 | 8 | session | `fresh` or `resumed` |

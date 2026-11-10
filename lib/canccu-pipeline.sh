@@ -150,7 +150,7 @@ reap_answer() {
     c=$(issue_comment_by "$n" "${started:-0}" '^[[:space:]*_]*Answer:'); url=${c%%$'\t'*}
     [ -n "$c" ] && c=${c#*$'\t'} || c=$out
     # logged for the digest only once the worker runs: a failed resume is retried, not listed twice
-    resume "$n" "An answerer (not the user) answered your question from the repo's decisions and docs; the user may overrule it on the issue. $(oneline 4000 "$c") Continue with that." || return 0
+    resume "$n" "An answerer (not the user) answered your question from the repo's decisions and docs; the user may overrule it on the issue. $(oneline 4000 "$c") Continue with that." answer || return 0
     (( CANCCU_DRY )) || printf '%s\t%s\t%s\t%s\n' "$(now)" "$n" "${url:-#$n}" "$(oneline 200 "$q")" >> "$CANCCU_HOME/answers.log"
     log "#$n question answered${url:+: $url}"
   else
@@ -185,7 +185,7 @@ check_pr() {
   fi
   [ -z "$c" ] || st_set "$n" contract_merged=
   case $(ci_state "$pr") in
-    red) spend_note "$n" "$(st_get "$n" started)" ci=red; needs_you "$n" "CI is red on PR #$pr" "$(run_msg "$n")" "" ci; return ;;
+    red) spend_note "$n" "$(st_get "$n" started)" ci=red; ci_red "$n" "$pr"; return ;;
     pending)
       at=$(st_get "$n" check_at); at=${at:-$(now)}
       (( $(now) - at > CI_WAIT_MIN * 60 )) && needs_you "$n" "CI on PR #$pr is still pending after $CI_WAIT_MIN min" "" "" ci &&
@@ -312,7 +312,7 @@ extra_round() {
   full_review_asked "$c" && return 1
   items=$(cat "$(open_file "$pr" "$osha")" 2>/dev/null)
   [ -n "$items" ] || items="The open items of the fix-check were not saved: read the newest PR comment ending in 'Review verdict: changes $osha' (gh pr view $pr -R $REPO --comments)."
-  resume "$n" "The user asked for one more fix round on PR #$pr (needs-work) for the open items of its fix-check. Fix them and address their comments, rerun the checks, push once, and stop when CI is green. A narrow fix-check of this fix diff against those items follows, then the merge or the maintainer. The open items: $items Their comments: ${c:-none found; read the latest comments on the PR and the issue}" fix || return 0
+  resume "$n" "The user asked for one more fix round on PR #$pr (needs-work) for the open items of its fix-check. Fix them and address their comments, rerun the checks, push once, and stop when CI is green. A narrow fix-check of this fix diff against those items follows, then the merge or the maintainer. The open items: $items Their comments: ${c:-none found; read the latest comments on the PR and the issue}" needs-work || return 0
   [ -n "$c" ] && cm=$'\n\n'"The user's needs-work comments (also to be fixed): $c"
   # rebuilt from the saved items each time, so a second needs-work in the round never appends
   save_findings "$n" "$pr" "$(findings_file "$pr" "$osha")" "$items$cm"
@@ -331,7 +331,7 @@ resume_step() {
     # built; a gh error keeps plan-ok for the next pass rather than resume without them
     since=$(st_get "$n" ny_at); c=$(user_comments "$n" "$pr" "${since:-$(st_get "$n" started)}") ||
       { log "#$n: gh error reading the comments for plan-ok; retrying next pass"; return 0; }
-    resume "$n" "The user approved the plan. Execute it with the superpowers skill executing-plans. Build it in this PR: replace each \`Plan for #<n>\` line with \`Closes #<n>\` and set the real \`Tier:\` line.${c:+ The user answered the questions of the plan: $c}" || return 0
+    resume "$n" "The user approved the plan. Execute it with the superpowers skill executing-plans. Build it in this PR: replace each \`Plan for #<n>\` line with \`Closes #<n>\` and set the real \`Tier:\` line.${c:+ The user answered the questions of the plan: $c}" plan || return 0
     edit_issue "$n" --remove-label plan-ok   # only once the worker runs: a failed start keeps the signal
     st_set "$n" plan_ok=1; new_cycle "$n"
   elif has_label "$n" needs-work; then
@@ -343,17 +343,18 @@ resume_step() {
     c=$(user_comments "$n" "$pr" "${since:-$(st_get "$n" started)}") ||
       { log "#$n PR #$pr: gh error reading the comments for needs-work; retrying next pass"; return 0; }
     extra_round "$n" "$pr" "$c" && return 0
-    resume "$n" "The user rejected PR #$pr (needs-work). Address their comments, rerun the checks, push once, and stop when CI is green. Their comments: ${c:-none found; read the latest comments on the PR and the issue}" fix || return 0
+    resume "$n" "The user rejected PR #$pr (needs-work). Address their comments, rerun the checks, push once, and stop when CI is green. Their comments: ${c:-none found; read the latest comments on the PR and the issue}" needs-work || return 0
     edit_issue "$n" --remove-label needs-work
     has_label "$n" awaiting-accept && edit_issue "$n" --remove-label awaiting-accept
     new_cycle "$n"
   elif [ "$phase" = needs-you ]; then
     c=$(user_comments "$n" "$pr" "$(st_get "$n" ny_at)")
-    [ -n "$c" ] && room "$n" && resume "$n" "The user answered: $c"
+    # the answer to a worker's Question: is the one follow-up whose conversation matters
+    [ -n "$c" ] && room "$n" && resume "$n" "The user answered: $c" "$([ "$(st_get "$n" ny_kind)" = question ] && echo answer || echo user)"
   elif [ "$phase" = limited ]; then
-    room "$n" && resume "$n" "Continue where you stopped: the usage limit has reset."
+    room "$n" && resume "$n" "Continue where you stopped: the usage limit has reset." limited
   elif [ "$phase" = waiting ]; then
-    unit_blocked "$n" || { blocked_unmark "$(lead_of "$n")"; room "$n" && resume "$n" "The issue is no longer labelled \`blocked\`: check its blockers again, then do the work."; }
+    unit_blocked "$n" || { blocked_unmark "$(lead_of "$n")"; room "$n" && resume "$n" "The issue is no longer labelled \`blocked\`: check its blockers again, then do the work." blocked; }
   fi
   return 0
 }

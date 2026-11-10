@@ -50,7 +50,7 @@ env_new mark-red
 pr 50 5 $HA red | prs
 state 5 phase=check "check_at=$NOW" pr=50 ny_wait=ci
 dispatch --once
-ok "CI red → needs-you, not a CI wait" eq "$(st 5 phase) $(st 5 ny_wait)" "needs-you "
+ok "CI red → a fix run, not a CI wait" eq "$(st 5 phase) $(st 5 ny_wait)" "work "
 
 # ---------------------------------------------------------------- green → review
 
@@ -74,12 +74,10 @@ ok "… the worker is not resumed" not started 5
 env_new unpark-red
 parked red ci "CI on PR #50 is still pending after 90 min" ci
 dispatch --once
-ok "CI wait, CI now red → still needs-you" eq "$(st 5 phase)" needs-you
-ok "… now for the red CI" eq "$(st 5 reason)" "CI is red on PR #50"
+ok "CI wait, CI now red → the red-CI fix run (canccu-followup.sh)" eq "$(st 5 phase) $(grep -c 'CI is red on PR #50' "$FAKE/worker.log")" "work 1"
 ok "… no review" not grep -q -- '--key review-50' "$FAKE/worker.log"
-ok "… the worker is not resumed" not started 5
 dispatch --once
-ok "… and the next pass leaves it there (no second comment)" eq "$(grep -c '^issue comment 5 ' "$FAKE/gh.log")" 1
+ok "… and the next pass starts no second one" eq "$(grep -c 'CI is red on PR #50' "$FAKE/worker.log")" 1
 
 # ---------------------------------------------------------------- still pending → stays
 
@@ -107,7 +105,7 @@ parked green ci "CI on PR #50 is still pending after 90 min" ci
 json c5.json "$(jq -n --argjson c "$(comment 2030-11-05T11:59:00Z 'rename it first')" '{comments: [$c]}')"
 dispatch --once
 ok "CI wait with a user comment since, CI now green → the worker resumes with the comment" \
-  grep -q -- '--name #5 web 5 The user answered: rename it first' "$FAKE/worker.log"
+  grep -q -- '--name #5 --fresh web 5 The user answered: rename it first' "$FAKE/worker.log"
 ok "… no review" not grep -q -- '--key review-50' "$FAKE/worker.log"
 
 # ---------------------------------------------------------------- tests/run

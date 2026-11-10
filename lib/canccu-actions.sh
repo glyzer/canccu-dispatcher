@@ -45,10 +45,13 @@ needs_you() {
   log "#$n needs-you: $reason$(its_url "$(issue_url "$n")")"
 }
 
-# resume <n> <message> [run type: build (default), fix, merge]: the issue's worker continues its session with the message. A PR armed
-# for auto-merge is disarmed first (armed), and `accepted` dropped: the worker is about to change it.
+# resume <n> <message> [kind]: the issue's worker follows up with the message. The kind (answer,
+# plan, fix, ci, needs-work, merge, limited, blocked; default user: a comment, canccu-run) picks a
+# resumed session where RESUME_ON names it, else a fresh one with the handoff (lib/canccu-followup.sh);
+# a fix kind runs on FIX_MODEL and FIX_EFFORT. A PR armed for auto-merge is disarmed first
+# (armed), and `accepted` dropped: the worker is about to change it.
 resume() {
-  local n=$1 pr msg=$2 q; pr=$(st_get "$n" pr)
+  local n=$1 pr msg=$2 kind=${3:-user} q how=resume fl=() model=$MODEL effort="" type; pr=$(st_get "$n" pr)
   blocked_held "$n" "the resumed worker" && return 1
   step_run_held "$n" "the resumed worker" && return 1
   if [ -n "$pr" ] && [ "$(st_get "$n" phase)" = merging ]; then
@@ -61,12 +64,20 @@ resume() {
     # the answer to a question needs the question: the old session that asked it is gone
     q=""; { [ "$(st_get "$n" phase)" = answer ] || [ "$(st_get "$n" ny_kind)" = question ]; } && q=$(q_get "$n")
     mut rm -f "$WORKERS_DIR/$REPO_NAME-$n.id"; msg="$(unit_prompt "$n")${q:+ Your earlier run stopped with this question: $(oneline 2000 "$q")} $msg"
+    how=fresh fl=(--fresh)
+  elif ! resume_on "$kind"; then
+    # the task first: the handoff and the standing orders after it are what may be cut
+    msg="$(oneline 5000 "$msg") $(handoff "$n")" how=fresh fl=(--fresh)
   fi
+  # the run type spend.log names: a fix kind is a fix, a merge a merge, the rest build
+  type=build; [ "$kind" = merge ] && type=merge
+  if fix_kind "$kind"; then model=${FIX_MODEL:-$MODEL} effort=$(run_effort FIX_EFFORT) type=fix; fi
   # workers never review: a resumed worker is told so as well
-  run_worker "$n" "$msg Do not review your own work; run the checks only." \
-    "$( [ -n "$(st_get "$n" pkg)" ] && pkg_budget "$BUDGET_RESUME" "$(unit_size "$n")" || echo "$BUDGET_RESUME")" "${3:-build}" || return 1
+  MODEL=$model RUN_EFFORT=$effort run_worker "$n" "$msg Do not review your own work; run the checks only." \
+    "$( [ -n "$(st_get "$n" pkg)" ] && pkg_budget "$BUDGET_RESUME" "$(unit_size "$n")" || echo "$BUDGET_RESUME")" "$type" "${fl[@]}" || return 1
   has_label "$n" needs-you && edit_issue "$n" --remove-label needs-you
-  log "#$n resumed: $(oneline 100 "$2")"
+  if [ "$how" = fresh ]; then log "#$n resumed (fresh session, $kind): $(oneline 100 "$2")"
+  else log "#$n resumed: $(oneline 100 "$2")"; fi
 }
 
 # blocked_held <K> <what>: the unit is labelled `blocked`, so nothing of it runs (said once)
@@ -235,7 +246,12 @@ act_verdict() {
           needs_you "$n" "the $what of PR #$pr still finds open items after the fix (one review, one fix, one fix-check: no further loop). \`needs-work\` gives one more fix round and a fix-check of these items; with \`needs-work\`, a line \`full review\` in your comment asks for a new full review instead" "$body"
           st_set "$n" verdict_at="$at" open_sha="$head" ;;
         *)
+          if ! fix_left "$n" "$pr"; then
+            needs_you "$n" "the review of PR #$pr asks for changes and no automatic fix run is left ($(fix_max) per PR, FIX_ATTEMPTS): comment the way on and the worker follows up" "$body"
+            st_set "$n" verdict_at="$at"; return 0
+          fi
           resume "$n" "The independent reviewer asked for changes on PR #$pr (full comment: gh pr view $pr -R $REPO --comments). This is your one fix round: fix every finding, rerun the checks, push once, and stop when CI is green. A narrow fix-check of your fix diff follows, then the merge or the maintainer. The review: $body" fix || return 0
+          fix_count "$n" "$pr"
           save_findings "$n" "$pr" "$(findings_file "$pr" "$head")" "$body"
           st_set "$n" stage=fixing reviewed_sha="$head" verdict_at="$at" review_maccept="$(oneline 200 "$(maintainer_accept_of "$j")")" \
             review_risk="$(review_risk_of "$j")"

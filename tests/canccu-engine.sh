@@ -35,7 +35,7 @@ env WORKER_GH_TOKEN_FILE="$E/reviewer-token" REVIEWER_TOKEN_FILE="$E/reviewer-to
   PATH="$T/tmuxrec:$fb:$PATH" CODE_ROOT="$E/code" TMUX_SESSION=canccu-t \
   "$root/libexec/canccu-worker" --quiet --key review-60 --dir "$E/rwt" --untrusted web "review it" turns=5 cost=1 min=2 > /dev/null 2>&1
 ok "spawn: a reviewer window opens" grep -q 'new-window' "$FAKE/tmux.log"
-ok "spawn: … with the untrusted flag as an argument" grep -q 'review it .* user$' "$FAKE/tmux.log"
+ok "spawn: … with the untrusted flag as an argument" grep -q 'review it .* user 0 0 $' "$FAKE/tmux.log"
 ok "spawn: … the token variables sent empty" grep -qF -- '-e GH_TOKEN= -e GITHUB_TOKEN= -e WORKER_GH_TOKEN_FILE= -e REVIEWER_TOKEN_FILE=' "$FAKE/tmux.log"
 ok "spawn: … never the token or its path" notoken "$FAKE/tmux.log"
 ok "spawn: the lock records the window's session and name" eq "$(sed -n 's/^session=//p; s/^wname=//p' "$WORKERS_DIR/web-review-60.lock" | tr '\n' ' ')" "canccu-t web#review-60 "
@@ -144,6 +144,27 @@ mkdir -p "$E/cb"; printf '#!/bin/sh\necho "$*" >> "$FAKE/curl.log"\n' > "$E/cb/c
   "$root/libexec/canccu-worker" __run web 9 5 1 2 "" "a prompt" "$E/wd" "" > /dev/null 2>&1)
 ok "a finished run writes its .last" test -s "$WORKERS_DIR/web-9.last"
 ok "… and posts nowhere (no webhook)" test ! -e "$FAKE/curl.log"
+# fresh or resume: the session mark in .last (before the status) and spend.log (its session column, the 8th: fresh or resumed)
+erun() { (cd "$E/wd" && PATH="$fb:$PATH" CODE_ROOT="$E/code" "$root/libexec/canccu-worker" __run web 9 5 1 2 "" "a prompt" "$E/wd" "" "$@" > /dev/null 2>&1); }
+ok "a first run is fresh: --session-id" grep -q -- '--session-id' <(tail -1 "$FAKE/claude.args")
+ok "… marked fresh in .last, the status still 4th from the end" eq "$(head -1 "$WORKERS_DIR/web-9.last" | awk -F ' · ' '{ print $(NF - 4) "|" $(NF - 3) }')" "fresh|done"
+ok "… and in spend.log" eq "$(tail -1 "$WORKERS_DIR/spend.log" | cut -f3,8)" "9${TAB:=	}fresh"
+ok "the run reads its status as done" eq "$(lib run_exit "$WORKERS_DIR/web-9.last")" "done|done"
+erun
+ok "the next run of an issue resumes its session" grep -q -- "--resume $(cat "$WORKERS_DIR/web-9.id")" <(tail -1 "$FAKE/claude.args")
+ok "… marked resume" eq "$(head -1 "$WORKERS_DIR/web-9.last" | awk -F ' · ' '{ print $(NF - 4) }') $(tail -1 "$WORKERS_DIR/spend.log" | cut -f8)" "resume resumed"
+sid=$(cat "$WORKERS_DIR/web-9.id"); erun 0 1
+ok "fresh=1: a new session though the issue has one" eq "$(grep -c -- '--resume' <(tail -1 "$FAKE/claude.args"))/$(grep -c -- "$sid" "$WORKERS_DIR/web-9.id")" 0/0
+ok "… marked fresh" eq "$(tail -1 "$WORKERS_DIR/spend.log" | cut -f8)" fresh
+erun 0 1 low
+ok "an effort: --effort passed to claude" grep -q -- '--effort low' <(tail -1 "$FAKE/claude.args")
+erun 0 1
+ok "no effort: no --effort" not grep -q -- '--effort' <(tail -1 "$FAKE/claude.args")
+: > "$FAKE/tmux.log"
+spawn "$root/libexec/canccu-worker" --quiet --fresh --effort high --key k3 --dir "$E/wd" web "p" turns=5 cost=1 min=2
+ok "--fresh and --effort reach the run" grep -q 'k3 5 1 2  p .* 0 1 high$' "$FAKE/tmux.log"
+spawn "$root/libexec/canccu-worker" --quiet --effort huge --key k4 --dir "$E/wd" web "p" turns=5 cost=1 min=2; rc=$?
+ok "an unknown effort is refused" eq "$rc $(grep -c 'bad --effort' "$E/out")" "1 1"
 # no interactive-session lock kind: a kind=cc lock left by an old install is not the engine's to kill
 bash -c 'sleep 30; :' cc web 78 & cp_=$!
 printf 'repo=web\nkey=78\nkind=cc\npid=%s\nwindow=\n' "$cp_" > "$WORKERS_DIR/web-78.lock"

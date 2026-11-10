@@ -19,7 +19,7 @@ The pipeline runs on a unit key K: `<n>` for an issue (the fast lane, and a pack
 milestone number). A package's labels, comments and your answers live on its **lead issue** (its
 first open issue; for the health pass, the step's epic, else its checkpoint); every issue of the
 package carries `in-progress`. A package of several issues runs in `worktrees/<repo>/<K>` with
-its session kept for the fix round; a package of one runs as its issue.
+its session kept for a follow-up that `RESUME_ON` resumes; a package of one runs as its issue.
 
 ### The planner
 

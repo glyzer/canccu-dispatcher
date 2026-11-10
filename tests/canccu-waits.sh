@@ -58,9 +58,9 @@ dispatch --once
 ok "still labelled blocked → still waiting, nothing runs" eq "$(st 5 phase) $(grep -c '^--quiet --name #5 ' "$FAKE/worker.log")" "waiting 0"
 { issue 5 in-progress; } | issues
 dispatch --once
-ok "the label removed → resumed" grep -q '^--quiet --name #5 web 5 ' "$FAKE/worker.log"
+ok "the label removed → resumed" grep -q '^--quiet --name #5 --fresh web 5 ' "$FAKE/worker.log"
 ok "… afresh, with no session to --resume (its last run left no PR)" test ! -e "$WORKERS_DIR/web-5.id"
-ok "… and the whole task in its prompt" grep -q '^--quiet --name #5 web 5 You are working on example-org/web issue #5 in this worktree.*no longer labelled .blocked' "$FAKE/worker.log"
+ok "… and the whole task in its prompt" grep -q '^--quiet --name #5 --fresh web 5 You are working on example-org/web issue #5 in this worktree.*no longer labelled .blocked' "$FAKE/worker.log"
 
 env_new waits-not-started
 { issue 5 in-progress,blocked; } | issues
@@ -87,8 +87,8 @@ state 5 phase=needs-you "ny_at=$((NOW - 600))" no_pr=1
 echo sid > "$WORKERS_DIR/web-5.id"
 dispatch --once
 ok "no PR: the resume drops the session id" test ! -e "$WORKERS_DIR/web-5.id"
-ok "… and carries the task and the user's answer" grep -q '^--quiet --name #5 web 5 You are working on example-org/web issue #5 .*The user answered: Build it now.' "$FAKE/worker.log"
-env_new keep-resume
+ok "… and carries the task and the user's answer" grep -q '^--quiet --name #5 --fresh web 5 You are working on example-org/web issue #5 .*The user answered: Build it now.' "$FAKE/worker.log"
+env_new keep-resume RESUME_ON=answer,plan,user
 { issue 5 in-progress,needs-you; } | issues
 pr 50 5 $HA red | prs
 json issue5.json "$(jq -n --argjson c "$(comment 2030-11-05T11:59:00Z 'Fix CI.')" '{comments: [$c], labels: []}')"
@@ -96,7 +96,7 @@ route 'issue view 5 *' issue5.json; json pr50c.json '{"comments": []}'; route 'p
 state 5 phase=needs-you pr=50 "ny_at=$((NOW - 600))" no_pr=1
 echo sid > "$WORKERS_DIR/web-5.id"
 dispatch --once
-ok "an open PR: the session is resumed, as before" eq "$(cat "$WORKERS_DIR/web-5.id") $(grep -c '^--quiet --name #5 web 5 The user answered: Fix CI.' "$FAKE/worker.log")" "sid 1"
+ok "an open PR, RESUME_ON names user: the session is resumed" eq "$(cat "$WORKERS_DIR/web-5.id") $(grep -c '^--quiet --name #5 web 5 The user answered: Fix CI.' "$FAKE/worker.log")" "sid 1"
 
 # ---------------------------------------------------------------- only the dispatcher's own label is removed
 
@@ -164,7 +164,7 @@ state 5 phase=answer "started=$NOW" no_pr=1
 mkdir -p "$CANCCU_HOME/questions"; echo 'Question: v1 or v2?' > "$CANCCU_HOME/questions/5.txt"
 last answer-5 done 'ANSWERED'
 dispatch --once
-ok "a fresh session after an answer is told the question too" grep -q '^--quiet --name #5 web 5 You are working on .*Your earlier run stopped with this question: Question: v1 or v2?.*Answer: v2' "$FAKE/worker.log"
+ok "a fresh session after an answer is told the question too" grep -q '^--quiet --name #5 --fresh web 5 You are working on .*Your earlier run stopped with this question: Question: v1 or v2?.*Answer: v2' "$FAKE/worker.log"
 
 env_new answer-blocked
 { issue 5 in-progress,blocked; } | issues

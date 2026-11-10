@@ -4,8 +4,8 @@
 # window, and record how it ended. Only canccu-dispatch and friends call it, through
 # lib/canccu-common.sh; it refuses to run otherwise.
 #
-#   canccu-worker [--key K] [--dir D] [--name N] [--model M] [--untrusted] [--keep-session] [--quiet]
-#                 <repo> "<prompt>" turns=<n> cost=<usd> min=<n>
+#   canccu-worker [--key K] [--dir D] [--name N] [--model M] [--effort E] [--untrusted] [--keep-session]
+#                 [--fresh] [--quiet] <repo> "<prompt>" turns=<n> cost=<usd> min=<n>
 #   canccu-worker --unlock <repo> <key>
 #   canccu-worker --kill <repo> <key>
 #
@@ -25,6 +25,9 @@
 #          and .mcp.json servers never load. Passed to the run as an argument, never through the
 #          environment, so it cannot leak into later windows.
 # --keep-session  a non-numeric key keeps its session id, so its next run resumes it (a work package)
+# --fresh    this run starts a new session even where the key keeps one (a follow-up run with a
+#          handoff in its prompt: reloading a long session costs more per turn than it holds)
+# --effort E  claude's --effort (low, medium, high, xhigh, max); default: none, the account's
 # --quiet    accepted for the callers' sake: a run's report only ever goes to <repo>-<key>.last
 # turns= / cost= / min=  the run's budget, required: turns, USD (claude reports cost in USD), minutes
 # WORKER_ADD_DIRS  space-separated dirs passed as --add-dir
@@ -91,10 +94,12 @@ spend_line() {
   { flock -w 2 6; printf '%s\n' "$t" >> "$WORKERS_DIR/spend.log"; } 6>>"$WORKERS_DIR/.spend.lock"
 }
 
-# run <repo> <key> <turns> <cost> <mins> <model> <prompt> <dir> [sources] [keep]
+# run <repo> <key> <turns> <cost> <mins> <model> <prompt> <dir> [sources] [keep] [fresh] [effort]
 run() {
   local repo=$1 key=$2 turns=$3 cost=$4 mins=$5 model=$6 prompt=$7 dir=$8 sources=${9:-} keep=${10:-0}
-  local base="$WORKERS_DIR/$repo-$key" started=$SECONDS note="" sid stop="" rc=0
+  local fresh=${11:-0} effort=${12:-}
+  [ -n "$effort" ] && WORKER_EFFORT=$effort   # the flag wins over the environment
+  local base="$WORKERS_DIR/$repo-$key" started=$SECONDS note="" sid stop="" rc=0 how=fresh
   lock="$base.lock" errf="$WORKERS_DIR/.$repo-$key.err" sumf="$WORKERS_DIR/.$repo-$key.sum"
   stallf="$WORKERS_DIR/.$repo-$key.stall" run_repo=$repo run_key=$key run_model=$model run_t0=$(date +%s)
   # no credential reaches claude, whatever the tmux server's environment holds
@@ -105,7 +110,7 @@ run() {
   trap '[ -n "$wpid" ] && kill "$wpid" 2>/dev/null; rm -f "$lock" "$errf" "$sumf" "$stallf"' EXIT
   # the spend line first: kill_tree (canccu-stop, worker --kill) sends KILL 3 s after TERM
   trap 'spend_unknown; [ -n "$cpid" ] && kill_tree "$cpid"; exit 143' TERM HUP INT
-  [[ $key =~ ^[0-9]+$ || $keep == 1 ]] || rm -f "$base.id"
+  [[ ($key =~ ^[0-9]+$ || $keep == 1) && $fresh != 1 ]] || rm -f "$base.id"
 
   # watchdog <pid>: when the log stops growing for WORKER_STALL_MIN minutes, flag it and kill the tree
   watchdog() {
@@ -121,6 +126,7 @@ run() {
     local sargs prc d
     if [ -s "$base.id" ]; then sid=$(<"$base.id"); sargs=(--resume "$sid") run_session=resumed
     else sid=$(new_uuid); echo "$sid" > "$base.id"; sargs=(--session-id "$sid") run_session=fresh; fi
+    how=${run_session/resumed/resume}
     local args=(-p --output-format stream-json --verbose --permission-mode auto
                 --permission-prompts none --max-budget-usd "$cost" -n "$repo#$key" "${sargs[@]}"
                 --append-system-prompt "$WORKER_RULES")
@@ -176,20 +182,21 @@ run() {
   fi
   [ -n "$note" ] && msg="($note)"$'\n\n'"$msg"
 
-  report "$repo" "$key" "$prompt" "$status" "$nturns" "$spent" "$((SECONDS - started))" "$msg" \
+  report "$repo" "$key" "$prompt" "$status" "$nturns" "$spent" "$((SECONDS - started))" "$msg" "$how" \
     "$(sget tokens_in) $(sget tokens_out) $(sget cache_read) $(sget cache_write)"
 }
 
-# report <repo> <key> <prompt> <status> <turns> <cost> <secs> <message> [tokens]: writes .last (the
-# dispatcher reaps it) and the run's spend.log line
+# report <repo> <key> <prompt> <status> <turns> <cost> <secs> <message> <fresh|resume> [tokens]:
+# writes .last (the dispatcher reaps it) and the run's spend.log line. The session mark goes
+# before the status: readers find the status as the 4th field from the end (a prompt may hold " · ").
 report() {
-  local repo=$1 key=$2 prompt=$3 status=$4 turns=$5 cost=$6 secs=$7 msg=$8 tok="" t
+  local repo=$1 key=$2 prompt=$3 status=$4 turns=$5 cost=$6 secs=$7 msg=$8 how=$9 tok="" t
   # a token count the result did not report is "-", never an empty column
-  for t in ${9:-}; do [[ $t =~ ^[0-9]+$ ]] || t=-; tok+="${tok:+ }$t"; done
+  for t in ${10:-}; do [[ $t =~ ^[0-9]+$ ]] || t=-; tok+="${tok:+ }$t"; done
   while [ "$(wc -w <<<"$tok")" -lt 4 ]; do tok+="${tok:+ }-"; done
   local base="$WORKERS_DIR/$repo-$key"
-  printf '%s#%s · "%s" · %s · %s turns · $%s · %dm%02ds\n\n%s\n' \
-    "$repo" "$key" "$prompt" "$status" "$turns" "$cost" $((secs / 60)) $((secs % 60)) "$msg" > "$base.last"
+  printf '%s#%s · "%s" · %s · %s · %s turns · $%s · %dm%02ds\n\n%s\n' \
+    "$repo" "$key" "$prompt" "$how" "$status" "$turns" "$cost" $((secs / 60)) $((secs % 60)) "$msg" > "$base.last"
   printf '=== exit: %s\n' "$(head -1 "$base.last")" >> "$base.log"
   # one line per run for the dispatcher's spend of the day: the exact cost, or "?" when claude
   # reported none (stopped at a turn or time budget, stalled, crashed: it still cost money)
@@ -237,11 +244,11 @@ killw() {
 # ---------------------------------------------------------------- spawn
 
 [ "${1:-}" = __run ] && { shift; run "$@"; exit; }
-o_key="" o_dir="" o_name="" o_model="" sources="" keep=""
+o_key="" o_dir="" o_name="" o_model="" o_effort="" sources="" keep=0 fresh=0
 while [[ ${1:-} == --* ]]; do
   case $1 in
-    --quiet) ;; --untrusted) sources=user ;; --keep-session) keep=1 ;;
-    --key|--dir|--name|--model)
+    --quiet) ;; --untrusted) sources=user ;; --keep-session) keep=1 ;; --fresh) fresh=1 ;;
+    --key|--dir|--name|--model|--effort)
       [ -n "${2:-}" ] || die "$1 needs a value"
       printf -v "o_${1#--}" '%s' "$2"; shift ;;
     --unlock) shift; unlock "$@"; exit ;;
@@ -251,6 +258,7 @@ while [[ ${1:-} == --* ]]; do
   shift
 done
 (( $# >= 2 )) || usage
+case $o_effort in ""|low|medium|high|xhigh|max) ;; *) die "bad --effort $o_effort (low, medium, high, xhigh, max)" ;; esac
 dir=$(resolve_repo "$1") || exit 1; repo=$(basename "$dir"); shift
 read -ra tok <<<"$*"
 
@@ -344,7 +352,7 @@ printf 'repo=%s\nkey=%s\nkind=worker\npid=\nwindow=\nsession=%s\nwname=%s\nword=
   "$repo" "$key" "$TMUX_SESSION" "$name" "$prompt" "$(date +%s)" > "$lock"
 printf 'exclusive=%s\nisolated=%s\n' "$exclusive" "$isolated" >> "$lock"
 win=$(tmux_window "$name" "$dir" "$self" __run "$repo" "$key" "$turns" "$cost" "$mins" \
-        "$model" "$prompt" "$dir" "$sources" ${keep:+"$keep"}) || { rm -f "$lock"; die "tmux failed to open a window"; }
+        "$model" "$prompt" "$dir" "$sources" "$keep" "$fresh" "$o_effort") || { rm -f "$lock"; die "tmux failed to open a window"; }
 sed -i "s/^window=.*/window=$win/" "$lock"
 flock -u 9
 
