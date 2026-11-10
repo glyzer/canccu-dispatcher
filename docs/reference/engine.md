@@ -11,8 +11,8 @@ how it ended. It refuses to run unless a `canccu-*` command started it (they set
 `WORKERS_DIR` and `CODE_ROOT`).
 
 ```
-canccu-worker [--key K] [--dir D] [--name N] [--model M] [--untrusted] [--keep-session] [--quiet]
-              <repo> "<prompt>" turns=<n> cost=<usd> min=<n>
+canccu-worker [--key K] [--dir D] [--name N] [--model M] [--effort E] [--untrusted] [--keep-session]
+              [--fresh] [--quiet] <repo> "<prompt>" turns=<n> cost=<usd> min=<n>
 canccu-worker --unlock <repo> <key>
 canccu-worker --kill <repo> <key>
 ```
@@ -20,7 +20,10 @@ canccu-worker --kill <repo> <key>
 - **The key**: `--key K`, else the issue number the prompt starts with. A numeric key (an issue)
   and `--keep-session` (a package) keep the session id in `workers/<repo>-<key>.id`, so every
   later run resumes it; any other key (a review, an answerer, a planner) starts fresh, so a
-  reviewer never resumes the worker's session or an older review.
+  reviewer never resumes the worker's session or an older review. `--fresh` starts a new session
+  even for those (a follow-up run with a handoff, below).
+- **`--effort E`**: passed to `claude` as `--effort` (`low`, `medium`, `high`, `xhigh`, `max`);
+  without it, none: the account's.
 - **Where**: an issue runs in its own worktree, `workers/worktrees/<repo>/issue-<n>`; `--dir D`
   runs in an existing worktree instead (the reviewer's at the PR head, a package's).
 - **Worker**: `--name '#<n>' <repo> "<n> <prompt>"`. **Reviewer**: `--key review-<pr> --dir
@@ -34,15 +37,40 @@ canccu-worker --kill <repo> <key>
 - **Budgets**: `turns=`, `cost=` (USD) and `min=` are required; the run is stopped at any of
   them. A run whose log is silent for `STALL_MIN` minutes is killed as stalled.
 - **The exit report** is `workers/<repo>-<key>.last`; its first line carries the status (`done`,
-  `error: …`, `blocked`, `stopped: <which budget>`, `stalled: …`, `crashed (exit N)`). Each finished run adds a line to
-  `workers/spend.log`: the time, the repo, the key and the exact cost, or `?` when claude reported
-  none.
+  `error: …`, `blocked`, `stopped: <which budget>`, `stalled: …`, `crashed (exit N)`), and just
+  before it `fresh` or `resume`: how the run's session started. Each finished run adds a line to
+  `workers/spend.log`: the time, the repo, the key, the exact cost (or `?` when claude reported
+  none) and `fresh` or `resume`, so the spend of each can be compared.
 - `ADD_DIRS` become `--add-dir` flags; the rules' `EXCLUSIVE_WORKER_RE` stops two matching issues
   from running at once in a repo.
 - **No run holds a GitHub token**: `GH_TOKEN`, `GITHUB_TOKEN` and `REVIEWER_TOKEN_FILE` are removed
   before the engine starts, sent empty into every window (overriding what the tmux server
   inherited), and unset again before `claude` starts. Runs use the project's `gh` config dir
   ([`projects.md`](projects.md)).
+
+## Follow-up runs
+
+A resumed session reloads the whole earlier conversation and re-reads it on every turn: measured,
+about 8× the cost per turn of a fresh run. So a worker's follow-up (a review fix round, a red-CI
+fix, `needs-work`, a merge of main that conflicts, a comment, after a usage stop) starts a fresh
+session (`--fresh`) in the same worktree and branch, unless `RESUME_ON` names its kind (default
+`answer,plan`: the answer to its `Question:` and plan-ok, where the conversation itself matters).
+The fresh session's prompt is the task, then a short handoff: the PR's link and body
+(`Decisions made:`, `Follow-up:`), `git log origin/main..HEAD --oneline`, uncommitted files, the
+worker's last report (`.last`) and the standing orders of its first run.
+
+- **Merge of main**: by script, never an AI run, when git merges cleanly: `git merge --no-edit
+  origin/main` in the worktree and a normal push to the PR's branch (never a rebase or a
+  force-push). Only when the worktree has the PR's branch checked out and nothing uncommitted. A
+  conflict aborts the merge, and a fresh session gets the conflicting paths.
+- **Red CI**: main is merged in first and CI runs again (another merged PR may have caused it);
+  still red with main in, a fresh fix session gets the failing GitHub Actions job's log tail
+  (`gh run view --job <id> --log-failed`).
+- **Cap**: at most `FIX_ATTEMPTS` (default 2) automatic fix runs per PR, review fix rounds and
+  red-CI fixes together, then `needs-you`. `needs-work` rounds are yours and never count.
+- **Per machine**: a fix run (review fix, red CI, `needs-work`) runs on `FIX_MODEL` and
+  `FIX_EFFORT`. Their defaults are empty, as before (`MODEL`, no `--effort`); each machine sets
+  its own in `~/.canccu/config`, so a release never changes another machine's models.
 
 ## Locks
 

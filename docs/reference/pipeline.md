@@ -32,8 +32,12 @@ Every `INTERVAL` seconds, under the project's lock:
      - a draft PR with `docs/plans/issue-<n>.md` in its diff or a `Tier: plan` line →
        `needs-you`, "plan ready for OK"; another draft → `needs-you`;
      - CI pending → wait up to `CI_WAIT_MIN`, then `needs-you`; no check reported at all (never
-       green) → wait up to `NO_CHECKS_MIN`, then `needs-you`; CI red → `needs-you` (the worker
-       already had its fix rounds). Checks in `REVIEW_CHECKS` are ignored here. A `needs-you`
+       green) → wait up to `NO_CHECKS_MIN`, then `needs-you`; CI red → main is merged into the
+       branch by script (`git merge origin/main`, a normal push, no AI run) and CI runs again,
+       since another merged PR may have caused it; a merge that conflicts is aborted and a fresh
+       session resolves it; still red with main in → a fresh fix session with the failing job's
+       log tail, at most `FIX_ATTEMPTS` automatic fix runs per PR (review fix rounds included),
+       then `needs-you`. Checks in `REVIEW_CHECKS` are ignored here. A `needs-you`
        that only waited on CI goes back to `check` by itself once CI is green or red;
      - CI green and no verdict for this head → the review (or, after a fix round, the
        fix-check) starts.
@@ -92,7 +96,9 @@ Every `INTERVAL` seconds, under the project's lock:
    `blocked` is gone → "check its blockers again, then do the work". An issue labelled `blocked`
    is never started or resumed, and gets no answerer. A run that finished with no PR is not
    `--resume`d: a fresh session gets the whole task (with `plan_ok`, the order to execute the
-   merged plan), the question it stopped with if the message answers one, and the message. A PR armed for
+   merged plan), the question it stopped with if the message answers one, and the message. Every
+   other follow-up is fresh too unless `RESUME_ON` names its kind ([`engine.md`](engine.md),
+   "Follow-up runs"). A PR armed for
    merge is disarmed before its worker resumes; resuming removes `needs-you`.
 5. **Accept and merging.** An `accept` PR labelled `accepted` by `USER_LOGIN` after the accept
    request, whose head is still the classified one → the merge is armed (`canccu-ship <n>` does
