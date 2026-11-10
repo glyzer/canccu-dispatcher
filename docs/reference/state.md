@@ -36,6 +36,7 @@ In `~/.canccu/projects/<name>/`:
 | `pings/<n>` | The state issue n was last pinged for ([`pings.md`](pings.md)) |
 | `digest/<date>.md` | The daily digest |
 | `merged.log` | One line per merged PR of a managed issue: time, issue, PR, how (`auto`, `accepted`, or `by hand` when the dispatcher did not arm it), title |
+| `workers/spend.log` | One tab-separated line per run, written when it ends (below) |
 | `answers.log` | One line per question an answerer answered, with the link to its comment |
 | `want` | The project's wait for a shared slot, rewritten by every pass: `n` (the runs it could not start for want of a slot of `TOTAL_CAP`; 0: none), `cap` (its `CAP`), `until` (the epoch the wait holds to); removed when the dispatcher exits ([`projects.md`](projects.md#fair-share-of-total_cap)) |
 | `last_start` | When the project's engine last started a run (ns since the epoch): the fair share's tie rule |
@@ -59,7 +60,7 @@ default), `review_maccept` (the full review's
 cycle), `posted` (the head whose review was posted),
 `ny_kind` (what a `needs-you` waits for: `plan`, `question` or empty), `ny_stage` (where it
 parked), `ny_wait` (`ci`: it only waited on CI), `exclusive` (of the one-at-a-time kind),
-`no_pr` (its last run finished with no PR: the next resume starts a fresh session), `plan_ok`,
+`no_pr` (its last run finished with no PR: the next resume starts a fresh session), `fixes` and `fixes_pr` (the automatic fix runs on that PR, against `FIX_ATTEMPTS`), `main_merged` (the head a scripted merge of main pushed), `conflict_sha` (the head a conflict run started on), `mm_err` (scripted merges failed in a row), `plan_ok`,
 `accept_sha`, `merge_sha` and timestamps. A package adds `pkg`, `step`, `wave`, `members`,
 `branch`, `risk`, `risk_reason`, `review_risk` and `health`.
 
@@ -78,3 +79,27 @@ ANSI 256 colours (33 blue, 208 orange, 135 purple, 37 teal, 205 pink, 142 olive;
 green mean needs-you, waiting and merged). Issues running at the same time never share one while
 `CAP` is 6 or less. The colour marks the issue in the monitor, in the dispatcher's pane and in
 its windows' tmux status. `dispatch.log` stays plain; `NO_COLOR` turns colour off.
+
+## The spend log
+
+`workers/spend.log` has one tab-separated line per run, written by the engine when the run ends
+or is killed. The first four columns are the original format, so a reader of those keeps working;
+the rest were added after them. `-` is an unknown value.
+
+| # | Column | What |
+|---|---|---|
+| 1 | time | The epoch the run ended |
+| 2 | repo | The repo's name |
+| 3 | key | The run's key: `<n>` or `pkg-<m>-<name>` (a worker), `review-<pr>` (a review or fix-check), `answer-<K>`, `plan-<m>` |
+| 4 | cost | The exact USD claude reported, or `?` (stopped at a budget, stalled, crashed, killed) |
+| 5 | type | `plan`, `build` (a new or resumed worker), `fix` (a worker's follow-up fixing review findings, a red CI or a `needs-work`), `merge` (a worker's follow-up bringing in main: after its contract PR merged, or a merge of main that conflicts), `review`, `fix-check`, `answer`, `health` |
+| 6 | model | The `--model` the run got; `-`: the account's default |
+| 7 | effort | The `--effort` the run got; for a review or fix-check, the code-review skill's effort it was told; `-`: none |
+| 8 | session | `fresh` or `resumed` |
+| 9–12 | tokens | Input, output, cache read and cache write tokens, from the final `result` event's `usage` |
+| 13–14 | window | The 5-hour window's utilization (%) before and after the run, only with `USAGE_WINDOW_DELTA=1` ([`config.md`](config.md)); after: `-` when the run's own stream reported no reading |
+| 15 | outcome | `k=v` fields joined by `,`, filled in by the dispatcher when it reaps the run: `pr=<n>` or `pr=none` and `ci=green` or `ci=red` (a worker's run); `verdict=pass`, `changes`, `none` or `void`, `blocking=<n>`, `nonblocking=<n>` (a review or fix-check: its top-level list items before and after "Non-blocking", an estimate); `answer=answered`, `escalate` or `none`; `rounds=<n>` (the unit's fix runs so far) |
+
+`canccu-status --spend` reads it with `merged.log`: the cost of every merged PR (its unit's runs,
+lost ones included, its reviews and fix-checks, its answerers), grouped by model and run type,
+then the same over all merged PRs.

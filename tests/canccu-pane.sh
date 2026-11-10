@@ -116,7 +116,7 @@ mkdir -p "$E/cb" "$E/code/web/.git" "$E/wd"
 sed 's/"total_cost_usd":0/"total_cost_usd":0.42/' "$fb/claude" > "$E/cb/claude"; chmod +x "$E/cb/claude"
 printf 'repo=web\nkey=9\nkind=worker\npid=\nwindow=\n' > "$WORKERS_DIR/web-9.lock"
 (cd "$E/wd" && PATH="$E/cb:$fb:$PATH" CODE_ROOT="$E/code" "$root/libexec/canccu-worker" __run web 9 5 1 2 "" "a prompt" "$E/wd" "" >/dev/null 2>&1)
-ok "spend: the engine logs each finished run's exact cost" grep -qP '^[0-9]+\tweb\t9\t0.42\t(fresh|resume)$' "$WORKERS_DIR/spend.log"
+ok "spend: the engine logs each finished run's exact cost" grep -qP '^[0-9]+\tweb\t9\t0.42\t' "$WORKERS_DIR/spend.log"
 # a run stopped at its turn budget has no result event, hence no cost: it is logged as "?"
 cat > "$E/cb/claude" <<'EOF2'
 #!/bin/bash
@@ -130,7 +130,7 @@ chmod +x "$E/cb/claude"
 printf 'repo=web\nkey=8\nkind=worker\npid=\nwindow=\n' > "$WORKERS_DIR/web-8.lock"
 (cd "$E/wd" && PATH="$E/cb:$fb:$PATH" CODE_ROOT="$E/code" "$root/libexec/canccu-worker" __run web 8 3 1 2 "" "a prompt" "$E/wd" "" >/dev/null 2>&1)
 ok "spend: a run stopped at its turn budget is logged without a cost" \
-  eq "$(grep -c 'stopped: turn budget 3' "$WORKERS_DIR/web-8.last") $(grep -cP '^[0-9]+\tweb\t8\t\?\t(fresh|resume)$' "$WORKERS_DIR/spend.log")" "1 1"
+  eq "$(grep -c 'stopped: turn budget 3' "$WORKERS_DIR/web-8.last") $(grep -cP '^[0-9]+\tweb\t8\t\?\t' "$WORKERS_DIR/spend.log")" "1 1"
 # a run killed (canccu-stop, worker --kill) before its report: one "?" line all the same
 printf '#!/bin/bash\necho started > "%s/claude.started"\nsleep 30\n' "$E" > "$E/cb/claude"; chmod +x "$E/cb/claude"
 printf 'repo=web\nkey=7\nkind=worker\npid=\nwindow=\n' > "$WORKERS_DIR/web-7.lock"
@@ -140,7 +140,7 @@ for _ in $(seq 50); do [ -e "$E/claude.started" ] && break; sleep 0.1; done
 # killed the way canccu-stop and worker --kill do it: kill_tree (TERM, then KILL 3 s later)
 { ( . "$root/lib/canccu-engine.sh"; kill_tree "$wk" ); wait "$wk"; } 2>/dev/null   # bash says "Killed": expected here
 ok "spend: a run killed by kill_tree is logged once, without a cost" \
-  eq "$(test -e "$E/claude.started" && echo ran) $(grep -cP '^[0-9]+\tweb\t7\t\?\t(fresh|resume)$' "$WORKERS_DIR/spend.log")" "ran 1"
+  eq "$(test -e "$E/claude.started" && echo ran) $(grep -cP '^[0-9]+\tweb\t7\t\?\t' "$WORKERS_DIR/spend.log")" "ran 1"
 
 # ---------------------------------------------------------------- the status snapshot
 

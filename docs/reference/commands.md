@@ -28,7 +28,7 @@ Every command but `canccu-init` and `canccu-dispatcher` takes `--project <name>`
 | `canccu-dispatch` | The loop: one pass every `INTERVAL` seconds, one instance per project ([`pipeline.md`](pipeline.md)) |
 | `canccu-dispatch --once` | One pass |
 | `canccu-dispatch --dry-run` | The runnable queue, every open PR's classification and what one pass would do. Writes nothing: no labels, comments, merges, state, log or snapshot |
-| `canccu-status` | The credential, paused or back-off state, the usage, running runs (a review with its effort and model), runs it did not start, PRs awaiting accept, issues that need you, open PRs that are not ours (with the reason), the next runnable issues, each current step and the latest digest |
+| `canccu-status` | The credential, paused or back-off state, the usage, running runs (a review with its effort and model), runs it did not start, PRs awaiting accept, issues that need you, open PRs that are not ours (with the reason), the next runnable issues, each current step and the latest digest. `--spend`: the cost of every merged PR, grouped by model and run type ([`state.md`](state.md#the-spend-log)) |
 | `canccu-monitor` | The live view, from the status snapshots only ([`monitor.md`](monitor.md)) |
 | `canccu-run <n> [message]` | Starts or resumes the worker for issue n by hand (for an issue of a work package: the package). On a resume the message is the follow-up (default `continue`). Refuses while the issue's worker, reviewer or answerer runs |
 | `canccu-review <pr>` | Starts the independent reviewer for a PR of ours at its current head. Refuses without the reviewer token and for a PR that is not ours |

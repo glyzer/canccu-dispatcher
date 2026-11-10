@@ -18,6 +18,7 @@ reap_worker() {
   # the classifier's denials mark the exit `blocked` even when the run worked around them and
   # finished: an open PR is the proof of the work, so check_pr judges it like any done run
   [ "$kind" = blocked ] && [ -n "$(pr_for "$n")" ] && kind="done"
+  p=$(pr_for "$n"); spend_note "$n" "${started:-0}" "pr=${p:-none}" "rounds=$(fix_rounds "$n")"
   case $kind in
     done)
       q=$(worker_question "$(run_msg "$n")")
@@ -76,6 +77,7 @@ reap_review() {
   head=$(jqr .headRefOid <<<"$j")
   if [ "$(jqr .state <<<"$j")" != OPEN ] || [ "$head" != "$sha" ]; then
     outcome "$n" "$pr" "$sha" "void: the PR changed during the run (now ${head:0:7}); re-checking"
+    spend_note "review-$pr" "$(st_get "$n" started)" verdict=void
     clear_post_ny "$n"
     st_set "$n" phase=check check_at="$(now)"; return
   fi
@@ -90,6 +92,7 @@ reap_review() {
     kind=none last="$WORKERS_DIR/$REPO_NAME-review-$pr.last" started=$(st_get "$n" started) f=$(review_file "$pr" "$sha")
     [ -e "$last" ] && (( $(stat -c %Y "$last") >= ${started:-0} )) &&
       IFS='|' read -r kind status <<<"$(run_exit "$last")"
+    spend_review_note "$n" "$pr" "$f" "$sha" "${started:-0}"
     if [ -e "$f" ] && (( $(stat -c %Y "$f") >= ${started:-0} )) && [ -n "$(file_verdict "$f" "$sha")" ]; then
       post_review "$n" "$pr" "$f" "$sha"; prc=$?
       (( prc == 2 )) && { st_set "$n" posted="$sha" posted_at="$(now)" post_uncertain=1; return; }
@@ -142,6 +145,7 @@ reap_answer() {
   fi
   out=$(run_msg "answer-$n")
   mark=$(grep -oE '\b(ANSWERED|ESCALATE)\b' <<<"$out" | tail -1)
+  spend_note "answer-$n" "${started:-0}" "answer=$(tr '[:upper:]' '[:lower:]' <<<"${mark:-none}")"
   if [ "$kind" = "done" ] && [ "$mark" = ANSWERED ]; then
     c=$(issue_comment_by "$n" "${started:-0}" '^[[:space:]*_]*Answer:'); url=${c%%$'\t'*}
     [ -n "$c" ] && c=${c#*$'\t'} || c=$out
@@ -181,7 +185,7 @@ check_pr() {
   fi
   [ -z "$c" ] || st_set "$n" contract_merged=
   case $(ci_state "$pr") in
-    red) ci_red "$n" "$pr"; return ;;
+    red) spend_note "$n" "$(st_get "$n" started)" ci=red; ci_red "$n" "$pr"; return ;;
     pending)
       at=$(st_get "$n" check_at); at=${at:-$(now)}
       (( $(now) - at > CI_WAIT_MIN * 60 )) && needs_you "$n" "CI on PR #$pr is still pending after $CI_WAIT_MIN min" "" "" ci &&
@@ -194,6 +198,7 @@ check_pr() {
         st_set "$n" ny_wait=ci
       return ;;
   esac
+  spend_note "$n" "$(st_get "$n" started)" ci=green
   j=$(pr_detail "$pr") || { log "#$n PR #$pr: gh error; retrying next pass"; return; }
   head=$(jqr .headRefOid <<<"$j")
   if [ -n "$(verdict_of "$j" "$(st_get "$n" verdict_at)")" ]; then act_verdict "$n" "$pr" "$j"; return; fi

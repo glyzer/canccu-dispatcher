@@ -163,7 +163,7 @@ start_planner() {
   if [ -e "$wt" ]; then mut git -C "$CLONE" worktree remove --force "$wt" || { log "step $m: cannot remove the old planner worktree"; return 1; }; fi
   mut git -C "$CLONE" worktree add -q --detach "$wt" origin/main || { log "step $m: planner worktree failed"; return 1; }
   read -r turns cost mins <<<"$BUDGET_PLAN"
-  MODEL=${PLAN_MODEL:-$MODEL} engine "planner plan#$m" "plan-$m" --key "plan-$m" --dir "$wt" \
+  MODEL=${PLAN_MODEL:-$MODEL} RUN_TYPE=plan engine "planner plan#$m" "plan-$m" --key "plan-$m" --dir "$wt" \
     --name "plan#$m" --untrusted "$REPO_NAME" "$(planner_prompt "$m" "$w" "$ns")" \
     "turns=$turns" "cost=$cost" "min=$mins" || return 1
   took_slot; step_key "$m" "plan-$m"

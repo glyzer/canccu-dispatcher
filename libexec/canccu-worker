@@ -31,6 +31,11 @@
 # --quiet    accepted for the callers' sake: a run's report only ever goes to <repo>-<key>.last
 # turns= / cost= / min=  the run's budget, required: turns, USD (claude reports cost in USD), minutes
 # WORKER_ADD_DIRS  space-separated dirs passed as --add-dir
+# WORKER_EFFORT    passed as --effort; empty: none, the account default
+# WORKER_RUN_TYPE  the run's type for its spend.log line (build, fix, review, …); empty: -
+# WORKER_EFFORT_NOTE  the effort its spend.log line names when there is no WORKER_EFFORT (a
+#          review's code-review effort); WORKER_WINDOW_DELTA=1 and WORKER_WINDOW_BEFORE (the 5-hour
+#          window's % at the start): its line records the window before and after the run
 # No run gets a GitHub token: GH_TOKEN, GITHUB_TOKEN (and the token-path variables) are unset in
 # every run, so claude uses a gh login from a config dir: the project's own
 # (GH_CONFIG_DIR, passed into the window with git's credential helper for it), else the user's.
@@ -54,22 +59,49 @@ WORKER_RULES='Never match your own command line: pgrep -f / pkill -f with text t
 # ---------------------------------------------------------------- inner run (in the tmux window)
 
 # Globals, not locals: the EXIT/TERM traps fire after run() has returned.
-lock="" errf="" sumf="" stallf="" cpid="" wpid="" run_repo="" run_key="" run_how="" spend_logged=""
+lock="" errf="" sumf="" stallf="" cpid="" wpid="" run_repo="" run_key="" spend_logged=""
+run_model="" run_session="" run_t0=0
 # spend_unknown: a run killed (canccu-stop, worker --kill) before its report still cost money: its
 # spend.log line has the cost "?" (the TERM trap; once, never after report wrote one)
 spend_unknown() {
   [ -n "$run_key" ] && [ -z "$spend_logged" ] || return 0
   spend_logged=1
-  printf '%s\t%s\t%s\t?\t%s\n' "$(date +%s)" "$run_repo" "$run_key" "$run_how" >> "$WORKERS_DIR/spend.log"
+  spend_line "$run_repo" "$run_key" "?"
+}
+
+# window_now: the 5-hour window's utilization (%) in this project's usage.json, only when this run's
+# own stream wrote it (an older reading says nothing about the run); a passed reset reads 0
+window_now() {
+  guard 10 jq -r --argjson t0 "$run_t0" --argjson now "$(date +%s)" '
+    (.info.unifiedWindows.five_hour // {}) as $w
+    | if (.at // 0) < $t0 or $w.utilization == null then "-"
+      elif ($w.resetsAt // 0) > 0 and $w.resetsAt <= $now then "0"
+      else ($w.utilization * 100 | round | tostring) end' "$WORKERS_DIR/usage.json" 2>/dev/null || echo -
+}
+
+# spend_line <repo> <key> <cost or ?> [tokens "in out cache-read cache-write"]: the run's one
+# spend.log line. The first four columns are the old format, which every reader still parses;
+# the rest: run type, model, effort, session (fresh|resumed), the tokens, the 5-hour window before
+# and after (USAGE_WINDOW_DELTA=1), and the outcome the dispatcher fills in later (spend_note), "-"
+# for each unknown. Under .spend.lock, which spend_note's rewrite of the file holds too.
+spend_line() {
+  local tok=${4:-- - - -} before=- after=- t
+  if [ "${WORKER_WINDOW_DELTA:-0}" = 1 ]; then before=${WORKER_WINDOW_BEFORE:--} after=$(window_now); fi
+  t=$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' "$(date +%s)" "$1" "$2" "$3" "${WORKER_RUN_TYPE:--}" \
+        "${run_model:--}" "${WORKER_EFFORT:-${WORKER_EFFORT_NOTE:--}}" "${run_session:--}" "${tok// /$'\t'}" "$before" "$after" -)
+  # a lock that stays busy must not cost the line (an append alone is still whole), nor outlast
+  # the 3 s kill_tree leaves the TERM trap
+  { flock -w 2 6; printf '%s\n' "$t" >> "$WORKERS_DIR/spend.log"; } 6>>"$WORKERS_DIR/.spend.lock"
 }
 
 # run <repo> <key> <turns> <cost> <mins> <model> <prompt> <dir> [sources] [keep] [fresh] [effort]
 run() {
   local repo=$1 key=$2 turns=$3 cost=$4 mins=$5 model=$6 prompt=$7 dir=$8 sources=${9:-} keep=${10:-0}
   local fresh=${11:-0} effort=${12:-}
+  [ -n "$effort" ] && WORKER_EFFORT=$effort   # the flag wins over the environment
   local base="$WORKERS_DIR/$repo-$key" started=$SECONDS note="" sid stop="" rc=0 how=fresh
   lock="$base.lock" errf="$WORKERS_DIR/.$repo-$key.err" sumf="$WORKERS_DIR/.$repo-$key.sum"
-  stallf="$WORKERS_DIR/.$repo-$key.stall" run_repo=$repo run_key=$key
+  stallf="$WORKERS_DIR/.$repo-$key.stall" run_repo=$repo run_key=$key run_model=$model run_t0=$(date +%s)
   # no credential reaches claude, whatever the tmux server's environment holds
   unset GH_TOKEN GITHUB_TOKEN WORKER_GH_TOKEN_FILE REVIEWER_TOKEN_FILE
   export WORKER_NUDGE_FILE="$base.nudge"   # libexec/canccu-nudge-hook: the dispatcher asks the run to stop at a safe point
@@ -92,14 +124,14 @@ run() {
 
   attempt() {
     local sargs prc d
-    if [ -s "$base.id" ]; then sid=$(<"$base.id"); sargs=(--resume "$sid"); how=resume
-    else sid=$(new_uuid); echo "$sid" > "$base.id"; sargs=(--session-id "$sid"); how=fresh; fi
-    run_how=$how
+    if [ -s "$base.id" ]; then sid=$(<"$base.id"); sargs=(--resume "$sid") run_session=resumed
+    else sid=$(new_uuid); echo "$sid" > "$base.id"; sargs=(--session-id "$sid") run_session=fresh; fi
+    how=${run_session/resumed/resume}
     local args=(-p --output-format stream-json --verbose --permission-mode auto
                 --permission-prompts none --max-budget-usd "$cost" -n "$repo#$key" "${sargs[@]}"
                 --append-system-prompt "$WORKER_RULES")
     [ -n "$model" ] && args+=(--model "$model")
-    [ -n "$effort" ] && args+=(--effort "$effort")
+    [ -n "${WORKER_EFFORT:-}" ] && args+=(--effort "$WORKER_EFFORT")
     if [ "$sources" = user ]; then args+=(--setting-sources user --strict-mcp-config)
     # a worker hears the dispatcher's nudge (usage near the limit) after each tool call
     else args+=(--settings "{\"hooks\":{\"PostToolUse\":[{\"matcher\":\"*\",\"hooks\":[{\"type\":\"command\",\"command\":\"$(dirname "$self")/canccu-nudge-hook\"}]}]}}"); fi
@@ -150,14 +182,18 @@ run() {
   fi
   [ -n "$note" ] && msg="($note)"$'\n\n'"$msg"
 
-  report "$repo" "$key" "$prompt" "$status" "$nturns" "$spent" "$((SECONDS - started))" "$msg" "$how"
+  report "$repo" "$key" "$prompt" "$status" "$nturns" "$spent" "$((SECONDS - started))" "$msg" "$how" \
+    "$(sget tokens_in) $(sget tokens_out) $(sget cache_read) $(sget cache_write)"
 }
 
-# report <repo> <key> <prompt> <status> <turns> <cost> <secs> <message> <fresh|resume>: writes
-# .last (the dispatcher reaps it) and the run's spend.log line. The session mark goes before the
-# status: readers find the status as the 4th field from the end (a prompt may hold " · ").
+# report <repo> <key> <prompt> <status> <turns> <cost> <secs> <message> <fresh|resume> [tokens]:
+# writes .last (the dispatcher reaps it) and the run's spend.log line. The session mark goes
+# before the status: readers find the status as the 4th field from the end (a prompt may hold " · ").
 report() {
-  local repo=$1 key=$2 prompt=$3 status=$4 turns=$5 cost=$6 secs=$7 msg=$8 how=$9
+  local repo=$1 key=$2 prompt=$3 status=$4 turns=$5 cost=$6 secs=$7 msg=$8 how=$9 tok="" t
+  # a token count the result did not report is "-", never an empty column
+  for t in ${10:-}; do [[ $t =~ ^[0-9]+$ ]] || t=-; tok+="${tok:+ }$t"; done
+  while [ "$(wc -w <<<"$tok")" -lt 4 ]; do tok+="${tok:+ }-"; done
   local base="$WORKERS_DIR/$repo-$key"
   printf '%s#%s · "%s" · %s · %s · %s turns · $%s · %dm%02ds\n\n%s\n' \
     "$repo" "$key" "$prompt" "$how" "$status" "$turns" "$cost" $((secs / 60)) $((secs % 60)) "$msg" > "$base.last"
@@ -166,7 +202,7 @@ report() {
   # reported none (stopped at a turn or time budget, stalled, crashed: it still cost money)
   [[ $cost =~ ^[0-9]+(\.[0-9]+)?$ ]] || cost="?"
   spend_logged=1
-  printf '%s\t%s\t%s\t%s\t%s\n' "$(date +%s)" "$repo" "$key" "$cost" "$how" >> "$WORKERS_DIR/spend.log"
+  spend_line "$repo" "$key" "$cost" "$tok"
 }
 
 # ---------------------------------------------------------------- --unlock

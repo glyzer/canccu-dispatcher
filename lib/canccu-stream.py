@@ -4,7 +4,8 @@
 Usage: python3 canccu-stream.py <log file> <summary file> <turn budget> [usage file]  < stream
 Appends readable lines to the log ([tN] assistant text and tool calls, │ tool results),
 counts top-level turns, and writes a flat JSON summary at the end (turns, last_text,
-have_result, and from the result event: subtype, is_error, num_turns, cost, message, denials).
+have_result, and from the result event: subtype, is_error, num_turns, cost, message, denials, and
+its usage: tokens_in, tokens_out, cache_read, cache_write).
 With a usage file, each rate_limit_event (the account's 5-hour and weekly usage shares) is
 written there, atomically, with the time it was seen: canccu-dispatch's usage throttle reads it.
 Exits 3 as soon as turn budget+1 starts (worker then kills claude), 0 at end of stream.
@@ -89,6 +90,11 @@ if result is not None:
         message=result.get("result") or "\n".join(result.get("errors") or []),
         denials="\n".join(denials),
     )
+    usage = result.get("usage") or {}
+    for out, key in (("tokens_in", "input_tokens"), ("tokens_out", "output_tokens"),
+                     ("cache_read", "cache_read_input_tokens"), ("cache_write", "cache_creation_input_tokens")):
+        if isinstance(usage.get(key), int):
+            summary[out] = usage[key]
 with open(summary_path, "w", encoding="utf-8") as f:
     json.dump(summary, f)
 sys.exit(code)

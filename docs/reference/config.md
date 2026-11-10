@@ -70,8 +70,11 @@ is stopped and its issue goes to `needs-you`.
 | `PLAN_MODEL` | empty | The planner's model; empty: `MODEL` |
 | `REVIEW_MODEL` | empty | The full reviewer's model; empty: `MODEL` ([`reviews.md`](reviews.md), "Model by kind") |
 | `FIXCHECK_MODEL` | empty | The fix-check's model, for example a cheaper one (`claude-sonnet-5-5`); empty: `MODEL` |
+| `HEALTH_MODEL` | empty | The health pass's model (its resumes too), for example a cheaper one; empty: `MODEL` ([`steps.md`](steps.md)) |
+| `HEALTH_EFFORT` | empty | The health pass's `--effort` (`low`, `medium`, `high`, `xhigh`, `max`); empty: none, the account's default effort, as for every other run. Another value is said once in the log and not passed |
 | `USAGE_SLOW` | `60` | 5-hour usage share (%) from which one run at a time runs, over all projects ([`usage.md`](usage.md)) |
 | `USAGE_STOP` | `90` | 5-hour usage share (%) from which no run starts and running workers are asked to stop at a safe point |
+| `USAGE_WINDOW_DELTA` | `0` | `1`: each run's spend-log line records the 5-hour window's utilization before and after it ([`state.md`](state.md#the-spend-log)). Off by default: it means something only with one run at a time on a plan with a 5-hour window |
 | `USAGE_WEEKLY_DRAIN` | `90` | Weekly usage share (%) from which nothing new starts; work already started finishes |
 
 ## Host profiles

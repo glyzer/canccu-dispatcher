@@ -48,10 +48,13 @@ PACKAGE_MIN_ISSUES=1        # above 1: the planner aims for at least this many i
 PLAN_MODEL=                 # the planner's model; empty: MODEL
 REVIEW_MODEL=               # the full reviewer's model; empty: MODEL
 FIXCHECK_MODEL=             # the fix-check's model (e.g. a cheaper one); empty: MODEL
+HEALTH_MODEL=               # the health pass's model (e.g. a cheaper one); empty: MODEL
+HEALTH_EFFORT=              # the health pass's --effort (low, medium, high, xhigh, max); empty: none, the account default
 # the usage throttle (shares of the Claude account's limits, from the rate-limit reports in the runs' output)
 USAGE_SLOW=60               # 5-hour share (%) from which one run at a time runs, over all projects
 USAGE_STOP=90               # … from which no run starts and running workers are nudged to stop
 USAGE_WEEKLY_DRAIN=90       # weekly share (%) from which nothing new starts; started work finishes
+USAGE_WINDOW_DELTA=0        # 1: each run's spend.log line has the 5-hour share before and after it (one run at a time only)
 
 # ---- rules: the project's rules file (~/.canccu/projects/<name>/rules) sets these. It lives
 # on this host, never in the repo, so a PR can never change its own gating.

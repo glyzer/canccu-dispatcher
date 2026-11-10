@@ -70,13 +70,13 @@ ok "… not a fix attempt (the user asked for it)" eq "$(st 5 fixes)" ""
 
 review_env fix-model 'Review verdict: changes' review FIX_MODEL=claude-sonnet-5-5 FIX_EFFORT=medium MODEL=claude-opus-5-5
 dispatch --once
-ok "a fix run gets FIX_MODEL and FIX_EFFORT" grep -qE -- '^--quiet --model claude-sonnet-5-5 --name #5 --fresh --effort medium web 5 The independent reviewer' "$FAKE/worker.log"
+ok "a fix run gets FIX_MODEL and FIX_EFFORT" eq "$(grep -cE -- '^--quiet --model claude-sonnet-5-5 --name #5 --fresh web 5 The independent reviewer' "$FAKE/worker.log") $(grep -c '^WORKER_EFFORT=medium$' "$FAKE/worker.envdump") $(grep -c '^WORKER_RUN_TYPE=fix$' "$FAKE/worker.envdump")" "1 1 1"
 needsyou fix-model-other "" FIX_MODEL=claude-sonnet-5-5 FIX_EFFORT=medium MODEL=claude-opus-5-5
 dispatch --once
-ok "… any other follow-up the usual model and no effort" eq "$(grep -c -- '--model claude-opus-5-5' "$FAKE/worker.log")/$(grep -c -- '--effort' "$FAKE/worker.log")" 1/0
+ok "… any other follow-up the usual model and no effort" eq "$(grep -c -- '--model claude-opus-5-5' "$FAKE/worker.log")/$(grep -c '^WORKER_EFFORT=.' "$FAKE/worker.envdump")" 1/0
 review_env fix-model-default 'Review verdict: changes' review
 dispatch --once
-ok "by default a fix run has no --model and no --effort (as before)" not grep -qE -- '--(model|effort) ' "$FAKE/worker.log"
+ok "by default a fix run has no --model and no --effort (as before)" eq "$(grep -c -- '--model ' "$FAKE/worker.log")/$(grep -c '^WORKER_EFFORT=.' "$FAKE/worker.envdump")" 0/0
 
 # ---------------------------------------------------------------- red CI
 
@@ -193,7 +193,7 @@ review_env bad-values 'Review verdict: changes' review FIX_ATTEMPTS=two FIX_EFFO
 dispatch --once
 ok "a FIX_ATTEMPTS that is no number counts as 2: the fix round runs" eq "$(grep -c 'asked for changes' "$FAKE/worker.log")" 1
 ok "… a bad FIX_EFFORT is left out (the engine would refuse it on every pass), and said" \
-  eq "$(grep -c -- '--effort' "$FAKE/worker.log") $(grep -c 'FIX_EFFORT=hgih is no effort' "$CANCCU_HOME/dispatch.log")" "0 1"
+  eq "$(grep -c '^WORKER_EFFORT=.' "$FAKE/worker.envdump") $(grep -q 'FIX_EFFORT is not an effort level' "$CANCCU_HOME/dispatch.log" && echo said)" "0 said"
 
 echo "canccu-followup tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

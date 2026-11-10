@@ -51,7 +51,7 @@ needs_you() {
 # a fix kind runs on FIX_MODEL and FIX_EFFORT. A PR armed for auto-merge is disarmed first
 # (armed), and `accepted` dropped: the worker is about to change it.
 resume() {
-  local n=$1 pr msg=$2 kind=${3:-user} q how=resume fl=() model=$MODEL; pr=$(st_get "$n" pr)
+  local n=$1 pr msg=$2 kind=${3:-user} q how=resume fl=() model=$MODEL effort="" type; pr=$(st_get "$n" pr)
   blocked_held "$n" "the resumed worker" && return 1
   step_run_held "$n" "the resumed worker" && return 1
   if [ -n "$pr" ] && [ "$(st_get "$n" phase)" = merging ]; then
@@ -69,16 +69,12 @@ resume() {
     # the task first: the handoff and the standing orders after it are what may be cut
     msg="$(oneline 5000 "$msg") $(handoff "$n")" how=fresh fl=(--fresh)
   fi
-  if fix_kind "$kind"; then
-    model=${FIX_MODEL:-$MODEL}
-    case ${FIX_EFFORT:-} in
-      "") ;; low|medium|high|xhigh|max) fl+=(--effort "$FIX_EFFORT") ;;
-      *) log "FIX_EFFORT=$FIX_EFFORT is no effort (low, medium, high, xhigh, max): the fix run goes without --effort" ;;
-    esac
-  fi
+  # the run type spend.log names: a fix kind is a fix, a merge a merge, the rest build
+  type=build; [ "$kind" = merge ] && type=merge
+  if fix_kind "$kind"; then model=${FIX_MODEL:-$MODEL} effort=$(run_effort FIX_EFFORT) type=fix; fi
   # workers never review: a resumed worker is told so as well
-  MODEL=$model run_worker "$n" "$msg Do not review your own work; run the checks only." \
-    "$( [ -n "$(st_get "$n" pkg)" ] && pkg_budget "$BUDGET_RESUME" "$(unit_size "$n")" || echo "$BUDGET_RESUME")" "${fl[@]}" || return 1
+  MODEL=$model RUN_EFFORT=$effort run_worker "$n" "$msg Do not review your own work; run the checks only." \
+    "$( [ -n "$(st_get "$n" pkg)" ] && pkg_budget "$BUDGET_RESUME" "$(unit_size "$n")" || echo "$BUDGET_RESUME")" "$type" "${fl[@]}" || return 1
   has_label "$n" needs-you && edit_issue "$n" --remove-label needs-you
   if [ "$how" = fresh ]; then log "#$n resumed (fresh session, $kind): $(oneline 100 "$2")"
   else log "#$n resumed: $(oneline 100 "$2")"; fi
