@@ -67,7 +67,7 @@ resume() {
     how=fresh fl=(--fresh)
   elif ! resume_on "$kind"; then
     # the task first: the handoff and the standing orders after it are what may be cut
-    msg="$(oneline 5000 "$msg") $(handoff "$n")" how=fresh fl=(--fresh)
+    msg="$(oneline 5000 "$msg") $(handoff "$n" "$kind")" how=fresh fl=(--fresh)
   fi
   # the run type spend.log names: a fix kind is a fix, a merge a merge, the rest build
   type=build; [ "$kind" = merge ] && type=merge

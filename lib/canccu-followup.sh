@@ -17,27 +17,54 @@ fixes_used() { [ "$(st_get "$1" fixes_pr)" = "$2" ] && echo "$(( $(st_get "$1" f
 fix_left() { (( $(fixes_used "$1" "$2") < $(fix_max) )); }
 fix_count() { st_set "$1" fixes=$(( $(fixes_used "$1" "$2") + 1 )) fixes_pr="$2"; }
 
-# handoff <K>: what a fresh follow-up session gets instead of the old conversation: the PR, its
-# body (Decisions made:, Follow-up:), the branch's commits, uncommitted files, the last report
-# and the standing orders of the first run. Each part is cut, so the task in front of it fits
-# run_worker's prompt limit.
+# handoff <K> [kind]: what a fresh follow-up session gets instead of the old conversation: the PR,
+# its body (Decisions made:, Follow-up:), the branch's commits and their diff stat, uncommitted
+# files, the last report (not for kind limited) and the standing orders of the first run. Each
+# part is cut, so the task in front of it fits run_worker's prompt limit.
 handoff() {
-  local k=$1 pr wt body="" commits="" dirty="" rep
+  local k=$1 pr wt body="" commits="" stat="" dirty="" rep
   pr=$(st_get "$k" pr); [ -n "$pr" ] || pr=$(pr_for "$k")
   wt=$(unit_wt "$k")
   [ -n "$pr" ] && body=$(pr_get "$pr" .body)
   if [ -e "$wt/.git" ]; then
     commits=$(guard 20 git -C "$wt" log --oneline origin/main..HEAD 2>/dev/null | head -n 30)
+    stat=$(guard 20 git -C "$wt" diff --stat origin/main...HEAD 2>/dev/null | tail -n 25)
     dirty=$(guard 20 git -C "$wt" status --short 2>/dev/null | head -n 20)
   fi
-  rep=$(run_msg "$k" | tail -n 12)
+  # a limited run's task carries its own handoff already: its last report would repeat it
+  [ "${2:-}" = limited ] || rep=$(run_msg "$k" | tail -n 12)
   printf '%s' "This run is a fresh session, not a resume of your earlier one: your earlier work is in this worktree, on its branch. Build on it; never create the branch again or open a second PR."
   [ -n "$pr" ] && printf ' The PR: %s.' "$(pr_url "$pr")"
   [ -n "$body" ] && printf ' Its body: %s' "$(oneline 1500 "$body")"
   printf ' The commits on the branch (git log origin/main..HEAD): %s.' "$(oneline 1000 "${commits:-none read}")"
+  [ -n "$stat" ] && printf ' Their diff stat (git diff --stat origin/main...HEAD): %s.' "$(oneline 800 "$stat")"
   [ -n "$dirty" ] && printf ' Uncommitted in the worktree: %s.' "$(oneline 400 "$dirty")"
   [ -n "$rep" ] && printf ' Your last report: %s' "$(oneline 1200 "$rep")"
   printf ' The standing orders of the first run (the branch exists already): %s' "$(unit_prompt "$k")"
+}
+
+# handoff_file <K>: the handoff a run nudged at the usage stop ended with (its final message); kept
+# apart from .last, which the next run of the unit overwrites
+handoff_file() { echo "$CANCCU_HOME/handoffs/$1.md"; }
+# handoff_keep <K> <text>: store the handoff; an empty text removes it (a hard stop left none)
+handoff_keep() {
+  (( CANCCU_DRY )) && return 0
+  if [ -z "$2" ]; then rm -f "$(handoff_file "$1")"; return 0; fi
+  mkdir -p "$CANCCU_HOME/handoffs" && printf '%s\n' "$2" | head -n 60 > "$(handoff_file "$1")" ||
+    log "#$1: cannot save the handoff"
+}
+# limited_task <K>: the task of the run after the usage reset. Fresh (resume adds the commits and
+# their diff stat), from the stored handoff, or, cut off by the hard limit, from git status; with
+# RESUME_ON naming limited the old resumed session's "continue".
+limited_task() {
+  local h
+  if resume_on limited; then echo "Continue where you stopped: the usage limit has reset."; return; fi
+  h=$(cat "$(handoff_file "$1")" 2>/dev/null)
+  if [ -n "$h" ]; then
+    echo "The usage limit has reset. Your earlier run stopped at the usage limit and ended with this handoff (done, left, next step, decisions made, test state, head): $(oneline 3000 "$h") Continue from its next step."
+  else
+    echo "The usage limit has reset. Your earlier run was cut off by the usage limit before it could write a handoff: check git status for uncommitted work and the commits below, then continue the task."
+  fi
 }
 
 # main_merge <K> <pr>: bring main into the PR's branch without an AI run, in the unit's worktree.

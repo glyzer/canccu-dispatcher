@@ -101,7 +101,7 @@ Every `INTERVAL` seconds, under the project's lock:
    other `needs-work` (a refused accept, a stopped merge) starts a new cycle: the next review is
    a full one. A `gh` error reading the comments decides nothing: `needs-work` stays for the
    next pass. A `needs-you` issue whose issue or PR got a new comment
-   from `USER_LOGIN` → that comment. `limited` after the back-off → `continue`. `waiting` whose
+   from `USER_LOGIN` → that comment. `limited` after the back-off → a fresh session from its handoff ([`usage.md`](usage.md#after-the-reset)). `waiting` whose
    `blocked` is gone → "check its blockers again, then do the work". An issue labelled `blocked`
    is never started or resumed, and gets no answerer. A run that finished with no PR is not
    `--resume`d: a fresh session gets the whole task (with `plan_ok`, the order to execute the

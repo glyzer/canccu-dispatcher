@@ -33,6 +33,7 @@ reap_worker() {
         # stopped at a safe point at the usage stop: continue after the 5-hour reset
         # the reset it was nudged for; already passed: no back-off (it continues next pass)
         r=$(st_get "$n" nudge_reset); [[ $r =~ ^[0-9]+$ ]] && (( r > $(now) )) && set_backoff "$r"
+        handoff_keep "$n" "$(run_msg "$n")"
         st_set "$n" phase=limited nudged= nudge_reset= no_pr=
         log "#$n stopped at a safe point (usage); resumes after the reset"
       elif [ -n "$b" ]; then st_set "$n" nudged=; wait_blocked "$n" "$b"
@@ -40,6 +41,7 @@ reap_worker() {
       else st_set "$n" phase=check check_at="$(now)"; log "#$n worker done"; fi ;;
     usage)
       set_backoff "$(usage_reset "$(run_msg "$n")")"
+      handoff_keep "$n" ""   # cut off mid-step: no handoff, and an older one is not this stop's
       st_set "$n" phase=limited; log "#$n hit the usage limit; resumes after the back-off" ;;
     *) needs_you "$n" "the worker stopped: $status" "$(run_msg "$n")" ;;
   esac
@@ -352,7 +354,7 @@ resume_step() {
     # the answer to a worker's Question: is the one follow-up whose conversation matters
     [ -n "$c" ] && room "$n" && resume "$n" "The user answered: $c" "$([ "$(st_get "$n" ny_kind)" = question ] && echo answer || echo user)"
   elif [ "$phase" = limited ]; then
-    room "$n" && resume "$n" "Continue where you stopped: the usage limit has reset." limited
+    room "$n" && resume "$n" "$(limited_task "$n")" limited && handoff_keep "$n" ""
   elif [ "$phase" = waiting ]; then
     unit_blocked "$n" || { blocked_unmark "$(lead_of "$n")"; room "$n" && resume "$n" "The issue is no longer labelled \`blocked\`: check its blockers again, then do the work." blocked; }
   fi

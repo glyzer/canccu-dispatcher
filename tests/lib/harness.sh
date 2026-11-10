@@ -123,7 +123,8 @@ a="$*"; printf '%s\n' "$a" >> "$FAKE/git.log"
 printf '%s\t%s\t%s\n' "${GH_CONFIG_DIR:-<default>}" "${GIT_CONFIG_COUNT:-<unset>}" "$a" >> "$FAKE/git.cfg"
 case " $a " in *" diff --numstat "*) cat "$FAKE/numstat" 2>/dev/null || exit 128 ;; esac
 # a worktree's branch (branch --show-current: $FAKE/branch), how far main is ahead (rev-list
-# --count: $FAKE/behind), its commits (log --oneline: $FAKE/gitlog); $FAKE/merge-conflict: a merge
+# --count: $FAKE/behind), its commits (log --oneline: $FAKE/gitlog) and their diff stat (diff --stat:
+# $FAKE/diffstat); $FAKE/merge-conflict: a merge
 # of main fails, and diff --diff-filter=U lists that file's lines as the conflicting paths;
 # $FAKE/dirty: status --porcelain prints it; $FAKE/push-fail: a push is rejected
 case " $a " in
@@ -132,6 +133,7 @@ case " $a " in
   *" branch --show-current "*) [ -e "$FAKE/branch" ] && cat "$FAKE/branch" ;;
   *" rev-list --count "*) [ -e "$FAKE/behind" ] && cat "$FAKE/behind" ;;
   *" log --oneline "*) [ -e "$FAKE/gitlog" ] && cat "$FAKE/gitlog" ;;
+  *" diff --stat "*) [ -e "$FAKE/diffstat" ] && cat "$FAKE/diffstat" ;;
   *" rev-parse HEAD "*) [ -e "$FAKE/branch" ] && echo "$FAKE_MERGED" ;;
   *" merge --no-edit "*) [ -e "$FAKE/merge-conflict" ] && exit 1 ;;
   *" --diff-filter=U "*) [ -e "$FAKE/merge-conflict" ] && cat "$FAKE/merge-conflict" ;;
