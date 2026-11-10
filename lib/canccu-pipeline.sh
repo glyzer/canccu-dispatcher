@@ -295,7 +295,11 @@ resume_step() {
   phase=$(st_get "$n" phase); pr=$(st_get "$n" pr)
   if has_label "$n" plan-ok; then
     room "$n" || return 0
-    resume "$n" "The user approved the plan. Execute it with the superpowers skill executing-plans. Build it in this PR: replace each \`Plan for #<n>\` line with \`Closes #<n>\` and set the real \`Tier:\` line." || return 0
+    # the lead's answers to the plan's questions ("split; build package 1 only") shape what gets
+    # built; a gh error keeps plan-ok for the next pass rather than resume without them
+    since=$(st_get "$n" ny_at); c=$(user_comments "$n" "$pr" "${since:-$(st_get "$n" started)}") ||
+      { log "#$n: gh error reading the comments for plan-ok; retrying next pass"; return 0; }
+    resume "$n" "The user approved the plan. Execute it with the superpowers skill executing-plans. Build it in this PR: replace each \`Plan for #<n>\` line with \`Closes #<n>\` and set the real \`Tier:\` line.${c:+ The user answered the questions of the plan: $c}" || return 0
     edit_issue "$n" --remove-label plan-ok   # only once the worker runs: a failed start keeps the signal
     st_set "$n" plan_ok=1; new_cycle "$n"
   elif has_label "$n" needs-work; then

@@ -132,6 +132,7 @@ env_new plan-ok-resume
 { issue 5 in-progress,plan-ok; } | issues
 pr 50 5 $HA none "" true "$PLAN_BODY" | jq '.closingIssuesReferences = []' | jq -s . > "$FAKE/prs.json"
 state 5 phase=needs-you pr=50 "ny_at=$((NOW - 600))" ny_kind=plan
+json issue5.json '{"comments": []}'; route 'issue view 5 *' issue5.json; json pr50.json '{"comments": []}'; route 'pr view 50 *' pr50.json
 dispatch --once
 ok "the plan-ok resume tells the worker to close the issue in the same PR" grep -q 'web 5 The user approved the plan.*replace each `Plan for #<n>` line with `Closes #<n>`' "$FAKE/worker.log"
 
