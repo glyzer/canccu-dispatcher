@@ -24,6 +24,8 @@ nbenv() {
 
 # ---------------------------------------------------------------- the parsers
 
+env_new parsers
+
 ok "blocking_of: the findings without the Non-blocking section" eq "$(lib blocking_of "$BLOCK"$'\n\n'"$NB"$'\n\nReview verdict: changes x')" "$BLOCK"$'\n\nReview verdict: changes x'
 ok "nonblocking_of: the section's items" eq "$(lib nonblocking_of "$BLOCK"$'\n\n'"$NB"$'\n\nReview verdict: changes x')" "${NB#Non-blocking:$'\n'}"
 ok "… a heading (**Non-blocking:**) and items on its line count" eq "$(lib nonblocking_of $'**Non-blocking:** src/c.sh:1 a nit\n\nMaintainer accept: none')" "src/c.sh:1 a nit"

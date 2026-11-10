@@ -169,7 +169,9 @@ out=$(cd "$F" && CANCCU_TEST_LOGS=$T/runlogs3 CANCCU_TEST_TIMEOUT=20s tests/run 
 ok "… and a longer one lets it finish" eq "$rc" 0
 # CANCCU_TEST_TICK: a heartbeat line names the parts still running, so a long run is never silent
 printf '#!/usr/bin/env bash\nsleep 3\necho "slow2 tests: 1 passed, 0 failed"\n' > "$F/tests/slow2.sh"
-out=$(cd "$F" && CANCCU_TEST_TICK=1 tests/run tests/slow2.sh tests/good.sh 2>&1); rc=$?
+# another run's parts in a shared log dir are not this run's
+mkdir -p "$T/runlogs4/.running-1"; echo tests/other.sh > "$T/runlogs4/.running-1/tests_other.sh.run"
+out=$(cd "$F" && CANCCU_TEST_LOGS=$T/runlogs4 CANCCU_TEST_TICK=1 tests/run tests/slow2.sh tests/good.sh 2>&1); rc=$?
 ok "tests/run: CANCCU_TEST_TICK=1 prints what still runs" eq "$rc $(grep -cE '^… [0-9]+s, still running: tests/slow2\.sh$' <<<"$out" | awk '{ print ($1 >= 1) }')" "0 1"
 ok "… the finished part is not named" not grep -q 'still running: .*good' <<<"$out"
 # a heartbeat left running would hold the output open until its next tick, 60s away

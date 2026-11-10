@@ -200,6 +200,8 @@ finish_one() {
 # detector, a CI step) would kill a long run: the heartbeat shows it is alive (#26)
 tick=${CANCCU_TEST_TICK:-60}
 tpid=""
+# this run's own: a CANCCU_TEST_LOGS shared with another run (a test of tests/run in CI) holds its parts too
+marks=$logs/.running-$$; mkdir -p "$marks" || exit 2
 if [[ $tick =~ ^[1-9][0-9]*$ ]]; then
   (
     # its sleep holds the output open: a caller reading it would wait for the next tick
@@ -208,7 +210,7 @@ if [[ $tick =~ ^[1-9][0-9]*$ ]]; then
     while :; do
       sleep "$tick" & s=$!
       wait "$s" && kill -0 $$ 2>/dev/null || exit 0
-      left=$(cat "$logs"/.*.run 2>/dev/null | paste -sd' ')
+      left=$(cat "$marks"/*.run 2>/dev/null | paste -sd' ')
       [ -n "$left" ] && echo "… $((SECONDS - t0))s, still running: $left"
     done
   ) & tpid=$!
@@ -216,10 +218,11 @@ fi
 for p in "${queue[@]}"; do
   (( ${#name[@]} >= jobs_max )) && finish_one
   x=$(tr '/' '_' <<<"$p")
-  echo "$p" > "$logs/.$x.run"
-  { run_part "$p"; r=$?; rm -f "$logs/.$x.run"; exit $r; } > "$logs/.$x.out" 2>&1 & name[$!]=$p
+  echo "$p" > "$marks/$x.run"
+  { run_part "$p"; r=$?; rm -f "$marks/$x.run"; exit $r; } > "$logs/.$x.out" 2>&1 & name[$!]=$p
 done
 while (( ${#name[@]} )); do finish_one; done
 [ -n "$tpid" ] && kill "$tpid" 2>/dev/null
+rm -rf "$marks"
 echo "full logs: $logs"
 exit $rc
