@@ -17,7 +17,7 @@ reap_worker() {
   else kind=none status="ended without an exit report"; fi
   # the classifier's denials mark the exit `blocked` even when the run worked around them and
   # finished: an open PR is the proof of the work, so check_pr judges it like any done run
-  [ "$kind" = blocked ] && [ -n "$(pr_for "$n")" ] && kind=done
+  [ "$kind" = blocked ] && [ -n "$(pr_for "$n")" ] && kind="done"
   case $kind in
     done)
       q=$(worker_question "$(run_msg "$n")")
