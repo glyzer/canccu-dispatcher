@@ -7,7 +7,7 @@
 # every flag libexec/canccu-worker passes to claude, by its long name (-p is --print, -n --name);
 # tests/canccu-install.sh fails when the engine passes one that is not here
 CANCCU_CLAUDE_FLAGS="--print --output-format --verbose --permission-mode --permission-prompts --max-budget-usd
---name --session-id --resume --append-system-prompt --model --setting-sources --strict-mcp-config --settings --add-dir"
+--name --session-id --resume --append-system-prompt --model --effort --setting-sources --strict-mcp-config --settings --add-dir"
 # the oldest Claude Code the run engine was tested with (docs/install.md)
 CANCCU_CLAUDE_TESTED=2.1.319
 
