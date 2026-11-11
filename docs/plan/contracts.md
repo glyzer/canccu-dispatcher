@@ -134,7 +134,10 @@ A package adds its setting with the name and default below (rule 5 of the plan a
 | `QUIET_TZ` | empty | the clock `QUIET_HOURS` uses; empty: the host's | 0.3 | no |
 
 Existing settings that are locked in the same way: `USER_LOGIN`, `REVIEWER_LOGIN`, `GATED_PATHS`,
-`RISKY_PATHS`, `FIXCHECK_RISKY`, `SECURITY_REVIEW_WHEN`, `PING`, `PING_KINDS`.
+`RISKY_PATHS`, `FIXCHECK_RISKY`, `HIGH_RISK_PATHS`, `HIGH_RISK_TEXT`, `SECURITY_REVIEW_WHEN`,
+`REVIEW_CHECKS`, `REVIEW_EXTRA`, `AUTO_MERGE_UNTIL`, `PING`, `PING_KINDS`.
+
+`REVIEWER_TOKEN_FILE` and `GH_CONFIG_DIR` are not settable through `config set`.
 
 ## 6. New state fields
 
