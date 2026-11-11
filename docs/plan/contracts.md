@@ -7,26 +7,27 @@ Nothing in this file exists in the code yet unless it says so.
 
 ## 1. Owner
 
-Every item that waits for someone has exactly one owner: `maintainer` or `leader`. The first
+Every item that waits for someone has exactly one owner: `po` or `leader`. The first
 matching line decides:
 
-1. `LEADER=off` (the default) → `maintainer`.
-2. Class `interrupt` (section 2) → `maintainer`.
-3. A checkpoint, or a question the answerer escalated ("Needs the product owner:") → `maintainer`.
-4. An accept whose reason is one of these → `maintainer`:
+1. `LEADER=off` (the default) → `po`.
+2. Class `interrupt` (section 2) → `po`.
+3. A checkpoint, or a question the answerer escalated ("Needs the product owner:") → `po`.
+4. An accept whose reason is one of these → `po`:
    - the PR touches `USER_VISIBLE_PATHS` (reason text: `users see it: <first matching path>`);
    - the PR touches a gated path or agent config;
    - the review has a `Maintainer accept:` line (breaking contract, destructive migration);
    - an issue of the unit is labelled `manual-accept`;
    - the risk is high and `LEADER_ACCEPTS_HIGH_RISK=0`;
    - `LEADER_ACCEPTS=none`.
-5. A plan PR of a unit with an issue labelled `manual-accept` → `maintainer`.
+5. A plan PR of a unit with an issue labelled `manual-accept` → `po`.
 6. Everything else → `leader`.
 7. An item of owner `leader` that the leader has not acknowledged for 60 minutes becomes
-   `maintainer` (one new feed line, kind `handover`).
+   `po` (one new feed line, kind `handover`).
 
 The owner is stored in the unit's state as `owner` and shown by `canccu-status`, the snapshot and
-the monitor. Older text and issues that say "lead" or "PO" mean `leader` and `maintainer`.
+the monitor. `po` is the project owner. Older text that says "lead" means `leader`; the review
+line `Maintainer accept:` keeps its name.
 
 ## 2. Class
 
@@ -34,7 +35,7 @@ Every event has one class:
 
 | Class | Means | Pushed to a person |
 |---|---|---|
-| `interrupt` | the dispatcher is dead; a security stop; all work is stopped and only the maintainer can release it | at once, never capped, quiet hours do not hold it |
+| `interrupt` | the dispatcher is dead; a security stop; all work is stopped and only the project owner can release it | at once, never capped, quiet hours do not hold it |
 | `ask` | an accept, a decision, a checkpoint, a needs-you | yes, to its owner |
 | `info` | everything else worth keeping (merged, step done) | never; the digest carries it |
 
@@ -52,7 +53,7 @@ Every event has one class:
 |---|---|
 | time | UTC, `2030-01-31T10:00:00Z` |
 | id | a whole number, one higher than the line before; the first is 1 |
-| owner | `maintainer`, `leader`, or `-` for class `info` |
+| owner | `po`, `leader`, or `-` for class `info` |
 | class | section 2 |
 | kind | `accept`, `plan`, `question`, `checkpoint`, `needs-you`, `run-ended`, `idle`, `dispatcher`, `step-done`, `handover`, `closed` |
 | unit | the unit's key (`86`, `pkg-…`), or `-` |
@@ -65,7 +66,7 @@ Every event has one class:
   `closes <id>`.
 - **Not in the feed:** started, reviewer started, worker done, usage throttle changes, planned
   restarts.
-- `canccu-dispatcher wait [--owner maintainer|leader] [--ack <id>]` blocks until a new line for
+- `canccu-dispatcher wait [--owner po|leader] [--ack <id>]` blocks until a new line for
   that owner or until the heartbeat is older than 10 minutes, prints the line and exits.
 
 ## 4. The ask form
@@ -74,7 +75,7 @@ One renderer builds every ask. The GitHub mention, the block at the top of the P
 0.3) the notifier all show this text, in this order:
 
 ```
-For the maintainer: <what it is, one plain line>
+For the project owner: <what it is, one plain line>
 Why you: <the owner reason from section 1>
 Change (reviewer's summary):
   - <line 1>
@@ -111,7 +112,7 @@ A package adds its setting with the name and default below (rule 5 of the plan a
 | `DISK_MIN_MB` | 200 | below this free space a pass starts nothing and says so | R1 | no |
 | `IDLE_ALARM_MIN` | 60 | minutes before a unit nothing moves writes a feed line (not `STALL_MIN`, which kills a silent run) | F1 | no |
 | `LEADER` | off | `on`: a leader runs for this project | F1 | yes |
-| `USER_VISIBLE_PATHS` | empty | grep -E on the PR's paths; a match always waits for the maintainer | F1 | yes |
+| `USER_VISIBLE_PATHS` | empty | grep -E on the PR's paths; a match always waits for the project owner | F1 | yes |
 | `PREVIEW_CMD` | empty | per repo: the command that writes the before and after captures | N1 | no |
 | `NOTIFY_CONTENT` | full | `full` or `link` | N1 | yes |
 | `ALLOW_DEFAULT_GH_LOGIN` | 0 | 1 lets a project run on the broad default gh login | S1 | yes |
@@ -133,7 +134,7 @@ A package adds its setting with the name and default below (rule 5 of the plan a
 | `gone_at` | `merged_left` | when a merged PR was first seen with its issue still open | P1 |
 | `branch` | `start_issue` | the branch of a single issue (packages have it already) | P1 |
 | `body_fix` | `check_pr` | the contract PR whose body the worker was asked to correct once | P1 |
-| `owner` | the owner rule | `maintainer` or `leader` while the unit waits; empty otherwise | F1 |
+| `owner` | the owner rule | `po` or `leader` while the unit waits; empty otherwise | F1 |
 | `ev_id` | the feed | the id of the unit's open feed line, for `closed` | F1 |
 
 R1 adds a state format version and a migration step at start; every package after R1 that adds a
@@ -142,5 +143,5 @@ field adds its migration and a test that upgrades with units in flight.
 ## 7. The actions log
 
 From L1: `actions.log` in the project's home, one line per command a person or the leader ran,
-tab-separated: `<time>	<actor>	<command>	<unit or ->	<result>`. The actor is `maintainer`,
+tab-separated: `<time>	<actor>	<command>	<unit or ->	<result>`. The actor is `po`,
 `leader` or `dispatcher`.

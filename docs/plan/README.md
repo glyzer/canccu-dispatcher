@@ -21,7 +21,7 @@ workers and the reviewer read it; an issue that disagrees with it is wrong until
   another package.
 - **The reviewer** checks a PR against its issue and against the rules below. A PR that breaks a
   rule gets `changes`, whatever the issue says.
-- **Changing the plan** is a PR to this folder that the maintainer accepts. A worker never edits
+- **Changing the plan** is a PR to this folder that the project owner accepts. A worker never edits
   this folder as part of another issue; it writes a `Roadmap note:` in its PR body instead.
 - Later releases are outlines. Each package is specified in full just before its issues are
   labelled `ready`, because the code will have moved by then.
@@ -39,7 +39,7 @@ strict on quality. Cost and speed targets never override the rules below.
 2. **No merge without a review of the exact head.** A cheaper check may replace a full review only
    inside stated limits (size, paths), and it always covers everything since the last full review.
 3. **No new automatic accept on a signal a worker run can forge.** A feature that merges without
-   the maintainer stays off by default until package S2 is in.
+   the project owner stays off by default until package S2 is in.
 4. **Works without the extras.** No leader, no Telegram and no systemd is a supported setup, and
    it is tested.
 5. **A setting is done only with** its line in `lib/canccu-config.default`, its row in
@@ -47,14 +47,14 @@ strict on quality. Cost and speed targets never override the rules below.
 6. **Every fix of an incident ships its test** in the existing harness.
 7. **Silence never means yes.** No timer, reminder or absence accepts, approves or merges
    anything. A wait that ends, ends in a needs-you.
-8. **Settings that widen authority are the maintainer's.** Accept, gating, security and
+8. **Settings that widen authority are the project owner's.** Accept, gating, security and
    notify-target keys are locked: the leader and the runs cannot change them.
 
 ## Roles
 
 | Role | What it is | Decides |
 |---|---|---|
-| Maintainer | the person who owns the project (the product owner) | anything users see, checkpoints, product questions, rulesets, secrets, locked settings |
+| Project owner (`po`) | the person who owns the project | anything users see, checkpoints, product questions, rulesets, secrets, locked settings |
 | Leader | an optional AI session that watches one project | technical accepts inside `LEADER_ACCEPTS`, technical plans, routine needs-you |
 | Worker | a headless run that builds one issue or one package | implementation details, listed under `Decisions made:` |
 | Reviewer | a headless run that did not write the PR; posts as the reviewer bot | the verdict on one head |
@@ -67,15 +67,15 @@ stands for a unit on GitHub.
 
 ### What can be forged today
 
-The maintainer, the leader and every run share one Unix user and one GitHub login. A run can
-therefore add the `accepted` label as the maintainer, edit the project's rules, and read the
+The project owner, the leader and every run share one Unix user and one GitHub login. A run can
+therefore add the `accepted` label as the project owner, edit the project's rules, and read the
 reviewer token through a subprocess. Rule 3 exists because of this. Packages S1 and S2 close it;
 until then the leader's technical accepts stay as they are and nothing is widened.
 
 ## Decisions (2026-11-11)
 
 1. **Accept channels: all of them, none required.** The `accepted` label by `USER_LOGIN`,
-   `canccu-ship` on the host, a reply through the notifier, and the maintainer's word through the
+   `canccu-ship` on the host, a reply through the notifier, and the project owner's word through the
    leader all work. `ACCEPT_CHANNELS` lets a user switch one off. At the hardened level, a
    channel an AI session can write does not count for gated and high-risk PRs.
 2. **Two setup levels:** simple (one Unix user, limits stated honestly, no automatic-accept
@@ -85,7 +85,7 @@ until then the leader's technical accepts stay as they are and nothing is widene
 5. **Supported set:** Linux or WSL with tmux, Claude Code, GitHub.
 6. **`NOTIFY_CONTENT`** is `full` or `link`, for users who want only a link to leave the host.
 7. **During 0.2** the dispatcher's own merge, accept, review-posting and security files are gated
-   in this project, so those PRs wait for the maintainer.
+   in this project, so those PRs wait for the project owner.
 8. **Workers do not use subagents.** The limit is tokens, not time; the dispatcher is the parallel
    layer; a headless run loses its subagents when it ends.
 
@@ -93,12 +93,12 @@ until then the leader's technical accepts stay as they are and nothing is widene
 
 Measured per host and per release: cost per merged issue, lead time (with and without human
 waits), share of follow-up runs, stuck incidents, manual leader actions, leader tokens and
-maintainer touches per merged issue. Added by this plan:
+project owner touches per merged issue. Added by this plan:
 
 - **Escaped defects per merged issue.** A bug issue or a revert carries `Regression of: #<pr>`.
   Baseline in 0.2; 1.0 must be no worse while cost falls.
 - **Stalls found by a person:** a unit that sat past `IDLE_ALARM_MIN` with no feed line. Target: 0.
-- **Messages to the maintainer per merged issue.** Baseline in 0.2; it must fall in 0.3.
+- **Messages to the project owner per merged issue.** Baseline in 0.2; it must fall in 0.3.
 
 ## Release 0.2: stop the waste, close the holes
 
