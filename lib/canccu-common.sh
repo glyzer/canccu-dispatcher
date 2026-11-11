@@ -232,8 +232,7 @@ st_file() { echo "$CANCCU_HOME/state/$1"; }
 kv_get() {
   if [ -n "${DRY_ST[$2.$3]+x}" ]; then printf '%s\n' "${DRY_ST[$2.$3]}"; return; fi
   local l="" v="" f=0
-  # an empty key makes the path a directory (state/), which -r alone lets through to the read
-  [ -f "$1" ] && [ -r "$1" ] || return 0
+  [ -f "$1" ] && [ -r "$1" ] || return 0   # an empty key names the directory state/: -r passes it
   while IFS= read -r l || [ -n "$l" ]; do
     [[ $l == "$3="* ]] && { v=${l#"$3="}; f=1; }
   done < "$1"
