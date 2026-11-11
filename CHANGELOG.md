@@ -27,6 +27,9 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
   and merges its open PRs; only new workers, resumes and answers wait (#65).
 - A `plan-ok` or `needs-work` issue whose blocker is open no longer reserves a run slot: with one
   slot, a runnable issue starts instead (#69).
+- An old usage reading no longer throttles: one older than `USAGE_MAX_AGE_MIN` (6 hours) or than
+  the dispatcher's start counts as unknown, so a restart after an account switch ends a drain. The
+  usage text shows the reading's age (#64).
 
 ## [0.1.2] — 2026-11-10
 

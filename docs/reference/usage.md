@@ -25,8 +25,15 @@ back-off below stays the fallback. No AI runs to probe the usage.
   worker, the review, the fix, the fix-check, the merge) under the 5-hour caps. It ends when the
   weekly share drops below the threshold.
 
+**A stale reading** counts as no reading: one older than `USAGE_MAX_AGE_MIN` (6 hours; `0`: no
+limit), or older than the dispatcher's start (the modification time of `dispatch.pid`). In drain
+mode nothing new starts, so no run would replace it: a reading of another account, or of before a
+long pause, would hold the dispatcher for good. Unknown, nothing is throttled; the first run writes
+a fresh reading within seconds. After switching the Claude account, restart the dispatcher.
+
 `canccu-status` (its `usage:` line), the snapshot (`usage`) and the monitor's header show the
-shares and the throttle state, for example `draining (weekly 92%)`.
+shares, the throttle state and the reading's age, for example `draining (weekly 92%) (12 min
+old)`; a stale reading shows `usage unknown (last reading 7 h old)`.
 
 ## Usage-limit back-off
 
