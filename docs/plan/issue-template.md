@@ -26,7 +26,9 @@ What a worker might be tempted to add, and which issue owns it instead.
 The doc files to change, and what to say.
 
 ## Depends on / Risk
-Issues that must merge first. Risk: low | normal | high, with the reason.
+Issues that must merge first, one line each as `Blocked by #<n>` (the dispatcher reads these
+lines); none for an issue earlier in the same package: a package is built in one run, so the
+order inside it needs no Blocked-by line. Risk: low | normal | high, with the reason.
 
 ## If the code disagrees
 If a file, function or behaviour named here is not as described, do not improvise:

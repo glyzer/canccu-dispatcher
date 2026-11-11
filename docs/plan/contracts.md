@@ -26,7 +26,7 @@ matching line decides:
    `po` (one new feed line, kind `handover`).
 
 The owner is stored in the unit's state as `owner` and shown by `canccu-status`, the snapshot and
-the monitor. `po` is the project owner. Older text that says "lead" means `leader`; the review
+the monitor. `po` is the product owner. Older text that says "lead" means `leader`; the review
 line `Maintainer accept:` keeps its name.
 
 ## 2. Class
@@ -35,8 +35,8 @@ Every event has one class:
 
 | Class | Means | Pushed to a person |
 |---|---|---|
-| `interrupt` | the dispatcher is dead; a security stop; all work is stopped and only the project owner can release it | at once, never capped, quiet hours do not hold it |
-| `ask` | an accept, a decision, a checkpoint, a needs-you | yes, to its owner |
+| `interrupt` | the dispatcher is dead (0.2: the stale heartbeat of §3 is the signal; the notifier of 0.3 writes the line); a security stop; all work is stopped and only the product owner can release it | at once, never capped, quiet hours do not hold it |
+| `ask` | an accept, a decision, a checkpoint, a needs-you (kinds `needs-you` and `pr-needs-you`, owner by §1) | yes, to its owner |
 | `info` | everything else worth keeping (merged, step done) | never; the digest carries it |
 
 `PING_KINDS` keeps working: its kinds are all of class `ask`.
@@ -55,7 +55,7 @@ Every event has one class:
 | id | a whole number, one higher than the line before; the first is 1 |
 | owner | `po`, `leader`, or `-` for class `info` |
 | class | section 2 |
-| kind | `accept`, `plan`, `question`, `checkpoint`, `needs-you`, `run-ended`, `idle`, `dispatcher`, `step-done`, `handover`, `closed` |
+| kind | `accept`, `plan`, `question`, `checkpoint`, `needs-you`, `pr-needs-you`, `run-ended`, `idle`, `hold`, `dispatcher`, `step-done`, `handover`, `closed` |
 | unit | the unit's key (`86`, `pkg-…`), or `-` |
 | pr | the PR number, or `-` |
 | url | the issue or PR link, or `-` |
@@ -64,7 +64,13 @@ Every event has one class:
 - **No repeats:** one line per unit for each change of state. "Still waiting" writes nothing.
 - **Settling:** when an item no longer waits, one line of kind `closed` whose text starts with
   `closes <id>`.
-- **Not in the feed:** started, reviewer started, worker done, usage throttle changes, planned
+- **Holds:** when nothing new of the project can start, one line of kind `hold` says why, and a
+  `closed` line ends it. Class `ask`, owner `po`, when a person must act (disk below
+  `DISK_MIN_MB`, `STEP_BUDGET` reached); class `info` when a timer ends it (the usage stop or
+  back-off, a GitHub rate limit), with the time it ends in the text.
+- **One writer at a time:** a line is appended under the feed file's own `kv_lock`, so two
+  writers never give the same id.
+- **Not in the feed:** started, reviewer started, worker done, the usage slow mode, planned
   restarts.
 - `canccu-dispatcher wait [--owner po|leader] [--ack <id>]` blocks until a new line for
   that owner or until the heartbeat is older than 10 minutes, prints the line and exits.
@@ -75,7 +81,7 @@ One renderer builds every ask. The GitHub mention, the block at the top of the P
 0.3) the notifier all show this text, in this order:
 
 ```
-For the project owner: <what it is, one plain line>
+For the product owner: <what it is, one plain line>
 Why you: <the owner reason from section 1>
 Change (reviewer's summary):
   - <line 1>
@@ -106,19 +112,19 @@ A package adds its setting with the name and default below (rule 5 of the plan a
 | Setting | Default | Meaning | Package | Locked |
 |---|---|---|---|---|
 | `REVIEW_EFFORT_MAX` | empty | caps the review effort on this machine; gated paths and agent config stay high | E1 | no |
-| `FIXCHECK_FULL_LINES` | 100 | a change after a pass above this many changed lines gets a full review | M1 | yes |
+| `FIXCHECK_FULL_LINES` | 100 | a change after a pass above this many changed lines gets a full review; checked first, `FIXCHECK_BIG` still picks the fix-check's effort | M1 | yes |
 | `KEEP_ACCEPT_ON_MAIN_MERGE` | 0 | 1 keeps the accept when the only change is a merge of main | M1 | yes |
 | `CRASH_RETRY` | 1 | fresh retries with a handoff after a crash or a killed window | R1 | no |
 | `DISK_MIN_MB` | 200 | below this free space a pass starts nothing and says so | R1 | no |
-| `IDLE_ALARM_MIN` | 60 | minutes before a unit nothing moves writes a feed line (not `STALL_MIN`, which kills a silent run) | F1 | no |
+| `IDLE_ALARM_MIN` | 60 | minutes a unit may fit none of the three states of rule 1 before it writes a feed line (not `STALL_MIN`, which kills a silent run) | F1 | no |
 | `LEADER` | off | `on`: a leader runs for this project | F1 | yes |
-| `USER_VISIBLE_PATHS` | empty | grep -E on the PR's paths; a match always waits for the project owner | F1 | yes |
+| `USER_VISIBLE_PATHS` | empty | grep -E on the PR's paths; a match always waits for the product owner | F1 | yes |
 | `PREVIEW_CMD` | empty | per repo: the command that writes the before and after captures | N1 | no |
 | `NOTIFY_CONTENT` | full | `full` or `link` | N1 | yes |
 | `ALLOW_DEFAULT_GH_LOGIN` | 0 | 1 lets a project run on the broad default gh login | S1 | yes |
 | `ACCEPT_CHANNELS` | all | which accept channels count: `label`, `ship`, `reply`, `leader`, or `all` | S2 | yes |
-| `LEADER_ACCEPTS` | technical | `technical` or `none` | L1 | yes |
-| `LEADER_ACCEPTS_HIGH_RISK` | 0 | 1 lets the leader accept high-risk technical PRs (hardened level only) | L1 | yes |
+| `LEADER_ACCEPTS` | none | `technical` or `none`; read by the owner rule from F1, acted on from L1 | F1 | yes |
+| `LEADER_ACCEPTS_HIGH_RISK` | 0 | 1 lets the leader accept high-risk technical PRs (hardened level only) | F1 | yes |
 | `WORKER_WATCHES_CI` | 1 | 0: workers stop at "PR ready" and the dispatcher watches CI | P2 | no |
 | `NOTIFY` | github | `github`, `telegram`, both, or `off` | 0.3 | yes |
 | `NOTIFY_BATCH_MIN` | 30 | asks are collected this long into one message; 0 sends each at once | 0.3 | no |
@@ -126,6 +132,12 @@ A package adds its setting with the name and default below (rule 5 of the plan a
 | `NOTIFY_REMIND_H` | 12 | one reminder for an open ask after this many hours; 0: none | 0.3 | no |
 | `QUIET_HOURS` | empty | for example `22-07`; empty switches quiet hours off | 0.3 | no |
 | `QUIET_TZ` | empty | the clock `QUIET_HOURS` uses; empty: the host's | 0.3 | no |
+
+Existing settings that are locked in the same way: `USER_LOGIN`, `REVIEWER_LOGIN`, `GATED_PATHS`,
+`RISKY_PATHS`, `FIXCHECK_RISKY`, `HIGH_RISK_PATHS`, `HIGH_RISK_TEXT`, `SECURITY_REVIEW_WHEN`,
+`REVIEW_CHECKS`, `REVIEW_EXTRA`, `AUTO_MERGE_UNTIL`, `PING`, `PING_KINDS`.
+
+`REVIEWER_TOKEN_FILE` and `GH_CONFIG_DIR` are not settable through `config set`.
 
 ## 6. New state fields
 
