@@ -33,7 +33,7 @@ Every command but `canccu-init` and `canccu-dispatcher` takes `--project <name>`
 | `canccu-run <n> [message]` | Starts or resumes the worker for issue n by hand (for an issue of a work package: the package). On a resume the message is the follow-up (default `continue`). Refuses while the issue's worker, reviewer or answerer runs |
 | `canccu-review <pr>` | Starts the independent reviewer for a PR of ours at its current head. Refuses without the reviewer token and for a PR that is not ours |
 | `canccu-classify <pr>` | Prints `auto` or `manual: <first reason>` ([`merging.md`](merging.md)) |
-| `canccu-ship <n>` | Your accept: arms auto-merge for our PR that closes issue n, pinned to its head. Only where the repo allows auto-merge; otherwise label the PR `accepted` |
+| `canccu-ship <n>` | Your accept: arms auto-merge for our PR that closes issue n, pinned to its head, with the repo's merge method (as the dispatcher's own merge). Where the repo does not allow auto-merge it merges directly once CI is green |
 | `canccu-stop <n>` | Stops the worker, reviewer and answerer of issue n (or of its package): sets the phase to `stopped` first, then kills their process trees and windows. Keeps the worktree and the session; `canccu-run <n>` continues it |
 | `canccu-pause` / `canccu-resume` | While paused nothing new starts; running runs continue; --usage clears the usage-limit wait after an early reset |
 | `canccu-dispatcher --version`, `doctor`, `rollback`, `uninstall` | The installed tool itself ([`../install.md`](../install.md)) |
@@ -52,7 +52,7 @@ The dispatcher creates any that are missing (`canccu-init` does too):
 | `plan-ok` | issue | Your OK of a plan-tier plan: the worker resumes and executes it |
 | `needs-work` | issue | Resume the worker with your comments since the verdict or accept request |
 | `awaiting-accept` | issue | Its PR passed review but waits for your accept |
-| `accepted` | PR | Your accept. Only yours counts: the newest such label event must be by `USER_LOGIN` |
+| `accepted` | PR | Your accept. Only yours counts: the newest such label event must be by `USER_LOGIN`. On the PR's issue it is taken as well, by the same checks |
 | `manual-accept` | issue | Forces manual accept for this issue's PR |
 | `checkpoint` | issue | A step's checkpoint issue |
 | `checkpoint-ok` | issue | Your OK to end a step's checkpoint pause |

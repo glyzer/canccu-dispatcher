@@ -51,11 +51,14 @@ applies:
 10. `AUTO_MERGE_UNTIL` is set and is not a real date, or today is on or after it;
 11. any `gh` error while classifying.
 
-**Your accept**: label the PR `accepted`, or run `canccu-ship <n>`. `canccu-ship` arms auto-merge,
-so it works only where the repo allows auto-merge; otherwise the label is the only accept, and the
-accept request names only the label. Only an `accepted` label
+**Your accept**: label the PR `accepted`, or run `canccu-ship <n>`. `canccu-ship` merges the way
+the dispatcher's own merge does: auto-merge with the repo's merge method, pinned to the head, and
+a direct merge where the repo does not allow auto-merge (a PR not managed yet: auto-merge only).
+In a repo without auto-merge the accept request names only the label. Only an `accepted` label
 event by `USER_LOGIN`, newer than the accept request, counts: a label left from an older head
-never does. Everything except reviews and pings is authored as you, so the dispatcher never
+never does. An `accepted` label on the unit's issue (any issue of a package) is taken as well,
+by the same checks, and removed from the issue once it counts; a new push removes it from the
+PR and from the issues. Everything except reviews and pings is authored as you, so the dispatcher never
 requests a review from you and never relies on approvals.
 
 ## Guards

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# canccu-ship [--project <name>] <n> — the user's accept: `gh pr merge <pr> --auto --match-head-commit <head>` for the open
+# canccu-ship [--project <name>] <n> — the user's accept: `gh pr merge <pr> --auto <method> --match-head-commit <head>` for the open
 # PR of ours that closes issue n (by USER_LOGIN, not from a fork).
 set -uo pipefail
 self=$(realpath "$0")
@@ -17,6 +17,11 @@ pr=$(st_get "$n" pr)
 head=$(pr_get "$pr" .headRefOid)
 # ours as for canccu-status: an in-progress issue's PR counts (the next pass adopts it)
 why=$(pr_not_ours "$(pr_get "$pr" .)" "$n" adoptable); [ -z "$why" ] || die "PR #$pr is not ours: $why"
-mut gh pr merge "$pr" -R "$REPO" --auto --match-head-commit "$head" || die "gh pr merge $pr --auto failed"
-is_managed "$n" && st_set "$n" phase=merging how=accepted merge_sha="$head" merge_at="$(now)" pr="$pr" merge_mode=
-log "#$n PR #$pr: auto-merge enabled (accepted with canccu-ship)"
+if is_managed "$n"; then
+  st_set "$n" pr="$pr" merge_mode=
+  merge_auto "$n" "$pr" accepted "$head" || die "PR #$pr was not merged; see the needs-you comment on #$(lead_of "$n")"
+else
+  merge_flags 0
+  mut gh pr merge "$pr" -R "$REPO" --auto "${MF[@]}" --match-head-commit "$head" || die "gh pr merge $pr --auto failed"
+  log "#$n PR #$pr: auto-merge enabled (accepted with canccu-ship)"
+fi

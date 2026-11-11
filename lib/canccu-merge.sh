@@ -68,7 +68,7 @@ plan_back() {
 # (after a fix-check: a new fix-check; never a second full review)
 requeue() {
   local n=$1 pr=$2
-  pr_has_label "$pr" accepted && mut gh pr edit "$pr" -R "$REPO" --remove-label accepted
+  drop_accepted "$n" "$pr"
   has_label "$n" awaiting-accept && edit_issue "$n" --remove-label awaiting-accept
   st_set "$n" phase=check check_at="$(now)" merge_mode=
   case $(st_get "$n" stage) in
@@ -77,19 +77,28 @@ requeue() {
   esac
 }
 
-# accepted_by_user <pr> <since epoch>: the newest `accepted` label event on the PR is by USER_LOGIN
+# accepted_by_user <pr|issue> <since epoch>: its newest `accepted` label event is by USER_LOGIN
 # (never the reviewer bot) and came after the accept request
 accepted_by_user() { label_by_user "$1" accepted "${2:-0}"; }
 
 accept_step() {
-  local n=$1 pr head
+  local n=$1 pr head i on=""
   pr=$(st_get "$n" pr)
   pr_is_open "$pr" || { pr_gone "$n" "$pr"; return; }
   head=$(pr_get "$pr" .headRefOid)
   if [ "$head" != "$(st_get "$n" accept_sha)" ]; then requeue "$n" "$pr" "new push since the classification"; return; fi
-  pr_has_label "$pr" accepted || return 0
-  if accepted_by_user "$pr" "$(st_get "$n" accept_at)"; then merge_auto "$n" "$pr" accepted "$head"
-  else warn_once "accept-$pr" "#$n PR #$pr: \`accepted\` was not added by $USER_LOGIN after the accept request; ignored"; fi
+  # the label on an issue of the unit is tolerated too, under the same checks as on the PR
+  if pr_has_label "$pr" accepted; then on=$pr
+  else for i in $(members_of "$n"); do has_label "$i" accepted && { on=$i; break; }; done; fi
+  [ -n "$on" ] || return 0
+  if accepted_by_user "$on" "$(st_get "$n" accept_at)"; then
+    if [ "$on" != "$pr" ]; then
+      # taken off, so it can never count again for a later head
+      mut gh issue edit "$on" -R "$REPO" --remove-label accepted
+      log "#$n PR #$pr: \`accepted\` was on issue #$on; taken as the accept"
+    fi
+    merge_auto "$n" "$pr" accepted "$head"
+  else warn_once "accept-$pr" "#$n PR #$pr: \`accepted\` on #$on was not added by $USER_LOGIN after the accept request; ignored"; fi
   return 0
 }
 
