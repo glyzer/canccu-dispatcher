@@ -4,6 +4,13 @@
 Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 `canccu-dispatcher --version` prints it.
 
+## Unreleased
+
+- A merged PR that leaves an issue of its unit open no longer parks the unit for good: the issue
+  gets `needs-you` and a comment, and the unit is released; `ready` builds it again from main. An
+  issue its `Closes` names gets `MERGE_WAIT_MIN` to be closed by GitHub first. A finished
+  package's issue that is open again no longer stops its step (#86).
+
 ## [0.1.2] — 2026-11-10
 
 Fewer false alarms and wasted runs, plan-only PRs, and the repo's own merge method (PR #60).

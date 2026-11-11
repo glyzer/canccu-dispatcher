@@ -22,6 +22,17 @@ A PR whose enqueue fails is out of the queue: `needs-you`.
 A contract-first PR (on the unit's branch plus `-contract`) closes none of the unit's issues
 and is classified like the unit's own PR otherwise ([`pipeline.md`](pipeline.md)).
 
+### A merged PR that leaves its issue open
+
+A unit's PR that merged while one of its issues is still open (neither a contract PR nor a plan
+PR) never parks the unit. An open issue the PR's `Closes` lines name is closed by GitHub a moment
+later: the dispatcher waits for that (`gone_at`), at most `MERGE_WAIT_MIN`. An open issue the PR
+does not name, or one still open after that wait, gets `needs-you` (and loses `in-progress` and
+`awaiting-accept`) with a comment, and the unit is released as after any merge: `merged.log`, its
+worktree, branch and session id gone, the closed issues advanced, a package counted as merged in
+its step. The issue stays out of the queue while it has `needs-you`. Done: close it. Work left:
+remove `needs-you` and add `ready`, and a new worker starts from main.
+
 **Without auto-merge** (the repo does not allow it) the dispatcher merges directly, with
 `gh pr merge <pr> <method> --match-head-commit <head>` (`--squash` if the settings cannot be
 read), only while the reviewed (or accepted) head

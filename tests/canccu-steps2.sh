@@ -551,13 +551,6 @@ wave 1 "$P2" done; printf 'done_at=%s\n' "$NOW" >> "$CANCCU_HOME/steps/12"
 dispatch --once
 ok "stop: a done step's checkpoint open again → needs-you, not closed by the dispatcher" \
   eq "$(grep -c '^issue comment 90 .*checkpoint #95 is open again, but the step was done' "$FAKE/gh.log") $(grep -c '^issue close 95' "$FAKE/gh.log")" "1 0"
-senv stop-reopened 0
-{ issue 90 epic "" "3 Events"; issue 101 ready "" "3 Events"; } | issues
-wave 2 '{"schema":1,"step":12,"wave":2,"packages":[{"name":"b","issues":[101],"risk":"low","risk_reason":"x","areas":[],"depends_on":[]}]}'
-printf '101\ta\t1\t101\tnormal\t50\tmerged\n' > "$CANCCU_HOME/steps/12.packages"
-dispatch --once
-ok "stop: a finished package's issue open again → needs-you, never built or planned again" \
-  eq "$(grep -c '^issue comment 90 .*issue #101 of package a (merged, PR #50) is open again' "$FAKE/gh.log") $(grep -cE -- '--name #101 |--key plan-12' "$FAKE/worker.log")" "1 0"
 senv stop-epic-closed 0
 cpi 95 OPEN "3 Events" | jq -s . > "$FAKE/cps.json"
 { issue 95 checkpoint "" "3 Events"; issue 104 ready "" "3 Events"; } | issues
