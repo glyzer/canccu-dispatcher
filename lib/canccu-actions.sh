@@ -181,11 +181,20 @@ merge_direct() {
   log "#$n PR #$pr: merged directly ($(st_get "$n" how))"
 }
 
+# drop_accepted <n> <pr>: take `accepted` off the PR and off every issue of the unit (accept_step
+# reads both places), so an old label never accepts a later head
+drop_accepted() {
+  local m
+  pr_has_label "$2" accepted && mut gh pr edit "$2" -R "$REPO" --remove-label accepted
+  for m in $(members_of "$1"); do has_label "$m" accepted && mut gh issue edit "$m" -R "$REPO" --remove-label accepted; done
+  return 0
+}
+
 # to_accept <n> <pr> <reason> <head>: wait for the user's accept of this head. An `accepted` label
 # from before (an older head, or not the user's) is removed first: it never counts for this one.
 to_accept() {
   local n=$1 pr=$2 reason=$3 head=$4 ship
-  pr_has_label "$pr" accepted && mut gh pr edit "$pr" -R "$REPO" --remove-label accepted
+  drop_accepted "$n" "$pr"
   # canccu-ship arms auto-merge: not offered in a repo without it
   auto_merge_read; ship=", or \`canccu-ship $(lead_of "$n")\`"; [ "$AUTO_MERGE_ALLOWED" = false ] && ship=""
   # armed by someone else (a worker acting as the user): a manual PR never merges on its own

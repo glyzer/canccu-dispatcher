@@ -187,5 +187,54 @@ env_new method-cached
 repo_settings false true false false
 ok "the merge method is read once per pass, however many merges" eq "$(lib eval 'fetch; merge_flags 0; merge_flags 1; echo "${MF[*]}"') $(grep -c 'mergeQueue {' "$FAKE/gh.log")" "--squash 1"
 
+# ---------------------------------------------------------------- `accepted` on the issue (#104)
+
+# issue_accept <name> <accept_sha> <head> [who labelled] [when]: PR 50 waits for the accept of
+# issue 5, whose `accepted` label (none on the PR) has that label event
+issue_accept() {
+  env_new "$1"
+  { issue 5 in-progress,awaiting-accept,accepted; } | issues
+  pr 50 5 "$3" | prs
+  state 5 phase=accept pr=50 "accept_sha=$2" rounds=0 "accept_at=$((NOW - 3600))"
+  jq -n --arg u "${4:-octo}" --arg t "${5:-2030-11-05T11:30:00Z}" \
+    '[{event: "labeled", label: {name: "accepted"}, actor: {login: $u}, created_at: $t}]' > "$FAKE/events5.json"
+  route 'api --paginate repos/example-org/web/issues/5/events' events5.json
+}
+issue_accept on-issue $HA $HA
+dispatch --once
+ok "accepted on the issue by the user after the request → auto-merge armed" has gh.log "pr merge 50 -R example-org/web --auto --match-head-commit $HA"
+ok "… the label taken off the issue" has gh.log "issue edit 5 -R example-org/web --remove-label accepted"
+ok "… logged" grep -q '#5 PR #50: `accepted` was on issue #5; taken as the accept' "$CANCCU_HOME/dispatch.log"
+issue_accept on-issue-old $HA $HA octo 2030-11-05T10:00:00Z
+dispatch --once
+ok "accepted on the issue before the accept request → no merge" hasnt gh.log "pr merge"
+ok "… one warning naming the issue" eq "$(grep -c 'PR #50: `accepted` on #5 was not added by octo after the accept request; ignored' "$CANCCU_HOME/dispatch.log")" 1
+issue_accept on-issue-other $HA $HA review-bot
+dispatch --once
+ok "accepted on the issue by another login → no merge" hasnt gh.log "pr merge"
+ok "… the warning names the issue" grep -q '`accepted` on #5 was not added by octo' "$CANCCU_HOME/dispatch.log"
+issue_accept on-issue-push $HA $HB
+dispatch --once
+ok "a new push while accepted sits on the issue → requeue takes it off the issue" has gh.log "issue edit 5 -R example-org/web --remove-label accepted"
+ok "… no merge, review again" eq "$(grep -c '^pr merge' "$FAKE/gh.log")/$(st 5 phase)" 0/check
+issue_accept to-accept $HA $HA
+lib eval "fetch; to_accept 5 50 'manual: x' $HA"
+ok "to_accept takes an old accepted off the issue too" has gh.log "issue edit 5 -R example-org/web --remove-label accepted"
+
+env_new pkg-accept
+{ issue 101 in-progress,awaiting-accept; issue 103 in-progress,accepted; } | issues
+PR_BRANCH=pkg-12-auth pr 50 0 $HA | jq '.closingIssuesReferences = [{number: 101}, {number: 103}]' | prs
+state pkg-12-auth pkg=auth step=12 "members=101 103" branch=pkg-12-auth risk=normal \
+  phase=accept pr=50 accept_sha=$HA "accept_at=$((NOW - 3600))"
+json events103.json '[{"event": "labeled", "label": {"name": "accepted"}, "actor": {"login": "octo"}, "created_at": "2030-11-05T11:30:00Z"}]'
+route 'api --paginate repos/example-org/web/issues/103/events' events103.json
+dispatch --once
+ok "a package whose second member has accepted → auto-merge armed" has gh.log "pr merge 50 -R example-org/web --auto --match-head-commit $HA"
+ok "… the label taken off that member" has gh.log "issue edit 103 -R example-org/web --remove-label accepted"
+ok "… logged" grep -q 'pkg-12-auth PR #50: `accepted` was on issue #103; taken as the accept' "$CANCCU_HOME/dispatch.log"
+env_new health-accept
+state pkg-12-health pkg=health step=12 health=1 members= branch=pkg-12-health
+ok "a health pass has no issue to read accepted from" eq "$(lib members_of pkg-12-health)" ""
+
 echo "canccu-merge tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
