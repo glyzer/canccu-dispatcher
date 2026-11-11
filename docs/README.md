@@ -14,6 +14,11 @@
 | [`security.md`](security.md) | Reviewer token isolation, untrusted checkouts, prompt injection, posted paths, known limits |
 | [`canccu-dispatch.md`](canccu-dispatch.md) | Where the sections the code cites went |
 
+## Plan
+
+[`plan/README.md`](plan/README.md): the plan to release 1.0, the shared formats and the issue
+template. The baseline for all work on this repo.
+
 ## Reference
 
 [`reference/README.md`](reference/README.md): every setting and behaviour, one short file per
