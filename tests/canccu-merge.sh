@@ -290,7 +290,7 @@ ok "… a pass verdict already on that head is acted on without a new review" \
 cfix contract-closes-issue 5 5 5-issue-5 5
 dispatch --once
 ok "contract closes: a single issue's contract PR linked as closing it → its worker is resumed, body_fix set" \
-  eq "$(grep -cF -- "web 5 PR #51 is the contract PR, but GitHub links it as closing #5:" "$FAKE/worker.log") $(st 5 body_fix)" "1 51"
+  eq "$(grep -cF -- "PR #51 is the contract PR, but GitHub links it as closing #5:" "$FAKE/worker.log") $(st 5 body_fix)" "1 51"
 
 cfix contract-closes-dry pkg-12-auth "101 103" pkg-12-auth 101
 before=$(cat "$CANCCU_HOME/state/pkg-12-auth")

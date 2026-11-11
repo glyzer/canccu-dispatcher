@@ -88,7 +88,7 @@ state 5 phase=check pr=50 "check_at=$NOW"
 json issue5.json '{"comments": []}'; route 'issue view 5 *' issue5.json
 json pr50.json '{"comments": []}'; route 'pr view 50 *' pr50.json
 dispatch --once
-ok "needs-work on a pending-CI check PR, CAP 1: the resume takes the slot" grep -q 'web 5 The user rejected PR #50' "$FAKE/worker.log"
+ok "needs-work on a pending-CI check PR, CAP 1: the resume takes the slot" grep -q 'web 5 Rules for this run: .* The user rejected PR #50' "$FAKE/worker.log"
 ok "… and the ready issue does not start" not started 8
 
 env_new wanting-green-no-slot CAP=1
@@ -198,7 +198,7 @@ dispatch --once
 ok "… still backed off on the next pass: nothing starts" eq "$(wc -l < "$FAKE/worker.log")" 0
 echo $((NOW - 1)) > "$CANCCU_ROOT/backoff"
 dispatch --once
-ok "after the reset → a fresh session from git status (no handoff)" grep -q '^--quiet --name #5 --fresh web 5 The usage limit has reset. Your earlier run was cut off' "$FAKE/worker.log"
+ok "after the reset → a fresh session from git status (no handoff)" grep -q '^--quiet --name #5 --fresh web 5 Rules for this run: .* The usage limit has reset. Your earlier run was cut off' "$FAKE/worker.log"
 ok "… phase work, still the same fix round" eq "$(st 5 phase) $(st 5 stage) $(st 5 reviewed_sha)" "work fixing $HA"
 ok "… no needs-you, no comment" eq "$(grep -cE 'needs-you|issue comment 5' "$FAKE/gh.log")" 0
 rm -f "$WORKERS_DIR/web-5.lock"; last 5 error "You've hit your 5-hour limit"   # the resumed run ends on the limit
@@ -396,7 +396,7 @@ ok "older-head verdict → no merge" hasnt gh.log "pr merge"
 
 review_env loop-1 'Review verdict: changes' review
 dispatch --once
-ok "changes from the full review → the worker resumes once with the findings" grep -q '^--quiet --name #5 --fresh web 5 The independent reviewer asked for changes on PR #50 (.*This is your one fix round.*src/a.ts:3 off by one.*turns=80 cost=20 min=45$' "$FAKE/worker.log"
+ok "changes from the full review → the worker resumes once with the findings" grep -q '^--quiet --name #5 --fresh web 5 Rules for this run: .* The independent reviewer asked for changes on PR #50 (.*This is your one fix round.*src/a.ts:3 off by one.*turns=80 cost=20 min=45$' "$FAKE/worker.log"
 ok "… stage fixing, the reviewed sha kept" eq "$(st 5 stage) $(st 5 reviewed_sha) $(st 5 phase)" "fixing $HA work"
 ok "… the findings saved for the fix-check" grep -qF 'src/a.ts:3 off by one' "$CANCCU_HOME/reviews/50/$HA.findings.md"
 ok "no round counter any more" eq "$(grep -c '^rounds=' "$CANCCU_HOME/state/5")" 0
@@ -410,7 +410,7 @@ ok "a refused resume leaves the verdict to act on" eq "$(st 5 verdict_at)" ""
 ok "… and the stage unchanged" eq "$(st 5 stage)" review
 ok "… and no needs-you" hasnt gh.log "needs-you"
 rm "$FAKE/refuse"; dispatch --once
-ok "next pass: the worker resumes with the review" grep -q 'web 5 The independent reviewer asked for changes on PR #50 ' "$FAKE/worker.log"
+ok "next pass: the worker resumes with the review" grep -q 'web 5 Rules for this run: .* The independent reviewer asked for changes on PR #50 ' "$FAKE/worker.log"
 ok "… then the fix round is recorded" eq "$(st 5 stage) $(st 5 verdict_at)" "fixing 2030-11-05T11:00:00Z"
 review_env pass-auto 'Review verdict: pass' review
 dispatch --once
@@ -720,7 +720,7 @@ json issue5.json "$(jq -n --argjson a "$(comment 2030-11-05T12:30:00Z 'Use port 
   --argjson c "$(comment 2030-11-05T11:00:00Z 'old answer')" '{comments: [$a, $b, $c]}')"
 route 'issue view 5 *' issue5.json
 dispatch --once
-ok "user comment → resumed with it" grep -q 'web 5 The user answered: Use port 8080. This run is a fresh session.* Do not review your own work; run the checks only. turns=' "$FAKE/worker.log"
+ok "user comment → resumed with it" grep -q 'web 5 Rules for this run: .* The user answered: Use port 8080. This run is a fresh session.* Do not review your own work; run the checks only. turns=' "$FAKE/worker.log"
 ok "needs-you dropped on resume" has gh.log "issue edit 5 -R example-org/web --remove-label needs-you"
 env_new resume-paused-backoff
 { issue 5 in-progress; issue 6 ready; } | issues
@@ -731,7 +731,7 @@ ok "back-off: nothing starts" eq "$(wc -l < "$FAKE/worker.log")" 0
 echo $((NOW - 1)) > "$CANCCU_ROOT/backoff"; touch "$CANCCU_HOME/paused"
 dispatch --once
 ok "paused: no new issue" not started 6
-ok "paused: a limited worker resumes after the back-off" grep -q 'web 5 The usage limit has reset' "$FAKE/worker.log"
+ok "paused: a limited worker resumes after the back-off" grep -q 'web 5 Rules for this run: .* The usage limit has reset' "$FAKE/worker.log"
 
 # ---------------------------------------------------------------- after merge
 
@@ -869,7 +869,7 @@ json pr50.json '{"comments": []}'; route 'pr view 50 *' pr50.json
 dispatch --once
 ok "needs-work on an armed PR → auto-merge disabled" has gh.log "pr merge 50 -R example-org/web --disable-auto"
 ok "needs-work on an armed PR → accepted removed" has gh.log "pr edit 50 -R example-org/web --remove-label accepted"
-ok "needs-work → worker resumed" grep -q 'web 5 The user rejected PR #50' "$FAKE/worker.log"
+ok "needs-work → worker resumed" grep -q 'web 5 Rules for this run: .* The user rejected PR #50' "$FAKE/worker.log"
 ok "needs-work removed after the start" has gh.log "issue edit 5 -R example-org/web --remove-label needs-work"
 
 env_new stale-lock
@@ -909,7 +909,7 @@ env_new canccu-run-ship
 { issue 5 in-progress; } | issues
 state 5 phase=needs-you
 PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-run" 5 ship it after the fix > "$E/out" 2>&1
-ok "canccu-run never hands the engine a leading word" grep -q 'web 5 The user says: ship it after the fix This run is a fresh session.* Do not review your own work; run the checks only. turns=' "$FAKE/worker.log"
+ok "canccu-run never hands the engine a leading word" grep -q 'web 5 Rules for this run: .* The user says: ship it after the fix This run is a fresh session.* Do not review your own work; run the checks only. turns=' "$FAKE/worker.log"
 
 # ---------------------------------------------------------------- contract-first for a single issue (#87)
 

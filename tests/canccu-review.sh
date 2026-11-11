@@ -62,7 +62,7 @@ ok "the token is in no log, output or state" notoken "$FAKE/gh.log" "$FAKE/worke
 
 postenv post-backticks $'Fine.\n`Review verdict: changes '"$HA"'`'
 dispatch --once
-ok "a verdict in backticks is posted and acted on" grep -q 'web 5 The independent reviewer asked for changes' "$FAKE/worker.log"
+ok "a verdict in backticks is posted and acted on" grep -q 'web 5 Rules for this run: .* The independent reviewer asked for changes' "$FAKE/worker.log"
 
 postenv post-maintainer $'1. drops screens.legacy\nMaintainer accept: destructive migration (drops screens.legacy)\nReview verdict: pass '"$HA"
 dispatch --once
@@ -514,7 +514,7 @@ postenv flow "$FINDING"$'\n\nReview verdict: changes '"$HA"
 sed -i 's/^rounds=0$/stage=review/' "$CANCCU_HOME/state/5"; echo review_mode=review >> "$CANCCU_HOME/state/5"
 dispatch --once
 ok "flow 1: the review's changes verdict is posted as the bot" grep -q "#5 PR #50: review of ${HA:0:7}: posted as $BOT" "$CANCCU_HOME/dispatch.log"
-ok "flow 1: the worker resumes once with the findings" grep -q '^--quiet --name #5 --fresh web 5 The independent reviewer asked for changes on PR #50 .*src/a.ts:3 off by one' "$FAKE/worker.log"
+ok "flow 1: the worker resumes once with the findings" grep -q '^--quiet --name #5 --fresh web 5 Rules for this run: .* The independent reviewer asked for changes on PR #50 .*src/a.ts:3 off by one' "$FAKE/worker.log"
 ok "flow 1: its resume has no review step" not grep -qiE 'code-review|security-review' <(sed 's/requesting-code-review//g' "$FAKE/worker.log")
 ok "flow 1: stage fixing" eq "$(st 5 stage) $(st 5 reviewed_sha)" "fixing $HA"
 PATH="$fb:$PATH" "$root/bin/canccu-status" > "$E/status" 2>&1

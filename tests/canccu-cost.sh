@@ -105,7 +105,7 @@ parked green ci "CI on PR #50 is still pending after 90 min" ci
 json c5.json "$(jq -n --argjson c "$(comment 2030-11-05T11:59:00Z 'rename it first')" '{comments: [$c]}')"
 dispatch --once
 ok "CI wait with a user comment since, CI now green → the worker resumes with the comment" \
-  grep -q -- '--name #5 --fresh web 5 The user answered: rename it first' "$FAKE/worker.log"
+  grep -q -- '--name #5 --fresh web 5 Rules for this run: .* The user answered: rename it first' "$FAKE/worker.log"
 ok "… no review" not grep -q -- '--key review-50' "$FAKE/worker.log"
 
 # ---------------------------------------------------------------- tests/run
