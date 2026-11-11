@@ -21,7 +21,7 @@ workers and the reviewer read it; an issue that disagrees with it is wrong until
   another package.
 - **The reviewer** checks a PR against its issue and against the rules below. A PR that breaks a
   rule gets `changes`, whatever the issue says.
-- **Changing the plan** is a PR to this folder that the project owner accepts. A worker never edits
+- **Changing the plan** is a PR to this folder that the product owner accepts. A worker never edits
   this folder as part of another issue; it writes a `Roadmap note:` in its PR body instead.
 - Later releases are outlines. Each package is specified in full just before its issues are
   labelled `ready`, because the code will have moved by then.
@@ -34,12 +34,12 @@ strict on quality. Cost and speed targets never override the rules below.
 ## Rules every change keeps
 
 1. **No silent state.** Every managed unit is running, or waits on a named owner, or waits on a
-   timer that ends in a needs-you. A unit that fits none of these for `IDLE_ALARM_MIN` writes one
-   feed line.
+   timer that ends in a needs-you. A unit that fits none of these for `IDLE_ALARM_MIN` minutes
+   writes one feed line. A hold on all new starts (contracts §3, kind `hold`) is said the same way.
 2. **No merge without a review of the exact head.** A cheaper check may replace a full review only
    inside stated limits (size, paths), and it always covers everything since the last full review.
 3. **No new automatic accept on a signal a worker run can forge.** A feature that merges without
-   the project owner stays off by default until package S2 is in.
+   the product owner stays off by default until package S2 is in.
 4. **Works without the extras.** No leader, no Telegram and no systemd is a supported setup, and
    it is tested.
 5. **A setting is done only with** its line in `lib/canccu-config.default`, its row in
@@ -47,15 +47,15 @@ strict on quality. Cost and speed targets never override the rules below.
 6. **Every fix of an incident ships its test** in the existing harness.
 7. **Silence never means yes.** No timer, reminder or absence accepts, approves or merges
    anything. A wait that ends, ends in a needs-you.
-8. **Settings that widen authority are the project owner's.** Accept, gating, security and
+8. **Settings that widen authority are the product owner's.** Accept, gating, security and
    notify-target keys are locked: the leader and the runs cannot change them.
 
 ## Roles
 
 | Role | What it is | Decides |
 |---|---|---|
-| Project owner (`po`) | the person who owns the project | anything users see, checkpoints, product questions, rulesets, secrets, locked settings |
-| Leader | an optional AI session that watches one project | technical accepts inside `LEADER_ACCEPTS`, technical plans, routine needs-you |
+| Product owner (`po`) | the person who owns the project | anything users see, checkpoints, product questions, rulesets, secrets, locked settings |
+| Leader | an optional AI session that watches one project | from package L1: technical accepts inside `LEADER_ACCEPTS`; before it, nothing the dispatcher acts on |
 | Worker | a headless run that builds one issue or one package | implementation details, listed under `Decisions made:` |
 | Reviewer | a headless run that did not write the PR; posts as the reviewer bot | the verdict on one head |
 | Dispatcher | the shell loop that starts runs, classifies, merges | nothing: it applies the rules |
@@ -67,25 +67,26 @@ stands for a unit on GitHub.
 
 ### What can be forged today
 
-The project owner, the leader and every run share one Unix user and one GitHub login. A run can
-therefore add the `accepted` label as the project owner, edit the project's rules, and read the
+The product owner, the leader and every run share one Unix user and one GitHub login. A run can
+therefore add the `accepted` label as the product owner, edit the project's rules, and read the
 reviewer token through a subprocess. Rule 3 exists because of this. Packages S1 and S2 close it;
-until then the leader's technical accepts stay as they are and nothing is widened.
+until then no leader accept is added or widened.
 
 ## Decisions (2026-11-11)
 
 1. **Accept channels: all of them, none required.** The `accepted` label by `USER_LOGIN`,
-   `canccu-ship` on the host, a reply through the notifier, and the project owner's word through the
+   `canccu-ship` on the host, a reply through the notifier, and the product owner's word through the
    leader all work. `ACCEPT_CHANNELS` lets a user switch one off. At the hardened level, a
    channel an AI session can write does not count for gated and high-risk PRs.
-2. **Two setup levels:** simple (one Unix user, limits stated honestly, no automatic-accept
-   settings) and hardened (separate users and identities).
+2. **Two setup levels:** simple (one Unix user, limits stated honestly, every automatic-accept
+   setting off until the product owner sets it) and hardened (separate users and identities).
 3. **Steps:** the milestones `3 Release 0.2`, `4 Release 0.3`, `5 Release 1.0`, one checkpoint each.
 4. **No deadline.** Packages run one after the other at full speed.
 5. **Supported set:** Linux or WSL with tmux, Claude Code, GitHub.
 6. **`NOTIFY_CONTENT`** is `full` or `link`, for users who want only a link to leave the host.
 7. **During 0.2** the dispatcher's own merge, accept, review-posting and security files are gated
-   in this project, so those PRs wait for the project owner.
+   in this project, so those PRs wait for the product owner. So is `docs/plan/`: this project's
+   rules add `^docs/plan/` to `GATED_PATHS`.
 8. **Workers do not use subagents.** The limit is tokens, not time; the dispatcher is the parallel
    layer; a headless run loses its subagents when it ends.
 
@@ -93,12 +94,12 @@ until then the leader's technical accepts stay as they are and nothing is widene
 
 Measured per host and per release: cost per merged issue, lead time (with and without human
 waits), share of follow-up runs, stuck incidents, manual leader actions, leader tokens and
-project owner touches per merged issue. Added by this plan:
+product owner touches per merged issue. Added by this plan:
 
 - **Escaped defects per merged issue.** A bug issue or a revert carries `Regression of: #<pr>`.
   Baseline in 0.2; 1.0 must be no worse while cost falls.
 - **Stalls found by a person:** a unit that sat past `IDLE_ALARM_MIN` with no feed line. Target: 0.
-- **Messages to the project owner per merged issue.** Baseline in 0.2; it must fall in 0.3.
+- **Messages to the product owner per merged issue.** Baseline in 0.2; it must fall in 0.3.
 
 ## Release 0.2: stop the waste, close the holes
 
