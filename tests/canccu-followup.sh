@@ -247,6 +247,7 @@ ok "… its run kind" eq "$(lib run_exit "$WORKERS_DIR/web-5.last" | cut -d'|' -
 # standing orders, and the run after the reset got a task cut short
 env_new handoff-limited
 { issue 5 in-progress; } | issues
+json issue5.json '{"title": "Issue 5", "comments": []}'; route 'issue view 5 *' issue5.json
 wt5; printf 'abc1234 feat: the thing\n' > "$FAKE/gitlog"
 h=$( ( PATH="$fb:$PATH"; CANCCU_WORKER="$fb/worker"; . "$root/lib/canccu-common.sh"; set -u; handoff 5 limited ) 2>"$E/err")
 ok "handoff K limited under set -u: the standing orders" grep -qF "standing orders of the first run (the branch exists already): $(lib unit_prompt 5)" <<<"$h"
