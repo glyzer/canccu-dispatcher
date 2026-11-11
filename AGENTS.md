@@ -4,6 +4,14 @@
 Rules for every change to this repo, by a person or an agent. `CLAUDE.md` holds the
 `<n>` / `execute` / `finish` flow and the local check.
 
+## The plan
+
+`docs/plan/` is the baseline until release 1.0: the rules every change keeps, the package order
+and the shared formats (`docs/plan/contracts.md`). Read `docs/plan/README.md` and the part of the
+release file your issue's package has before you build. Use a name, default, text or format that
+`contracts.md` fixes as written. Never edit `docs/plan/` as part of another issue: write a
+`Roadmap note:` in the PR body instead.
+
 ## Comment rule
 
 Comment the why: reasons, invariants, traps, what a reader would otherwise get wrong. Never the
