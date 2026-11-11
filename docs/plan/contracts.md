@@ -111,7 +111,7 @@ A package adds its setting with the name and default below (rule 5 of the plan a
 
 | Setting | Default | Meaning | Package | Locked |
 |---|---|---|---|---|
-| `REVIEW_EFFORT_MAX` | empty | caps the review effort on this machine; gated paths and agent config stay high | E1 | no |
+| `REVIEW_EFFORT_MAX` | empty | caps the review effort on this machine, gated paths and agent config included | E1 | no |
 | `FIXCHECK_FULL_LINES` | 100 | a change after a pass above this many changed lines gets a full review; checked first, `FIXCHECK_BIG` still picks the fix-check's effort | M1 | yes |
 | `KEEP_ACCEPT_ON_MAIN_MERGE` | 0 | 1 keeps the accept when the only change is a merge of main | M1 | yes |
 | `CRASH_RETRY` | 1 | fresh retries with a handoff after a crash or a killed window | R1 | no |

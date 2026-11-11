@@ -53,6 +53,11 @@ review records (`FINDINGS_TOP` lines at most, 15 by default).
   either. An `EFFORT_DOCS_PATHS` that is not a valid regex makes every review `high` (with a
   warning in the log).
 
+`REVIEW_EFFORT_MAX` (`low`, `medium` or `high`) then caps the effort of every full review and
+fix-check on the machine, with no exceptions: gated paths, agent configuration, a diff that could
+not be read and a package of risk `high` are capped too. It never raises an effort, and who must
+accept a gated PR does not change. A capped review's `reviews/<pr>.effort` reads `medium (capped)`.
+
 **Model by kind.** A full review runs on `REVIEW_MODEL`, a fix-check on `FIXCHECK_MODEL`; each
 is `MODEL` when empty. A project that runs fix-checks on a cheaper model (`claude-sonnet-5-5`)
 and leaves `REVIEW_MODEL` empty keeps every full review, a high-risk PR's too, on `MODEL`. The
