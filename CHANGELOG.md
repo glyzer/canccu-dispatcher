@@ -10,6 +10,9 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
   gets `needs-you` and a comment, and the unit is released; `ready` builds it again from main. An
   issue its `Closes` names gets `MERGE_WAIT_MIN` to be closed by GitHub first. A finished
   package's issue that is open again no longer stops its step (#86).
+- Contract-first PRs work for single issues: the issue's branch is kept in its state, and its
+  prompt has the same contract rule as a package's. A PR that names no issue (no `Closes`, no
+  `Plan for`) is never merged automatically, whatever its branch (#87).
 
 ## [0.1.2] — 2026-11-10
 

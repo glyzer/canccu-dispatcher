@@ -64,8 +64,10 @@ cycle), `posted` (the head whose review was posted),
 parked), `ny_wait` (`ci`: it only waited on CI), `exclusive` (of the one-at-a-time kind),
 `nb_at` (the verdict whose non-blocking findings were filed), `finish_tried` (its finish session after a run that left work but no PR was had), `no_pr` (its last run finished with no PR: the next resume starts a fresh session), `fixes` and `fixes_pr` (the automatic fix runs on that PR, against `FIX_ATTEMPTS`), `main_merged` (the head a scripted merge of main pushed), `conflict_sha` (the head a conflict run started on), `mm_err` (scripted merges failed in a row), `plan_ok`,
 `gone_at` (when its merged PR was first seen with an issue it closes still open; [`merging.md`](merging.md#a-merged-pr-that-leaves-its-issue-open)),
-`accept_sha`, `merge_sha` and timestamps. A package adds `pkg`, `step`, `wave`, `members`,
-`branch`, `risk`, `risk_reason`, `review_risk` and `health`.
+`accept_sha`, `merge_sha` and timestamps. `branch` is the
+unit's branch (a single issue's `<n>-<slug>`, set at its start; an issue started before 0.2 has
+none). A package adds `pkg`, `step`, `wave`, `members`, `risk`, `risk_reason`, `review_risk` and
+`health`.
 
 Every write of a `state/<K>` or `steps/<m>` file goes through a temp file under the file's own
 lock (`.<K>.lock` beside it), so the pass and a `canccu-ship`, `-stop`, `-run` or `-review` at the

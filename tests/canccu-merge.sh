@@ -230,6 +230,14 @@ ok "… the closed one is advanced (what it blocked is looked at)" has gh.log "a
 ok "… the open one is not" hasnt gh.log "api repos/example-org/web/issues/5/dependencies/blocking"
 ok "… the package is released" eq "$(test -e "$CANCCU_HOME/state/pkg-1-a" && echo state)" ""
 
+# #87: a single issue's contract-first PR is known by its branch, as a package's is
+gone_env contract-single 5 '{"state": "MERGED", "title": "The contract", "body": "Refs #5", "closingIssuesReferences": [], "headRefName": "5-issue-5-contract"}' \
+  branch=5-issue-5
+{ issue 5 in-progress; } | issues
+dispatch --once
+ok "a single issue's contract PR merged, closing nothing → contract_back: still managed, back in check, no needs-you" \
+  eq "$(st 5 phase) $(st 5 contract_merged) $(grep -c needs-you "$FAKE/gh.log")" "check 50 0"
+
 env_new plan-ok-resume
 { issue 5 in-progress,plan-ok; } | issues
 pr 50 5 $HA none "" true "$PLAN_BODY" | jq '.closingIssuesReferences = []' | jq -s . > "$FAKE/prs.json"

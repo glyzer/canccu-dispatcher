@@ -911,5 +911,40 @@ state 5 phase=needs-you
 PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-run" 5 ship it after the fix > "$E/out" 2>&1
 ok "canccu-run never hands the engine a leading word" grep -q 'web 5 The user says: ship it after the fix This run is a fresh session.* Do not review your own work; run the checks only. turns=' "$FAKE/worker.log"
 
+# ---------------------------------------------------------------- contract-first for a single issue (#87)
+
+env_new issue-branch
+{ issue 5 ready; } | issues
+dispatch --once
+ok "start_issue keeps the issue's branch, the one its prompt names" \
+  eq "$(st 5 branch) $(grep -c -- 'Create your branch 5-issue-5 from origin/main' "$FAKE/worker.log")" "5-issue-5 1"
+
+# cenv <name> <pr json>: managed #5 (branch 5-issue-5) in check with that PR 50
+cenv() {
+  env_new "$1"
+  { issue 5 in-progress; } | issues
+  printf '%s\n' "$2" | prs
+  json pr50.json "$(detail "$2" 2030-11-05T10:00:00Z)"; route 'pr view 50 *' pr50.json
+  json files50.json '[{"filename": "docs/plans/issue-5.md"}]'; route 'api --paginate repos/example-org/web/pulls/50/files*' files50.json
+  json issue5.json '{"labels": [{"name": "in-progress"}], "comments": []}'; route 'issue view 5 *' issue5.json
+  state 5 phase=check pr=50 branch=5-issue-5
+}
+cenv classify-contract "$(PR_BRANCH=5-issue-5-contract pr 50 5 $HA green "" false 'Closes #5')"
+ok "classify: a single issue's PR on <branch>-contract that closes it → manual" \
+  eq "$(lib eval 'fetch; classify 50')" "manual: PR #50 closes 5 on the contract branch 5-issue-5-contract"
+cenv classify-names-none "$(pr 50 5 $HA green "" false 'A fix.' | jq '.closingIssuesReferences = []')"
+ok "classify: a PR on branch 5-… with no Closes and no Plan for → manual: closes no issue" \
+  eq "$(lib eval 'fetch; classify 50')" "manual: PR #50 closes no issue"
+cenv classify-plan-for "$(pr 50 5 $HA green "" false $'Plan for #5\n\nTier: plan' | jq '.closingIssuesReferences = []')"
+ok "… with a Plan for #5 line before plan-ok: classified as before (plan tier)" eq "$(lib eval 'fetch; classify 50')" "manual: plan tier"
+
+env_new contract-prompts
+{ issue 5 ready; issue 101 ready; } | issues
+state 5 phase=work branch=5-issue-5
+state pkg-12-a pkg=a step=12 members=101 branch=pkg-12-a risk=low risk_reason=x
+ok "the single-issue prompt has the contract rule for its branch" grep -qF -- "$(lib contract_rule 5-issue-5)" <<<"$(lib eval 'fetch; unit_prompt 5')"
+ok "… the package prompt for its own" grep -qF -- "$(lib contract_rule pkg-12-a)" <<<"$(lib eval 'fetch; unit_prompt pkg-12-a')"
+ok "… which names the contract branch" grep -qF 'from the branch pkg-12-a-contract with `Refs #<n>`' <<<"$(lib contract_rule pkg-12-a)"
+
 echo "canccu-dispatch tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

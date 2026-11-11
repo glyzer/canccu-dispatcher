@@ -83,17 +83,24 @@ resume() {
 # blocked_held <K> <what>: the unit is labelled `blocked`, so nothing of it runs (said once)
 blocked_held() { unit_blocked "$1" || return 1; warn_once "blocked-$1" "#$1 is labelled \`blocked\`: $2 waits until the label goes"; }
 
-# issue_prompt <n> [title] [plan approved 0|1, default: its plan_ok]: a new worker's whole task
-# for issue n; with its plan merged (plan_back), the order to execute it
+# issue_prompt <n> [title] [plan approved 0|1, default: its plan_ok] [branch, default: its own]:
+# a new worker's whole task for issue n; with its plan merged (plan_back), the order to execute it.
+# An issue started before its branch was kept gets the name from its title, as then.
 issue_prompt() {
-  local n=$1 title=${2:-} p=${3:-$(st_get "$1" plan_ok)} prompt
-  [ -n "$title" ] || title=$(title_of "$n")
-  [ -n "$title" ] || title=$(ghj issue view "$n" -R "$REPO" --json title | jqr .title)
+  local n=$1 title=${2:-} p=${3:-$(st_get "$1" plan_ok)} br=${4:-$(st_get "$1" branch)} prompt
+  if [ -z "$br" ]; then
+    [ -n "$title" ] || title=$(title_of "$n")
+    [ -n "$title" ] || title=$(ghj issue view "$n" -R "$REPO" --json title | jqr .title)
+    br=$(issue_branch "$n" "$title")
+  fi
   # shellcheck disable=SC2059
-  printf -v prompt "$WORKER_PROMPT" "$REPO" "$n" "$n" "$n" "$n-$(slug "$title")" "${WORKER_EXTRA:+ $WORKER_EXTRA}"
+  printf -v prompt "$WORKER_PROMPT" "$REPO" "$n" "$n" "$n" "$br" "${WORKER_EXTRA:+ $WORKER_EXTRA}"
+  prompt+=" $(contract_rule "$br")"
   [ "$p" = 1 ] && prompt+=" $(plan_merged_text "docs/plans/issue-$n.md")"
   printf '%s' "$prompt"
 }
+# issue_branch <n> <title>: the branch an issue's worker creates
+issue_branch() { echo "$1-$(slug "$2")"; }
 # unit_prompt <K>: the whole task of a unit's worker, for a fresh session
 unit_prompt() {
   if is_health "$1"; then health_prompt "$(st_get "$1" step)" "$1"
@@ -103,17 +110,19 @@ unit_prompt() {
 
 # start_issue <n> [extra]: claim and start a new worker; extra is appended to its prompt
 start_issue() {
-  local n=$1 title prompt c=0 p="" pl=()
+  local n=$1 title prompt c=0 p="" pl=() br
   title=$(title_of "$n")
   [ -n "$title" ] || title=$(ghj issue view "$n" -R "$REPO" --json title | jqr .title)
   # plan-ok on an issue nobody manages: its plan PR merged (plan_back); the build executes it
   has_label "$n" plan-ok && { p=1 pl=(--remove-label plan-ok); }
-  prompt=$(issue_prompt "$n" "$title" "${p:-0}")
+  # kept in the state: is_contract_pr knows the issue's contract PR by it
+  br=$(issue_branch "$n" "$title")
+  prompt=$(issue_prompt "$n" "$title" "${p:-0}" "$br")
   [ -n "${2:-}" ] && prompt+=" The user adds: $2"
   is_exclusive "$n" && c=1
   run_worker "$n" "$prompt" "$BUDGET_WORK" || return   # SLOT_REFUSED: no shared slot, the issue waits
   edit_issue "$n" --add-label in-progress --remove-label ready --add-assignee "$USER_LOGIN" "${pl[@]}"
-  st_set "$n" exclusive=$c plan_ok=$p; new_cycle "$n"
+  st_set "$n" exclusive=$c plan_ok=$p branch="$br"; new_cycle "$n"
   log "#$n started: $title"
 }
 
