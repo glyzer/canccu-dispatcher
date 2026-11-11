@@ -59,7 +59,8 @@ an empty model is the account
 default), `review_maccept` (the full review's
 `Maintainer accept:` reason; a fix-check's own, given with its `changes`, is added), `open_sha`
 (the head a fix-check left open items on; cleared by a `pass` before its merge step and by a new
-cycle), `posted` (the head whose review was posted),
+cycle), `posted` (the head whose review was posted), `file_retry` (the head whose reviewer was
+asked once to write its missing review file, [`reviews.md`](reviews.md)),
 `ny_kind` (what a `needs-you` waits for: `plan`, `question` or empty), `ny_stage` (where it
 parked), `ny_wait` (`ci`: it only waited on CI), `exclusive` (of the one-at-a-time kind),
 `nb_at` (the verdict whose non-blocking findings were filed), `finish_tried` (its finish session after a run that left work but no PR was had), `no_pr` (its last run finished with no PR: the next resume starts a fresh session), `fixes` and `fixes_pr` (the automatic fix runs on that PR, against `FIX_ATTEMPTS`), `main_merged` (the head a scripted merge of main pushed), `conflict_sha` (the head a conflict run started on), `mm_err` (scripted merges failed in a row), `plan_ok`,

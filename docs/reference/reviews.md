@@ -100,8 +100,12 @@ wins. A `Maintainer accept:` line before the verdict makes the PR manual: the di
 your accept, not `review-gate`.
 
 The dispatcher posts a review only when the file was written after the review started and its
-last line is a verdict for exactly that head. A file that fails the check is never posted
-(`needs-you`). A failed post is retried every pass; a run's first failed post, or its second
+last line is a verdict for exactly that head. A file that fails the check is never posted. A
+run that ended `done` without one (no file, an old one, or no verdict for the head) is asked once
+per head, in its own session (`--keep-session`, 10 turns, 2 USD, 10 minutes), to write the file
+from the review it already did; the log says `asked once to write the review file`. A retry that
+leaves no valid file either, or a run that ended any other way, goes to `needs-you`. Backing off
+or no free slot: the retry waits for the next pass. A failed post is retried every pass; a run's first failed post, or its second
 time-out in a row, labels the issue `needs-you` once, with a comment saying where the review file
 is, and the label goes again once the verdict is acted on, the run is void, or a new run starts.
 A posted review GitHub does not list yet is waited for `POST_WAIT` seconds before

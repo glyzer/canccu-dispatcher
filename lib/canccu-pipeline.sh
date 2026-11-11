@@ -116,6 +116,14 @@ reap_review() {
         st_set "$n" phase=check check_at="$(now)"
         return
       fi
+      # a run that ended well but wrote no valid file is asked once per head to write it
+      if [ "$kind" = done ] && [ "$(st_get "$n" file_retry)" != "$sha" ]; then
+        may_start "$n" || return 0
+        retry_review_file "$pr" "$n" "$sha" || return 0
+        st_set "$n" file_retry="$sha" started="$(now)"
+        log "#$n PR #$pr: the reviewer left $why; asked once to write the review file"
+        return
+      fi
       outcome "$n" "$pr" "$sha" "no valid verdict ($why; run ${status:-$kind})"
     fi
   fi

@@ -410,15 +410,23 @@ start_fixcheck() { start_reviewer "$1" "$2" "$4" fixcheck "$3"; }
 # worktree at the PR head, fresh session (key review-<pr>: never the worker's), without the
 # checkout's project settings (--untrusted) and without any GitHub token. It may write only its
 # review file's directory besides the worktree.
-start_reviewer() {
-  local pr=$1 n=$2 sha=$3 mode=$4 rsha=${5:-} wt turns cost mins prompt problem login f effort capped model name what
+# reviewer_refused: true (and said once) when the reviewer token is missing or signs in as
+# someone else
+reviewer_refused() {
+  local problem login
   problem=$(reviewer_token_problem)
   if [ -z "$problem" ] && (( ! CANCCU_DRY )); then
     login=$(reviewer_login) || login=""
     [ "$login" = "$REVIEWER_LOGIN" ] ||
       problem="the reviewer token signs in as '${login:-nobody (rejected)}', not REVIEWER_LOGIN $REVIEWER_LOGIN"
   fi
-  if [ -n "$problem" ]; then warn_once reviewer "reviews refused: $problem"; return 1; fi
+  [ -n "$problem" ] || return 1
+  warn_once reviewer "reviews refused: $problem"
+}
+
+start_reviewer() {
+  local pr=$1 n=$2 sha=$3 mode=$4 rsha=${5:-} wt turns cost mins prompt f effort capped model name what
+  reviewer_refused && return 1
   wt=$(review_wt "$pr") f=$(review_file "$pr" "$sha")
   if [ "$mode" = fixcheck ]; then read -r turns cost mins <<<"$BUDGET_FIXCHECK"; name="fixcheck#$pr" what=fix-check
   else read -r turns cost mins <<<"$( [ -n "$(st_get "$n" pkg)" ] && pkg_budget "$BUDGET_REVIEW" "$(unit_size "$n")" || echo "$BUDGET_REVIEW")"
@@ -453,6 +461,21 @@ start_reviewer() {
     claim_color "$n"; paint_window "$name" "$n"
   fi
   log "#$n PR #$pr: $what started at ${sha:0:7}${rsha:+ (fix diff ${rsha:0:7}..${sha:0:7})} ($effort effort, ${model:-the account default})"
+}
+
+# retry_review_file <pr> <n> <sha>: the reviewer ended without its review file; its own session is
+# asked to write it, with a small budget. The review's records (sha, effort, model) stay its own.
+retry_review_file() {
+  local pr=$1 n=$2 sha=$3 f name=review#$1 what=reviewer mode
+  reviewer_refused && return 1
+  mode=$(st_get "$n" review_mode)
+  [ "$mode" = fixcheck ] && name="fixcheck#$pr" what=fix-check
+  f=$(review_file "$pr" "$sha")
+  MODEL=$(review_model "$mode") RUN_TYPE=review extra_dirs=${f%/*} engine "$what $name" "review-$pr" \
+    --key "review-$pr" --dir "$(review_wt "$pr")" --name "$name" --untrusted --keep-session "$REPO_NAME" \
+    "Your review of PR #$pr ended without the review file. Write it now to $f, from the review you already did: the findings as the task told you, and as its last line \`Review verdict: pass $sha\` or \`Review verdict: changes $sha\`. Do not review again and run nothing else. Then stop." \
+    turns=10 cost=2 min=10 || return 1
+  step_charge "$n" "review-$pr"
 }
 
 # running_review_sha <pr>: the head the running (or last) reviewer of the PR was started on
