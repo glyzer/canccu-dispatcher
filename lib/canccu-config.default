@@ -64,6 +64,7 @@ RISKY_PATHS='^(\.github|deploy)/|migration|sign-?in|login|auth|rights|permission
 # paths (grep -E) that count as docs for a full review's effort, on top of docs/ and *.md, even
 # when RISKY_PATHS names them; never agent configuration or a gated path
 EFFORT_DOCS_PATHS=''
+REVIEW_EFFORT_MAX=''        # cap for the review and fix-check effort: low, medium or high; empty: none
 # the same as RISKY_PATHS for a fix-check's fix diff: medium instead of low effort
 FIXCHECK_RISKY='(^|/)deploy/|sign-?in|login|auth|rights|permission|session|secret|tenan|(^|[/_.-])rls([/_.-]|$)|migrations?(/|_|\.|$)|\.sql$|schema'
 # gated paths (grep -E): a PR touching one waits for the user's accept. Agent configuration
