@@ -61,9 +61,13 @@ about 8× the cost per turn of a fresh run. So a worker's follow-up (a review fi
 fix, `needs-work`, a merge of main that conflicts, a comment, after a usage stop) starts a fresh
 session (`--fresh`) in the same worktree and branch, unless `RESUME_ON` names its kind (default
 `answer,plan`: the answer to its `Question:` and plan-ok, where the conversation itself matters).
-The fresh session's prompt is the task, then a short handoff: the PR's link and body
-(`Decisions made:`, `Follow-up:`), `git log origin/main..HEAD --oneline`, uncommitted files, the
-worker's last report (`.last`) and the standing orders of its first run.
+The fresh session's prompt is the safety block (`SAFETY_BLOCK`: stop on a question with
+`Question:`, never merge, rebase, force-push or touch `accepted`, no self-review, no subagents or
+background commands, the 5-line report), then the task, then a short handoff: the PR's link and
+body (`Decisions made:`, `Follow-up:`), `git log origin/main..HEAD --oneline`, uncommitted files,
+the worker's last report (`.last`), and the unit and its branch, with the repo's AGENTS.md and
+CLAUDE.md named as the full rules. The block comes first, so the prompt limit can only cut the end
+of the handoff.
 
 - **Merge of main**: by script, never an AI run, when git merges cleanly: `git merge --no-edit
   origin/main` in the worktree and a normal push to the PR's branch (never a rebase or a

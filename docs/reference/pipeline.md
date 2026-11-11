@@ -112,8 +112,9 @@ Every `INTERVAL` seconds, under the project's lock:
    is never started or resumed, and gets no answerer. A run that finished with no PR is not
    `--resume`d: a fresh session gets the whole task (with `plan_ok`, the order to execute the
    merged plan), the question it stopped with if the message answers one, and the message. Every
-   other follow-up is fresh too unless `RESUME_ON` names its kind ([`engine.md`](engine.md),
-   "Follow-up runs"). A PR armed for
+   other follow-up is fresh too unless `RESUME_ON` names its kind: it gets the safety block, the
+   task and the handoff, in that order ([`engine.md`](engine.md), "Follow-up runs"); a resumed
+   session gets the message alone. A PR armed for
    merge is disarmed before its worker resumes; resuming removes `needs-you`.
 5. **Accept and merging.** An `accept` PR labelled `accepted` by `USER_LOGIN` after the accept
    request, whose head is still the classified one → the merge is armed (`canccu-ship <n>` does

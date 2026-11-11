@@ -101,6 +101,7 @@ a="$*"; printf '%s\n' "${a//$'\n'/ }" >> "$FAKE/worker.log"
 echo "GH_TOKEN=${GH_TOKEN:-<unset>} GITHUB_TOKEN=${GITHUB_TOKEN:-<unset>} WORKER_GH_TOKEN_FILE=${WORKER_GH_TOKEN_FILE:-<unset>} REVIEWER_TOKEN_FILE=${REVIEWER_TOKEN_FILE:-<unset>}" >> "$FAKE/worker.env"
 { echo "=== $a"; env; } >> "$FAKE/worker.envdump"
 echo "fds: $(ls /proc/$$/fd | tr '\n' ' ')" >> "$FAKE/worker.fds"
+find "$CANCCU_HOME/reviews" -name '*.findings.md' >> "$FAKE/worker.files" 2>/dev/null
 case $1 in
   --kill) k=${3#review-}; k=${k#answer-}
           echo "$3 phase=$(sed -n 's/^phase=//p' "$CANCCU_HOME/state/$k" 2>/dev/null | tail -1)" >> "$FAKE/kill.log"

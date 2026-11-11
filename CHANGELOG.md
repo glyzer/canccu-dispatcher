@@ -15,6 +15,9 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
   `Plan for`) is never merged automatically, whatever its branch (#87).
 - A contract-first PR that GitHub would treat as closing an issue never reaches a review or an
   accept: the worker is resumed once to correct its body, then `needs-you` (#98).
+- A fresh follow-up run always keeps its safety rules: they come first in its prompt, and the
+  handoff no longer repeats the whole first prompt. A fix round's long findings are read from the
+  findings file. Workers use no subagents, packages included (#88).
 
 ## [0.1.2] — 2026-11-10
 
