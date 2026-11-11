@@ -167,12 +167,24 @@ out=$(cd "$F" && CANCCU_TEST_LOGS=$T/runlogs3 CANCCU_TEST_TIMEOUT=1s tests/run t
 ok "tests/run: CANCCU_TEST_TIMEOUT=1s stops a slower test file" eq "$rc $(grep -c '^tests/slow\.sh: FAILED .*(timed out)$' <<<"$out")" "1 1"
 out=$(cd "$F" && CANCCU_TEST_LOGS=$T/runlogs3 CANCCU_TEST_TIMEOUT=20s tests/run tests/slow.sh 2>&1); rc=$?
 ok "… and a longer one lets it finish" eq "$rc" 0
+# CANCCU_TEST_TICK: a heartbeat line names the parts still running, so a long run is never silent
+printf '#!/usr/bin/env bash\nsleep 3\necho "slow2 tests: 1 passed, 0 failed"\n' > "$F/tests/slow2.sh"
+# another run's parts in a shared log dir are not this run's
+mkdir -p "$T/runlogs4/.running-1"; echo tests/other.sh > "$T/runlogs4/.running-1/tests_other.sh.run"
+out=$(cd "$F" && CANCCU_TEST_LOGS=$T/runlogs4 CANCCU_TEST_TICK=1 tests/run tests/slow2.sh tests/good.sh 2>&1); rc=$?
+ok "tests/run: CANCCU_TEST_TICK=1 prints what still runs" eq "$rc $(grep -cE '^… [0-9]+s, still running: tests/slow2\.sh$' <<<"$out" | awk '{ print ($1 >= 1) }')" "0 1"
+ok "… the finished part is not named" not grep -q 'still running: .*good' <<<"$out"
+# a heartbeat left running would hold the output open until its next tick, 60s away
+t0=$SECONDS; out=$(cd "$F" && tests/run tests/good.sh 2>&1)
+ok "… and it ends with the run" eq "$(( SECONDS - t0 < 30 ))" 1
+out=$(cd "$F" && CANCCU_TEST_TICK=0 tests/run tests/slow2.sh 2>&1)
+ok "… CANCCU_TEST_TICK=0: none" not grep -q 'still running' <<<"$out"
 out=$(cd "$F" && CANCCU_TEST_TIMEOUT=soon tests/run tests/slow.sh 2>&1); rc=$?
 ok "… a limit that is no duration: a usage error" eq "$rc $(grep -c 'CANCCU_TEST_TIMEOUT' <<<"$out")" "2 1"
 
 # ---------------------------------------------------------------- the worker's test rule
 
-RULE='While working, run only the tests of the files you change; run the full suite once, just before pushing; never paste whole test logs into the conversation.'
+RULE='run only the tests of the files you change (the affected-tests command CLAUDE.md names, when it has one), in the foreground; do not run the full suite locally: CI runs it on every push.'
 env_new test-rule
 { issue 30 ready; } | issues
 dispatch --once
@@ -180,6 +192,14 @@ ok "worker prompt: the test rule" grep -qF "$RULE" "$FAKE/worker.log"
 ok "… and branch updates merge main, never rebase" grep -qF 'To bring in main, run `git merge origin/main` and push normally; never rebase or force-push' "$FAKE/worker.log"
 ok "package and health prompts: the test rule" grep -qF "$RULE" <<<"$(lib common_rules)"
 ok "… and merge, never rebase" grep -qF 'never rebase or force-push' <<<"$(lib common_rules)"
+# #26: a headless run ends with its turn, so no background work, early pushes and no CI wait
+for t in 'Never run a command in the background' 'Commit and push early: push the branch after the tests-first commit and again when the tests pass' \
+  'stop as soon as the PR is open and ready: do not wait for CI, the dispatcher watches it'; do
+  ok "worker prompt: $t" grep -qF "$t" "$FAKE/worker.log"
+  ok "… the package prompts too" grep -qF "$t" <<<"$(lib common_rules)"
+done
+ok "… and no fix-round count of their own: the dispatcher's FIX_ATTEMPTS caps them" not grep -qF 'CI red after two fix rounds' "$FAKE/worker.log"
+ok "the engine's system prompt: no background work" grep -qF 'Never run a command or subagent in the background' "$root/libexec/canccu-worker"
 
 # ---------------------------------------------------------------- planner guidance
 

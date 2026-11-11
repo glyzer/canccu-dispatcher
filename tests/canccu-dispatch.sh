@@ -181,8 +181,8 @@ ok "usage → back-off until the named reset" eq "$(cat "$CANCCU_ROOT/backoff")"
 ok "usage → phase limited, still in-progress" eq "$(st 5 phase)" limited
 ok "usage → no needs-you" hasnt gh.log "needs-you"
 
-# the 5-hour limit stops a worker in the fix round: limited until the reset, resumed with
-# "continue" after it, limited again on a second hit; never needs-you, never a comment, no new round
+# the 5-hour limit stops a worker in the fix round: limited until the reset, a fresh
+# session after it, limited again on a second hit; never needs-you, never a comment, no new round
 env_new reap-usage-5h
 { issue 5 in-progress; issue 6 ready; } | issues
 state 5 phase=work "started=$NOW" pr=50 stage=fixing reviewed_sha=$HA; last 5 error "$H5"
@@ -198,7 +198,7 @@ dispatch --once
 ok "… still backed off on the next pass: nothing starts" eq "$(wc -l < "$FAKE/worker.log")" 0
 echo $((NOW - 1)) > "$CANCCU_ROOT/backoff"
 dispatch --once
-ok "after the reset → resumed with continue" grep -q '^--quiet --name #5 --fresh web 5 Continue where you stopped: the usage limit has reset.' "$FAKE/worker.log"
+ok "after the reset → a fresh session from git status (no handoff)" grep -q '^--quiet --name #5 --fresh web 5 The usage limit has reset. Your earlier run was cut off' "$FAKE/worker.log"
 ok "… phase work, still the same fix round" eq "$(st 5 phase) $(st 5 stage) $(st 5 reviewed_sha)" "work fixing $HA"
 ok "… no needs-you, no comment" eq "$(grep -cE 'needs-you|issue comment 5' "$FAKE/gh.log")" 0
 rm -f "$WORKERS_DIR/web-5.lock"; last 5 error "You've hit your 5-hour limit"   # the resumed run ends on the limit
@@ -731,7 +731,7 @@ ok "back-off: nothing starts" eq "$(wc -l < "$FAKE/worker.log")" 0
 echo $((NOW - 1)) > "$CANCCU_ROOT/backoff"; touch "$CANCCU_HOME/paused"
 dispatch --once
 ok "paused: no new issue" not started 6
-ok "paused: a limited worker resumes after the back-off" grep -q 'web 5 Continue where you stopped' "$FAKE/worker.log"
+ok "paused: a limited worker resumes after the back-off" grep -q 'web 5 The usage limit has reset' "$FAKE/worker.log"
 
 # ---------------------------------------------------------------- after merge
 

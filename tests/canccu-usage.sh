@@ -55,20 +55,59 @@ ok "usage: 5-hour 90% → no run starts" not started 6
 ok "… the running worker gets a nudge file, once" eq "$(test -e "$WORKERS_DIR/web-5.nudge" && echo nudged) $(st 5 nudged)" "nudged 1"
 dispatch --once
 ok "… logged once" eq "$(grep -c 'asked to stop at a safe point' "$CANCCU_HOME/dispatch.log")" 1
-rm -f "$WORKERS_DIR/web-5.lock"; last 5 done $'WIP pushed.\nNext action: finish the parser'
+rm -f "$WORKERS_DIR/web-5.lock"; last 5 done $'Done: the parser\nLeft: its tests\nNext step: test the parser\nHead: abc1234'
 dispatch --once
 ok "usage: a nudged worker that ends done → limited, back-off until the reset" \
   eq "$(st 5 phase) $(( $(cat "$CANCCU_ROOT/backoff") >= NOW + 3600 ))" "limited 1"
+ok "… its final message is stored as its handoff (#82)" grep -qx 'Next step: test the parser' "$CANCCU_HOME/handoffs/5.md"
+mkdir -p "$WORKERS_DIR/worktrees/web/issue-5" && touch "$WORKERS_DIR/worktrees/web/issue-5/.git"
+printf 'abc1234 wip: the parser\n' > "$FAKE/gitlog"; printf ' src/parse.ts | 40 ++++\n 1 file changed\n' > "$FAKE/diffstat"
 rm -f "$CANCCU_ROOT/backoff"; use 20 10
 dispatch --once
-ok "… it continues after the reset" grep -q -- '--name #5 --fresh web 5 Continue where you stopped' "$FAKE/worker.log"
+l=$(grep -- '--name #5 ' "$FAKE/worker.log" | tail -1)
+ok "… after the reset a fresh session, never --resume (#82)" grep -q -- '--name #5 --fresh web 5 The usage limit has reset' <<<"$l"
+ok "… with the handoff" grep -qF 'Next step: test the parser' <<<"$l"
+ok "… the commit log" grep -qF 'abc1234 wip: the parser' <<<"$l"
+ok "… and the diff stat" grep -qF 'src/parse.ts | 40' <<<"$l"
+ok "… the handoff is used once" test ! -e "$CANCCU_HOME/handoffs/5.md"
 ok "… and its nudge file is gone" test ! -e "$WORKERS_DIR/web-5.nudge"
+
+# the hard limit hit before any nudge: no handoff, a fresh session that checks git status (#82)
+env_new usage-hard
+{ issue 5 in-progress; } | issues
+mkdir -p "$CANCCU_HOME/handoffs"; echo 'Next step: an old one' > "$CANCCU_HOME/handoffs/5.md"
+state 5 phase=work "started=$NOW"; last 5 error "Claude AI usage limit reached|$((NOW + 3600))"
+dispatch --once
+ok "usage: the hard limit → limited, no handoff kept" eq "$(st 5 phase) $(test -e "$CANCCU_HOME/handoffs/5.md" && echo kept)" "limited "
+rm -f "$CANCCU_ROOT/backoff"
+dispatch --once
+l=$(grep -- '--name #5 ' "$FAKE/worker.log" | tail -1)
+ok "… after the reset a fresh session" grep -q -- '--name #5 --fresh web 5 The usage limit has reset' <<<"$l"
+ok "… told to check git status for uncommitted work" grep -qF 'check git status for uncommitted work' <<<"$l"
+ok "… no stale handoff" not grep -qF 'an old one' <<<"$l"
+
+env_new usage-resume-on RESUME_ON=limited
+use 20 10
+{ issue 5 in-progress; } | issues
+state 5 phase=limited
+dispatch --once
+ok "usage: RESUME_ON=limited brings the old resume back (#82)" grep -q -- '--name #5 web 5 Continue where you stopped' "$FAKE/worker.log"
+
+# reviewers and planners cut off by the limit rerun fresh: the engine never resumes their keys (#82)
+env_new usage-fresh-keys
+mkdir -p "$E/wt"
+for k in review-9 plan-3; do
+  echo old-session > "$WORKERS_DIR/web-$k.id"
+  printf 'repo=web\nkey=%s\nkind=worker\npid=\nwindow=\n' "$k" > "$WORKERS_DIR/web-$k.lock"
+  PATH="$fb:$PATH" CODE_ROOT="$E/code" "$root/libexec/canccu-worker" __run web "$k" 5 1 2 "" "a prompt" "$E/wt" user > /dev/null 2>&1
+  ok "usage: a $k run reruns in a fresh session" eq "$(grep -c -- '--resume' <<<"$(tail -1 "$FAKE/claude.args")")" 0
+done
 
 env_new usage-hook
 out=$(echo '{}' | WORKER_NUDGE_FILE="$E/none" "$root/libexec/canccu-nudge-hook")
 ok "usage: the nudge hook prints nothing without the file" eq "$out" ""
 touch "$E/n"; out=$(echo '{}' | WORKER_NUDGE_FILE="$E/n" "$root/libexec/canccu-nudge-hook")
-ok "… with it, the stop context for the run" eq "$(jq -r '.hookSpecificOutput | .hookEventName + ": " + (.additionalContext | test("Next action:") | tostring)' <<<"$out")" "PostToolUse: true"
+ok "… with it, the stop context for the run" eq "$(jq -r '.hookSpecificOutput | .hookEventName + ": " + (.additionalContext | test("without running tests.*Done:.*Left:.*Next step:.*Decisions made:.*Test state:.*Head:") | tostring)' <<<"$out")" "PostToolUse: true"
 mkdir -p "$E/wt"; printf 'repo=web\nkey=7\nkind=worker\npid=\nwindow=\n' > "$WORKERS_DIR/web-7.lock"
 PATH="$fb:$PATH" CODE_ROOT="$E/code" "$root/libexec/canccu-worker" __run web 7 5 1 2 "" "a prompt" "$E/wt" "" > /dev/null 2>&1
 ok "usage: a worker run gets the hook in its settings" grep -qF 'canccu-nudge-hook' <<<"$(tail -1 "$FAKE/claude.args")"
@@ -84,7 +123,7 @@ state 5 phase=work "started=$NOW" nudged=1 "nudge_reset=$((NOW - 60))"
 rm -f "$WORKERS_DIR/web-5.lock"; last 5 done $'WIP pushed.\nNext action: x'
 dispatch --once
 ok "usage (review 3, finding 3): ended after its reset → no back-off for anyone, it continues" \
-  eq "$(test -s "$CANCCU_ROOT/backoff" && echo backoff || echo none) $(grep -c -- '--name #5 --fresh web 5 Continue where you stopped' "$FAKE/worker.log")" "none 1"
+  eq "$(test -s "$CANCCU_ROOT/backoff" && echo backoff || echo none) $(grep -c -- '--name #5 --fresh web 5 The usage limit has reset' "$FAKE/worker.log")" "none 1"
 
 # ---------------------------------------------------------------- USAGE_WEEKLY_DRAIN: drain mode
 

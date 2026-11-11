@@ -188,5 +188,48 @@ ok "… a missing key or file: nothing, status 0" eq "$(lib kv_get "$E/kv" k nop
 ok "… an empty value is a value" eq "$(printf 'k=\n' > "$E/kv2"; lib kv_get "$E/kv2" x k | wc -l)" 1
 ok "… they run no other program" eq "$(lib eval 'PATH=/nonexistent; lock_get '"$E/kv"' key; kv_get '"$E/kv"' k key' 2>&1)" $'first\nsecond'
 
+# ---------------------------------------------------------------- the stall detector (#26)
+
+# a silent log is a stall only when no tool process spends CPU: a long test run is not one
+env_new engine-stall
+mkdir -p "$E/code/web/.git"
+printf 'end=$((SECONDS + 6)); while (( SECONDS < end )); do :; done\n' > "$FAKE/claude.do"
+eng 31 "$E" "" WORKER_STALL_SEC=3 WORKER_STALL_POLL=1 > /dev/null
+ok "stall: a silent run whose tool spends CPU is not killed" eq "$(lib run_exit "$WORKERS_DIR/web-31.last")" "done|done"
+printf 'sleep 12\n' > "$FAKE/claude.do"
+eng 32 "$E" "" WORKER_STALL_SEC=3 WORKER_STALL_POLL=1 > /dev/null
+ok "stall: a silent run whose tool waits idle is killed as stalled" eq "$(lib run_exit "$WORKERS_DIR/web-32.last" | cut -d'|' -f1)" stalled
+ok "… its CPU record is removed" eq "$(find "$WORKERS_DIR" -name "*.ticks*" | wc -l)" 0
+rm -f "$FAKE/claude.do"
+# tool_ticks: the processes below claude (the child of timeout), never claude itself
+( exec timeout 20 bash -c 'sleep 15 & wait' ) & tp=$!
+sleep 0.5
+tt=$(lib tool_ticks "$tp")
+ok "tool_ticks: the tool process under claude, not claude" eq "$(wc -l <<<"$tt") $(cat "/proc/${tt%% *}/comm" 2>/dev/null)" "1 sleep"
+ok "… its pid and ticks" grep -qE '^[0-9]+ [0-9]+$' <<<"$tt"
+: > "$T/ticks"
+ok "tools_busy: a new tool process counts" lib tools_busy "$tp" "$T/ticks"
+ok "… an idle one does not, the next time" not lib tools_busy "$tp" "$T/ticks"
+lib kill_tree "$tp"; wait "$tp" 2>/dev/null
+
+# ---------------------------------------------------------------- background work (#26)
+
+# a run that ends its turn while work it started in the background still runs: an error, not done
+bg_use='{"type":"assistant","parent_tool_use_id":null,"message":{"id":"m1","content":[{"type":"tool_use","id":"tu1","name":"Bash","input":{"command":"tests/run","run_in_background":true}}]}}'
+bg_res='{"type":"user","parent_tool_use_id":null,"message":{"content":[{"type":"tool_result","tool_use_id":"tu1","content":"Command running in background with ID: b3f9a2. Output is being written to: /tmp/b3f9a2.output"}]}}'
+bg_poll='{"type":"user","parent_tool_use_id":null,"message":{"content":[{"type":"tool_result","tool_use_id":"tu2","content":"<status>running</status> b3f9a2 still running"}]}}'
+bg_done='{"type":"user","parent_tool_use_id":null,"message":{"content":[{"type":"text","text":"<task-notification><task-id>b3f9a2</task-id><status>completed</status></task-notification>"}]}}'
+fg_use='{"type":"assistant","parent_tool_use_id":null,"message":{"id":"m1","content":[{"type":"tool_use","id":"tu1","name":"Bash","input":{"command":"tests/run"}}]}}'
+bgrun() { printf '%s\n' "$@" > "$FAKE/claude.stream"; eng "$K" "$E" "" > /dev/null; lib run_exit "$WORKERS_DIR/web-$K.last"; }
+K=41; ok "background: ended with a command still running → kind background" eq "$(bgrun "$bg_use" "$bg_res")" "background|error: ended with background work pending"
+ok "… its report says so" grep -q 'still running' "$WORKERS_DIR/web-41.last"
+K=42; ok "… a poll that says it still runs does not end it" eq "$(bgrun "$bg_use" "$bg_res" "$bg_poll" | cut -d'|' -f1)" background
+K=43; ok "… its completion notice does: done" eq "$(bgrun "$bg_use" "$bg_res" "$bg_done" | cut -d'|' -f1)" done
+K=44; ok "… a foreground command: done" eq "$(bgrun "$fg_use" "$bg_res" | cut -d'|' -f1)" done
+bg_agent='{"type":"assistant","parent_tool_use_id":null,"message":{"id":"m1","content":[{"type":"tool_use","id":"tu1","name":"Agent","input":{"prompt":"x","run_in_background":true}}]}}'
+bg_ares='{"type":"user","parent_tool_use_id":null,"message":{"content":[{"type":"tool_result","tool_use_id":"tu1","content":"Async agent launched. agentId: a7c1d9e (you will be notified when it completes)"}]}}'
+K=45; ok "… a background subagent counts too" eq "$(bgrun "$bg_agent" "$bg_ares" | cut -d'|' -f1)" background
+rm -f "$FAKE/claude.stream"
+
 echo "canccu-engine tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

@@ -12,7 +12,8 @@
 # Each test file may run for CANCCU_TEST_TIMEOUT (a duration of timeout(1); default 8m): a slow
 # host, such as an older distribution's jq 1.6 with its slow start, needs longer.
 # The full output of each part goes to a log file in CANCCU_TEST_LOGS (default: a new temp dir),
-# named at the end. Exit 1 when a part fails, 2 on a usage error.
+# named at the end. Every CANCCU_TEST_TICK seconds (default 60; 0: never) a line names the parts
+# still running. Exit 1 when a part fails, 2 on a usage error.
 set -uo pipefail
 caller=$PWD
 root=$(cd "$(dirname "$0")/.." && pwd) || exit 2
@@ -32,7 +33,8 @@ tests_for() {
     tests/fixtures/plans/*|lib/canccu-plan.jq|lib/canccu-planner.sh|lib/canccu-steps.sh)
       echo tests/canccu-steps.sh tests/canccu-steps2.sh tests/canccu-share.sh ;;
     lib/canccu-snapshot-steps.sh) echo tests/canccu-snapshot2.sh tests/canccu-steps.sh ;;
-    lib/canccu-usage.sh|lib/canccu-stream.py|libexec/canccu-nudge-hook) echo tests/canccu-usage.sh ;;
+    lib/canccu-usage.sh|libexec/canccu-nudge-hook) echo tests/canccu-usage.sh ;;
+    lib/canccu-stream.py) echo tests/canccu-usage.sh tests/canccu-engine.sh ;;
     libexec/canccu-worker|lib/canccu-engine.sh)
       echo tests/canccu-engine.sh tests/canccu-units.sh tests/canccu-usage.sh tests/canccu-pane.sh tests/canccu-install.sh tests/canccu-install2.sh tests/canccu-doctor.sh ;;
     lib/canccu-common.sh|lib/canccu-projects.sh|lib/canccu-config.default)
@@ -55,8 +57,8 @@ tests_for() {
     lib/canccu-doctor.sh) echo tests/canccu-doctor.sh ;;
     hosts/*) echo tests/canccu-hosts.sh tests/canccu-doctor.sh tests/canccu-docs.sh ;;
     lib/canccu-ping.sh) echo tests/canccu-pings.sh tests/canccu-steps2.sh ;;
-    lib/canccu-runs.sh|lib/canccu-answer.sh|lib/canccu-github.sh|lib/canccu-merge.sh|lib/canccu-pipeline.sh|lib/canccu-actions.sh|lib/canccu-queue.sh|lib/canccu-followup.sh)
-      echo tests/canccu-followup.sh tests/canccu-dispatch.sh tests/canccu-waits.sh tests/canccu-merge.sh tests/canccu-review.sh tests/canccu-review2.sh tests/canccu-review-effort.sh tests/canccu-cost.sh tests/canccu-health-review.sh tests/canccu-config.sh \
+    lib/canccu-runs.sh|lib/canccu-answer.sh|lib/canccu-github.sh|lib/canccu-merge.sh|lib/canccu-pipeline.sh|lib/canccu-actions.sh|lib/canccu-queue.sh|lib/canccu-followup.sh|lib/canccu-findings.sh)
+      echo tests/canccu-findings.sh tests/canccu-followup.sh tests/canccu-dispatch.sh tests/canccu-waits.sh tests/canccu-merge.sh tests/canccu-review.sh tests/canccu-review2.sh tests/canccu-review-effort.sh tests/canccu-cost.sh tests/canccu-health-review.sh tests/canccu-config.sh \
         tests/canccu-compat.sh tests/canccu-share.sh ;;
     bin/canccu-init)
       echo tests/canccu-dispatch.sh tests/canccu-projects.sh tests/canccu-config.sh tests/canccu-cost.sh tests/canccu-compat.sh tests/canccu-ci.sh ;;
@@ -194,10 +196,33 @@ finish_one() {
   (( r )) && rc=1
   return 0
 }
+# a part prints nothing until it ends, and a caller that kills a silent command (a worker's stall
+# detector, a CI step) would kill a long run: the heartbeat shows it is alive (#26)
+tick=${CANCCU_TEST_TICK:-60}
+tpid=""
+# this run's own: a CANCCU_TEST_LOGS shared with another run (a test of tests/run in CI) holds its parts too
+marks=$logs/.running-$$; mkdir -p "$marks" || exit 2
+if [[ $tick =~ ^[1-9][0-9]*$ ]]; then
+  (
+    # its sleep holds the output open: a caller reading it would wait for the next tick
+    t0=$SECONDS s=""
+    trap 'kill "$s" 2>/dev/null; exit 0' TERM
+    while :; do
+      sleep "$tick" & s=$!
+      wait "$s" && kill -0 $$ 2>/dev/null || exit 0
+      left=$(cat "$marks"/*.run 2>/dev/null | paste -sd' ')
+      [ -n "$left" ] && echo "… $((SECONDS - t0))s, still running: $left"
+    done
+  ) & tpid=$!
+fi
 for p in "${queue[@]}"; do
   (( ${#name[@]} >= jobs_max )) && finish_one
-  run_part "$p" > "$logs/.$(tr '/' '_' <<<"$p").out" 2>&1 & name[$!]=$p
+  x=$(tr '/' '_' <<<"$p")
+  echo "$p" > "$marks/$x.run"
+  { run_part "$p"; r=$?; rm -f "$marks/$x.run"; exit $r; } > "$logs/.$x.out" 2>&1 & name[$!]=$p
 done
 while (( ${#name[@]} )); do finish_one; done
+[ -n "$tpid" ] && kill "$tpid" 2>/dev/null
+rm -rf "$marks"
 echo "full logs: $logs"
 exit $rc

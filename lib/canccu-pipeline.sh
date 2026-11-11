@@ -33,13 +33,19 @@ reap_worker() {
         # stopped at a safe point at the usage stop: continue after the 5-hour reset
         # the reset it was nudged for; already passed: no back-off (it continues next pass)
         r=$(st_get "$n" nudge_reset); [[ $r =~ ^[0-9]+$ ]] && (( r > $(now) )) && set_backoff "$r"
+        handoff_keep "$n" "$(run_msg "$n")"
         st_set "$n" phase=limited nudged= nudge_reset= no_pr=
         log "#$n stopped at a safe point (usage); resumes after the reset"
       elif [ -n "$b" ]; then st_set "$n" nudged=; wait_blocked "$n" "$b"
       elif [ -n "$q" ]; then st_set "$n" nudged=; ask "$n" "$q"
       else st_set "$n" phase=check check_at="$(now)"; log "#$n worker done"; fi ;;
+    background)
+      # what it pushed may be all of it: check_pr judges the PR, or gives a run without one its finish run
+      [ -n "$p" ] || st_set "$n" no_pr=1
+      st_set "$n" phase=check check_at="$(now)"; log "#$n worker ended with background work pending" ;;
     usage)
       set_backoff "$(usage_reset "$(run_msg "$n")")"
+      handoff_keep "$n" ""   # cut off mid-step: no handoff, and an older one is not this stop's
       st_set "$n" phase=limited; log "#$n hit the usage limit; resumes after the back-off" ;;
     *) needs_you "$n" "the worker stopped: $status" "$(run_msg "$n")" ;;
   esac
@@ -168,9 +174,10 @@ check_pr() {
     # takes it from here. Still open but not ours (another branch): needs-you below.
     is_health "$n" && pr=$(st_get "$n" pr) && [ -n "$pr" ] && ! pr_is_open "$pr" && return 0
     if is_health "$n" && grep -qE '^[[:space:]*_]*Health: nothing to do' <<<"$(run_msg "$n")"; then health_nothing "$n"; return; fi
+    finish_once "$n" && return 0
     needs_you "$n" "the worker finished without an open PR" "$(run_msg "$n")" "" work; return
   fi
-  st_set "$n" pr="$pr"
+  st_set "$n" pr="$pr" finish_tried=
   c=$(st_get "$n" contract_merged)
   if [ "$(pr_get "$pr" .isDraft)" = true ]; then
     if [ -n "$c" ]; then
@@ -312,7 +319,7 @@ extra_round() {
   full_review_asked "$c" && return 1
   items=$(cat "$(open_file "$pr" "$osha")" 2>/dev/null)
   [ -n "$items" ] || items="The open items of the fix-check were not saved: read the newest PR comment ending in 'Review verdict: changes $osha' (gh pr view $pr -R $REPO --comments)."
-  resume "$n" "The user asked for one more fix round on PR #$pr (needs-work) for the open items of its fix-check. Fix them and address their comments, rerun the checks, push once, and stop when CI is green. A narrow fix-check of this fix diff against those items follows, then the merge or the maintainer. The open items: $items Their comments: ${c:-none found; read the latest comments on the PR and the issue}" needs-work || return 0
+  resume "$n" "The user asked for one more fix round on PR #$pr (needs-work) for the open items of its fix-check. Fix them and address their comments, rerun the checks, push once and stop: the dispatcher watches CI. A narrow fix-check of this fix diff against those items follows, then the merge or the maintainer. The open items: $items Their comments: ${c:-none found; read the latest comments on the PR and the issue}" needs-work || return 0
   [ -n "$c" ] && cm=$'\n\n'"The user's needs-work comments (also to be fixed): $c"
   # rebuilt from the saved items each time, so a second needs-work in the round never appends
   save_findings "$n" "$pr" "$(findings_file "$pr" "$osha")" "$items$cm"
@@ -343,7 +350,7 @@ resume_step() {
     c=$(user_comments "$n" "$pr" "${since:-$(st_get "$n" started)}") ||
       { log "#$n PR #$pr: gh error reading the comments for needs-work; retrying next pass"; return 0; }
     extra_round "$n" "$pr" "$c" && return 0
-    resume "$n" "The user rejected PR #$pr (needs-work). Address their comments, rerun the checks, push once, and stop when CI is green. Their comments: ${c:-none found; read the latest comments on the PR and the issue}" needs-work || return 0
+    resume "$n" "The user rejected PR #$pr (needs-work). Address their comments, rerun the checks, push once and stop: the dispatcher watches CI. Their comments: ${c:-none found; read the latest comments on the PR and the issue}" needs-work || return 0
     edit_issue "$n" --remove-label needs-work
     has_label "$n" awaiting-accept && edit_issue "$n" --remove-label awaiting-accept
     new_cycle "$n"
@@ -352,7 +359,7 @@ resume_step() {
     # the answer to a worker's Question: is the one follow-up whose conversation matters
     [ -n "$c" ] && room "$n" && resume "$n" "The user answered: $c" "$([ "$(st_get "$n" ny_kind)" = question ] && echo answer || echo user)"
   elif [ "$phase" = limited ]; then
-    room "$n" && resume "$n" "Continue where you stopped: the usage limit has reset." limited
+    room "$n" && resume "$n" "$(limited_task "$n")" limited && handoff_keep "$n" ""
   elif [ "$phase" = waiting ]; then
     unit_blocked "$n" || { blocked_unmark "$(lead_of "$n")"; room "$n" && resume "$n" "The issue is no longer labelled \`blocked\`: check its blockers again, then do the work." blocked; }
   fi

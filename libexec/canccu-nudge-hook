@@ -5,4 +5,7 @@
 # USAGE_STOP), it tells the run to stop at a safe point; otherwise it prints nothing.
 cat > /dev/null   # the hook's input
 [ -n "${WORKER_NUDGE_FILE:-}" ] && [ -e "$WORKER_NUDGE_FILE" ] || exit 0
-printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"The Claude usage limit is near: finish your current small step, commit and push a WIP if needed, write a line `Next action: <what comes next>`, and stop now. You will be resumed with \"continue\" after the limit resets."}}'
+# The final message is the handoff (the dispatcher keeps it, lib/canccu-pipeline.sh): a fresh session
+# continues from it after the reset, because resuming this one would re-read its whole conversation
+# with the prompt cache long expired. No tests: they cost the usage that is running out.
+printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"The Claude usage limit is near: stop now, without running tests. Commit your work in progress (a WIP commit is fine), push the branch, then end with a handoff as your final message, at most 40 lines, in this order: `Done:` what is finished; `Left:` what is not; `Next step:` the first thing to do; `Decisions made:` the choices so far; `Test state:` which tests pass or fail; `Head: <sha>` the pushed commit. A fresh session continues from that handoff after the limit resets: it does not see this conversation."}}'

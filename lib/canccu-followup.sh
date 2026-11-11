@@ -17,27 +17,54 @@ fixes_used() { [ "$(st_get "$1" fixes_pr)" = "$2" ] && echo "$(( $(st_get "$1" f
 fix_left() { (( $(fixes_used "$1" "$2") < $(fix_max) )); }
 fix_count() { st_set "$1" fixes=$(( $(fixes_used "$1" "$2") + 1 )) fixes_pr="$2"; }
 
-# handoff <K>: what a fresh follow-up session gets instead of the old conversation: the PR, its
-# body (Decisions made:, Follow-up:), the branch's commits, uncommitted files, the last report
-# and the standing orders of the first run. Each part is cut, so the task in front of it fits
-# run_worker's prompt limit.
+# handoff <K> [kind]: what a fresh follow-up session gets instead of the old conversation: the PR,
+# its body (Decisions made:, Follow-up:), the branch's commits and their diff stat, uncommitted
+# files, the last report (not for kind limited) and the standing orders of the first run. Each
+# part is cut, so the task in front of it fits run_worker's prompt limit.
 handoff() {
-  local k=$1 pr wt body="" commits="" dirty="" rep
+  local k=$1 pr wt body="" commits="" stat="" dirty="" rep
   pr=$(st_get "$k" pr); [ -n "$pr" ] || pr=$(pr_for "$k")
   wt=$(unit_wt "$k")
   [ -n "$pr" ] && body=$(pr_get "$pr" .body)
   if [ -e "$wt/.git" ]; then
     commits=$(guard 20 git -C "$wt" log --oneline origin/main..HEAD 2>/dev/null | head -n 30)
+    stat=$(guard 20 git -C "$wt" diff --stat origin/main...HEAD 2>/dev/null | tail -n 25)
     dirty=$(guard 20 git -C "$wt" status --short 2>/dev/null | head -n 20)
   fi
-  rep=$(run_msg "$k" | tail -n 12)
+  # a limited run's task carries its own handoff already: its last report would repeat it
+  [ "${2:-}" = limited ] || rep=$(run_msg "$k" | tail -n 12)
   printf '%s' "This run is a fresh session, not a resume of your earlier one: your earlier work is in this worktree, on its branch. Build on it; never create the branch again or open a second PR."
   [ -n "$pr" ] && printf ' The PR: %s.' "$(pr_url "$pr")"
   [ -n "$body" ] && printf ' Its body: %s' "$(oneline 1500 "$body")"
   printf ' The commits on the branch (git log origin/main..HEAD): %s.' "$(oneline 1000 "${commits:-none read}")"
+  [ -n "$stat" ] && printf ' Their diff stat (git diff --stat origin/main...HEAD): %s.' "$(oneline 800 "$stat")"
   [ -n "$dirty" ] && printf ' Uncommitted in the worktree: %s.' "$(oneline 400 "$dirty")"
   [ -n "$rep" ] && printf ' Your last report: %s' "$(oneline 1200 "$rep")"
   printf ' The standing orders of the first run (the branch exists already): %s' "$(unit_prompt "$k")"
+}
+
+# handoff_file <K>: the handoff a run nudged at the usage stop ended with (its final message); kept
+# apart from .last, which the next run of the unit overwrites
+handoff_file() { echo "$CANCCU_HOME/handoffs/$1.md"; }
+# handoff_keep <K> <text>: store the handoff; an empty text removes it (a hard stop left none)
+handoff_keep() {
+  (( CANCCU_DRY )) && return 0
+  if [ -z "$2" ]; then rm -f "$(handoff_file "$1")"; return 0; fi
+  mkdir -p "$CANCCU_HOME/handoffs" && printf '%s\n' "$2" | head -n 60 > "$(handoff_file "$1")" ||
+    log "#$1: cannot save the handoff"
+}
+# limited_task <K>: the task of the run after the usage reset. Fresh (resume adds the commits and
+# their diff stat), from the stored handoff, or, cut off by the hard limit, from git status; with
+# RESUME_ON naming limited the old resumed session's "continue".
+limited_task() {
+  local h
+  if resume_on limited; then echo "Continue where you stopped: the usage limit has reset."; return; fi
+  h=$(cat "$(handoff_file "$1")" 2>/dev/null)
+  if [ -n "$h" ]; then
+    echo "The usage limit has reset. Your earlier run stopped at the usage limit and ended with this handoff (done, left, next step, decisions made, test state, head): $(oneline 3000 "$h") Continue from its next step."
+  else
+    echo "The usage limit has reset. Your earlier run was cut off by the usage limit before it could write a handoff: check git status for uncommitted work and the commits below, then continue the task."
+  fi
 }
 
 # main_merge <K> <pr>: bring main into the PR's branch without an AI run, in the unit's worktree.
@@ -108,7 +135,7 @@ ci_red() {
       # one conflict run per head: one that pushed nothing gets no second try
       [ "$(st_get "$k" conflict_sha)" = "$head" ] && { needs_you "$k" "CI is red on PR #$pr and merging origin/main into it conflicts in: $MERGE_WHY; the worker's merge run pushed no resolution" "$(run_msg "$k")" "" ci; return; }
       backing_off && return 0; room "$k" || return 0
-      resume "$k" "Merging origin/main into the branch of PR #$pr conflicts in: $MERGE_WHY. Run git merge origin/main, resolve the conflicts keeping what both sides meant, rerun the checks, push once (a normal push, never a rebase or force-push), and stop when CI is green." merge || return 0
+      resume "$k" "Merging origin/main into the branch of PR #$pr conflicts in: $MERGE_WHY. Run git merge origin/main, resolve the conflicts keeping what both sides meant, rerun the checks, push once (a normal push, never a rebase or force-push) and stop: the dispatcher watches CI." merge || return 0
       st_set "$k" conflict_sha="$head"; return 0 ;;
     error)
       err=$(( $(st_get "$k" mm_err) + 1 ))
@@ -119,7 +146,24 @@ ci_red() {
   backing_off && return 0; room "$k" || return 0
   if [ "$MERGED" = current ]; then task="CI is red on PR #$pr, with main already merged in, so the failure is the PR's. Fix it,"
   else task="CI is red on PR #$pr; main was not merged in by script ($MERGE_WHY). First run git merge origin/main (a normal merge and push, never a rebase or force-push), then fix what is still red,"; fi
-  resume "$k" "$task rerun the checks, push once, and stop when CI is green. $(ci_log_tail "$pr")" ci || return 0
+  resume "$k" "$task rerun the checks, push once and stop: the dispatcher watches CI. $(ci_log_tail "$pr")" ci || return 0
   fix_count "$k" "$pr"
   log "#$k PR #$pr: CI red; fix run $(fixes_used "$k" "$pr") of $(fix_max)"
+}
+
+# finish_once <K>: a run that ended with work in its worktree but no PR (its turn ended while work
+# ran in the background, or before its push) gets one fresh session to push it and open the PR
+# before it is needs-you (#26). 1: nothing to finish, or its finish run was had already.
+finish_once() {
+  local k=$1 wt commits dirty
+  [ "$(st_get "$k" finish_tried)" = 1 ] && return 1
+  wt=$(unit_wt "$k"); [ -e "$wt/.git" ] || return 1
+  commits=$(guard 20 git -C "$wt" log --oneline origin/main..HEAD 2>/dev/null | head -n1)
+  dirty=$(guard 20 git -C "$wt" status --porcelain 2>/dev/null | head -n1)
+  [ -n "$commits$dirty" ] || return 1
+  backing_off && return 0; room "$k" || return 0
+  # the handoff (its commits, diff stat and uncommitted files) is this session's context, not the whole task again
+  st_set "$k" no_pr=
+  resume "$k" "Finish: your earlier run ended with work in this worktree and no PR (its turn ended while work ran in the background, or before its push). Run nothing in the background. Commit what is uncommitted, run the tests of the files you changed in the foreground, push the branch and open the PR, ready, with the body the task asks for; then stop: the dispatcher watches CI." finish || return 0
+  st_set "$k" finish_tried=1
 }

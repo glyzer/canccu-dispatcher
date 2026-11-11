@@ -9,6 +9,8 @@
 # (never reviewed, merged or commented on), the next 5 runnable issues and the latest digest.
 # canccu-status [--project <name>] --spend — the cost of every merged PR, every run of it (lost
 # runs and fix rounds too), grouped by model and run type (lib/canccu-spend.sh, spend_report).
+# canccu-status [--project <name>] --findings — the most common review findings and the files cited
+# most, across the review records (lib/canccu-findings.sh, findings_report).
 # docs/canccu-dispatch.md
 set -uo pipefail
 self=$(realpath "$0")
@@ -17,6 +19,7 @@ self=$(realpath "$0")
 # shellcheck source=../lib/canccu-snapshot-steps.sh
 . "$(dirname "$self")/../lib/canccu-snapshot-steps.sh"
 [ "${1:-}" = --spend ] && { spend_report; exit 0; }
+[ "${1:-}" = --findings ] && { findings_report; exit 0; }
 
 clip() { (( ${#1} <= $2 )) && printf '%s' "$1" || printf '%s…' "${1:0:$2-1}"; }
 cols=${COLUMNS:-$(tput cols 2>/dev/null)}; [[ $cols =~ ^[0-9]+$ ]] || cols=100

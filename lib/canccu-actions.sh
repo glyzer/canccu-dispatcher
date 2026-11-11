@@ -67,7 +67,7 @@ resume() {
     how=fresh fl=(--fresh)
   elif ! resume_on "$kind"; then
     # the task first: the handoff and the standing orders after it are what may be cut
-    msg="$(oneline 5000 "$msg") $(handoff "$n")" how=fresh fl=(--fresh)
+    msg="$(oneline 5000 "$msg") $(handoff "$n" "$kind")" how=fresh fl=(--fresh)
   fi
   # the run type spend.log names: a fix kind is a fix, a merge a merge, the rest build
   type=build; [ "$kind" = merge ] && type=merge
@@ -217,10 +217,12 @@ save_findings() {
 # verdict counts as acted on (verdict_at) only once the merge, the accept request or the resume has
 # happened: a failed step sees it again next pass.
 act_verdict() {
-  local n=$1 pr=$2 j=$3 v c head at stage what body ma mo
+  local n=$1 pr=$2 j=$3 v c head at stage what body="" b ma mo
   v=$(verdict_of "$j" "$(st_get "$n" verdict_at)"); head=$(jqr .headRefOid <<<"$j"); at=$(verdict_at "$j")
   stage=$(st_get "$n" stage)
   what=review; [ "$(st_get "$n" review_mode)" = fixcheck ] && what=fix-check
+  # non-blocking findings never reach the worker: they go to the wave's follow-up issue
+  case $v in pass|changes) body=$(verdict_body "$j"); collect_nonblocking "$n" "$pr" "$head" "$body" "$at" ;; esac
   case $v in
     pass)
       c=$(classify "$pr" "$n")
@@ -232,7 +234,6 @@ act_verdict() {
       else to_accept "$n" "$pr" "$c" "$head"; fi
       st_set "$n" verdict_at="$at" ;;
     changes)
-      body=$(verdict_body "$j")
       case $stage in
         fixing|fixcheck)
           save_findings "$n" "$pr" "$(open_file "$pr" "$head")" "$body"
@@ -250,9 +251,11 @@ act_verdict() {
             needs_you "$n" "the review of PR #$pr asks for changes and no automatic fix run is left ($(fix_max) per PR, FIX_ATTEMPTS): comment the way on and the worker follows up" "$body"
             st_set "$n" verdict_at="$at"; return 0
           fi
-          resume "$n" "The independent reviewer asked for changes on PR #$pr (full comment: gh pr view $pr -R $REPO --comments). This is your one fix round: fix every finding, rerun the checks, push once, and stop when CI is green. A narrow fix-check of your fix diff follows, then the merge or the maintainer. The review: $body" fix || return 0
+          # only the blocking findings: the fix run fixes them and the fix-check checks them
+          b=$(blocking_of "$body")
+          resume "$n" "The independent reviewer asked for changes on PR #$pr (full comment: gh pr view $pr -R $REPO --comments). This is your one fix round: fix every blocking finding below, rerun the checks, push once and stop: the dispatcher watches CI. Leave its non-blocking findings alone: they went to a follow-up issue. A narrow fix-check of your fix diff follows, then the merge or the maintainer. The blocking findings: $b" fix || return 0
           fix_count "$n" "$pr"
-          save_findings "$n" "$pr" "$(findings_file "$pr" "$head")" "$body"
+          save_findings "$n" "$pr" "$(findings_file "$pr" "$head")" "$b"
           st_set "$n" stage=fixing reviewed_sha="$head" verdict_at="$at" review_maccept="$(oneline 200 "$(maintainer_accept_of "$j")")" \
             review_risk="$(review_risk_of "$j")"
           log "#$n PR #$pr: review changes; the worker fixes the findings of ${head:0:7}" ;;

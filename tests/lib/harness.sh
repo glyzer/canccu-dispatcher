@@ -57,7 +57,7 @@ q="" args=("$@")
 for ((i = 0; i < ${#args[@]}; i++)); do case ${args[i]} in -q|--jq) q=${args[i+1]} ;; esac; done
 { routes=$(< "$FAKE/routes"); routes+=$'\n'$(< "$FAKE/routes.default"); } 2>/dev/null
 case "$1 $2" in
-  "issue edit"|"issue comment"|"issue close"|"pr edit"|"pr merge"|"pr comment"|"label create")
+  "issue edit"|"issue comment"|"issue close"|"issue create"|"pr edit"|"pr merge"|"pr comment"|"label create")
     grep -qxF "fail:$1 $2" <<<"$routes" && exit 1
     grep -qxF "fail124:$1 $2" <<<"$routes" && exit 124
     # $FAKE/merge-error: a merge fails with that error, as gh prints it
@@ -75,6 +75,8 @@ case "$1 $2" in
       [ -e "$f" ] && jq --arg b "$body" --arg u "$u" \
         '.comments += [{author: {login: $u}, createdAt: "2030-11-05T12:05:\(.comments | length + 10)Z", body: $b}]' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
     fi
+    # a new issue prints its link, like the real gh: number 900, or the one in $FAKE/new-issue
+    [ "$1 $2" = "issue create" ] && echo "https://github.com/example-org/web/issues/$(cat "$FAKE/new-issue" 2>/dev/null || echo 900)"
     # $FAKE/comment-urls: an issue comment prints its link, like the real gh
     [ -e "$FAKE/comment-urls" ] && [ "$1 $2" = "issue comment" ] && echo "https://github.com/example-org/web/issues/$3#issuecomment-$3"
     # $FAKE/noisy: a write prints like the real gh does (URLs on stdout, notes on stderr)
@@ -123,7 +125,8 @@ a="$*"; printf '%s\n' "$a" >> "$FAKE/git.log"
 printf '%s\t%s\t%s\n' "${GH_CONFIG_DIR:-<default>}" "${GIT_CONFIG_COUNT:-<unset>}" "$a" >> "$FAKE/git.cfg"
 case " $a " in *" diff --numstat "*) cat "$FAKE/numstat" 2>/dev/null || exit 128 ;; esac
 # a worktree's branch (branch --show-current: $FAKE/branch), how far main is ahead (rev-list
-# --count: $FAKE/behind), its commits (log --oneline: $FAKE/gitlog); $FAKE/merge-conflict: a merge
+# --count: $FAKE/behind), its commits (log --oneline: $FAKE/gitlog) and their diff stat (diff --stat:
+# $FAKE/diffstat); $FAKE/merge-conflict: a merge
 # of main fails, and diff --diff-filter=U lists that file's lines as the conflicting paths;
 # $FAKE/dirty: status --porcelain prints it; $FAKE/push-fail: a push is rejected
 case " $a " in
@@ -132,6 +135,7 @@ case " $a " in
   *" branch --show-current "*) [ -e "$FAKE/branch" ] && cat "$FAKE/branch" ;;
   *" rev-list --count "*) [ -e "$FAKE/behind" ] && cat "$FAKE/behind" ;;
   *" log --oneline "*) [ -e "$FAKE/gitlog" ] && cat "$FAKE/gitlog" ;;
+  *" diff --stat "*) [ -e "$FAKE/diffstat" ] && cat "$FAKE/diffstat" ;;
   *" rev-parse HEAD "*) [ -e "$FAKE/branch" ] && echo "$FAKE_MERGED" ;;
   *" merge --no-edit "*) [ -e "$FAKE/merge-conflict" ] && exit 1 ;;
   *" --diff-filter=U "*) [ -e "$FAKE/merge-conflict" ] && cat "$FAKE/merge-conflict" ;;
@@ -159,6 +163,9 @@ echo "$*" >> "$FAKE/claude.args"
 if [ -f .claude/settings.json ] && [ -f .claude/hook.sh ] && [[ " $* " != *" --setting-sources user "* ]]; then
   sh .claude/hook.sh
 fi
+# $FAKE/claude.do: what its tools run (silently); $FAKE/claude.stream: stream events before the result
+[ -f "$FAKE/claude.do" ] && bash "$FAKE/claude.do" > /dev/null 2>&1
+[ -f "$FAKE/claude.stream" ] && cat "$FAKE/claude.stream"
 echo '{"type":"result","subtype":"success","is_error":false,"num_turns":1,"total_cost_usd":0,"result":"ok"}'
 EOF
 chmod +x "$fb"/*

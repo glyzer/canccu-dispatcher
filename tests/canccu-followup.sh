@@ -195,5 +195,51 @@ ok "a FIX_ATTEMPTS that is no number counts as 2: the fix round runs" eq "$(grep
 ok "… a bad FIX_EFFORT is left out (the engine would refuse it on every pass), and said" \
   eq "$(grep -c '^WORKER_EFFORT=.' "$FAKE/worker.envdump") $(grep -q 'FIX_EFFORT is not an effort level' "$CANCCU_HOME/dispatch.log" && echo said)" "0 said"
 
+# ---------------------------------------------------------------- the finish run (#26)
+
+# a run whose turn ended while work ran in the background (or before its push): one fresh finish run
+env_new finish-bg
+{ issue 5 in-progress; } | issues
+wt5; printf 'abc1234 test: the failing test\n' > "$FAKE/gitlog"
+state 5 phase=work "started=$NOW"; last 5 'error: ended with background work pending' 'The suite runs in the background.'
+dispatch --once; dispatch --once
+ok "background pending: said in the log, never as done" grep -q '#5 worker ended with background work pending' "$CANCCU_HOME/dispatch.log"
+l=$(wline)
+ok "… no PR but commits: one fresh finish run" grep -q -- ' --fresh .*web 5 Finish: your earlier run ended with work in this worktree and no PR' <<<"$l"
+ok "… with the handoff, not the whole task again" eq "$(grep -c 'This run is a fresh session' <<<"$l") $(grep -c 'abc1234 test: the failing test' <<<"$l")" "1 1"
+ok "… no needs-you yet" hasnt gh.log "needs-you"
+ok "… and it is had once" eq "$(st 5 finish_tried)" 1
+# the finish run ended with no PR again: needs-you now
+last 5 done 'still no PR'; touch -d "@$((NOW + 120))" "$WORKERS_DIR/web-5.last"
+rm -f "$WORKERS_DIR/web-5.lock"; lib st_set 5 phase=work "started=$((NOW + 60))"
+dispatch --once; dispatch --once
+ok "… a second run without a PR → needs-you" has gh.log "the worker finished without an open PR"
+ok "… no second finish run" eq "$(grep -c 'web 5 Finish:' "$FAKE/worker.log")" 1
+
+# uncommitted work only counts too
+env_new finish-dirty
+{ issue 5 in-progress; } | issues
+wt5; printf ' M src/a.ts\n' > "$FAKE/dirty"
+state 5 phase=work "started=$NOW"; last 5 done 'all done, I think'
+dispatch --once; dispatch --once
+ok "uncommitted work, no PR: the finish run" grep -q 'web 5 Finish:' "$FAKE/worker.log"
+
+# nothing in the worktree: needs-you at once, as before
+env_new finish-nothing
+{ issue 5 in-progress; } | issues
+wt5
+state 5 phase=work "started=$NOW"; last 5 done 'nothing to do here'
+dispatch --once; dispatch --once
+ok "no work in the worktree, no PR: needs-you, no finish run" eq "$(grep -c 'Finish:' "$FAKE/worker.log" 2>/dev/null) $(grep -c 'finished without an open PR' "$FAKE/gh.log")" "0 1"
+
+# background pending, but the PR is open: judged like any done run
+env_new finish-pr
+{ issue 5 in-progress; } | issues
+p=$(pr 50 5 $HA green); printf '%s\n' "$p" | prs
+state 5 phase=work "started=$NOW"; last 5 'error: ended with background work pending' 'PR URL: https://github.com/example-org/web/pull/50'
+dispatch --once
+ok "background pending with an open PR: no needs-you, no finish run" eq "$(grep -c needs-you "$FAKE/gh.log") $(grep -c 'Finish:' "$FAKE/worker.log" 2>/dev/null)" "0 0"
+ok "… its run kind" eq "$(lib run_exit "$WORKERS_DIR/web-5.last" | cut -d'|' -f1)" background
+
 echo "canccu-followup tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

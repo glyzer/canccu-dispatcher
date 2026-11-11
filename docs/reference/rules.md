@@ -28,7 +28,7 @@ old path too).
 | `SECURITY_REVIEW_WHEN` | sign-in, rights, sessions, secrets, tenancy/RLS or `deploy/` | Words in the reviewer's prompt: it also runs the security-review skill when the diff touches these |
 | `PLANNER_EXTRA` | empty | The project's guidance for the planner, for example "aim for 2-4 issues per package" |
 | `REVIEW_EXTRA` | empty | More for the reviewer to check: "Check every acceptance criterion, <this>, and …" |
-| `WORKER_EXTRA` | empty | More worker prompt text, after "… CI is green." |
+| `WORKER_EXTRA` | empty | More worker prompt text, after "… resumes you when it is red." |
 | `ANSWER_READ` | `AGENTS.md` | What the answerer reads besides the issue and the PR |
 | `ANSWER_READ_ALSO` | empty | … and, after the PR, "and <this>" |
 | `AUTO_MERGE_UNTIL` | empty | Optional freeze date, `YYYY-MM-DD`: from this date every PR waits for your accept. Set to anything that is not a real date, it makes every PR manual |

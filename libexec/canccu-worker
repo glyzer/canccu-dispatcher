@@ -16,7 +16,7 @@
 # $WORKERS_DIR/worktrees/<repo>/issue-<n>; --dir D runs in D, an existing worktree, instead (the
 # reviewer's, a package's); any other run is in the main clone, one at a time per repo. Two issues
 # whose JSON (title, body, labels) matches WORKER_EXCLUSIVE_RE never run at once in a repo.
-# A run with no log output for WORKER_STALL_MIN minutes (default 10) is killed and reported as stalled.
+# A run with no log output and no tool process spending CPU for WORKER_STALL_MIN minutes (default 10) is killed and reported as stalled.
 # --kill     stop a running run: kills its whole process tree and window, clears the lock
 # --unlock   clear a stale lock (no process, no window)
 # --name N   tmux window name (default <repo>#<key>); --model M the model (default: none, the account's)
@@ -54,7 +54,7 @@ fi
 usage() { sed -n '7,10s/^# \{0,1\}//p' "$self" >&2; exit 2; }
 
 # Appended to every worker's system prompt: the two ways a headless run hangs itself.
-WORKER_RULES='Never match your own command line: pgrep -f / pkill -f with text that appears in the same command matches its own shell and waits forever; use a pid or a pidfile. Never wait in an unbounded until/while loop; bound it (timeout 120 ...) so a stuck wait ends the call.'
+WORKER_RULES='Never match your own command line: pgrep -f / pkill -f with text that appears in the same command matches its own shell and waits forever; use a pid or a pidfile. Never wait in an unbounded until/while loop; bound it (timeout 120 ...) so a stuck wait ends the call. Never run a command or subagent in the background (run_in_background, a trailing &): this run is headless and ends with your turn, and work still running is lost.'
 
 # ---------------------------------------------------------------- inner run (in the tmux window)
 
@@ -112,13 +112,18 @@ run() {
   trap 'spend_unknown; [ -n "$cpid" ] && kill_tree "$cpid"; exit 143' TERM HUP INT
   [[ ($key =~ ^[0-9]+$ || $keep == 1) && $fresh != 1 ]] || rm -f "$base.id"
 
-  # watchdog <pid>: when the log stops growing for WORKER_STALL_MIN minutes, flag it and kill the tree
+  # watchdog <pid>: when the log stops growing for WORKER_STALL_MIN minutes, flag it and kill the
+  # tree. A tool process that spends CPU (a long test run with short output) counts as activity.
+  # WORKER_STALL_SEC and WORKER_STALL_POLL are the tests' seconds.
   watchdog() {
-    local pid=$1 limit=$(( ${WORKER_STALL_MIN:-10} * 60 )) m
+    local pid=$1 limit=${WORKER_STALL_SEC:-$(( ${WORKER_STALL_MIN:-10} * 60 ))} poll=${WORKER_STALL_POLL:-30} m last
+    last=$(date +%s); : > "$base.ticks"
     while kill -0 "$pid" 2>/dev/null; do
-      sleep 30
+      sleep "$poll"
+      tools_busy "$pid" "$base.ticks" && last=$(date +%s)
       m=$(stat -c %Y "$base.log" 2>/dev/null) || continue
-      (( $(date +%s) - m > limit )) && { : > "$stallf"; kill_tree "$pid"; return; }
+      (( m > last )) && last=$m
+      (( $(date +%s) - last > limit )) && { : > "$stallf"; kill_tree "$pid"; return; }
     done
   }
 
@@ -147,7 +152,7 @@ run() {
     exec 4<&-
     (( prc == 3 )) && { stop=turns; kill "$cpid" 2>/dev/null; }
     wait "$cpid"; rc=$?
-    kill "$wpid" 2>/dev/null; wpid=""
+    kill "$wpid" 2>/dev/null; wpid=""; rm -f "$base.ticks" "$base.ticks.new"
     [ -e "$stallf" ] && stop=stalled
     [ -s "$errf" ] && sed 's/^/stderr: /' "$errf" >> "$base.log"
   }
@@ -170,6 +175,9 @@ run() {
       *max_turns*) status="stopped: turn limit" ;;
       *) status="error: $(sget subtype)" ;;
     esac
+    # its turn ended with background work still running: lost with the run, so not done (#26)
+    [ "$status" = "done" ] && (( $(sget bg_pending) + 0 > 0 )) && status="error: ended with background work pending" &&
+      msg+=$'\n\n'"The run ended its turn while a command or subagent it started in the background was still running."
     [ -n "$denials" ] && status="blocked" && msg+=$'\n\n'"Blocked by the permission classifier (run it yourself or widen the allow list, then send resume):"$'\n'"$denials"
   elif [ "$stop" = turns ]; then
     status="stopped: turn budget $turns"; msg=$(sget last_text)

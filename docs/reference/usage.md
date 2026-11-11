@@ -16,9 +16,10 @@ back-off below stays the fallback. No AI runs to probe the usage.
   lane counts too.
 - **≥ `USAGE_STOP`** (90 %): no run starts. Each running worker is nudged: every worker run has a
   `PostToolUse` hook (`libexec/canccu-nudge-hook`) that, while `workers/<repo>-<K>.nudge` exists,
-  tells it to finish its current small step, commit and push a WIP if needed, write `Next action:`
-  and stop. A nudged worker that ends is `limited` and resumes with `continue` after the 5-hour
-  reset. Reviewers, fix-checks, answerers and planners are short: they finish.
+  tells it to stop at a safe point with a handoff (below). A nudged worker that ends is `limited`
+  and continues after the 5-hour reset in a fresh session from its handoff
+  ([After the reset](#after-the-reset)). Reviewers, fix-checks, answerers and planners are short:
+  they finish.
 - **Weekly share ≥ `USAGE_WEEKLY_DRAIN`** (90 %): **drain mode**. No new package, planner wave,
   health pass or fast-lane issue starts; work already started finishes its whole pipeline (the
   worker, the review, the fix, the fix-check, the merge) under the 5-hour caps. It ends when the
@@ -38,9 +39,43 @@ else as a time of day with an optional zone ("resets 3pm (Europe/Helsinki)", "re
 A longer back-off already running is kept.
 `canccu-status` shows "usage limit until <time>". No `needs-you`, no comment.
 
-After the back-off a worker resumes with `continue`, a review or fix-check runs again at the same
-head, and an answerer asks again (the round does not count). A run that hits the limit again backs
-off again: never a failure, never a new fix round.
+After the back-off a worker continues in a fresh session ([After the reset](#after-the-reset)), a
+review or fix-check runs again at the same head, and an answerer or planner asks again (the round
+does not count). Reviewers, fix-checks, answerers and planners always start a fresh session: the
+engine never keeps their session id. A run that hits the limit again backs off again: never a
+failure, never a new fix round.
+
+## After the reset
+
+By the reset the prompt cache of the stopped session has long expired, so resuming it would read
+the whole old conversation again at full price. A `limited` worker therefore starts a **fresh**
+session (never `--resume`) in the same worktree and branch, unless `RESUME_ON` names `limited`
+(then it resumes with "Continue where you stopped", as before).
+
+**The nudge** (the hook's text, added after each tool call while the `.nudge` file exists): stop
+now, without running tests; commit the work in progress (a WIP commit is fine) and push the
+branch; end with a handoff as the final message.
+
+**The handoff**: the run's final message, at most 40 lines, in this order:
+
+```
+Done: what is finished
+Left: what is not
+Next step: the first thing to do
+Decisions made: the choices so far
+Test state: which tests pass or fail
+Head: <sha> (the pushed commit)
+```
+
+The dispatcher keeps it (the run's final message, from `.last`) in
+`~/.canccu/projects/<name>/handoffs/<K>.md`; nothing is written to the repo.
+
+**The fresh session's prompt**: "the usage limit has reset", the handoff, then the follow-up
+handoff of [`engine.md`](engine.md#follow-up-runs) with `git log origin/main..HEAD --oneline` and
+`git diff --stat origin/main...HEAD`. A run cut off by the hard limit before any nudge (an error
+saying the limit was hit) has no handoff: its fresh session gets the same commit log and diff stat
+and is told to check `git status` for uncommitted work. The handoff file goes once the fresh run
+has started.
 
 The throttle and the back-off are per host: two hosts on one Claude account each read only their
 own runs ([`../hosts.md`](../hosts.md)).

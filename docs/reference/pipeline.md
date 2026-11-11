@@ -37,7 +37,10 @@ Every `INTERVAL` seconds, under the project's lock:
        the unit's PR until it merges: it is reviewed, classified and merged like any other.
        Once merged, the unit's own PR is back in `check`; a draft resumes the worker to bring
        in main and finish;
-     - no PR → `needs-you` with the worker's last message;
+     - no PR, but commits on its branch or uncommitted work in its worktree (its turn ended
+       while work ran in the background, or before its push) → once, a fresh finish session
+       with the handoff: push and open the PR (`finish_tried`); after that, or with nothing
+       in the worktree → `needs-you` with the worker's last message;
      - a draft PR with `docs/plans/issue-<n>.md` in its diff or a `Tier: plan` line →
        `needs-you`, "plan ready for OK"; another draft → `needs-you`;
      - CI pending → wait up to `CI_WAIT_MIN`, then `needs-you`; no check reported at all (never
@@ -69,6 +72,9 @@ Every `INTERVAL` seconds, under the project's lock:
      happened, so a step that fails sees the same verdict again next pass.
    - An answerer that finished: `ANSWERED` → the worker resumes with the `Answer:` comment;
      `ESCALATE`, no marker or a failed run → `needs-you`.
+   - A run that ended its turn with background work still running (`error: ended with
+     background work pending`) → phase `check`, like a finished one: its PR decides, or the
+     finish session above.
    - A blocked, over-budget, stalled or crashed run → `needs-you` with the reason.
    - A usage limit in any run's output → phase `limited` and a global back-off until the reset
      the message names ([`usage.md`](usage.md)). No `needs-you`, no comment.
@@ -101,7 +107,7 @@ Every `INTERVAL` seconds, under the project's lock:
    other `needs-work` (a refused accept, a stopped merge) starts a new cycle: the next review is
    a full one. A `gh` error reading the comments decides nothing: `needs-work` stays for the
    next pass. A `needs-you` issue whose issue or PR got a new comment
-   from `USER_LOGIN` → that comment. `limited` after the back-off → `continue`. `waiting` whose
+   from `USER_LOGIN` → that comment. `limited` after the back-off → a fresh session from its handoff ([`usage.md`](usage.md#after-the-reset)). `waiting` whose
    `blocked` is gone → "check its blockers again, then do the work". An issue labelled `blocked`
    is never started or resumed, and gets no answerer. A run that finished with no PR is not
    `--resume`d: a fresh session gets the whole task (with `plan_ok`, the order to execute the

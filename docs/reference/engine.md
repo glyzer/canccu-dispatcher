@@ -35,9 +35,15 @@ canccu-worker --kill <repo> <key>
   as an argument, never through the environment, so it cannot leak into later windows. Workers
   keep their project settings: they work on our own branch.
 - **Budgets**: `turns=`, `cost=` (USD) and `min=` are required; the run is stopped at any of
-  them. A run whose log is silent for `STALL_MIN` minutes is killed as stalled.
+  them. A run whose log is silent for `STALL_MIN` minutes, while no process its tools started
+  (the tree below `claude`) is new or spends CPU, is killed as stalled: a long test run with
+  short output is not a stall, a hung command waiting idle is. Claude's own CPU does not count.
+- **Background work**: a headless run exits when its turn ends, so a command or subagent it
+  left running in the background is lost. The stream reader counts each one started with
+  `run_in_background` until a later event names its id as done; a run that ends with one still
+  pending gets the status `error: ended with background work pending`, never `done`.
 - **The exit report** is `workers/<repo>-<key>.last`; its first line carries the status (`done`,
-  `error: …`, `blocked`, `stopped: <which budget>`, `stalled: …`, `crashed (exit N)`), and just
+  `error: …` (`error: ended with background work pending` among them), `blocked`, `stopped: <which budget>`, `stalled: …`, `crashed (exit N)`), and just
   before it `fresh` or `resume`: how the run's session started. Each finished or killed run adds one line to
   `workers/spend.log` (the format: [`state.md`](state.md#the-spend-log)). `WORKER_EFFORT` (the
   dispatcher sets it from `HEALTH_EFFORT` for the health pass) becomes `--effort`, as does the flag `--effort`.
