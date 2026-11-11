@@ -45,6 +45,9 @@ does not count). Reviewers, fix-checks, answerers and planners always start a fr
 engine never keeps their session id. A run that hits the limit again backs off again: never a
 failure, never a new fix round.
 
+After an early reset (a reset the account owner used, or a wrong reading), run canccu-resume --usage:
+it clears the back-off and the usage reading of every project, and the next run reads the real usage.
+
 ## After the reset
 
 By the reset the prompt cache of the stopped session has long expired, so resuming it would read
