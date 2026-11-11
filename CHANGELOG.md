@@ -18,6 +18,13 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 - A fresh follow-up run always keeps its safety rules: they come first in its prompt, and the
   handoff no longer repeats the whole first prompt. A fix round's long findings are read from the
   findings file. Workers use no subagents, packages included (#88).
+- `REVIEW_EFFORT_MAX` (`low`, `medium` or `high`) caps the effort of every review and fix-check on
+  the machine, gated paths and agent configuration included; empty, the default, changes nothing
+  (#84).
+- A running dispatcher reads its config files again at the next pass when one changed: a raised
+  `STEP_BUDGET` applies without a restart. A syntax error keeps the old values; `REPO`, `CLONE`
+  and `GH_CONFIG_DIR` still need a restart. A step at `STEP_BUDGET` still reviews, fix-checks
+  and merges its open PRs; only new workers, resumes and answers wait (#65).
 
 ## [0.1.2] — 2026-11-10
 

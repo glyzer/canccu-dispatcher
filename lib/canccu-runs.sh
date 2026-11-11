@@ -28,17 +28,17 @@ total_cap() { local u; u=$(usage_cap); echo $(( u < TOTAL_CAP ? u : TOTAL_CAP ))
 # (counted too, though check_pr has already moved it to needs-you); pending CI, or no checks at
 # all, waits without one. Any issue labelled plan-ok or needs-work with no run alive reserves one
 # for its resume, in check too (docs/canccu-dispatch.md). A run that cannot start reserves
-# nothing: its step's budget holds it, it is labelled `blocked`, or reviews are refused (no reviewer token).
+# nothing: its step's budget holds it (but for a review or fix-check), it is labelled `blocked`,
+# or reviews are refused (no reviewer token).
 wanting() {
-  local n c=0 rv=1
+  local n c=0 rv=1 p
   [ -n "$(reviewer_token_problem)" ] && rv=0
   for n; do
-    unit_held "$n" && continue
     unit_blocked "$n" && continue   # nothing of it runs (blocked_held)
-    case $(st_get "$n" phase) in
-      limited|question) c=$((c + 1)); continue ;;
-      check) (( rv )) && ci_reserves "$(st_get "$n" pr)" && { c=$((c + 1)); continue; } ;;
-    esac
+    p=$(st_get "$n" phase)
+    [ "$p" = check ] && (( rv )) && ci_reserves "$(st_get "$n" pr)" && { c=$((c + 1)); continue; }
+    unit_held "$n" && continue
+    case $p in limited|question) c=$((c + 1)); continue ;; esac
     { has_label "$n" plan-ok || has_label "$n" needs-work; } && ! run_alive "$n" && c=$((c + 1))
   done
   echo "$c"
@@ -417,7 +417,6 @@ start_reviewer() {
       problem="the reviewer token signs in as '${login:-nobody (rejected)}', not REVIEWER_LOGIN $REVIEWER_LOGIN"
   fi
   if [ -n "$problem" ]; then warn_once reviewer "reviews refused: $problem"; return 1; fi
-  [ -n "$n" ] && step_run_held "$n" "the $( [ "$mode" = fixcheck ] && echo fix-check || echo review) of PR #$pr" && return 1
   wt=$(review_wt "$pr") f=$(review_file "$pr" "$sha")
   if [ "$mode" = fixcheck ]; then read -r turns cost mins <<<"$BUDGET_FIXCHECK"; name="fixcheck#$pr" what=fix-check
   else read -r turns cost mins <<<"$( [ -n "$(st_get "$n" pkg)" ] && pkg_budget "$BUDGET_REVIEW" "$(unit_size "$n")" || echo "$BUDGET_REVIEW")"

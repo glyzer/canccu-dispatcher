@@ -106,8 +106,12 @@ step_blocked_to_start() { step_over_budget "$1" || draining; }
 step_of_unit() { is_managed "$1" && st_get "$1" step; return 0; }
 # unit_held <K>: step_run_held without saying so: the unit's step is at STEP_BUDGET
 unit_held() { local m; m=$(step_of_unit "$1"); [ -n "$m" ] && step_over_budget "$m"; }
-# step_run_held <K> <what>: the unit's step is at STEP_BUDGET: its run (a review, fix-check,
-# answer or resume) does not start (said once); the weekly drain never holds these: started
+# unit_check_free <K>: the unit is in check, so the budget lets its next run through: the review
+# or fix-check of its open PR (what was spent on it is lost if nobody reviews it)
+unit_check_free() { [ "$(st_get "$1" phase)" = check ]; }
+# step_run_held <K> <what>: the unit's step is at STEP_BUDGET: no new worker, resume or answer of
+# it starts (said once); reviews, fix-checks and merges of its open PRs go on, but a fix run
+# after a `changes` verdict is a resume and is held. The weekly drain never holds these: started
 # work finishes
 step_run_held() {
   unit_held "$1" || return 1
@@ -133,7 +137,7 @@ budget_tick() {
     log "step $(step_title "$m") reached STEP_BUDGET (\$$sp of \$$STEP_BUDGET): no new run of it starts$(its_url "$( [ -n "$i" ] && issue_url "$i")")"
     [ -n "$i" ] || return 0
     edit_issue "$i" --add-label needs-you
-    comment_issue "$i" "**Needs you** (canccu-dispatch): step $(step_title "$m") reached STEP_BUDGET (\$$sp of \$$STEP_BUDGET). Running work finishes; nothing new of this step starts. Raise STEP_BUDGET in the project config to go on."
+    comment_issue "$i" "**Needs you** (canccu-dispatch): step $(step_title "$m") reached STEP_BUDGET (\$$sp of \$$STEP_BUDGET). Running work finishes; no new worker, resume or answer of this step starts; reviews, fix-checks and merges of its open PRs go on. Raise STEP_BUDGET in the project config: it applies at the next pass."
   elif [ -n "$(step_get "$m" budget_ny)" ]; then
     step_set "$m" budget_ny=; log "step $(step_title "$m") is under STEP_BUDGET again"; step_ny_clear "$m"
   fi

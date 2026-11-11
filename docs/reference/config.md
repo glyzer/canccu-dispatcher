@@ -25,6 +25,15 @@ to every key you left alone. `canccu-init` writes a project's `config` (`REPO`, 
 `DIGEST_ISSUE`) and `rules` from a template, `profiles/default/` or your own in
 `~/.canccu/profiles/<template>/`.
 
+**When a change applies.** A running dispatcher reads the files again at the start of the next
+pass when one of the four you edit (the host profile, `~/.canccu/config`, the rules, the project's
+config) has a newer modification time; the log says `config read again`. `INTERVAL` follows too.
+A file with a syntax error is not read: the dispatcher keeps every value it has, says so once in
+the log, and the pass runs; the corrected file applies at the pass after. `REPO`, `CLONE`,
+`GH_CONFIG_DIR`, `HOST_PROFILE` and the project's name need a restart of the dispatcher: a changed
+`REPO`, `CLONE` or `GH_CONFIG_DIR` keeps its old value, with a warning in the log. Every other
+`canccu-*` command reads the files when it starts.
+
 ## Keys
 
 Budgets are three numbers: turns, USD and minutes for one run. A run that reaches any of them
@@ -70,6 +79,7 @@ is stopped and its issue goes to `needs-you`.
 | `PLAN_MODEL` | empty | The planner's model; empty: `MODEL` |
 | `REVIEW_MODEL` | empty | The full reviewer's model; empty: `MODEL` ([`reviews.md`](reviews.md), "Model by kind") |
 | `FIXCHECK_MODEL` | empty | The fix-check's model, for example a cheaper one (`claude-sonnet-5-5`); empty: `MODEL` |
+| `REVIEW_EFFORT_MAX` | empty | The highest effort of a full review and a fix-check on this machine: `low`, `medium` or `high`. It lowers, never raises, and has no exceptions: gated paths and agent configuration are capped too. `reviews/<pr>.effort` then says `(capped)`. Another value is said once in the log and ignored ([`reviews.md`](reviews.md), "Effort by risk") |
 | `HEALTH_MODEL` | empty | The health pass's model (its resumes too), for example a cheaper one; empty: `MODEL` ([`steps.md`](steps.md)) |
 | `HEALTH_EFFORT` | empty | The health pass's `--effort` (`low`, `medium`, `high`, `xhigh`, `max`); empty: none, the account's default effort, as for every other run. Another value is said once in the log and not passed |
 | `USAGE_SLOW` | `60` | 5-hour usage share (%) from which one run at a time runs, over all projects ([`usage.md`](usage.md)) |

@@ -101,5 +101,82 @@ ok "no message points at another repo's installer, project or docs" \
   eq "$(grep -rnE '(echo|die|log|warn_once|exit|Text\().*(install\.sh --canccu|docs/canccu|profiles/ in the)' "$root/bin" "$root/libexec" "$root/lib" | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#')" ""
 ok "… the install.sh the messages name is this repo's" test -x "$root/install.sh"
 
+# ---------------------------------------------------------------- a changed config applies next pass
+
+# loopenv <name> [config...]: step "3 Events" at its budget ($5.50 spent, STEP_BUDGET=5): its
+# planner is held. INTERVAL=7 marks the loop's sleep; the fake sleep runs $E/between <n> after
+# pass n and stops the dispatcher once it fails.
+loopenv() {
+  env_new "$@" STEP_BUDGET=5 INTERVAL=7
+  jq -nc '[{number: 12, title: "3 Events", open_issues: 0, closed_issues: 0, due_on: null}]' > "$FAKE/ms.json"
+  json c90.json '{"comments": []}'; route 'issue view 90 *' c90.json; route 'api -X PATCH *' empty.json
+  { issue 90 epic "" "3 Events"; issue 101 ready "" "3 Events"; } | issues
+  mkdir -p "$CANCCU_HOME/steps" "$E/sbin"
+  printf 'phase=idle\nstarted_at=%s\nwave=0\n' "$((NOW - 3600))" > "$CANCCU_HOME/steps/12"
+  printf 'plan-12\n' > "$CANCCU_HOME/steps/12.keys"
+  printf '%s\tweb\tplan-12\t5.50\n' "$((NOW - 100))" > "$WORKERS_DIR/spend.log"
+  cat > "$E/sbin/sleep" <<SH
+#!/usr/bin/env bash
+[ "\$1" = 7 ] || exec $(command -v sleep) "\$@"
+n=\$(( \$(cat "$E/sleeps" 2>/dev/null || echo 0) + 1 )); echo "\$n" > "$E/sleeps"
+"$E/between" "\$n" || kill "\$PPID"
+SH
+  chmod +x "$E/sbin/sleep"
+}
+loop() { PATH="$E/sbin:$fb:$PATH" CANCCU_WORKER="$fb/worker" timeout 60 "$root/bin/canccu-dispatch" > "$E/out" 2>&1; }
+plans() { grep -c -- '--key plan-12' "$FAKE/worker.log"; }
+
+for where in config root rules; do
+  loopenv "reload-$where"
+  case $where in
+    config) f=$CANCCU_HOME/config ;; root) f=$CANCCU_ROOT/config ;; rules) f=$CANCCU_HOME/rules ;;
+  esac
+  # the project's config sets STEP_BUDGET=5 and is read last: the other two files raise it there
+  [ "$where" = config ] || sed -i '/^STEP_BUDGET=/d' "$CANCCU_HOME/config"
+  [ "$where" = root ] && echo STEP_BUDGET=5 > "$f"
+  [ "$where" = rules ] && echo STEP_BUDGET=5 >> "$f"
+  printf '#!/usr/bin/env bash\n[ "$1" = 1 ] || exit 1\nprintf "STEP_BUDGET=50\\n" >> "%s"; touch -d "@$(( $(stat -c %%Y "%s") + 10 ))" "%s"\n' "$f" "$f" "$f" > "$E/between"
+  chmod +x "$E/between"
+  loop
+  ok "STEP_BUDGET raised in the $where file between two passes of one dispatcher: the held planner starts in the second" \
+    eq "$(plans) $(cat "$E/sleeps")" "1 2"
+  ok "… the log says the config was read again, once" eq "$(grep -c 'config read again' "$CANCCU_HOME/dispatch.log")" 1
+done
+
+loopenv reload-none
+printf '#!/usr/bin/env bash\n[ "$1" -lt 2 ]\n' > "$E/between"; chmod +x "$E/between"
+loop
+ok "no file changed: the config is not read again" eq "$(grep -c 'config read again' "$CANCCU_HOME/dispatch.log") $(plans) $(cat "$E/sleeps")" "0 0 2"
+
+loopenv reload-syntax
+cat > "$E/between" <<SH
+#!/usr/bin/env bash
+case \$1 in
+  1) printf 'STEP_BUDGET=50\nif then\n' >> "$CANCCU_HOME/config"; touch -d "@\$(( \$(stat -c %Y "$CANCCU_HOME/config") + 10 ))" "$CANCCU_HOME/config" ;;
+  2) grep -c -- '--key plan-12' "$FAKE/worker.log" > "$E/plans-2"
+     sed -i '/^if then\$/d' "$CANCCU_HOME/config"; touch -d "@\$(( \$(stat -c %Y "$CANCCU_HOME/config") + 10 ))" "$CANCCU_HOME/config" ;;
+  *) exit 1 ;;
+esac
+SH
+chmod +x "$E/between"
+loop
+ok "a syntax error in the config: one warning, the old values stay, the pass still runs" \
+  eq "$(grep -c 'config: syntax error; the dispatcher keeps the values it has' "$CANCCU_HOME/dispatch.log") $(cat "$E/plans-2") $(grep -c 'the pass ended early' "$CANCCU_HOME/dispatch.log")" "1 0 0"
+ok "… once corrected, the new values apply" eq "$(plans) $(cat "$E/sleeps")" "1 3"
+
+loopenv reload-repo
+cat > "$E/between" <<SH
+#!/usr/bin/env bash
+[ "\$1" = 1 ] && { echo REPO=example-org/other >> "$CANCCU_HOME/config"; touch -d "@\$(( \$(stat -c %Y "$CANCCU_HOME/config") + 10 ))" "$CANCCU_HOME/config"; }
+[ "\$1" = 2 ] && { echo STEP_BUDGET=50 >> "$CANCCU_HOME/config"; touch -d "@\$(( \$(stat -c %Y "$CANCCU_HOME/config") + 20 ))" "$CANCCU_HOME/config"; }
+[ "\$1" -lt 3 ]
+SH
+chmod +x "$E/between"
+loop
+ok "REPO changed in the config: the restart warning is logged once" \
+  eq "$(grep -c 'REPO changed in the config: restart the dispatcher to apply it' "$CANCCU_HOME/dispatch.log")" 1
+ok "… the old REPO stays: no call on the new one, and the other values apply" \
+  eq "$(grep -c 'example-org/other' "$FAKE/gh.log") $(plans)" "0 1"
+
 echo "canccu-config tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
