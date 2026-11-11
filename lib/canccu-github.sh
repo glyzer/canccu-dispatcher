@@ -258,12 +258,14 @@ classify_pure() {
   echo auto
 }
 
-# classify <pr> [issue] [repo]: the same from GitHub; any gh error → manual. A PR for no issue or
-# several (pr_issues), another issue than the one given, or that is not ours → manual.
+# classify <pr> [issue] [repo]: the same from GitHub. A gh error reading the PR → "retry: …" (a
+# third answer: the caller tries again next pass; a blip must not cost a person's accept); any
+# other gh error → manual. A PR for no issue or several (pr_issues), another issue than the one
+# given, or that is not ours → manual.
 classify() {
   local pr=$1 want=${2:-} repo=${3:-$REPO} j n refs files labels why ma m l head contract=0
   [ "$repo" = "$REPO" ] || { echo "manual: another repo ($repo)"; return; }
-  j=$(pr_detail "$pr") || { echo "manual: gh error reading PR #$pr"; return; }
+  j=$(pr_detail "$pr") || { echo "retry: gh error reading PR #$pr"; return; }
   refs=$(jqr "$PR_ISSUES_JQ"' pr_issues | map(tostring) | join(" ")' <<<"$j")
   head=$(jqr '.headRefName // ""' <<<"$j")
   [ -n "$want" ] || want=$(unit_of_branch "$head")

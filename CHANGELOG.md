@@ -30,6 +30,10 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 - An old usage reading no longer throttles: one older than `USAGE_MAX_AGE_MIN` (6 hours) or than
   the dispatcher's start counts as unknown, so a restart after an account switch ends a drain. The
   usage text shows the reading's age (#64).
+- A failed GitHub read of a passed PR is tried again next pass (`retry:` from `canccu-classify`)
+  instead of asking for an accept. A review's fix round and the resume after a merged contract PR
+  wait for the end of a back-off without changing any state. A passed review's list of what it
+  checked no longer counts as blocking findings in the spend log (#94).
 
 ## [0.1.2] — 2026-11-10
 

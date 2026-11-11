@@ -50,13 +50,15 @@ fix_rounds() {
 }
 
 # findings_count <review file> → "<blocking> <non-blocking>": the top-level list items (1. / 1) /
-# - / *) before a "Non-blocking" line, and after it. An estimate: it counts what the reviewer
-# listed, the way the prompt asks it to list findings; no file → "0 0".
+# - / *) after a "Blocking" heading and before a "Non-blocking" one, and after that. Items before
+# any heading count as neither: a passed review lists what it checked there. An estimate: it
+# counts what the reviewer listed under the prompt's headings; no file → "0 0".
 findings_count() {
-  awk 'BEGIN { b = 0; n = 0; nb = 0 }
-       /^[[:space:]*_#]*Non-blocking/ { nb = 1; next }
+  awk 'BEGIN { b = 0; n = 0; part = 0 }
+       /^[[:space:]*_#]*Non-blocking/ { part = 2; next }
+       /^[[:space:]*_#]*Blocking/ { if (part == 0) part = 1; next }
        /^[[:space:]*_]*(Review verdict|Maintainer accept|Risk):/ { next }
-       /^([0-9]+[.)]|[-*])[[:space:]]/ { if (nb) n++; else b++ }
+       /^([0-9]+[.)]|[-*])[[:space:]]/ { if (part == 2) n++; else if (part == 1) b++ }
        END { print b, n }' "$1" 2>/dev/null || echo "0 0"
 }
 

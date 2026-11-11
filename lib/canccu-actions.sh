@@ -244,6 +244,7 @@ act_verdict() {
   case $v in
     pass)
       c=$(classify "$pr" "$n")
+      [[ $c == retry:* ]] && { log "#$n PR #$pr: $what pass · $c; again next pass"; return 0; }
       log "#$n PR #$pr: $what pass · $c"
       # the open items are fixed: cleared before the merge step, so a failed merge or accept
       # leaves none behind for a later needs-work, which then starts a new cycle
@@ -269,6 +270,9 @@ act_verdict() {
             needs_you "$n" "the review of PR #$pr asks for changes and no automatic fix run is left ($(fix_max) per PR, FIX_ATTEMPTS): comment the way on and the worker follows up" "$body"
             st_set "$n" verdict_at="$at"; return 0
           fi
+          # nothing of the round is saved or counted before its run can start: the next pass
+          # does the whole case again
+          may_start "$n" || return 0
           # only the blocking findings: the fix run fixes them and the fix-check checks them
           # saved before the run, which reads the whole of long ones there (the prompt has a limit)
           b=$(blocking_of "$body") ff=$(findings_file "$pr" "$head")

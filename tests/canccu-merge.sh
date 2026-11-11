@@ -14,6 +14,28 @@ repo_settings() {
   route 'api graphql *mergeQueue {*' settings.json
 }
 
+# ---------------------------------------------------------------- a gh error in classify (#94)
+
+# a passed review whose classify cannot read the PR (the pass's second `pr view 50`) is retried
+# next pass, never sent to the maintainer
+review_env classify-retry 'Review verdict: pass' review
+mkdir -p "$E/sbin"
+cat > "$E/sbin/gh" <<SH
+#!/usr/bin/env bash
+if [ "\$1 \$2 \$3" = "pr view 50" ]; then
+  n=\$(( \$(cat "$E/views" 2>/dev/null || echo 0) + 1 )); echo "\$n" > "$E/views"
+  [ "\$n" = 2 ] && { echo "fake gh: failing" >&2; exit 1; }
+fi
+exec "$fb/gh" "\$@"
+SH
+chmod +x "$E/sbin/gh"
+PATH="$E/sbin:$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-dispatch" --once > "$E/out" 2>&1
+ok "a passed review, gh error reading the PR in classify → no accept asked, verdict_at not set" \
+  eq "$(grep -c 'awaiting-accept' "$FAKE/gh.log") $(grep -c '^pr merge' "$FAKE/gh.log") [$(st 5 verdict_at)]" "0 0 []"
+ok "… logged, to be tried again" grep -q '#5 PR #50: review pass · retry: gh error reading PR #50; again next pass' "$CANCCU_HOME/dispatch.log"
+dispatch --once
+ok "… the next pass, the read working, merges it automatically" has gh.log "pr merge 50 -R example-org/web --auto"
+
 # ---------------------------------------------------------------- the merge method
 
 review_env method-squash-only 'Review verdict: pass' review

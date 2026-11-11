@@ -340,7 +340,7 @@ ok "agent config: AGENTS.md" eq "$(c 'AGENTS.md' "" "" "" example-org/web 0)" "m
 ok "a file merely named like it is not" eq "$(c 'docs/CLAUDE.md.txt' "" "" "" example-org/web 0)" auto
 ok "freeze date not YYYY-MM-DD → manual" eq "$(lib eval 'AUTO_MERGE_UNTIL=2031-3-1; classify_pure src/a.ts "" "" "" example-org/web 0')" "manual: AUTO_MERGE_UNTIL (2031-3-1) is not a YYYY-MM-DD date"
 ok "freeze date that is no date → manual" eq "$(lib eval 'AUTO_MERGE_UNTIL=2031-02-30; classify_pure src/a.ts "" "" "" example-org/web 0')" "manual: AUTO_MERGE_UNTIL (2031-02-30) is not a YYYY-MM-DD date"
-ok "gh error → manual" eq "$(lib classify 77)" "manual: gh error reading PR #77"
+ok "gh error reading the PR → retry (#94)" eq "$(lib classify 77)" "retry: gh error reading PR #77"
 state 5 phase=review pr=51
 p=$(pr 51 5 $HB); json pr51.json "$(detail "$p" 2030-11-05T10:00:00Z)"; route 'pr view 51 *' pr51.json
 json files51.json '[{"filename": "src/a.ts"}]'; route 'api --paginate repos/example-org/web/pulls/51/files*' files51.json
