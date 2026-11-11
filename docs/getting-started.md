@@ -123,12 +123,13 @@ of the GitHub part of step 4 (not the snippets) plus two steps of its own:
   ([`reference/projects.md`](reference/projects.md#a-narrow-token-per-project)).
 
 **A safe start on a real repo.** Until you trust it, make every PR wait for your accept: in
-`~/.canccu/projects/web/rules`, set `AUTO_MERGE_UNTIL` to today's date (`YYYY-MM-DD`; from that
-date on, nothing merges without you), and add the repo's sensitive paths to `GATED_PATHS` (a
-`grep -E` pattern; keep the default `^\.github/` in it):
+`~/.canccu/projects/web/rules`, set `AUTO_MERGE_UNTIL` to today's date or any earlier one
+(`YYYY-MM-DD`). It is the date the freeze starts, not the date it ends: from that date on, nothing
+merges without you; a future date lets PRs merge on their own until then. Then add the repo's
+sensitive paths to `GATED_PATHS` (a `grep -E` pattern; keep the default `^\.github/` in it):
 
 ```sh
-AUTO_MERGE_UNTIL=2030-01-15
+AUTO_MERGE_UNTIL=2026-01-01   # a past date: every PR waits for your accept from now on
 GATED_PATHS='^\.github/|^deploy/|^migrations/'
 ```
 
