@@ -59,7 +59,8 @@ in place each wave, and in the snapshot and `canccu-status`.
 A package whose dependencies are all merged starts while a slot is free, in plan order, after
 the fast lane (`CAP` counts packages, one run each). Every issue is checked again right before
 the start: a package with an issue that is no longer eligible is `refused`. Branch
-`pkg-<m>-<name>` (a package of one keeps `<n>-<slug>`). Its budget is the issue's times its issue
+`pkg-<m>-<name>` (a package of one keeps `<n>-<slug>`). A contract-first PR is on the branch
+plus `-contract`, for a package and a single issue alike ([`merging.md`](merging.md)). Its budget is the issue's times its issue
 count, capped by `BUDGET_PACKAGE_MAX`. The worker may use subagents for the package's issues, but
 none of their review steps. The PR has a `Closes #<n>` line per issue, `Package:` and `Risk:`
 lines, and must close exactly the package's issues (else manual). The reviewer reads every

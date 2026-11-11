@@ -88,7 +88,7 @@ state 5 phase=check pr=50 "check_at=$NOW"
 json issue5.json '{"comments": []}'; route 'issue view 5 *' issue5.json
 json pr50.json '{"comments": []}'; route 'pr view 50 *' pr50.json
 dispatch --once
-ok "needs-work on a pending-CI check PR, CAP 1: the resume takes the slot" grep -q 'web 5 The user rejected PR #50' "$FAKE/worker.log"
+ok "needs-work on a pending-CI check PR, CAP 1: the resume takes the slot" grep -q 'web 5 Rules for this run: .* The user rejected PR #50' "$FAKE/worker.log"
 ok "… and the ready issue does not start" not started 8
 
 env_new wanting-green-no-slot CAP=1
@@ -198,7 +198,7 @@ dispatch --once
 ok "… still backed off on the next pass: nothing starts" eq "$(wc -l < "$FAKE/worker.log")" 0
 echo $((NOW - 1)) > "$CANCCU_ROOT/backoff"
 dispatch --once
-ok "after the reset → a fresh session from git status (no handoff)" grep -q '^--quiet --name #5 --fresh web 5 The usage limit has reset. Your earlier run was cut off' "$FAKE/worker.log"
+ok "after the reset → a fresh session from git status (no handoff)" grep -q '^--quiet --name #5 --fresh web 5 Rules for this run: .* The usage limit has reset. Your earlier run was cut off' "$FAKE/worker.log"
 ok "… phase work, still the same fix round" eq "$(st 5 phase) $(st 5 stage) $(st 5 reviewed_sha)" "work fixing $HA"
 ok "… no needs-you, no comment" eq "$(grep -cE 'needs-you|issue comment 5' "$FAKE/gh.log")" 0
 rm -f "$WORKERS_DIR/web-5.lock"; last 5 error "You've hit your 5-hour limit"   # the resumed run ends on the limit
@@ -396,7 +396,7 @@ ok "older-head verdict → no merge" hasnt gh.log "pr merge"
 
 review_env loop-1 'Review verdict: changes' review
 dispatch --once
-ok "changes from the full review → the worker resumes once with the findings" grep -q '^--quiet --name #5 --fresh web 5 The independent reviewer asked for changes on PR #50 (.*This is your one fix round.*src/a.ts:3 off by one.*turns=80 cost=20 min=45$' "$FAKE/worker.log"
+ok "changes from the full review → the worker resumes once with the findings" grep -q '^--quiet --name #5 --fresh web 5 Rules for this run: .* The independent reviewer asked for changes on PR #50 (.*This is your one fix round.*src/a.ts:3 off by one.*turns=80 cost=20 min=45$' "$FAKE/worker.log"
 ok "… stage fixing, the reviewed sha kept" eq "$(st 5 stage) $(st 5 reviewed_sha) $(st 5 phase)" "fixing $HA work"
 ok "… the findings saved for the fix-check" grep -qF 'src/a.ts:3 off by one' "$CANCCU_HOME/reviews/50/$HA.findings.md"
 ok "no round counter any more" eq "$(grep -c '^rounds=' "$CANCCU_HOME/state/5")" 0
@@ -410,7 +410,7 @@ ok "a refused resume leaves the verdict to act on" eq "$(st 5 verdict_at)" ""
 ok "… and the stage unchanged" eq "$(st 5 stage)" review
 ok "… and no needs-you" hasnt gh.log "needs-you"
 rm "$FAKE/refuse"; dispatch --once
-ok "next pass: the worker resumes with the review" grep -q 'web 5 The independent reviewer asked for changes on PR #50 ' "$FAKE/worker.log"
+ok "next pass: the worker resumes with the review" grep -q 'web 5 Rules for this run: .* The independent reviewer asked for changes on PR #50 ' "$FAKE/worker.log"
 ok "… then the fix round is recorded" eq "$(st 5 stage) $(st 5 verdict_at)" "fixing 2030-11-05T11:00:00Z"
 review_env pass-auto 'Review verdict: pass' review
 dispatch --once
@@ -745,7 +745,7 @@ json issue5.json "$(jq -n --argjson a "$(comment 2030-11-05T12:30:00Z 'Use port 
   --argjson c "$(comment 2030-11-05T11:00:00Z 'old answer')" '{comments: [$a, $b, $c]}')"
 route 'issue view 5 *' issue5.json
 dispatch --once
-ok "user comment → resumed with it" grep -q 'web 5 The user answered: Use port 8080. This run is a fresh session.* Do not review your own work; run the checks only. turns=' "$FAKE/worker.log"
+ok "user comment → resumed with it" grep -q 'web 5 Rules for this run: .* The user answered: Use port 8080. This run is a fresh session.* Do not review your own work; run the checks only. turns=' "$FAKE/worker.log"
 ok "needs-you dropped on resume" has gh.log "issue edit 5 -R example-org/web --remove-label needs-you"
 env_new resume-paused-backoff
 { issue 5 in-progress; issue 6 ready; } | issues
@@ -756,7 +756,7 @@ ok "back-off: nothing starts" eq "$(wc -l < "$FAKE/worker.log")" 0
 echo $((NOW - 1)) > "$CANCCU_ROOT/backoff"; touch "$CANCCU_HOME/paused"
 dispatch --once
 ok "paused: no new issue" not started 6
-ok "paused: a limited worker resumes after the back-off" grep -q 'web 5 The usage limit has reset' "$FAKE/worker.log"
+ok "paused: a limited worker resumes after the back-off" grep -q 'web 5 Rules for this run: .* The usage limit has reset' "$FAKE/worker.log"
 
 # ---------------------------------------------------------------- after merge
 
@@ -894,7 +894,7 @@ json pr50.json '{"comments": []}'; route 'pr view 50 *' pr50.json
 dispatch --once
 ok "needs-work on an armed PR → auto-merge disabled" has gh.log "pr merge 50 -R example-org/web --disable-auto"
 ok "needs-work on an armed PR → accepted removed" has gh.log "pr edit 50 -R example-org/web --remove-label accepted"
-ok "needs-work → worker resumed" grep -q 'web 5 The user rejected PR #50' "$FAKE/worker.log"
+ok "needs-work → worker resumed" grep -q 'web 5 Rules for this run: .* The user rejected PR #50' "$FAKE/worker.log"
 ok "needs-work removed after the start" has gh.log "issue edit 5 -R example-org/web --remove-label needs-work"
 
 env_new stale-lock
@@ -934,7 +934,48 @@ env_new canccu-run-ship
 { issue 5 in-progress; } | issues
 state 5 phase=needs-you
 PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-run" 5 ship it after the fix > "$E/out" 2>&1
-ok "canccu-run never hands the engine a leading word" grep -q 'web 5 The user says: ship it after the fix This run is a fresh session.* Do not review your own work; run the checks only. turns=' "$FAKE/worker.log"
+ok "canccu-run never hands the engine a leading word" grep -q 'web 5 Rules for this run: .* The user says: ship it after the fix This run is a fresh session.* Do not review your own work; run the checks only. turns=' "$FAKE/worker.log"
+
+# ---------------------------------------------------------------- contract-first for a single issue (#87)
+
+env_new issue-branch
+{ issue 5 ready; } | issues
+dispatch --once
+ok "start_issue keeps the issue's branch, the one its prompt names" \
+  eq "$(st 5 branch) $(grep -c -- 'Create your branch 5-issue-5 from origin/main' "$FAKE/worker.log")" "5-issue-5 1"
+
+# cenv <name> <pr json>: managed #5 (branch 5-issue-5) in check with that PR 50
+cenv() {
+  env_new "$1"
+  { issue 5 in-progress; } | issues
+  printf '%s\n' "$2" | prs
+  json pr50.json "$(detail "$2" 2030-11-05T10:00:00Z)"; route 'pr view 50 *' pr50.json
+  json files50.json '[{"filename": "docs/plans/issue-5.md"}]'; route 'api --paginate repos/example-org/web/pulls/50/files*' files50.json
+  json issue5.json '{"labels": [{"name": "in-progress"}], "comments": []}'; route 'issue view 5 *' issue5.json
+  state 5 phase=check pr=50 branch=5-issue-5
+}
+cenv classify-contract "$(PR_BRANCH=5-issue-5-contract pr 50 5 $HA green "" false 'Closes #5')"
+ok "classify: a single issue's PR on <branch>-contract that closes it → manual" \
+  eq "$(lib eval 'fetch; classify 50')" "manual: PR #50 closes 5 on the contract branch 5-issue-5-contract"
+cenv classify-names-none "$(pr 50 5 $HA green "" false 'A fix.' | jq '.closingIssuesReferences = []')"
+ok "classify: a PR on branch 5-… with no Closes and no Plan for → manual: closes no issue" \
+  eq "$(lib eval 'fetch; classify 50')" "manual: PR #50 closes no issue"
+cenv classify-plan-for "$(pr 50 5 $HA green "" false $'Plan for #5\n\nTier: plan' | jq '.closingIssuesReferences = []')"
+ok "… with a Plan for #5 line before plan-ok: classified as before (plan tier)" eq "$(lib eval 'fetch; classify 50')" "manual: plan tier"
+
+env_new contract-prompts
+{ issue 5 ready; issue 101 ready; } | issues
+state 5 phase=work branch=5-issue-5
+state pkg-12-a pkg=a step=12 members=101 branch=pkg-12-a risk=low risk_reason=x
+ok "the single-issue prompt has the contract rule for its branch" grep -qF -- "$(lib contract_rule 5-issue-5)" <<<"$(lib eval 'fetch; unit_prompt 5')"
+ok "… the package prompt for its own" grep -qF -- "$(lib contract_rule pkg-12-a)" <<<"$(lib eval 'fetch; unit_prompt pkg-12-a')"
+ok "… which names the contract branch" grep -qF 'from the branch pkg-12-a-contract with `Refs #<n>`' <<<"$(lib contract_rule pkg-12-a)"
+NOKW='Never write a closing keyword (close, fix, resolve, in any form) before an issue number anywhere in the contract PR'
+ok "… the single-issue prompt forbids a closing keyword in the contract PR's body (#98)" grep -qF -- "$NOKW" <<<"$(lib eval 'fetch; unit_prompt 5')"
+ok "… the package prompt too" grep -qF -- "$NOKW" <<<"$(lib eval 'fetch; unit_prompt pkg-12-a')"
+SR=$(lib eval 'echo "$SKILL_RULES"')
+ok "both prompts have the one skill rule, which forbids subagents (#88)" eq "$(grep -c dispatching-parallel-agents <<<"$SR") $(grep -cF -- "$SR" <<<"$(lib eval 'fetch; unit_prompt 5')") $(grep -cF -- "$SR" <<<"$(lib eval 'fetch; unit_prompt pkg-12-a')")" "1 1 1"
+ok "… the package prompt no longer allows them" not grep -q 'You may use the superpowers skills subagent' <<<"$(lib eval 'fetch; unit_prompt pkg-12-a')"
 
 # #107: an empty key names the state directory, not a file: nothing, and no read error
 env_new st-get-empty

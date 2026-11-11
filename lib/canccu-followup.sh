@@ -19,10 +19,10 @@ fix_count() { st_set "$1" fixes=$(( $(fixes_used "$1" "$2") + 1 )) fixes_pr="$2"
 
 # handoff <K> [kind]: what a fresh follow-up session gets instead of the old conversation: the PR,
 # its body (Decisions made:, Follow-up:), the branch's commits and their diff stat, uncommitted
-# files, the last report (not for kind limited) and the standing orders of the first run. Each
-# part is cut, so the task in front of it fits run_worker's prompt limit.
+# files, the last report (not for kind limited), and the unit and its branch (the rules are in the
+# repo and in SAFETY_BLOCK, not the first prompt again). Each part is cut to fit the prompt limit.
 handoff() {
-  local k=$1 pr wt body="" commits="" stat="" dirty="" rep=""
+  local k=$1 pr wt body="" commits="" stat="" dirty="" rep="" br unit m
   pr=$(st_get "$k" pr); [ -n "$pr" ] || pr=$(pr_for "$k")
   wt=$(unit_wt "$k")
   [ -n "$pr" ] && body=$(pr_get "$pr" .body)
@@ -40,7 +40,11 @@ handoff() {
   [ -n "$stat" ] && printf ' Their diff stat (git diff --stat origin/main...HEAD): %s.' "$(oneline 800 "$stat")"
   [ -n "$dirty" ] && printf ' Uncommitted in the worktree: %s.' "$(oneline 400 "$dirty")"
   [ -n "$rep" ] && printf ' Your last report: %s' "$(oneline 1200 "$rep")"
-  printf ' The standing orders of the first run (the branch exists already): %s' "$(unit_prompt "$k")"
+  br=$(st_get "$k" branch); [ -n "$br" ] || [ ! -e "$wt/.git" ] || br=$(guard 20 git -C "$wt" branch --show-current 2>/dev/null)
+  if [ -n "$(st_get "$k" pkg)" ]; then
+    unit="work package \"$(st_get "$k" pkg)\" (issues"; for m in $(members_of "$k"); do unit+=" #$m,"; done; unit="${unit%,})"
+  else unit="issue #$k"; fi
+  printf ' This run is on %s, branch %s. The repo'"'"'s AGENTS.md and CLAUDE.md hold the full rules.' "$unit" "${br:-$k}"
 }
 
 # handoff_file <K>: the handoff a run nudged at the usage stop ended with (its final message); kept

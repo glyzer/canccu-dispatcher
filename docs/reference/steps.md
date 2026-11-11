@@ -41,11 +41,15 @@ skips the pause. The step's epic closes once the step is done and its sub-issues
 
 ## Stops
 
-What the dispatcher does not handle on its own stops the step: a finished package's issue
-reopened in the step, a done step's checkpoint reopened, a done step with new open work, or its
-epic closed while it runs. Nothing of the step starts; its epic (else its checkpoint) gets
-`needs-you` and one comment with what it found. The step goes on by itself once the lead sorted
-it out (closed or moved the issue, closed the checkpoint, reopened the epic).
+What the dispatcher does not handle on its own stops the step: a done step's checkpoint
+reopened, a done step with new open work, or its epic closed while it runs. Nothing of the step
+starts; its epic (else its checkpoint) gets `needs-you` and one comment with what it found. The
+step goes on by itself once the lead sorted it out (closed or moved the issue, closed the
+checkpoint, reopened the epic).
+
+A finished package's issue that is open again (reopened, or left open by its merged PR) does not
+stop the step. To build it again, give it `ready` (and remove `needs-you`): the planner plans it
+in the next wave like any other issue of the step. Without `ready` it waits for you.
 
 ## Notes
 

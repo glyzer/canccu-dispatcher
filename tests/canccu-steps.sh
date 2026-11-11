@@ -128,8 +128,8 @@ ok "… its dependant waits" not grep -q -- '--name #104' "$FAKE/worker.log"
 ok "… every member in progress, ready removed" eq "$(grep -cE '^issue edit (101|103) -R example-org/web --add-label in-progress --remove-label ready' "$FAKE/gh.log")" 2
 ok "… the package state" eq "$(cat "$CANCCU_HOME/state/pkg-12-auth-flow" | grep -E '^(members|branch|risk)=' | sort | tr '\n' ' ')" "branch=pkg-12-auth-flow members=101 103 risk=high "
 ok "… the budget scaled by 2 issues" grep -qE 'pkg-12-auth-flow .* turns=500 cost=160 min=300$' "$FAKE/worker.log"
-ok "… the package prompt: subagents without their reviews, Closes lines, Package and Risk" \
-  grep -qF 'skip their review steps' "$FAKE/worker.log"
+ok "… the package prompt: no subagents (#88), Closes lines, Package and Risk" \
+  grep -qF 'subagent-driven-development, dispatching-parallel-agents or writing-skills' "$FAKE/worker.log"
 ok "… the planner's key and the package's are charged to the step" eq "$(tr '\n' ' ' < "$CANCCU_HOME/steps/12.keys")" "plan-12 pkg-12-auth-flow "
 
 # the plan comment is edited in place on the next wave
@@ -229,9 +229,8 @@ ok "… and writes no step state" test ! -e "$CANCCU_HOME/steps/12"
 # review 3, finding 1: a stop raised while the planner runs holds the wave that planner brings
 stepenv planner-stopped
 dispatch --once
-{ issue 90 epic "" "3 Events"; issue 101 ready "" "3 Events"; issue 103 ready "" "3 Events"; issue 104 ready "" "3 Events"
-  issue 105 ready "" "3 Events"; } | issues
-printf 'x\tz\t0\t105\tlow\t49\tmerged\n' > "$CANCCU_HOME/steps/12.packages"   # a finished package's issue is open again
+# its epic closed while the step runs: a stop, said on the checkpoint
+{ issue 95 checkpoint "" "3 Events"; issue 101 ready "" "3 Events"; issue 103 ready "" "3 Events"; issue 104 ready "" "3 Events"; } | issues
 dispatch --once
 planned 1 "$PLAN"; dispatch --once
 ok "planner (review 3, finding 1): the plan of a stopped step starts nothing" \
@@ -240,6 +239,15 @@ ok "planner (review 3, finding 1): the plan of a stopped step starts nothing" \
 dispatch --once
 ok "… once the stop is resolved the wave runs and the label goes" \
   eq "$(grep -c -- '--name pkg#auth-flow' "$FAKE/worker.log") $(grep -c '^issue edit 90 -R example-org/web --remove-label needs-you' "$FAKE/gh.log")" "1 1"
+
+# #86: a finished package's issue open again is ordinary step work, never a stop
+stepenv reopened-merged
+printf '101\ta\t1\t101\tnormal\t50\tmerged\n' > "$CANCCU_HOME/steps/12.packages"
+dispatch --once
+ok "a merged package's issue open again (ready): the step is not stopped" \
+  eq "$(grep -c 'Nothing of this step starts' "$FAKE/gh.log") $(sed -n 's/^ny_kind=//p' "$CANCCU_HOME/steps/12")" "0 "
+ok "… the issue is offered to the planner" eq "$(lib eval 'fetch; planner_issues 12' | tr '\n' ' ')" "101 103 104 "
+ok "… the planner runs with it" eq "$(pissues)" "#101, #103, #104"
 
 # #107: a step waits on needs-you with nothing to answer on (no epic, no checkpoint): the pass asks
 # for no unit's state with an empty key, so no shell error reaches stderr or the log

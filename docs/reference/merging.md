@@ -20,7 +20,27 @@ A queue entry still waiting for checks `NO_CHECKS_MIN` after it was queued, with
 again once per head, which starts them; the log says so. Still stuck, `MERGE_WAIT_MIN` applies.
 A PR whose enqueue fails is out of the queue: `needs-you`.
 A contract-first PR (on the unit's branch plus `-contract`) closes none of the unit's issues
-and is classified like the unit's own PR otherwise ([`pipeline.md`](pipeline.md)).
+and is classified like the unit's own PR otherwise ([`pipeline.md`](pipeline.md)). The rule
+holds for a single issue as for a package: the issue's branch is `<n>-<slug>`, kept in its
+state, so its contract PR is on `<n>-<slug>-contract`.
+
+A contract PR that GitHub links as closing an issue (`closingIssuesReferences`: a closing keyword
+anywhere in its body, prose too) would close the issue with only the contract done. `check_pr`
+looks for that before the verdict, so it never reaches a review or an accept: the worker is
+resumed once to correct the body (`body_fix`; not a fix round of `FIX_ATTEMPTS`). Still linked on
+the next pass: `needs-you`. Once the links are gone the PR goes on as usual; a review that already
+passed on its head is acted on without a new one (a body edit leaves the head as it is).
+
+### A merged PR that leaves its issue open
+
+A unit's PR that merged while one of its issues is still open (neither a contract PR nor a plan
+PR) never parks the unit. An open issue the PR's `Closes` lines name is closed by GitHub a moment
+later: the dispatcher waits for that (`gone_at`), at most `MERGE_WAIT_MIN`. An open issue the PR
+does not name, or one still open after that wait, gets `needs-you` (and loses `in-progress` and
+`awaiting-accept`) with a comment, and the unit is released as after any merge: `merged.log`, its
+worktree, branch and session id gone, the closed issues advanced, a package counted as merged in
+its step. The issue stays out of the queue while it has `needs-you`. Done: close it. Work left:
+remove `needs-you` and add `ready`, and a new worker starts from main.
 
 **Without auto-merge** (the repo does not allow it) the dispatcher merges directly, with
 `gh pr merge <pr> <method> --match-head-commit <head>` (`--squash` if the settings cannot be
@@ -35,7 +55,9 @@ applies:
 2. a PR for no issue, more than one, or another issue than the one being handled (a
    package's PR: not exactly the package's issues; the health pass's: any). A PR is for the
    issues it closes and those a `Plan for #n` line names (a plan-only PR, which must not close
-   its issue); with neither, the issue its branch `<n>-…` names;
+   its issue); with neither, the issue its branch `<n>-…` names: that finds and reviews the PR,
+   but a PR that names no issue (no `Closes`, no `Plan for`) is always manual, whatever its
+   branch;
 3. a PR that is not ours ([`commands.md`](commands.md));
 4. 3000 or more changed files (the files API lists no more);
 5. a plan-tier PR (`docs/plans/issue-<n>.md` in the diff, or `Tier: plan`) before `plan-ok`;

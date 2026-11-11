@@ -56,12 +56,13 @@ pr_not_ours() {
 # is_contract_pr <K> <head branch>
 is_contract_pr() { local b; b=$(unit_branch "$1"); [ -n "$b" ] && [ "$2" = "$b-contract" ]; }
 
-# PR_ISSUES_JQ: jq defs; pr_issues: the issues a PR (gh's JSON) is for: those it closes and
+# PR_ISSUES_JQ: jq defs; pr_named: the issues a PR (gh's JSON) names: those it closes and
 # those a line "Plan for #n" names (a plan-only PR does not close its issue: the build follows);
-# with neither, the one its branch <n>-… (or issue-<n>-…) names
+# pr_issues: those, or with neither, the one its branch <n>-… (or issue-<n>-…) names
 PR_ISSUES_JQ='def plan_for: [(.body // "") | split("\n")[] | select(test("^[\\s*_>`-]*plan for #[0-9]+"; "i"))
     | capture("#(?<n>[0-9]+)").n | tonumber];
-  def pr_issues: ([.closingIssuesReferences[]?.number] + plan_for | unique) as $r
+  def pr_named: [.closingIssuesReferences[]?.number] + plan_for | unique;
+  def pr_issues: pr_named as $r
     | if ($r | length) > 0 then $r
       else [(.headRefName // "") | capture("^(issue-)?(?<n>[0-9]+)(-|$)").n | tonumber] end;'
 # pr_issues <pr json>: those issues, one per line
@@ -279,7 +280,9 @@ classify() {
     [ "$refs" = "$m" ] || { echo "manual: PR #$pr closes ${refs:-no issue}, not the package's ${m:-none}"; return; }
     n=$want
   else
-    [ -n "$refs" ] || { echo "manual: PR #$pr closes no issue"; return; }
+    # the branch fallback finds the PR, but never makes it auto: one that names no issue would
+    # merge and leave its issue open
+    [ -n "$(jqr "$PR_ISSUES_JQ"' pr_named[]' <<<"$j")" ] || { echo "manual: PR #$pr closes no issue"; return; }
     [[ $refs == *" "* ]] && { echo "manual: PR #$pr closes more than one issue (${refs// /, })"; return; }
     n=$refs
     [ -z "$want" ] || [ "$n" = "$want" ] || { echo "manual: PR #$pr closes #$n, not #$want"; return; }

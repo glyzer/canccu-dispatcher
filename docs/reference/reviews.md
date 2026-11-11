@@ -32,8 +32,10 @@ fix-check's, `pass` or `changes`, once per verdict) the dispatcher takes the ite
 findings, step <title>, wave <w>` for a package, `…, health pass` for the health pass, and
 `… (fast lane)` for every other issue. The first findings make the issue (not labelled `ready`:
 you decide), later ones are comments on it while it is open; a closed one makes a new issue.
-A PR that closes the follow-up issue files its own findings in a new one. The fix run of a `changes` verdict gets only the blocking findings, and the fix-check checks only
-those. A `gh` error is logged and blocks nothing: the items stay in the PR comment.
+A PR that closes the follow-up issue files its own findings in a new one. The
+fix run of a `changes` verdict gets only the blocking findings, and the fix-check checks only
+those. They are saved to `reviews/<pr>/<head>.findings.md` before the fix run starts; its prompt
+names that file and inlines at most their first 3,000 characters, so a long list is read there. A `gh` error is logged and blocks nothing: the items stay in the PR comment.
 `canccu-status --findings` lists the most common findings and the files cited most, across the
 review records (`FINDINGS_TOP` lines at most, 15 by default).
 

@@ -65,7 +65,7 @@ printf 'abc1234 wip: the parser\n' > "$FAKE/gitlog"; printf ' src/parse.ts | 40 
 rm -f "$CANCCU_ROOT/backoff"; use 20 10
 dispatch --once
 l=$(grep -- '--name #5 ' "$FAKE/worker.log" | tail -1)
-ok "… after the reset a fresh session, never --resume (#82)" grep -q -- '--name #5 --fresh web 5 The usage limit has reset' <<<"$l"
+ok "… after the reset a fresh session, never --resume (#82)" grep -q -- '--name #5 --fresh web 5 Rules for this run: .* The usage limit has reset' <<<"$l"
 ok "… with the handoff" grep -qF 'Next step: test the parser' <<<"$l"
 ok "… the commit log" grep -qF 'abc1234 wip: the parser' <<<"$l"
 ok "… and the diff stat" grep -qF 'src/parse.ts | 40' <<<"$l"
@@ -82,7 +82,7 @@ ok "usage: the hard limit → limited, no handoff kept" eq "$(st 5 phase) $(test
 rm -f "$CANCCU_ROOT/backoff"
 dispatch --once
 l=$(grep -- '--name #5 ' "$FAKE/worker.log" | tail -1)
-ok "… after the reset a fresh session" grep -q -- '--name #5 --fresh web 5 The usage limit has reset' <<<"$l"
+ok "… after the reset a fresh session" grep -q -- '--name #5 --fresh web 5 Rules for this run: .* The usage limit has reset' <<<"$l"
 ok "… told to check git status for uncommitted work" grep -qF 'check git status for uncommitted work' <<<"$l"
 ok "… no stale handoff" not grep -qF 'an old one' <<<"$l"
 
@@ -123,7 +123,7 @@ state 5 phase=work "started=$NOW" nudged=1 "nudge_reset=$((NOW - 60))"
 rm -f "$WORKERS_DIR/web-5.lock"; last 5 done $'WIP pushed.\nNext action: x'
 dispatch --once
 ok "usage (review 3, finding 3): ended after its reset → no back-off for anyone, it continues" \
-  eq "$(test -s "$CANCCU_ROOT/backoff" && echo backoff || echo none) $(grep -c -- '--name #5 --fresh web 5 The usage limit has reset' "$FAKE/worker.log")" "none 1"
+  eq "$(test -s "$CANCCU_ROOT/backoff" && echo backoff || echo none) $(grep -c -- '--name #5 --fresh web 5 Rules for this run: .* The usage limit has reset' "$FAKE/worker.log")" "none 1"
 
 # ---------------------------------------------------------------- USAGE_WEEKLY_DRAIN: drain mode
 

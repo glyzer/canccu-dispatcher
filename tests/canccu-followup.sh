@@ -15,18 +15,36 @@ last 5 done $'status: done\nPR URL: https://github.com/example-org/web/pull/50'
 dispatch --once
 l=$(wline)
 ok "a review fix round starts a fresh session" grep -q -- ' --fresh ' <<<"$l"
-ok "… its task first" grep -q 'web 5 The independent reviewer asked for changes on PR #50 ' <<<"$l"
+ok "… its task first, after the safety block" grep -q 'web 5 Rules for this run: .* next action\. The independent reviewer asked for changes on PR #50 ' <<<"$l"
 ok "… the handoff: the PR's link" grep -qF 'https://github.com/example-org/web/pull/50' <<<"$l"
 ok "… the branch's commits" grep -qF 'abc1234 feat: the thing' <<<"$l"
 ok "… the last report" grep -qF 'status: done PR URL:' <<<"$l"
-ok "… the standing orders of the first run" grep -q 'standing orders.*You are working on example-org/web issue #5 ' <<<"$l"
+ok "… the safety block first (#88)" grep -qF -- "web 5 $(lib eval 'echo "$SAFETY_BLOCK"') The independent reviewer asked" <<<"$l"
+ok "… short findings inline, with their file" grep -qF "$HA (also in $CANCCU_HOME/reviews/50/$HA.findings.md)" <<<"$l"
+ok "… the unit, its branch and where the rules are" grep -qF "This run is on issue #5, branch " <<<"$l"
+ok "… not the first prompt again" not grep -q 'propose a tier' <<<"$l"
 ok "… a fresh run is said in the log" grep -q '#5 resumed (fresh session, fix)' "$CANCCU_HOME/dispatch.log"
 ok "… and counts as a fix attempt" eq "$(st 5 fixes) $(st 5 fixes_pr)" "1 50"
 
 review_env resume-fix 'Review verdict: changes' review RESUME_ON=answer,plan,fix
 dispatch --once
 ok "RESUME_ON names fix → the session resumes" not grep -q -- ' --fresh ' <<<"$(wline)"
-ok "… with the plain message, no handoff" not grep -q 'standing orders' <<<"$(wline)"
+ok "… with the plain message, no handoff" not grep -q 'This run is a fresh session' <<<"$(wline)"
+ok "… no safety block: the session has its rules (#88)" grep -q 'web 5 The independent reviewer asked for changes on PR #50 .*The blocking findings: 1. src/a.ts:3 off by one' <<<"$(wline)"
+
+# #88: a fix round's long findings never push the rules out of the prompt
+ok "the safety block is at most 600 characters" eq "$(lib eval '(( ${#SAFETY_BLOCK} <= 600 )) && echo short')" short
+review_env fix-long 'Review verdict: changes' review
+F=$(for i in $(seq 1 100); do printf '%d. src/a.ts:%d a finding long enough to fill the line; fix: %s\n' "$i" "$i" "$(printf 'x%.0s' $(seq 1 40))"; done)
+p=$(pr 50 5 $HA); json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z "$(vcomment 2030-11-05T11:00:00Z "$F
+Review verdict: changes $HA")")"
+wt5; dispatch --once
+l=$(wline); t=${l#* web 5 }; t=${t% turns=*}; t=${t%…}
+ff="$CANCCU_HOME/reviews/50/$HA.findings.md"
+ok "a fix round with 10 kB of findings: the prompt starts with the safety block in full" grep -qF -- "web 5 $(lib eval 'echo "$SAFETY_BLOCK"') " <<<"$l"
+ok "… at most 8000 characters after the issue number" eq "$(( ${#F} > 9000 && ${#t} <= 8000 ))" 1
+ok "… it names the findings file" grep -qF "The findings are cut here; read all of them in $ff." <<<"$l"
+ok "… which exists before the worker starts" eq "$(head -1 "$FAKE/worker.files") $(grep -c '^[0-9]*\. ' "$ff")" "$ff 100"
 
 env_new plan-ok-resumes
 { issue 5 in-progress,plan-ok; } | issues
@@ -70,7 +88,7 @@ ok "… not a fix attempt (the user asked for it)" eq "$(st 5 fixes)" ""
 
 review_env fix-model 'Review verdict: changes' review FIX_MODEL=claude-sonnet-5-5 FIX_EFFORT=medium MODEL=claude-opus-5-5
 dispatch --once
-ok "a fix run gets FIX_MODEL and FIX_EFFORT" eq "$(grep -cE -- '^--quiet --model claude-sonnet-5-5 --name #5 --fresh web 5 The independent reviewer' "$FAKE/worker.log") $(grep -c '^WORKER_EFFORT=medium$' "$FAKE/worker.envdump") $(grep -c '^WORKER_RUN_TYPE=fix$' "$FAKE/worker.envdump")" "1 1 1"
+ok "a fix run gets FIX_MODEL and FIX_EFFORT" eq "$(grep -cE -- '^--quiet --model claude-sonnet-5-5 --name #5 --fresh web 5 Rules for this run: .* The independent reviewer' "$FAKE/worker.log") $(grep -c '^WORKER_EFFORT=medium$' "$FAKE/worker.envdump") $(grep -c '^WORKER_RUN_TYPE=fix$' "$FAKE/worker.envdump")" "1 1 1"
 needsyou fix-model-other "" FIX_MODEL=claude-sonnet-5-5 FIX_EFFORT=medium MODEL=claude-opus-5-5
 dispatch --once
 ok "… any other follow-up the usual model and no effort" eq "$(grep -c -- '--model claude-opus-5-5' "$FAKE/worker.log")/$(grep -c '^WORKER_EFFORT=.' "$FAKE/worker.envdump")" 1/0
@@ -105,7 +123,7 @@ redenv red-current
 echo 0 > "$FAKE/behind"
 dispatch --once
 l=$(wline)
-ok "red CI with main already in → a fresh fix session" grep -q -- '--fresh .*web 5 CI is red on PR #50' <<<"$l"
+ok "red CI with main already in → a fresh fix session" grep -q -- '--fresh .*web 5 Rules for this run: .* CI is red on PR #50' <<<"$l"
 ok "… with the failing job's log tail" grep -qF 'FAIL tests/a.sh: expected 2, got 3' <<<"$l"
 ok "… read from the failing job" has gh.log "run view --job 77 -R example-org/web --log-failed"
 ok "… no merge" hasnt git.log "merge --no-edit"
@@ -116,7 +134,7 @@ echo 2 > "$FAKE/behind"; printf 'src/a.ts\nsrc/b.ts\n' > "$FAKE/merge-conflict"
 dispatch --once
 ok "a merge of main that conflicts is aborted" has git.log "merge --abort"
 ok "… nothing pushed" hasnt git.log "push"
-ok "… a fresh session resolves it, told the files" grep -q -- '--fresh .*web 5 Merging origin/main into the branch of PR #50 conflicts in: src/a.ts src/b.ts' <<<"$(wline)"
+ok "… a fresh session resolves it, told the files" grep -q -- '--fresh .*web 5 Rules for this run: .* Merging origin/main into the branch of PR #50 conflicts in: src/a.ts src/b.ts' <<<"$(wline)"
 ok "… not a fix attempt" eq "$(st 5 fixes)" ""
 
 redenv red-no-worktree
@@ -205,7 +223,7 @@ state 5 phase=work "started=$NOW"; last 5 'error: ended with background work pen
 dispatch --once; dispatch --once
 ok "background pending: said in the log, never as done" grep -q '#5 worker ended with background work pending' "$CANCCU_HOME/dispatch.log"
 l=$(wline)
-ok "… no PR but commits: one fresh finish run" grep -q -- ' --fresh .*web 5 Finish: your earlier run ended with work in this worktree and no PR' <<<"$l"
+ok "… no PR but commits: one fresh finish run" grep -q -- ' --fresh .*web 5 Rules for this run: .* Finish: your earlier run ended with work in this worktree and no PR' <<<"$l"
 ok "… with the handoff, not the whole task again" eq "$(grep -c 'This run is a fresh session' <<<"$l") $(grep -c 'abc1234 test: the failing test' <<<"$l")" "1 1"
 ok "… no needs-you yet" hasnt gh.log "needs-you"
 ok "… and it is had once" eq "$(st 5 finish_tried)" 1
@@ -214,7 +232,7 @@ last 5 done 'still no PR'; touch -d "@$((NOW + 120))" "$WORKERS_DIR/web-5.last"
 rm -f "$WORKERS_DIR/web-5.lock"; lib st_set 5 phase=work "started=$((NOW + 60))"
 dispatch --once; dispatch --once
 ok "… a second run without a PR → needs-you" has gh.log "the worker finished without an open PR"
-ok "… no second finish run" eq "$(grep -c 'web 5 Finish:' "$FAKE/worker.log")" 1
+ok "… no second finish run" eq "$(grep -c 'web 5 Rules for this run: .* Finish:' "$FAKE/worker.log")" 1
 
 # uncommitted work only counts too
 env_new finish-dirty
@@ -222,7 +240,7 @@ env_new finish-dirty
 wt5; printf ' M src/a.ts\n' > "$FAKE/dirty"
 state 5 phase=work "started=$NOW"; last 5 done 'all done, I think'
 dispatch --once; dispatch --once
-ok "uncommitted work, no PR: the finish run" grep -q 'web 5 Finish:' "$FAKE/worker.log"
+ok "uncommitted work, no PR: the finish run" grep -q 'web 5 Rules for this run: .* Finish:' "$FAKE/worker.log"
 
 # nothing in the worktree: needs-you at once, as before
 env_new finish-nothing
@@ -250,7 +268,7 @@ env_new handoff-limited
 json issue5.json '{"title": "Issue 5", "comments": []}'; route 'issue view 5 *' issue5.json
 wt5; printf 'abc1234 feat: the thing\n' > "$FAKE/gitlog"
 h=$( ( PATH="$fb:$PATH"; CANCCU_WORKER="$fb/worker"; . "$root/lib/canccu-common.sh"; set -u; handoff 5 limited ) 2>"$E/err")
-ok "handoff K limited under set -u: the standing orders" grep -qF "standing orders of the first run (the branch exists already): $(lib unit_prompt 5)" <<<"$h"
+ok "handoff K limited under set -u: it runs to its last line" grep -qF "This run is on issue #5, branch" <<<"$h"
 ok "… nothing on stderr" eq "$(cat "$E/err")" ""
 
 echo "canccu-followup tests: $npass passed, $nfail failed"

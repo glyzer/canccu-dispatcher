@@ -6,18 +6,53 @@
 
 # pr_gone <n> <pr>: the PR left the open list while the issue is open. The health pass's PR:
 # health_pr_closed (a close) or finish_unit (a merge) takes it from here. A merged plan-only PR:
-# plan_back. Another merged one: finish_unit, once GitHub closes the issue.
+# plan_back. Another merged one: merged_left.
 pr_gone() {
   local j
   is_health "$1" && return 0
-  j=$(ghj pr view "$2" -R "$REPO" --json state,body,closingIssuesReferences,headRefName) || return 0
+  j=$(ghj pr view "$2" -R "$REPO" --json state,title,body,closingIssuesReferences,headRefName) || return 0
   case $(jqr .state <<<"$j") in
     CLOSED) needs_you "$1" "PR #$2 was closed without merging" ;;
     MERGED)
       if is_contract_pr "$1" "$(jqr '.headRefName // ""' <<<"$j")"; then contract_back "$1" "$2"
-      else plan_pr_merged "$1" "$j" && plan_back "$1" "$2" "$(jqr '.headRefName // ""' <<<"$j")"; fi ;;
+      elif plan_pr_merged "$1" "$j"; then plan_back "$1" "$2" "$(jqr '.headRefName // ""' <<<"$j")"
+      else merged_left "$1" "$2" "$j"; fi ;;
   esac
   return 0
+}
+
+# merged_left <K> <pr> <pr view json>: the unit's PR merged with a member still open. One its
+# `Closes` names is closed by GitHub a moment later: wait for that (gone_at), at most
+# MERGE_WAIT_MIN. A member it does not name (or one still open after the wait) never closes on its
+# own; parking the unit would block the `ready` that restarts it, so the unit is released and the
+# member waits for a person with needs-you. The open list is capped: a member missing from it is
+# confirmed with gh, and a gh error decides nothing (the next pass tries again).
+merged_left() {
+  local k=$1 pr=$2 j=$3 m l r s left=() open=() closed=() at
+  for m in $(members_of "$k"); do
+    if _issue_open "$m"; then s=OPEN
+    else s=$(ghj issue view "$m" -R "$REPO" --json state -q .state) && [ -n "$s" ] ||
+      { log "#$k: gh error reading issue #$m; retrying next pass"; return 0; }
+    fi
+    if [ "$s" != OPEN ]; then closed+=("$m"); continue; fi
+    open+=("$m")
+    [ "$(jqr --argjson m "$m" 'any(.closingIssuesReferences[]?; .number == $m)' <<<"$j")" = true ] || left+=("$m")
+  done
+  if (( ! ${#left[@]} )); then
+    at=$(st_get "$k" gone_at)
+    [ -n "$at" ] || { st_set "$k" gone_at="$(now)"; return 0; }
+    (( $(now) - at > MERGE_WAIT_MIN * 60 )) || return 0
+    left=("${open[@]}")
+  fi
+  unit_merged "$k" "$pr" "$(jqr '.title // ""' <<<"$j")" "${closed[@]}"
+  for m in "${left[@]}"; do
+    r=(); for l in in-progress awaiting-accept; do has_label "$m" "$l" && r+=(--remove-label "$l"); done
+    mut gh issue edit "$m" -R "$REPO" --add-label needs-you "${r[@]}"
+    mut gh issue comment "$m" -R "$REPO" --body "**Needs you** (canccu-dispatch): PR #$pr merged but did not close this issue. The dispatcher no longer manages it. If the work is done, close the issue. If work is left, remove \`needs-you\` and add \`ready\`: a new worker starts from main."$'\n\n'"$CANCCU_MARK"
+  done
+  step_unit_finished "$k" MERGED "$pr" "$(jqr '.body // ""' <<<"$j")"
+  st_rm "$k"
+  log "#$k PR #$pr merged but left $(printf '#%s, ' "${left[@]}" | sed 's/, $//') open: needs-you, unit released"
 }
 
 # contract_back <K> <pr>: the unit's contract-first PR merged (is_contract_pr); its issues stay
@@ -291,27 +326,36 @@ unit_cleanup() {
   for m in $(members_of "$n"); do blocked_unmark "$m"; done
 }
 
+# unit_merged <K> <pr> <PR title> <closed member...>: the record and cleanup of a merged unit
+# (finish_unit, merged_left); the closed members unblock what they blocked and close their epics
+unit_merged() {
+  local n=$1 pr=$2 title=$3 how m; shift 3
+  how=$(st_get "$n" how)
+  (( CANCCU_DRY )) || printf '%s\t%s\t%s\t%s\t%s\n' "$(now)" "$n" "$pr" "${how:-by hand}" "$title" >> "$CANCCU_HOME/merged.log"
+  log "#$n merged (PR #$pr, ${how:-by hand})"
+  unit_cleanup "$n" "$pr"
+  [ "$(guard 10 git -C "$CLONE" branch --show-current)" = main ] && { mut git -C "$CLONE" pull -q --ff-only || log "git pull in $CLONE failed"; }
+  for m; do advance "$m"; close_epics "$m"; done
+}
+
 # finish_unit <K>: a managed unit is closed: an issue; a package with every issue closed; the
 # health pass with its PR merged (or nothing to do)
 finish_unit() {
-  local n=$1 pr how state=none j l m lbls="" title="" body=""
+  local n=$1 pr state=none j l m lbls="" title="" body=""
   # the open list is capped, so confirm before cleaning up
   for m in $(members_of "$n"); do
     j=$(ghj issue view "$m" -R "$REPO" --json state,labels) || { log "#$n: gh error reading issue #$m; retrying next pass"; return; }
     [ "$(jqr .state <<<"$j")" = CLOSED ] || { log "#$n: #$m is open but missing from the issue list; skipped"; return; }
     lbls+="$m $(jqr '[.labels[].name] | join(" ")' <<<"$j")"$'\n'
   done
-  pr=$(st_get "$n" pr); how=$(st_get "$n" how)
+  pr=$(st_get "$n" pr)
   if [ -n "$pr" ]; then
     j=$(ghj pr view "$pr" -R "$REPO" --json state,title,body) || { log "#$n: gh error reading PR #$pr; retrying next pass"; return; }
     state=$(jqr .state <<<"$j"); title=$(jqr .title <<<"$j"); body=$(jqr '.body // ""' <<<"$j")
   fi
   if [ "$state" = MERGED ]; then
-    (( CANCCU_DRY )) || printf '%s\t%s\t%s\t%s\t%s\n' "$(now)" "$n" "$pr" "${how:-by hand}" "$title" >> "$CANCCU_HOME/merged.log"
-    log "#$n merged (PR #$pr, ${how:-by hand})"
-    unit_cleanup "$n" "$pr"
-    [ "$(guard 10 git -C "$CLONE" branch --show-current)" = main ] && { mut git -C "$CLONE" pull -q --ff-only || log "git pull in $CLONE failed"; }
-    for m in $(members_of "$n"); do advance "$m"; close_epics "$m"; done
+    # shellcheck disable=SC2046  # issue numbers: one word each
+    unit_merged "$n" "$pr" "$title" $(members_of "$n")
   else
     log "#$n closed without a merged PR; its worktree is kept"
     mut rm -f "$(qfile "$n")"

@@ -4,6 +4,21 @@
 Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 `canccu-dispatcher --version` prints it.
 
+## Unreleased
+
+- A merged PR that leaves an issue of its unit open no longer parks the unit for good: the issue
+  gets `needs-you` and a comment, and the unit is released; `ready` builds it again from main. An
+  issue its `Closes` names gets `MERGE_WAIT_MIN` to be closed by GitHub first. A finished
+  package's issue that is open again no longer stops its step (#86).
+- Contract-first PRs work for single issues: the issue's branch is kept in its state, and its
+  prompt has the same contract rule as a package's. A PR that names no issue (no `Closes`, no
+  `Plan for`) is never merged automatically, whatever its branch (#87).
+- A contract-first PR that GitHub would treat as closing an issue never reaches a review or an
+  accept: the worker is resumed once to correct its body, then `needs-you` (#98).
+- A fresh follow-up run always keeps its safety rules: they come first in its prompt, and the
+  handoff no longer repeats the whole first prompt. A fix round's long findings are read from the
+  findings file. Workers use no subagents, packages included (#88).
+
 ## [0.1.2] — 2026-11-10
 
 Fewer false alarms and wasted runs, plan-only PRs, and the repo's own merge method (PR #60).

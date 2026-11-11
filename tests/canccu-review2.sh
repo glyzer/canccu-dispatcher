@@ -41,7 +41,7 @@ ok "… its open items are saved for a later fix-check" grep -qF 'src/a.ts:3 sti
 ok "… the needs-you names needs-work and the full review line" grep -qF 'with `needs-work`, a line `full review` in your comment asks for a new full review instead' "$CANCCU_HOME/dispatch.log"
 dispatch --once
 ok "needs-work after the fix-check: the worker resumes for one more fix round" \
-  grep -q 'web 5 The user asked for one more fix round on PR #50 (needs-work) for the open items of its fix-check.*src/a.ts:3 still uses <.*Their comments: Only the off-by-one is left' "$FAKE/worker.log"
+  grep -q 'web 5 Rules for this run: .* The user asked for one more fix round on PR #50 (needs-work) for the open items of its fix-check.*src/a.ts:3 still uses <.*Their comments: Only the off-by-one is left' "$FAKE/worker.log"
 ok "… a narrow fix-check of this fix follows, the worker is told" grep -qF 'A narrow fix-check of this fix diff against those items follows' "$FAKE/worker.log"
 ok "… needs-work removed" has gh.log "issue edit 5 -R example-org/web --remove-label needs-work"
 ok "… still in the fix round, from the head with open items" eq "$(st 5 stage) $(st 5 reviewed_sha)" "fixing $HB"
@@ -95,7 +95,7 @@ sed -i '/^fail:pr merge$/d' "$FAKE/routes"
 { issue 5 in-progress,needs-you,needs-work; } | issues
 json issue5.json "$(comment 2030-11-05T13:00:00Z 'Merge main and look at the layout again.' | jq -s '{comments: .}')"
 : > "$FAKE/worker.log"; dispatch --once
-ok "… then needs-work: the worker resumes as before" grep -q 'web 5 The user rejected PR #50 (needs-work)' "$FAKE/worker.log"
+ok "… then needs-work: the worker resumes as before" grep -q 'web 5 Rules for this run: .* The user rejected PR #50 (needs-work)' "$FAKE/worker.log"
 ok "… not a fix round for the old items" not grep -q 'one more fix round' "$FAKE/worker.log"
 ok "… a new cycle: the next review is a full one" eq "$(st 5 stage)|$(st 5 reviewed_sha)|$(st 5 open_sha)" "||"
 
@@ -127,7 +127,7 @@ ok "… next pass: the full review line is read, a new cycle" eq "$(grep -c 'The
 # the lead forces a full review with a `full review` line in the comment
 nwenv nw-force $'Broader problems with the layout.\n\nFull review'
 dispatch --once
-ok "needs-work with a full review line: the worker resumes as before" grep -q 'web 5 The user rejected PR #50 (needs-work)' "$FAKE/worker.log"
+ok "needs-work with a full review line: the worker resumes as before" grep -q 'web 5 Rules for this run: .* The user rejected PR #50 (needs-work)' "$FAKE/worker.log"
 ok "… a new cycle: the next review is a full one" eq "$(st 5 stage)|$(st 5 reviewed_sha)|$(st 5 open_sha)" "||"
 # a quote-reply of the fix-check: its verdict line is quoted, the comment ends in the lead's own words
 nwenv nw-quoted $'> 1. src/a.ts:3 still uses <\n>\n> Review verdict: changes '"$HB"$'\n\nFull review'
@@ -153,7 +153,7 @@ state 5 phase=needs-you ny_stage=merge pr=50 stage=fixcheck review_mode=fixcheck
   merge_sha=$HB "merge_at=$NOW" verdict_at=2030-11-05T11:30:00Z
 { issue 5 in-progress,awaiting-accept,needs-you,needs-work; } | issues
 dispatch --once
-ok "needs-work after a stopped merge: the worker resumes as before" grep -q 'web 5 The user rejected PR #50 (needs-work)' "$FAKE/worker.log"
+ok "needs-work after a stopped merge: the worker resumes as before" grep -q 'web 5 Rules for this run: .* The user rejected PR #50 (needs-work)' "$FAKE/worker.log"
 ok "… a new cycle: the next review is a full one" eq "$(st 5 stage)|$(st 5 reviewed_sha)|$(st 5 open_sha)" "||"
 ok "… awaiting-accept removed" has gh.log "issue edit 5 -R example-org/web --remove-label awaiting-accept"
 
@@ -163,7 +163,7 @@ state 5 phase=accept pr=50 accept_sha=$HB "accept_at=$NOW" stage=fixcheck review
   open_sha=$HB verdict_at=2030-11-05T11:30:00Z
 { issue 5 in-progress,awaiting-accept,needs-work; } | issues
 dispatch --once
-ok "needs-work on a refused accept: the worker resumes as before" grep -q 'web 5 The user rejected PR #50 (needs-work)' "$FAKE/worker.log"
+ok "needs-work on a refused accept: the worker resumes as before" grep -q 'web 5 Rules for this run: .* The user rejected PR #50 (needs-work)' "$FAKE/worker.log"
 ok "… a new cycle: the next review is a full one" eq "$(st 5 stage)|$(st 5 reviewed_sha)|$(st 5 open_sha)" "||"
 
 echo "canccu-review2 tests: $npass passed, $nfail failed"

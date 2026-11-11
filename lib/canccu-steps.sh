@@ -428,18 +428,13 @@ step_holds_epic() {
   done
   return 1
 }
-# step_stop_reason <m>: what the dispatcher does not handle on its own, for the lead: a finished
-# package's issue open again in the step, an open checkpoint or new open work after the step was
-# done, its epic closed while it runs. Nothing when there is none.
+# step_stop_reason <m>: what the dispatcher does not handle on its own, for the lead: an open
+# checkpoint or new open work after the step was done, its epic closed while it runs. Nothing when
+# there is none. A finished package's issue open again is not one: like any issue of the step, the
+# planner takes it with `ready` (merged_left leaves one with needs-you until a person looked).
 step_stop_reason() {
-  local m=$1 t k nm w is rk pr out i c e
+  local m=$1 t c e
   t=$(step_title "$m")
-  while IFS=$'\t' read -r k nm w is rk pr out; do
-    for i in $is; do
-      jqr --argjson n "$i" --arg t "$t" 'any(.[]; .number == $n and (.milestone.title // null) == $t)' <<<"$ISSUES" | grep -qx true &&
-        { echo "issue #$i of package $nm (${out}${pr:+, PR #$pr}) is open again"; return 0; }
-    done
-  done < <(cat "$CANCCU_HOME/steps/$m.packages" 2>/dev/null)
   if [ -n "$(step_get "$m" done_at)" ]; then
     c=$(cur "$m" 'select(.checkpoint.state == "open") | .checkpoint.issue')
     [ -n "$c" ] && { echo "checkpoint #$c is open again, but the step was done"; return 0; }

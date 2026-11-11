@@ -138,17 +138,18 @@ ok "… a failed post's needs-you label goes" has gh.log "issue edit 5 -R exampl
 
 # ---------------------------------------------------------------- 6 and 7: the planner while the step is stopped, dry-run
 
-# stopenv <name>: step 12 planning wave 1 (issue 103); #101 of a merged package is open again: a stop
+# stopenv <name>: step 12 planning wave 1 (issue 103); its epic #90 is closed: a stop (said on the
+# checkpoint #95)
 stopenv() {
   senv "$1" 0
-  { issue 90 epic "" "3 Events"; issue 101 ready "" "3 Events"; issue 103 ready "" "3 Events"; } | issues
+  { issue 95 checkpoint "" "3 Events"; issue 103 ready "" "3 Events"; } | issues
   mkdir -p "$CANCCU_HOME/steps"
   printf 'phase=planning\nwave=0\nstarted_at=%s\ntitle=3 Events\nepic=90\ncheckpoint=95\nplan_issues=103 \nplanner_wave=1\nplanner_started=%s\n' \
     "$((NOW - 3600))" "$((NOW - 60))" > "$CANCCU_HOME/steps/12"
   printf '101\ta\t1\t101\tnormal\t50\tmerged\n' > "$CANCCU_HOME/steps/12.packages"
   live_lock plan-12
 }
-stops() { grep -c '^issue comment 90 .*Nothing of this step starts' "$FAKE/gh.log"; }
+stops() { grep -c '^issue comment 95 .*Nothing of this step starts' "$FAKE/gh.log"; }
 PLAN_C='{"schema":1,"step":12,"wave":1,"packages":[{"name":"c","issues":[103],"risk":"low","risk_reason":"x","areas":[],"depends_on":[]}]}'
 stopenv stop-planner
 dispatch --once
@@ -158,14 +159,14 @@ dispatch --once; dispatch --once
 ok "stop: the planner ends with a valid plan while stopped → no second stop comment" eq "$(stops)" 1
 ok "… the stop and its reason stay; the wave waits for it" \
   eq "$(stepv phase) $(stepv ny_kind) $(stepv ny_from)" "needs-you stop running"
-ok "… the reason is kept" grep -q '^ny_reason=issue #101 of package a' "$CANCCU_HOME/steps/12"
+ok "… the reason is kept" grep -q '^ny_reason=its epic #90 is closed while the step runs' "$CANCCU_HOME/steps/12"
 
 stopenv stop-planner-invalid
 dispatch --once
 rm -f "$WORKERS_DIR/web-plan-12.lock"; last plan-12 done 'not a plan'
 dispatch --once; dispatch --once
 ok "stop: an invalid plan while stopped → the lead is told, the stop is not posted again" \
-  eq "$(stops) $(grep -c '^issue comment 90 .*the plan of wave 1 is invalid' "$FAKE/gh.log") $(stepv ny_kind)" "1 1 stop"
+  eq "$(stops) $(grep -c '^issue comment 95 .*the plan of wave 1 is invalid' "$FAKE/gh.log") $(stepv ny_kind)" "1 1 stop"
 { issue 90 epic,needs-you "" "3 Events"; issue 103 ready "" "3 Events"; } | issues
 dispatch --once
 ok "… the stop resolved: the step waits on the invalid plan, with its reason, no new planner" \
@@ -224,7 +225,7 @@ dispatch --once
 S=$CANCCU_HOME/status.json
 ok "snapshot: a stopped step → needs_you needs-you naming the stop" \
   eq "$(jq -r '[.needs_you[] | select(.step == 12) | "\(.kind) | \(.reason)"] | join(" ; ")' "$S")" \
-  "needs-you | step 3 Events stopped: issue #101 of package a (merged, PR #50) is open again"
+  "needs-you | step 3 Events stopped: its epic #90 is closed while the step runs"
 
 # canccu-ship refuses an issue the dispatcher does not manage (and that is not in progress)
 env_new ship-unmanaged
@@ -253,12 +254,12 @@ stopenv stop-over-plan
 rm -f "$WORKERS_DIR/web-plan-12.lock"
 sed -i 's/^phase=planning/phase=needs-you/; /^planner_started=/d' "$CANCCU_HOME/steps/12"
 echo 'ny_reason=the plan of wave 1 is invalid: x' >> "$CANCCU_HOME/steps/12"
-{ issue 90 epic,needs-you "" "3 Events"; issue 101 ready "" "3 Events"; issue 103 ready "" "3 Events"; } | issues
+{ issue 95 checkpoint "" "3 Events"; issue 103 ready "" "3 Events"; } | issues
 dispatch --once
 ok "stop over a plan's needs-you: the stop is raised" eq "$(stepv ny_kind)" stop
 S=$CANCCU_HOME/status.json
 ok "… the snapshot names the stop, then the plan" \
-  grep -qF 'step 3 Events stopped: issue #101 of package a (merged, PR #50) is open again; then: the plan of wave 1 is invalid: x' \
+  grep -qF 'step 3 Events stopped: its epic #90 is closed while the step runs; then: the plan of wave 1 is invalid: x' \
   <<<"$(jq -r '.needs_you[] | select(.step == 12) | .reason' "$S")"
 { issue 90 epic,needs-you "" "3 Events"; issue 103 ready "" "3 Events"; } | issues
 dispatch --once

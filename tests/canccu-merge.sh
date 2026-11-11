@@ -168,7 +168,156 @@ env_new built-after-plan-ok
 state 5 phase=merging pr=50 merge_sha=$HA how=auto "merge_at=$((NOW - 600))" plan_ok=1
 json pr50.json "$(jq -n --arg b "$PLAN_BODY" '{state: "MERGED", body: $b, closingIssuesReferences: [], headRefName: "5-thing"}')"; route 'pr view 50 *' pr50.json
 dispatch --once
-ok "a PR merged after plan-ok is the build, never a plan sent back to the queue" eq "$(test -e "$CANCCU_HOME/state/5" && echo managed) $(grep -c 'add-label plan-ok' "$FAKE/gh.log")" "managed 0"
+ok "a PR merged after plan-ok is the build, never a plan sent back to the queue: released with needs-you (#86)" \
+  eq "$(test -e "$CANCCU_HOME/state/5" && echo managed) $(grep -c 'add-label plan-ok' "$FAKE/gh.log") $(grep -c '^issue edit 5 .*--add-label needs-you' "$FAKE/gh.log")" " 0 1"
+
+# ---------------------------------------------------------------- a merged PR that leaves its issue open (#86)
+
+# gone_env <name> <unit key> <PR view json> <state lines...>: the unit is in merging with PR 50,
+# which merged; its worktree and session id are there
+gone_env() {
+  local k=$2 wt
+  env_new "$1"
+  json pr50.json "$3"; route 'pr view 50 *' pr50.json
+  shift 3
+  state "$k" phase=merging pr=50 merge_sha=$HA how=auto "merge_at=$((NOW - 600))" "$@"
+  if [[ $k == pkg-* ]]; then wt=$WORKERS_DIR/worktrees/web/$k; else wt=$WORKERS_DIR/worktrees/web/issue-$k; fi
+  mkdir -p "$wt"; : > "$wt/.git"; echo sid > "$WORKERS_DIR/web-$k.id"
+}
+NOCLOSE='{"state": "MERGED", "title": "Add a thing", "body": "Tier: fix", "closingIssuesReferences": [], "headRefName": "5-thing"}'
+CLOSES5='{"state": "MERGED", "title": "Add a thing", "body": "Closes #5", "closingIssuesReferences": [{"number": 5}], "headRefName": "5-thing"}'
+NY5='^issue comment 5 .*PR #50 merged but did not close this issue. The dispatcher no longer manages it. If the work is done, close the issue. If work is left, remove `needs-you` and add `ready`: a new worker starts from main.'
+
+gone_env merged-left 5 "$NOCLOSE"
+{ issue 5 in-progress; } | issues
+dispatch --once
+ok "a merged PR that closes nothing → needs-you on the issue, in-progress off" \
+  has gh.log "issue edit 5 -R example-org/web --add-label needs-you --remove-label in-progress"
+ok "… with the comment, once" eq "$(grep -c "$NY5" "$FAKE/gh.log")" 1
+ok "… released: no state, no session id, its worktree removed" \
+  eq "$(test -e "$CANCCU_HOME/state/5" && echo state)$(test -e "$WORKERS_DIR/web-5.id" && echo sid) $(grep -c "worktree remove --force $WORKERS_DIR/worktrees/web/issue-5$" "$FAKE/git.log")" " 1"
+ok "… merged.log has the merge" grep -qE "^[0-9]+	5	50	auto	Add a thing$" "$CANCCU_HOME/merged.log"
+ok "… logged" grep -qF '#5 PR #50 merged but left #5 open: needs-you, unit released' "$CANCCU_HOME/dispatch.log"
+{ issue 5 ready; } | issues
+: > "$FAKE/routes"; dispatch --once
+ok "… with \`ready\` and without needs-you, the next pass starts it as a new unit" eq "$(started 5 && echo started) $(st 5 phase)" "started work"
+
+gone_env merged-left-dry 5 "$NOCLOSE"
+{ issue 5 in-progress; } | issues
+dispatch --dry-run
+ok "a dry run releases nothing" \
+  eq "$(st 5 phase) $(grep -cE '^issue (edit|comment)' "$FAKE/gh.log") $(test -e "$CANCCU_HOME/merged.log" && echo log)$(test -e "$WORKERS_DIR/web-5.id" && echo sid)" "merging 0 sid"
+
+gone_env merged-closes 5 "$CLOSES5"
+{ issue 5 in-progress; } | issues
+dispatch --once
+ok "a merged PR whose Closes names the still open issue → no needs-you on the first pass, gone_at set" \
+  eq "$(grep -c needs-you "$FAKE/gh.log") $(st 5 gone_at) $(st 5 phase)" "0 $NOW merging"
+dispatch --once
+ok "… nor on the next pass within MERGE_WAIT_MIN" eq "$(grep -c needs-you "$FAKE/gh.log") $(st 5 gone_at)" "0 $NOW"
+sed -i "s/^gone_at=.*/gone_at=$((NOW - 241 * 60))/" "$CANCCU_HOME/state/5"
+dispatch --once
+ok "… still open after MERGE_WAIT_MIN → released with needs-you" \
+  eq "$(grep -c "$NY5" "$FAKE/gh.log") $(test -e "$CANCCU_HOME/state/5" && echo state)" "1 "
+
+gone_env merged-pkg pkg-1-a '{"state": "MERGED", "title": "Package a", "body": "Closes #6", "closingIssuesReferences": [{"number": 6}], "headRefName": "pkg-1-a"}' \
+  pkg=a "members=5 6" branch=pkg-1-a
+{ issue 5 in-progress; } | issues
+json i6.json '{"state": "CLOSED"}'; route 'issue view 6 *' i6.json
+dispatch --once
+ok "a package PR that closes one of two members → only the open one gets needs-you" \
+  eq "$(grep -c '^issue edit 5 .*--add-label needs-you' "$FAKE/gh.log") $(grep -c '^issue edit 6 .*needs-you' "$FAKE/gh.log") $(grep -c "$NY5" "$FAKE/gh.log")" "1 0 1"
+ok "… the closed one is advanced (what it blocked is looked at)" has gh.log "api repos/example-org/web/issues/6/dependencies/blocking"
+ok "… the open one is not" hasnt gh.log "api repos/example-org/web/issues/5/dependencies/blocking"
+ok "… the package is released" eq "$(test -e "$CANCCU_HOME/state/pkg-1-a" && echo state)" ""
+
+# the open list is capped: a member missing from it is confirmed with gh issue view
+gone_env merged-pkg-cap pkg-1-a '{"state": "MERGED", "title": "Package a", "body": "Tier: fix", "closingIssuesReferences": [], "headRefName": "pkg-1-a"}' \
+  pkg=a "members=5 6" branch=pkg-1-a
+{ issue 5 in-progress; } | issues
+json i6.json '{"state": "OPEN"}'; route 'issue view 6 *' i6.json
+dispatch --once
+ok "a package member missing from the issue list but OPEN on gh → needs-you on it too" \
+  eq "$(grep -c '^issue edit 5 .*--add-label needs-you' "$FAKE/gh.log") $(grep -c '^issue edit 6 .*--add-label needs-you' "$FAKE/gh.log")" "1 1"
+ok "… it is not advanced, nor are its epics closed" \
+  eq "$(grep -c 'issues/6/dependencies/blocking' "$FAKE/gh.log") $(grep -c '^issue close' "$FAKE/gh.log")" "0 0"
+ok "… logged with both" grep -qF '#pkg-1-a PR #50 merged but left #5, #6 open: needs-you, unit released' "$CANCCU_HOME/dispatch.log"
+
+gone_env merged-pkg-cap-err pkg-1-a "$NOCLOSE" pkg=a "members=5 6" branch=pkg-1-a
+{ issue 5 in-progress; } | issues
+route 'issue view 6 *' FAIL
+dispatch --once
+ok "… a gh error reading it releases nothing: no needs-you, the state is kept" \
+  eq "$(grep -c needs-you "$FAKE/gh.log") $(st pkg-1-a phase) $(test -e "$WORKERS_DIR/web-pkg-1-a.id" && echo sid)" "0 merging sid"
+ok "… logged" grep -qF '#pkg-1-a: gh error reading issue #6; retrying next pass' "$CANCCU_HOME/dispatch.log"
+
+# #87: a single issue's contract-first PR is known by its branch, as a package's is
+gone_env contract-single 5 '{"state": "MERGED", "title": "The contract", "body": "Refs #5", "closingIssuesReferences": [], "headRefName": "5-issue-5-contract"}' \
+  branch=5-issue-5
+{ issue 5 in-progress; } | issues
+dispatch --once
+ok "a single issue's contract PR merged, closing nothing → contract_back: still managed, back in check, no needs-you" \
+  eq "$(st 5 phase) $(st 5 contract_merged) $(grep -c needs-you "$FAKE/gh.log")" "check 50 0"
+
+# #98: a contract PR that GitHub links as closing an issue never reaches a review or an accept
+# cfix <name> <unit> <members> <branch> <closes> [comment]: the unit in check on its draft PR 50
+# and its contract PR 51 (CI green), whose closingIssuesReferences is <closes>
+cfix() {
+  local k=$2 c p
+  env_new "$1"
+  if [ "${k#pkg-}" != "$k" ]; then
+    { issue 101 in-progress "" "3 Events"; issue 103 in-progress "" "3 Events"; } | issues
+    state "$k" pkg=auth step=12 "members=$3" "branch=$4" risk=normal phase=check pr=50 "check_at=$NOW"
+  else
+    { issue "$k" in-progress; } | issues
+    state "$k" "branch=$4" phase=check pr=50 "check_at=$NOW"
+  fi
+  p=$(PR_BRANCH=$4 pr 50 0 "$HA" green "" true "" | jq --arg c "$3" '.closingIssuesReferences = ($c | split(" ") | map({number: tonumber}))')
+  c=$(PR_BRANCH=$4-contract pr 51 0 "$HB" green "" false $'Refs #101\nthe package PR, which closes #101' |
+    jq --arg c "$5" '.closingIssuesReferences = ($c | split(" ") | map(select(. != "") | {number: tonumber}))')
+  printf '%s\n' "$p" "$c" | prs
+  json pr51.json "$(detail "$c" 2030-11-05T10:00:00Z ${6:+"$6"})"; route 'pr view 51 *' pr51.json
+  json files51.json '[{"filename": "contracts/a.yaml"}]'; route 'api --paginate repos/example-org/web/pulls/51/files*' files51.json
+  json i101.json '{"labels": [{"name": "in-progress"}]}'; route 'issue view 101 *' i101.json
+  json i103.json '{"labels": [{"name": "in-progress"}]}'; route 'issue view 103 *' i103.json
+  echo sid > "$WORKERS_DIR/web-$k.id"
+}
+CFIX="PR #51 is the contract PR, but GitHub links it as closing #101: its merge would close the issue with only the contract done."
+cfix contract-closes pkg-12-auth "101 103" pkg-12-auth 101
+dispatch --once
+ok "contract closes: a package's contract PR linked as closing a member → its worker is resumed with the text" \
+  grep -qF -- "--key pkg-12-auth --dir" "$FAKE/worker.log" && grep -qF "web pkg-12-auth $CFIX" "$FAKE/worker.log"
+ok "… told to write Refs and change only the body" grep -qF 'write `Refs #101` and "the unit'"'"'s own PR implements #101". Change no file and push nothing. Then stop.' "$FAKE/worker.log"
+ok "… body_fix is set" eq "$(st pkg-12-auth body_fix)" 51
+ok "… no reviewer starts, no accept is asked" eq "$(grep -c -- '--key review-' "$FAKE/worker.log") $(grep -c 'awaiting-accept\|needs-you' "$FAKE/gh.log")" "0 0"
+ok "… logged" grep -q 'pkg-12-auth PR #51: the contract PR would close #101; the worker corrects the body' "$CANCCU_HOME/dispatch.log"
+: > "$FAKE/worker.log"; sed -i '/^phase=/d' "$CANCCU_HOME/state/pkg-12-auth"; echo phase=check >> "$CANCCU_HOME/state/pkg-12-auth"
+rm -f "$WORKERS_DIR"/web-pkg-12-auth.lock
+dispatch --once
+ok "contract closes: still linked on the next pass with body_fix set → needs-you, no worker run" \
+  eq "$(st pkg-12-auth phase) $(grep -c . "$FAKE/worker.log")" "needs-you 0"
+ok "… with the text" grep -qF 'PR #51 is the contract PR but GitHub still links it as closing #101: edit the PR body so that no closing keyword stands before an issue number' "$FAKE/gh.log"
+
+cfix contract-fixed pkg-12-auth "101 103" pkg-12-auth "" ; echo body_fix=51 >> "$CANCCU_HOME/state/pkg-12-auth"
+dispatch --once
+ok "contract closes: once the links are gone the pass goes on to the review" grep -q -- '--key review-51 ' "$FAKE/worker.log"
+cfix contract-passed pkg-12-auth "101 103" pkg-12-auth "" "$(vcomment 2030-11-05T11:00:00Z "ok
+Review verdict: pass $HB")"
+echo body_fix=51 >> "$CANCCU_HOME/state/pkg-12-auth"
+dispatch --once
+ok "… a pass verdict already on that head is acted on without a new review" \
+  eq "$(grep -c -- '--key review-' "$FAKE/worker.log") $(st pkg-12-auth phase)" "0 merging"
+
+cfix contract-closes-issue 5 5 5-issue-5 5
+dispatch --once
+ok "contract closes: a single issue's contract PR linked as closing it → its worker is resumed, body_fix set" \
+  eq "$(grep -cF -- "PR #51 is the contract PR, but GitHub links it as closing #5:" "$FAKE/worker.log") $(st 5 body_fix)" "1 51"
+
+cfix contract-closes-dry pkg-12-auth "101 103" pkg-12-auth 101
+before=$(cat "$CANCCU_HOME/state/pkg-12-auth")
+dispatch --dry-run
+ok "contract closes: a dry run changes nothing" \
+  eq "$(grep -c . "$FAKE/worker.log") $(grep -cE '^(issue|pr) (edit|comment)' "$FAKE/gh.log") $([ "$(cat "$CANCCU_HOME/state/pkg-12-auth")" = "$before" ] && echo same)" "0 0 same"
 
 env_new plan-ok-resume
 { issue 5 in-progress,plan-ok; } | issues

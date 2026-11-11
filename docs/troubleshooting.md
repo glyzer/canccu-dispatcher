@@ -51,6 +51,7 @@ are in `workers/` ([`reference/engine.md`](reference/engine.md)).
 | `AUTO-MERGE OFF: …` | `AUTO_MERGE_UNTIL` is set to something that is not a `YYYY-MM-DD` date | Fix or clear it in the project's rules |
 | `awaiting accept (manual: on or after AUTO_MERGE_UNTIL …)` | The freeze date has come: every PR waits for your accept | Accept each PR, or move or clear the date |
 | A PR listed as "not ours" | A fork, another author, another branch name, or an issue the dispatcher does not manage | Expected: the dispatcher never touches it |
+| `needs-you`: `PR #… is the contract PR but GitHub still links it as closing #…` | The contract PR's body has a closing keyword before an issue number, and the worker's one try to fix it did not help | Edit the PR body (`Refs #n`, no close/fix/resolve before a number), then remove `needs-you` |
 | `needs-you` after a merge was armed | No merge within `MERGE_WAIT_MIN`, or someone disabled auto-merge | Look at the merge queue and the required checks |
 
 ## Runs

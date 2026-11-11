@@ -207,6 +207,7 @@ check_pr() {
   esac
   spend_note "$n" "$(st_get "$n" started)" ci=green
   j=$(pr_detail "$pr") || { log "#$n PR #$pr: gh error; retrying next pass"; return; }
+  contract_closes "$n" "$pr" "$j" && return
   head=$(jqr .headRefOid <<<"$j")
   if [ -n "$(verdict_of "$j" "$(st_get "$n" verdict_at)")" ]; then act_verdict "$n" "$pr" "$j"; return; fi
   # a reviewer started earlier (canccu-review) is still running: wait for it, on the head it reviews
@@ -229,6 +230,25 @@ check_pr() {
   if [ -n "$(reviewer_token_problem)" ]; then room || return; else room "$n" || return; fi
   if (( fix )) && [ -n "$rsha" ]; then start_fixcheck "$pr" "$n" "$rsha" "$head"
   else start_review "$pr" "$n" "$head"; fi
+}
+
+# contract_closes <n> <pr> <pr_detail json>: the unit's contract PR is one GitHub links as closing
+# an issue (its keywords count anywhere in the body, prose too): its merge would close the issue
+# with only the contract done. It never reaches a review or an accept: the worker corrects the
+# body once (body_fix; not a fix round of FIX_ATTEMPTS), then the user. 0 when it hit.
+contract_closes() {
+  local n=$1 pr=$2 j=$3 l
+  is_contract_pr "$n" "$(jqr '.headRefName // ""' <<<"$j")" || return 1
+  l=$(jqr '[.closingIssuesReferences[]?.number] | unique | map("#\(.)") | join(", ")' <<<"$j")
+  [ -n "$l" ] || return 1
+  if [ "$(st_get "$n" body_fix)" = "$pr" ]; then
+    needs_you "$n" "PR #$pr is the contract PR but GitHub still links it as closing $l: edit the PR body so that no closing keyword stands before an issue number"
+    return 0
+  fi
+  room "$n" || return 0
+  resume "$n" "PR #$pr is the contract PR, but GitHub links it as closing $l: its merge would close the issue with only the contract done. GitHub reads closing keywords anywhere in a PR body, prose included. Change the PR body only (gh pr edit $pr --body-file <file>): no close, closes, closed, fix, fixes, fixed, resolve, resolves or resolved before an issue number; write \`Refs ${l//, /, Refs }\` and \"the unit's own PR implements $l\". Change no file and push nothing. Then stop." fix || return 0
+  st_set "$n" body_fix="$pr"
+  log "#$n PR #$pr: the contract PR would close $l; the worker corrects the body"
 }
 
 # ci_unpark <n>: a needs-you that only waited on CI (ny_wait=ci: pending past CI_WAIT_MIN, or no
