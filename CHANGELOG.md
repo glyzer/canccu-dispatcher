@@ -13,6 +13,8 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 - Contract-first PRs work for single issues: the issue's branch is kept in its state, and its
   prompt has the same contract rule as a package's. A PR that names no issue (no `Closes`, no
   `Plan for`) is never merged automatically, whatever its branch (#87).
+- A contract-first PR that GitHub would treat as closing an issue never reaches a review or an
+  accept: the worker is resumed once to correct its body, then `needs-you` (#98).
 
 ## [0.1.2] — 2026-11-10
 

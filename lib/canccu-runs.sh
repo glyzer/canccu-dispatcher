@@ -239,7 +239,7 @@ WORKER_PROMPT='You are working on %s issue #%s in this worktree. Follow AGENTS.m
 # contract_rule <branch>: the contract-first rule of the issue and the package prompt.
 # is_contract_pr knows the contract PR only by <branch>-contract, and its merge must close nothing.
 contract_rule() {
-  echo "If the repo's rules make a contract change its own PR that merges first, open it from the branch $1-contract with \`Refs #<n>\` lines and no \`Closes\` line, keep the unit's own PR a draft and stop: the work resumes once the contract PR merged."
+  echo "If the repo's rules make a contract change its own PR that merges first, open it from the branch $1-contract with \`Refs #<n>\` lines and no \`Closes\` line, keep the unit's own PR a draft and stop: the work resumes once the contract PR merged. Never write a closing keyword (close, fix, resolve, in any form) before an issue number anywhere in the contract PR's body, prose included: GitHub would close the issue on merge."
 }
 
 # pr_what <K>: what the unit's PR closes, as the reviewer and fix-check prompts say it

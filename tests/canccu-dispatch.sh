@@ -945,6 +945,9 @@ state pkg-12-a pkg=a step=12 members=101 branch=pkg-12-a risk=low risk_reason=x
 ok "the single-issue prompt has the contract rule for its branch" grep -qF -- "$(lib contract_rule 5-issue-5)" <<<"$(lib eval 'fetch; unit_prompt 5')"
 ok "… the package prompt for its own" grep -qF -- "$(lib contract_rule pkg-12-a)" <<<"$(lib eval 'fetch; unit_prompt pkg-12-a')"
 ok "… which names the contract branch" grep -qF 'from the branch pkg-12-a-contract with `Refs #<n>`' <<<"$(lib contract_rule pkg-12-a)"
+NOKW='Never write a closing keyword (close, fix, resolve, in any form) before an issue number anywhere in the contract PR'
+ok "… the single-issue prompt forbids a closing keyword in the contract PR's body (#98)" grep -qF -- "$NOKW" <<<"$(lib eval 'fetch; unit_prompt 5')"
+ok "… the package prompt too" grep -qF -- "$NOKW" <<<"$(lib eval 'fetch; unit_prompt pkg-12-a')"
 
 echo "canccu-dispatch tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

@@ -63,6 +63,7 @@ cycle), `posted` (the head whose review was posted),
 `ny_kind` (what a `needs-you` waits for: `plan`, `question` or empty), `ny_stage` (where it
 parked), `ny_wait` (`ci`: it only waited on CI), `exclusive` (of the one-at-a-time kind),
 `nb_at` (the verdict whose non-blocking findings were filed), `finish_tried` (its finish session after a run that left work but no PR was had), `no_pr` (its last run finished with no PR: the next resume starts a fresh session), `fixes` and `fixes_pr` (the automatic fix runs on that PR, against `FIX_ATTEMPTS`), `main_merged` (the head a scripted merge of main pushed), `conflict_sha` (the head a conflict run started on), `mm_err` (scripted merges failed in a row), `plan_ok`,
+`body_fix` (the contract PR whose body the worker was resumed once to correct; [`merging.md`](merging.md)),
 `gone_at` (when its merged PR was first seen with an issue it closes still open; [`merging.md`](merging.md#a-merged-pr-that-leaves-its-issue-open)),
 `accept_sha`, `merge_sha` and timestamps. `branch` is the
 unit's branch (a single issue's `<n>-<slug>`, set at its start; an issue started before 0.2 has

@@ -24,6 +24,13 @@ and is classified like the unit's own PR otherwise ([`pipeline.md`](pipeline.md)
 holds for a single issue as for a package: the issue's branch is `<n>-<slug>`, kept in its
 state, so its contract PR is on `<n>-<slug>-contract`.
 
+A contract PR that GitHub links as closing an issue (`closingIssuesReferences`: a closing keyword
+anywhere in its body, prose too) would close the issue with only the contract done. `check_pr`
+looks for that before the verdict, so it never reaches a review or an accept: the worker is
+resumed once to correct the body (`body_fix`; not a fix round of `FIX_ATTEMPTS`). Still linked on
+the next pass: `needs-you`. Once the links are gone the PR goes on as usual; a review that already
+passed on its head is acted on without a new one (a body edit leaves the head as it is).
+
 ### A merged PR that leaves its issue open
 
 A unit's PR that merged while one of its issues is still open (neither a contract PR nor a plan

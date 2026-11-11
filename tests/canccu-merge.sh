@@ -238,6 +238,66 @@ dispatch --once
 ok "a single issue's contract PR merged, closing nothing → contract_back: still managed, back in check, no needs-you" \
   eq "$(st 5 phase) $(st 5 contract_merged) $(grep -c needs-you "$FAKE/gh.log")" "check 50 0"
 
+# #98: a contract PR that GitHub links as closing an issue never reaches a review or an accept
+# cfix <name> <unit> <members> <branch> <closes> [comment]: the unit in check on its draft PR 50
+# and its contract PR 51 (CI green), whose closingIssuesReferences is <closes>
+cfix() {
+  local k=$2 c p
+  env_new "$1"
+  if [ "${k#pkg-}" != "$k" ]; then
+    { issue 101 in-progress "" "3 Events"; issue 103 in-progress "" "3 Events"; } | issues
+    state "$k" pkg=auth step=12 "members=$3" "branch=$4" risk=normal phase=check pr=50 "check_at=$NOW"
+  else
+    { issue "$k" in-progress; } | issues
+    state "$k" "branch=$4" phase=check pr=50 "check_at=$NOW"
+  fi
+  p=$(PR_BRANCH=$4 pr 50 0 "$HA" green "" true "" | jq --arg c "$3" '.closingIssuesReferences = ($c | split(" ") | map({number: tonumber}))')
+  c=$(PR_BRANCH=$4-contract pr 51 0 "$HB" green "" false $'Refs #101\nthe package PR, which closes #101' |
+    jq --arg c "$5" '.closingIssuesReferences = ($c | split(" ") | map(select(. != "") | {number: tonumber}))')
+  printf '%s\n' "$p" "$c" | prs
+  json pr51.json "$(detail "$c" 2030-11-05T10:00:00Z ${6:+"$6"})"; route 'pr view 51 *' pr51.json
+  json files51.json '[{"filename": "contracts/a.yaml"}]'; route 'api --paginate repos/example-org/web/pulls/51/files*' files51.json
+  json i101.json '{"labels": [{"name": "in-progress"}]}'; route 'issue view 101 *' i101.json
+  json i103.json '{"labels": [{"name": "in-progress"}]}'; route 'issue view 103 *' i103.json
+  echo sid > "$WORKERS_DIR/web-$k.id"
+}
+CFIX="PR #51 is the contract PR, but GitHub links it as closing #101: its merge would close the issue with only the contract done."
+cfix contract-closes pkg-12-auth "101 103" pkg-12-auth 101
+dispatch --once
+ok "contract closes: a package's contract PR linked as closing a member → its worker is resumed with the text" \
+  grep -qF -- "--key pkg-12-auth --dir" "$FAKE/worker.log" && grep -qF "web pkg-12-auth $CFIX" "$FAKE/worker.log"
+ok "… told to write Refs and change only the body" grep -qF 'write `Refs #101` and "the unit'"'"'s own PR implements #101". Change no file and push nothing. Then stop.' "$FAKE/worker.log"
+ok "… body_fix is set" eq "$(st pkg-12-auth body_fix)" 51
+ok "… no reviewer starts, no accept is asked" eq "$(grep -c -- '--key review-' "$FAKE/worker.log") $(grep -c 'awaiting-accept\|needs-you' "$FAKE/gh.log")" "0 0"
+ok "… logged" grep -q 'pkg-12-auth PR #51: the contract PR would close #101; the worker corrects the body' "$CANCCU_HOME/dispatch.log"
+: > "$FAKE/worker.log"; sed -i '/^phase=/d' "$CANCCU_HOME/state/pkg-12-auth"; echo phase=check >> "$CANCCU_HOME/state/pkg-12-auth"
+rm -f "$WORKERS_DIR"/web-pkg-12-auth.lock
+dispatch --once
+ok "contract closes: still linked on the next pass with body_fix set → needs-you, no worker run" \
+  eq "$(st pkg-12-auth phase) $(grep -c . "$FAKE/worker.log")" "needs-you 0"
+ok "… with the text" grep -qF 'PR #51 is the contract PR but GitHub still links it as closing #101: edit the PR body so that no closing keyword stands before an issue number' "$FAKE/gh.log"
+
+cfix contract-fixed pkg-12-auth "101 103" pkg-12-auth "" ; echo body_fix=51 >> "$CANCCU_HOME/state/pkg-12-auth"
+dispatch --once
+ok "contract closes: once the links are gone the pass goes on to the review" grep -q -- '--key review-51 ' "$FAKE/worker.log"
+cfix contract-passed pkg-12-auth "101 103" pkg-12-auth "" "$(vcomment 2030-11-05T11:00:00Z "ok
+Review verdict: pass $HB")"
+echo body_fix=51 >> "$CANCCU_HOME/state/pkg-12-auth"
+dispatch --once
+ok "… a pass verdict already on that head is acted on without a new review" \
+  eq "$(grep -c -- '--key review-' "$FAKE/worker.log") $(st pkg-12-auth phase)" "0 merging"
+
+cfix contract-closes-issue 5 5 5-issue-5 5
+dispatch --once
+ok "contract closes: a single issue's contract PR linked as closing it → its worker is resumed, body_fix set" \
+  eq "$(grep -cF -- "web 5 PR #51 is the contract PR, but GitHub links it as closing #5:" "$FAKE/worker.log") $(st 5 body_fix)" "1 51"
+
+cfix contract-closes-dry pkg-12-auth "101 103" pkg-12-auth 101
+before=$(cat "$CANCCU_HOME/state/pkg-12-auth")
+dispatch --dry-run
+ok "contract closes: a dry run changes nothing" \
+  eq "$(grep -c . "$FAKE/worker.log") $(grep -cE '^(issue|pr) (edit|comment)' "$FAKE/gh.log") $([ "$(cat "$CANCCU_HOME/state/pkg-12-auth")" = "$before" ] && echo same)" "0 0 same"
+
 env_new plan-ok-resume
 { issue 5 in-progress,plan-ok; } | issues
 pr 50 5 $HA none "" true "$PLAN_BODY" | jq '.closingIssuesReferences = []' | jq -s . > "$FAKE/prs.json"
