@@ -684,6 +684,31 @@ state 5 phase=accept pr=50 accept_sha=$HA
 PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-ship" 5 > "$E/out" 2>&1
 ok "canccu-ship → gh pr merge --auto pinned to the head" has gh.log "pr merge 50 -R example-org/web --auto --match-head-commit $HA"
 ok "canccu-ship → merging (accepted)" eq "$(st 5 phase) $(st 5 how)" "merging accepted"
+ship_env() {   # ship_env <name>: PR 50 of managed issue 5 waits for the accept
+  env_new "$1"
+  { issue 5 in-progress,awaiting-accept; } | issues
+  pr 50 5 $HA | prs
+  state 5 phase=accept pr=50 accept_sha=$HA
+}
+ship_env ship-squash
+json settings.json '{"data": {"repository": {"mergeQueue": null, "squashMergeAllowed": true, "mergeCommitAllowed": false, "rebaseMergeAllowed": false}}}'
+route 'api graphql *mergeQueue {*' settings.json
+PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-ship" 5 > "$E/out" 2>&1
+ok "canccu-ship in a squash-only repo → --auto --squash pinned to the head" has gh.log "pr merge 50 -R example-org/web --auto --squash --match-head-commit $HA"
+ship_env ship-direct
+json repo.json '{"allow_auto_merge": false}'
+PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-ship" 5 > "$E/out" 2>&1
+ok "canccu-ship without auto-merge → merged directly" has gh.log "pr merge 50 -R example-org/web --squash --match-head-commit $HA"
+ok "… never --auto" hasnt gh.log "--auto"
+ok "… the state as merge_auto leaves it" eq "$(st 5 phase) $(st 5 how) $(st 5 merge_mode)" "merging accepted merged"
+env_new ship-unmanaged
+{ issue 5 in-progress; } | issues
+pr 50 5 $HA | prs
+json settings.json '{"data": {"repository": {"mergeQueue": null, "squashMergeAllowed": false, "mergeCommitAllowed": true, "rebaseMergeAllowed": false}}}'
+route 'api graphql *mergeQueue {*' settings.json
+PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-ship" 5 > "$E/out" 2>&1
+ok "canccu-ship on a PR not managed yet → --auto with the repo's method" has gh.log "pr merge 50 -R example-org/web --auto --merge --match-head-commit $HA"
+ok "… no state written" eq "$(test -e "$CANCCU_HOME/state/5" && echo managed)" ""
 
 # ---------------------------------------------------------------- resume
 
