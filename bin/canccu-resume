@@ -1,9 +1,19 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# canccu-resume [--project <name>] — undo canccu-pause: the dispatcher starts new issues again.
+# canccu-resume [--project <name>] [--usage] — undo canccu-pause: the dispatcher starts new issues again; --usage also clears the usage-limit back-off and the usage reading (after an early reset).
 set -uo pipefail
 self=$(realpath "$0")
+# --usage comes off first: lib/canccu-common.sh only takes a --project that leads the arguments
+usage=0 args=()
+for a in "$@"; do [ "$a" = --usage ] && usage=1 || args+=("$a"); done
+set -- "${args[@]}"
 # shellcheck source=../lib/canccu-common.sh
 . "$(dirname "$self")/../lib/canccu-common.sh"
 
 rm -f "$CANCCU_HOME/paused" && log "resumed (canccu-resume)"
+# one account serves every project on the host, so the back-off and each project's reading go;
+# with no reading nothing is throttled, and the next run writes the real numbers
+if (( usage )); then
+  rm -f "$CANCCU_ROOT/backoff" "$CANCCU_ROOT"/projects/*/workers/usage.json &&
+    log "usage limit cleared (canccu-resume --usage): runs start again"
+fi

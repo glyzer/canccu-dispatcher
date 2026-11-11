@@ -22,7 +22,7 @@ fix_count() { st_set "$1" fixes=$(( $(fixes_used "$1" "$2") + 1 )) fixes_pr="$2"
 # files, the last report (not for kind limited), and the unit and its branch (the rules are in the
 # repo and in SAFETY_BLOCK, not the first prompt again). Each part is cut to fit the prompt limit.
 handoff() {
-  local k=$1 pr wt body="" commits="" stat="" dirty="" rep br unit m
+  local k=$1 pr wt body="" commits="" stat="" dirty="" rep="" br unit m
   pr=$(st_get "$k" pr); [ -n "$pr" ] || pr=$(pr_for "$k")
   wt=$(unit_wt "$k")
   [ -n "$pr" ] && body=$(pr_get "$pr" .body)

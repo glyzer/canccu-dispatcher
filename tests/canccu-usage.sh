@@ -158,5 +158,30 @@ if [ -x "$MON_VENV/bin/python" ]; then
   ok "usage: the monitor's header shows 'draining (weekly 93%)'" grep -qF 'draining (weekly 93%)' <<<"$out"
 else ok "usage: the monitor needs rich (the suite fails rather than skips)" false; fi
 
+# ---------------------------------------------------------------- canccu-resume --usage (#110)
+
+# usage_env <name>: a back-off in the future and a reading at 100 % in projects a and b
+usage_env() {
+  env_new "$1"
+  local q; for q in a b; do
+    mkdir -p "$CANCCU_ROOT/projects/$q"; cp "$CANCCU_HOME/config" "$CANCCU_HOME/rules" "$CANCCU_ROOT/projects/$q/"; use 100 50 "$q"
+  done
+  echo "$((NOW + 3600))" > "$CANCCU_ROOT/backoff"
+}
+usage_env resume-usage
+ok "usage: at 100 % nothing starts" eq "$(lib usage_cap)" 0
+PATH="$fb:$PATH" "$root/bin/canccu-resume" --usage --project a > "$E/out" 2> "$E/err"
+ok "canccu-resume --usage: the back-off and every project's reading are gone" \
+  eq "$(ls "$CANCCU_ROOT/backoff" "$CANCCU_ROOT"/projects/*/workers/usage.json 2>/dev/null | wc -l)" 0
+ok "… said in project a's log" grep -qF 'usage limit cleared (canccu-resume --usage): runs start again' "$CANCCU_ROOT/projects/a/dispatch.log"
+ok "… runs start again" eq "$(lib usage_cap)" "$(lib eval 'echo "$TOTAL_CAP"')"
+ok "… nothing on stderr" eq "$(cat "$E/err")" ""
+
+usage_env resume-plain
+PATH="$fb:$PATH" "$root/bin/canccu-resume" --project a > "$E/out" 2> "$E/err"
+ok "canccu-resume without --usage: the back-off and the readings stay" \
+  eq "$(ls "$CANCCU_ROOT/backoff" "$CANCCU_ROOT"/projects/*/workers/usage.json 2>/dev/null | wc -l)" 3
+ok "… nothing on stderr" eq "$(cat "$E/err")" ""
+
 echo "canccu-usage tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

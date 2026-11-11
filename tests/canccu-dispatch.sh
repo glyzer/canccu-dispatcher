@@ -952,5 +952,9 @@ SR=$(lib eval 'echo "$SKILL_RULES"')
 ok "both prompts have the one skill rule, which forbids subagents (#88)" eq "$(grep -c dispatching-parallel-agents <<<"$SR") $(grep -cF -- "$SR" <<<"$(lib eval 'fetch; unit_prompt 5')") $(grep -cF -- "$SR" <<<"$(lib eval 'fetch; unit_prompt pkg-12-a')")" "1 1 1"
 ok "… the package prompt no longer allows them" not grep -q 'You may use the superpowers skills subagent' <<<"$(lib eval 'fetch; unit_prompt pkg-12-a')"
 
+# #107: an empty key names the state directory, not a file: nothing, and no read error
+env_new st-get-empty
+ok "st_get with an empty key prints nothing and returns 0" eq "$( ( PATH="$fb:$PATH"; . "$root/lib/canccu-common.sh"; set -u; st_get "" phase; echo "rc=$?" ) 2>&1)" "rc=0"
+
 echo "canccu-dispatch tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

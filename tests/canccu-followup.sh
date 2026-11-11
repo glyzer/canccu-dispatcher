@@ -259,5 +259,17 @@ dispatch --once
 ok "background pending with an open PR: no needs-you, no finish run" eq "$(grep -c needs-you "$FAKE/gh.log") $(grep -c 'Finish:' "$FAKE/worker.log" 2>/dev/null)" "0 0"
 ok "… its run kind" eq "$(lib run_exit "$WORKERS_DIR/web-5.last" | cut -d'|' -f1)" background
 
+# ---------------------------------------------------------------- the limited run's task (#111)
+
+# kind limited reads no last report: under set -u the unset report stopped the output before the
+# standing orders, and the run after the reset got a task cut short
+env_new handoff-limited
+{ issue 5 in-progress; } | issues
+json issue5.json '{"title": "Issue 5", "comments": []}'; route 'issue view 5 *' issue5.json
+wt5; printf 'abc1234 feat: the thing\n' > "$FAKE/gitlog"
+h=$( ( PATH="$fb:$PATH"; CANCCU_WORKER="$fb/worker"; . "$root/lib/canccu-common.sh"; set -u; handoff 5 limited ) 2>"$E/err")
+ok "handoff K limited under set -u: it runs to its last line" grep -qF "This run is on issue #5, branch" <<<"$h"
+ok "… nothing on stderr" eq "$(cat "$E/err")" ""
+
 echo "canccu-followup tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

@@ -249,5 +249,15 @@ ok "a merged package's issue open again (ready): the step is not stopped" \
 ok "… the issue is offered to the planner" eq "$(lib eval 'fetch; planner_issues 12' | tr '\n' ' ')" "101 103 104 "
 ok "… the planner runs with it" eq "$(pissues)" "#101, #103, #104"
 
+# #107: a step waits on needs-you with nothing to answer on (no epic, no checkpoint): the pass asks
+# for no unit's state with an empty key, so no shell error reaches stderr or the log
+stepenv ny-noissue
+echo '[]' > "$FAKE/cps.json"
+{ issue 101 ready "" "3 Events"; issue 103 ready "" "3 Events"; } | issues
+mkdir -p "$CANCCU_HOME/steps"; printf 'phase=needs-you\nny_kind=\nny_reason=the plan is invalid\nny_at=%s\n' "$NOW" > "$CANCCU_HOME/steps/12"
+PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-dispatch" --once > "$E/out" 2> "$E/err"
+ok "a needs-you step with no epic or checkpoint: nothing on stderr" eq "$(cat "$E/err")" ""
+ok "… no shell error in the log" not grep -qE 'read error|unbound variable' "$CANCCU_HOME/dispatch.log"
+
 echo "canccu-steps tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
