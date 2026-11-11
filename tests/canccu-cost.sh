@@ -212,6 +212,9 @@ ok "PACKAGE_MIN_ISSUES 3: the planner is nudged to bundle" \
 ok "PLANNER_EXTRA: the project's guidance reaches the planner" \
   grep -qF "The project's guidance: aim for 2-4 issues per package." <<<"$(pp 'PLANNER_EXTRA="aim for 2-4 issues per package"')"
 ok "… and is no part of the prompt when empty" not grep -q "project's guidance" <<<"$(pp :)"
+# #106: a number at the start of the step's title is no step number
+ok "the prompt says which number is the plan's step" grep -qF 'In the plan, "step" is 4 and "wave" is 1: "step" is the milestone'"'"'s number, and a number at the start of the step'"'"'s title is only part of its name.' \
+  <<<"$(lib eval 'MILESTONES='"'"'[{"number":4,"title":"3 Release 0.2"}]'"'"'; planner_prompt 4 1 "101"')"
 ok "both are documented in the rules template" eq "$(grep -cE "^# (PLANNER_EXTRA=''|PACKAGE_MIN_ISSUES=1)$" "$root/profiles/default/rules")" 2
 
 echo "canccu-cost tests: $npass passed, $nfail failed"
