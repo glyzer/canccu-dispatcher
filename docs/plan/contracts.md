@@ -36,7 +36,7 @@ Every event has one class:
 | Class | Means | Pushed to a person |
 |---|---|---|
 | `interrupt` | the dispatcher is dead (0.2: the stale heartbeat of §3 is the signal; the notifier of 0.3 writes the line); a security stop; all work is stopped and only the product owner can release it | at once, never capped, quiet hours do not hold it |
-| `ask` | an accept, a decision, a checkpoint, a needs-you | yes, to its owner |
+| `ask` | an accept, a decision, a checkpoint, a needs-you (kinds `needs-you` and `pr-needs-you`, owner by §1) | yes, to its owner |
 | `info` | everything else worth keeping (merged, step done) | never; the digest carries it |
 
 `PING_KINDS` keeps working: its kinds are all of class `ask`.
@@ -68,7 +68,7 @@ Every event has one class:
   `closed` line ends it. Class `ask`, owner `po`, when a person must act (disk below
   `DISK_MIN_MB`, `STEP_BUDGET` reached); class `info` when a timer ends it (the usage stop or
   back-off, a GitHub rate limit), with the time it ends in the text.
-- **One writer at a time:** a line is appended under the lock the state writes take, so two
+- **One writer at a time:** a line is appended under the feed file's own `kv_lock`, so two
   writers never give the same id.
 - **Not in the feed:** started, reviewer started, worker done, the usage slow mode, planned
   restarts.

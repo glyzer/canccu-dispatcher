@@ -85,8 +85,9 @@ until then no leader accept is added or widened.
 5. **Supported set:** Linux or WSL with tmux, Claude Code, GitHub.
 6. **`NOTIFY_CONTENT`** is `full` or `link`, for users who want only a link to leave the host.
 7. **During 0.2** the dispatcher's own merge, accept, review-posting and security files are gated
-   in this project, so those PRs wait for the product owner. So is `docs/plan/`: this project's
-   rules add `^docs/plan/` to `GATED_PATHS`.
+   in this project, so those PRs wait for the product owner. So will `docs/plan/` be: this project's
+   rules are to add `^docs/plan/` to `GATED_PATHS` (a follow-up of #102); until then the leader
+   holds plan PRs for the product owner by hand.
 8. **Workers do not use subagents.** The limit is tokens, not time; the dispatcher is the parallel
    layer; a headless run loses its subagents when it ends.
 
