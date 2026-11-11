@@ -22,7 +22,7 @@ fix_count() { st_set "$1" fixes=$(( $(fixes_used "$1" "$2") + 1 )) fixes_pr="$2"
 # files, the last report (not for kind limited) and the standing orders of the first run. Each
 # part is cut, so the task in front of it fits run_worker's prompt limit.
 handoff() {
-  local k=$1 pr wt body="" commits="" stat="" dirty="" rep
+  local k=$1 pr wt body="" commits="" stat="" dirty="" rep=""
   pr=$(st_get "$k" pr); [ -n "$pr" ] || pr=$(pr_for "$k")
   wt=$(unit_wt "$k")
   [ -n "$pr" ] && body=$(pr_get "$pr" .body)
