@@ -911,5 +911,9 @@ state 5 phase=needs-you
 PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-run" 5 ship it after the fix > "$E/out" 2>&1
 ok "canccu-run never hands the engine a leading word" grep -q 'web 5 The user says: ship it after the fix This run is a fresh session.* Do not review your own work; run the checks only. turns=' "$FAKE/worker.log"
 
+# #107: an empty key names the state directory, not a file: nothing, and no read error
+env_new st-get-empty
+ok "st_get with an empty key prints nothing and returns 0" eq "$( ( PATH="$fb:$PATH"; . "$root/lib/canccu-common.sh"; set -u; st_get "" phase; echo "rc=$?" ) 2>&1)" "rc=0"
+
 echo "canccu-dispatch tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
