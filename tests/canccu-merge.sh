@@ -223,12 +223,33 @@ ok "… still open after MERGE_WAIT_MIN → released with needs-you" \
 gone_env merged-pkg pkg-1-a '{"state": "MERGED", "title": "Package a", "body": "Closes #6", "closingIssuesReferences": [{"number": 6}], "headRefName": "pkg-1-a"}' \
   pkg=a "members=5 6" branch=pkg-1-a
 { issue 5 in-progress; } | issues
+json i6.json '{"state": "CLOSED"}'; route 'issue view 6 *' i6.json
 dispatch --once
 ok "a package PR that closes one of two members → only the open one gets needs-you" \
   eq "$(grep -c '^issue edit 5 .*--add-label needs-you' "$FAKE/gh.log") $(grep -c '^issue edit 6 .*needs-you' "$FAKE/gh.log") $(grep -c "$NY5" "$FAKE/gh.log")" "1 0 1"
 ok "… the closed one is advanced (what it blocked is looked at)" has gh.log "api repos/example-org/web/issues/6/dependencies/blocking"
 ok "… the open one is not" hasnt gh.log "api repos/example-org/web/issues/5/dependencies/blocking"
 ok "… the package is released" eq "$(test -e "$CANCCU_HOME/state/pkg-1-a" && echo state)" ""
+
+# the open list is capped: a member missing from it is confirmed with gh issue view
+gone_env merged-pkg-cap pkg-1-a '{"state": "MERGED", "title": "Package a", "body": "Tier: fix", "closingIssuesReferences": [], "headRefName": "pkg-1-a"}' \
+  pkg=a "members=5 6" branch=pkg-1-a
+{ issue 5 in-progress; } | issues
+json i6.json '{"state": "OPEN"}'; route 'issue view 6 *' i6.json
+dispatch --once
+ok "a package member missing from the issue list but OPEN on gh → needs-you on it too" \
+  eq "$(grep -c '^issue edit 5 .*--add-label needs-you' "$FAKE/gh.log") $(grep -c '^issue edit 6 .*--add-label needs-you' "$FAKE/gh.log")" "1 1"
+ok "… it is not advanced, nor are its epics closed" \
+  eq "$(grep -c 'issues/6/dependencies/blocking' "$FAKE/gh.log") $(grep -c '^issue close' "$FAKE/gh.log")" "0 0"
+ok "… logged with both" grep -qF '#pkg-1-a PR #50 merged but left #5, #6 open: needs-you, unit released' "$CANCCU_HOME/dispatch.log"
+
+gone_env merged-pkg-cap-err pkg-1-a "$NOCLOSE" pkg=a "members=5 6" branch=pkg-1-a
+{ issue 5 in-progress; } | issues
+route 'issue view 6 *' FAIL
+dispatch --once
+ok "… a gh error reading it releases nothing: no needs-you, the state is kept" \
+  eq "$(grep -c needs-you "$FAKE/gh.log") $(st pkg-1-a phase) $(test -e "$WORKERS_DIR/web-pkg-1-a.id" && echo sid)" "0 merging sid"
+ok "… logged" grep -qF '#pkg-1-a: gh error reading issue #6; retrying next pass' "$CANCCU_HOME/dispatch.log"
 
 # #87: a single issue's contract-first PR is known by its branch, as a package's is
 gone_env contract-single 5 '{"state": "MERGED", "title": "The contract", "body": "Refs #5", "closingIssuesReferences": [], "headRefName": "5-issue-5-contract"}' \

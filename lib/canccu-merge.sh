@@ -25,18 +25,24 @@ pr_gone() {
 # `Closes` names is closed by GitHub a moment later: wait for that (gone_at), at most
 # MERGE_WAIT_MIN. A member it does not name (or one still open after the wait) never closes on its
 # own; parking the unit would block the `ready` that restarts it, so the unit is released and the
-# member waits for a person with needs-you.
+# member waits for a person with needs-you. The open list is capped: a member missing from it is
+# confirmed with gh, and a gh error decides nothing (the next pass tries again).
 merged_left() {
-  local k=$1 pr=$2 j=$3 m l r left=() closed=() at
+  local k=$1 pr=$2 j=$3 m l r s left=() open=() closed=() at
   for m in $(members_of "$k"); do
-    if ! _issue_open "$m"; then closed+=("$m")
-    elif [ "$(jqr --argjson m "$m" 'any(.closingIssuesReferences[]?; .number == $m)' <<<"$j")" != true ]; then left+=("$m"); fi
+    if _issue_open "$m"; then s=OPEN
+    else s=$(ghj issue view "$m" -R "$REPO" --json state -q .state) && [ -n "$s" ] ||
+      { log "#$k: gh error reading issue #$m; retrying next pass"; return 0; }
+    fi
+    if [ "$s" != OPEN ]; then closed+=("$m"); continue; fi
+    open+=("$m")
+    [ "$(jqr --argjson m "$m" 'any(.closingIssuesReferences[]?; .number == $m)' <<<"$j")" = true ] || left+=("$m")
   done
   if (( ! ${#left[@]} )); then
     at=$(st_get "$k" gone_at)
     [ -n "$at" ] || { st_set "$k" gone_at="$(now)"; return 0; }
     (( $(now) - at > MERGE_WAIT_MIN * 60 )) || return 0
-    for m in $(members_of "$k"); do _issue_open "$m" && left+=("$m"); done
+    left=("${open[@]}")
   fi
   unit_merged "$k" "$pr" "$(jqr '.title // ""' <<<"$j")" "${closed[@]}"
   for m in "${left[@]}"; do
