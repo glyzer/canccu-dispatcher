@@ -72,6 +72,31 @@ json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z "$(vcomment 2030-11-05T11:00:
 dispatch --once
 ok "no non-blocking findings: no follow-up issue" eq "$(grep -c 'issue create\|issue comment' "$FAKE/gh.log")" 0
 
+# the unit is the recorded follow-up issue (#111): a comment there would be closed with it by the merge
+nbenv pass-nb-self pass
+p=$(pr 50 5 $HA | jq -c '.closingIssuesReferences = []'); printf '%s\n' "$p" | prs
+json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z "$(vcomment 2030-11-05T11:00:00Z "$NB"$'\n\nReview verdict: pass '"$HA")")"
+printf 'fast\t5\n' > "$CANCCU_HOME/followups"
+dispatch --once
+ok "the unit is the recorded follow-up issue: a new issue, no comment on itself" eq "$(grep -c 'issue create' "$FAKE/gh.log") $(grep -c '^issue comment 5 ' "$FAKE/gh.log")" "1 0"
+ok "… the new one is recorded" eq "$(cat "$CANCCU_HOME/followups")" $'fast\t900'
+
+nbenv pass-nb-closes pass
+p=$(pr 50 5 $HA | jq -c '.closingIssuesReferences += [{number: 77}]'); printf '%s\n' "$p" | prs
+json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z "$(vcomment 2030-11-05T11:00:00Z "$NB"$'\n\nReview verdict: pass '"$HA")")"
+printf 'fast\t77\n' > "$CANCCU_HOME/followups"
+{ issue 5 in-progress; issue 77 ""; } | issues
+dispatch --once
+ok "the PR closes the recorded follow-up issue: a new issue, no comment on it" eq "$(grep -c 'issue create' "$FAKE/gh.log") $(grep -c '^issue comment 77 ' "$FAKE/gh.log")" "1 0"
+ok "… the new one is recorded" eq "$(cat "$CANCCU_HOME/followups")" $'fast\t900'
+
+# the log counts items, not lines: an item's indented Fix: line is part of it
+NB5=$'Non-blocking:'; for i in 1 2 3 4 5; do NB5+=$'\n'"$i. src/b.ts:$i a nit"$'\n   - Fix: rename it'; done
+nbenv pass-nb-count pass
+json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z "$(vcomment 2030-11-05T11:00:00Z "$NB5"$'\n\nReview verdict: pass '"$HA")")"
+dispatch --once
+ok "5 numbered items with a Fix: line each: 5 findings logged" grep -q '#5 PR #50: 5 non-blocking finding(s) filed in #900' "$CANCCU_HOME/dispatch.log"
+
 # ---------------------------------------------------------------- changes: only the blocking ones
 
 nbenv changes-nb changes

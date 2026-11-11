@@ -43,15 +43,18 @@ followup_title() {
 
 # file_nonblocking <K> <pr> <sha> <items>: the items go to the unit's follow-up issue: a comment on
 # the recorded one while it is open (this pass's open issues list it), else a new issue, not
-# `ready` (the maintainer decides what of it gets built). A gh error is logged: the items are still
-# in the PR's review comment, and the merge never waits for them.
+# `ready` (the maintainer decides what of it gets built). A recorded issue that is the unit or that
+# the PR closes counts as not open: the merge would close the findings with it. A gh error is
+# logged: the items are still in the PR's review comment, and the merge never waits for them.
 file_nonblocking() {
   local k=$1 pr=$2 sha=$3 items=$4 key f="" text n
   key=$(followup_key "$k")
   f=$(awk -F '\t' -v k="$key" '$1 == k { n = $2 } END { print n }' "$CANCCU_HOME/followups" 2>/dev/null)
-  n=$(grep -c . <<<"$items")
+  # an item starts at column 0; its own indented lines (a "- Fix:") are not findings of their own
+  n=$(grep -cE '^([0-9]+[.)]|[-*])[[:space:]]' <<<"$items"); (( n )) || n=$(grep -c . <<<"$items")
   text="From the review of PR #$pr ($(pr_what "$k"), head ${sha:0:7}), its non-blocking findings:"$'\n\n'"$items"
-  if [ -n "$f" ] && [ "$(jqr --argjson n "$f" 'any(.[]; .number == $n)' <<<"$ISSUES")" = true ]; then
+  if [ -n "$f" ] && [ "$f" != "$k" ] && [ "$(jqr --argjson n "$f" 'any(.[]; .number == $n)' <<<"$ISSUES")" = true ] &&
+     [ "$(pr_get "$pr" '[.closingIssuesReferences[]?.number]' | jqr --argjson n "$f" 'index($n) == null')" != false ]; then
     mut gh issue comment "$f" -R "$REPO" --body "$(home_tilde "$text")"$'\n\n'"$CANCCU_MARK" ||
       { log "#$k PR #$pr: filing its non-blocking findings in #$f failed (gh); they stay in the review comment"; return 0; }
   else

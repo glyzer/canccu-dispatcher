@@ -100,10 +100,12 @@ snap_running() {
 # stage (where the unit parked: an accept at merge, a needs-you where it was, ny_stage; null
 # for a step's items and an unmanaged issue) and issues (the unit's, or the issue)
 snap_need() {
-  local i url stg="" is; i=$(lead_of "$2"); url="https://github.com/$REPO/issues/$i" is=$i
+  local i url stg="" is c=""; i=$(lead_of "$2"); url="https://github.com/$REPO/issues/$i" is=$i
   [ "$1" = accept ] && [ -n "$3" ] && url="https://github.com/$REPO/pull/$3"
   [ -n "${8:-}" ] && url=$8
   local p="" s=${7:-}
+  # a step with no epic or checkpoint gives no issue: no unit to read a colour of
+  [ -n "$2" ] && c=$(color_code "$2")
   is_managed "$2" && [ -n "$(st_get "$2" pkg)" ] && p=$2
   is_managed "$2" && [ -z "$s" ] && s=$(st_get "$2" step)
   if is_managed "$2"; then
@@ -116,7 +118,7 @@ snap_need() {
     esac
   fi
   jq -nc --arg kind "$1" --arg n "$i" --arg pr "$3" --arg reason "$4" --arg since "$5" --arg title "${6:-}" \
-    --arg url "$url" --arg color "$(color_code "$2")" --arg p "$p" --arg s "$s" --arg stg "$stg" --arg is "$is" \
+    --arg url "$url" --arg color "$c" --arg p "$p" --arg s "$s" --arg stg "$stg" --arg is "$is" \
     '{kind: $kind, issue: ($n | tonumber? // null), pr: ($pr | tonumber? // null), reason: $reason,
       since: ($since | tonumber? // null), title: $title, url: $url, color: ($color | tonumber? // null),
       package: (if $p == "" then null else $p end), step: ($s | tonumber? // null),
