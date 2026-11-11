@@ -132,6 +132,7 @@ A package adds its setting with the name and default below (rule 5 of the plan a
 |---|---|---|---|
 | `gone_at` | `merged_left` | when a merged PR was first seen with its issue still open | P1 |
 | `branch` | `start_issue` | the branch of a single issue (packages have it already) | P1 |
+| `body_fix` | `check_pr` | the contract PR whose body the worker was asked to correct once | P1 |
 | `owner` | the owner rule | `maintainer` or `leader` while the unit waits; empty otherwise | F1 |
 | `ev_id` | the feed | the id of the unit's open feed line, for `closed` | F1 |
 
