@@ -36,6 +36,13 @@ unit_blocked() {
   done
   return 1
 }
+# unit_waits_blocker <K>: a member of the unit has an open blocker, or its blockers could not be
+# read ("?" counts as blocked, as everywhere): its resume cannot start yet
+unit_waits_blocker() {
+  local m
+  for m in $(members_of "$1"); do [ -n "$(blockers_open "$m" | tr -d ' \n')" ] && return 0; done
+  return 1
+}
 # blocked_mark <n> / blocked_ours <n> / blocked_unmark <n>: the dispatcher set `blocked` on issue n
 # itself (a quiet wait); only such a label does it ever remove (unblock_tick, advance)
 blocked_mark() { (( CANCCU_DRY )) || { mkdir -p "$CANCCU_HOME/blocked" && : > "$CANCCU_HOME/blocked/$1"; }; }

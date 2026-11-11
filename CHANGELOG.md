@@ -25,6 +25,8 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
   `STEP_BUDGET` applies without a restart. A syntax error keeps the old values; `REPO`, `CLONE`
   and `GH_CONFIG_DIR` still need a restart. A step at `STEP_BUDGET` still reviews, fix-checks
   and merges its open PRs; only new workers, resumes and answers wait (#65).
+- A `plan-ok` or `needs-work` issue whose blocker is open no longer reserves a run slot: with one
+  slot, a runnable issue starts instead (#69).
 
 ## [0.1.2] — 2026-11-10
 

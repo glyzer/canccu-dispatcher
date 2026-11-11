@@ -90,7 +90,9 @@ Every `INTERVAL` seconds, under the project's lock:
    usage-limit resume, an answerer, a `plan-ok` or `needs-work` resume), less the slots owed to
    projects waiting with fewer runs ([`projects.md`](projects.md#fair-share-of-total_cap)). An
    issue whose CI is still pending holds no slot, nor does a run that cannot start: its step at
-   `STEP_BUDGET`, or a review while reviews are refused. The first runnable issue is open, `ready`, not `epic`,
+   `STEP_BUDGET` (a review or fix-check of an open PR still holds one), a `plan-ok` or
+   `needs-work` resume of an issue with an open blocker (or blockers `gh` could not read; a PR
+   in check keeps its slot), or a review while reviews are refused. The first runnable issue is open, `ready`, not `epic`,
    `blocked`, `in-progress`, `needs-you` or `awaiting-accept`, not managed yet, with every blocked-by issue
    closed, and not of the one-at-a-time kind ([`rules.md`](rules.md)) while another is open.
    Order: the leading number of the milestone's title (`1 Skeleton`, `2 Contracts`, …; a title

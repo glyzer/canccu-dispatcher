@@ -91,6 +91,23 @@ dispatch --once
 ok "needs-work on a pending-CI check PR, CAP 1: the resume takes the slot" grep -q 'web 5 Rules for this run: .* The user rejected PR #50' "$FAKE/worker.log"
 ok "… and the ready issue does not start" not started 8
 
+# #69: a plan-ok issue whose blocker is open reserves no slot; once the blocker closes it does again
+env_new wanting-blocker CAP=1
+{ issue 5 in-progress,plan-ok "Blocked by #9"; issue 9 in-progress; issue 6 in-progress,plan-ok; issue 7 in-progress; } | issues
+state 5 phase=plan; state 6 phase=plan; state 7 phase=work "started=$NOW"
+ok "wanting: a plan-ok issue with an open blocker reserves nothing" eq "$(lib eval 'fetch && wanting 5')" 0
+ok "wanting: a plan-ok issue without blockers reserves as today" eq "$(lib eval 'fetch && wanting 6')" 1
+: > "$FAKE/gh.log"
+lib eval 'fetch && wanting 7' > /dev/null
+ok "wanting: a unit with no plan-ok or needs-work makes no blocker read" not grep -q 'dependencies/blocked_by' "$FAKE/gh.log"
+{ issue 5 in-progress,plan-ok "Blocked by #9"; issue 6 in-progress,plan-ok; issue 7 in-progress; } | issues
+ok "wanting: … the blocker closed: it reserves again" eq "$(lib eval 'fetch && wanting 5')" 1
+env_new wanting-blocker-slot CAP=1
+{ issue 5 in-progress,plan-ok "Blocked by #9"; issue 9 in-progress; issue 8 ready; } | issues
+state 5 phase=plan
+dispatch --once
+ok "one slot, a plan-ok issue with an open blocker and a ready issue: the ready issue starts" started 8
+
 env_new wanting-green-no-slot CAP=1
 { issue 5 in-progress; issue 8 ready; } | issues
 p=$(pr 50 5 $HA green); printf '%s\n' "$p" | prs

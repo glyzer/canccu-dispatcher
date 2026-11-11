@@ -27,7 +27,8 @@ total_cap() { local u; u=$(usage_cap); echo $(( u < TOTAL_CAP ? u : TOTAL_CAP ))
 # check reserves one when its CI is green (its review or fix-check is about to start) or red
 # (counted too, though check_pr has already moved it to needs-you); pending CI, or no checks at
 # all, waits without one. Any issue labelled plan-ok or needs-work with no run alive reserves one
-# for its resume, in check too (docs/canccu-dispatch.md). A run that cannot start reserves
+# for its resume, in check too (docs/canccu-dispatch.md), unless, out of check, a blocker of it is
+# open (unit_waits_blocker: read only for such a unit). A run that cannot start reserves
 # nothing: its step's budget holds it (but for a review or fix-check), it is labelled `blocked`,
 # or reviews are refused (no reviewer token).
 wanting() {
@@ -39,7 +40,8 @@ wanting() {
     [ "$p" = check ] && (( rv )) && ci_reserves "$(st_get "$n" pr)" && { c=$((c + 1)); continue; }
     unit_held "$n" && continue
     case $p in limited|question) c=$((c + 1)); continue ;; esac
-    { has_label "$n" plan-ok || has_label "$n" needs-work; } && ! run_alive "$n" && c=$((c + 1))
+    { has_label "$n" plan-ok || has_label "$n" needs-work; } && ! run_alive "$n" &&
+      { [ "$p" = check ] || ! unit_waits_blocker "$n"; } && c=$((c + 1))
   done
   echo "$c"
 }
