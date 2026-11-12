@@ -6,6 +6,9 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 
 ## Unreleased
 
+- `canccu-dispatcher config show [--project <name>] [--global] [--origin] [KEY…]` prints every
+  setting with its value, its default and the file it comes from; `lib/canccu-settings.tsv` lists
+  every setting's type, file and whether it is locked (#108).
 - A host profile for a Claude Pro plan: `HOST_PROFILE=pro` (`hosts/pro.conf`) runs one thing at a
   time with small budgets and `REVIEW_EFFORT_MAX=medium`; it sets no model. The getting-started
   guide's paste block for a small plan is now that one line (#101).

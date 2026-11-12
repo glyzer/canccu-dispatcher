@@ -19,6 +19,11 @@ A later file wins. Two keys are exceptions: `TOTAL_CAP` is read only up to `~/.c
 (it caps all projects together, so no project may change it), and `HOST_PROFILE` only from
 `~/.canccu/config` or `CANCCU_HOST_PROFILE` (a profile never sets it).
 
+`canccu-dispatcher config show --origin` answers "where does this value come from": for every
+setting it prints the value, the default and the last of these layers that changed it
+([`commands.md`](commands.md#config-show)). The layer is found by comparing the values after
+each file, so a file that sets a key to the value it already had is not named.
+
 `install.sh` writes a missing `~/.canccu/config` as a copy of the defaults with every value
 commented out. Uncomment only what you change: a later release's new default then still applies
 to every key you left alone. `canccu-init` writes a project's `config` (`REPO`, `CLONE`,
@@ -87,6 +92,21 @@ is stopped and its issue goes to `needs-you`.
 | `USAGE_WINDOW_DELTA` | `0` | `1`: each run's spend-log line records the 5-hour window's utilization before and after it ([`state.md`](state.md#the-spend-log)). Off by default: it means something only with one run at a time on a plan with a 5-hour window |
 | `USAGE_WEEKLY_DRAIN` | `90` | Weekly usage share (%) from which nothing new starts; work already started finishes |
 | `USAGE_MAX_AGE_MIN` | `360` | A usage reading older than this (minutes), or older than the dispatcher's start, counts as unknown: nothing is throttled until a run writes a fresh one ([`usage.md`](usage.md)); `0`: no age limit |
+
+## The settings table
+
+`lib/canccu-settings.tsv` lists every setting once, in the order of `lib/canccu-config.default`:
+`<KEY>`, `<type>`, `<file>` and `<locked>`, tab-separated; `#` lines are comments. `config show`
+reads it, and so will `config set` and the monitor's Settings view.
+
+- `<file>`: `project` (the project's `config`), `rules` (its `rules`), `global` (only
+  `~/.canccu/config`) or `fixed` (never written by a command).
+- `<locked>`: `locked` (a run or the leader may not change it) or `open`.
+- `<type>`: `int:<min>:<max>`; `intopt:<min>:<max>` (the same, or empty); `enum:<a>|<b>|…` (an
+  empty alternative is nothing between two bars or at the end); `budget` (three whole numbers
+  ≥ 1, single spaces); `regex` (empty, or accepted by `grep -E`); `words:<a>|<b>|…` (zero or more
+  of the words, by commas or spaces); `date` (empty or `YYYY-MM-DD`); `name` (empty or
+  `[A-Za-z0-9._:/[]-]` characters); `text` (anything on one line).
 
 ## Host profiles
 

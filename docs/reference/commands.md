@@ -37,6 +37,26 @@ Every command but `canccu-init` and `canccu-dispatcher` takes `--project <name>`
 | `canccu-stop <n>` | Stops the worker, reviewer and answerer of issue n (or of its package): sets the phase to `stopped` first, then kills their process trees and windows. Keeps the worktree and the session; `canccu-run <n>` continues it |
 | `canccu-pause` / `canccu-resume` | While paused nothing new starts; running runs continue; --usage clears the usage-limit wait after an early reset |
 | `canccu-dispatcher --version`, `doctor`, `rollback`, `uninstall` | The installed tool itself ([`../install.md`](../install.md)) |
+| `canccu-dispatcher config show [--project <name>] [--global] [--origin] [KEY…]` | Every setting, its default and where it comes from (below) |
+
+### config show
+
+`canccu-dispatcher config show` prints every setting of a project as the commands read it, one
+`KEY=value` line each, in the order of `lib/canccu-config.default`. Without `--project` it shows
+the only project; with several it asks for one (status 2). `--global` shows the defaults, the
+host profile and `~/.canccu/config` only, and needs no project. `--origin` prints a
+tab-separated table with a header: the value, the default, the layer it comes from (`default`,
+`host:<profile>`, `global`, `rules` or `project`) and `locked` for a setting a run or the leader
+cannot change ([`config.md`](config.md#the-settings-table)). Keys after the options show only
+those; an unknown key ends with status 2. The reviewer token and the gh login are shown as paths:
+their files are never opened.
+
+```
+canccu-dispatcher config show                          # every setting of the only project
+canccu-dispatcher config show --project web CAP MODEL  # two settings of project web
+canccu-dispatcher config show --global                 # what every project starts from
+canccu-dispatcher config show --origin GATED_PATHS     # KEY VALUE DEFAULT ORIGIN LOCKED
+```
 
 ## Labels
 
