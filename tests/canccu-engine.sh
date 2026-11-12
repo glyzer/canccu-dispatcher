@@ -27,6 +27,9 @@ ok "engine: an issue run keeps project settings" not grep -q -- '--setting-sourc
 ok "… so its hook runs" test -s "$FAKE/hook.ran"
 ok "… without the token or its path in reach" notoken "$FAKE/hook.ran"
 ok "engine: no claude environment holds the token or its path" notoken "$FAKE/claude.envdump"
+ok "engine: every run's claude carries CANCCU_ACTOR=run" eq "$(grep -c '^=== claude' "$FAKE/claude.envdump") $(grep -cx 'CANCCU_ACTOR=run' "$FAKE/claude.envdump")" "2 2"
+eng 6 "$E/rwt" "" CANCCU_ACTOR=leader > /dev/null
+ok "… even when the caller's environment says leader" eq "$(sed -n '/^=== claude/h; /^CANCCU_ACTOR=/H; ${x; p}' "$FAKE/claude.envdump" | tail -1)" "CANCCU_ACTOR=run"
 ok "engine: the token is in no engine log" notoken "$WORKERS_DIR"
 # the spawn side: neither the token nor its path reaches a window, and empty values override
 # whatever the tmux server inherited

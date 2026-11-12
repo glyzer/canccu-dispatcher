@@ -249,5 +249,157 @@ mkdir -p "$T/canary/gh"; echo SECRET-CANARY > "$T/canary/token"; echo SECRET-CAN
 show --origin
 ok "config show --origin prints the token file's path, never its content" eq "$(grep -c SECRET-CANARY <<<"$out") $(grep -c "^REVIEWER_TOKEN_FILE	$T/canary/token	" <<<"$out")" "0 1"
 
+# ---------------------------------------------------------------- cfg_check and cfg_actor
+
+tname=cfg-check
+chk() { bash -c '. "$1/lib/canccu-configcmd.sh"; cfg_check "$2" "$3"' _ "$root" "$1" "$2"; }
+ok "every default value passes cfg_check for its key" eq "$(bash -c '. "$1/lib/canccu-configcmd.sh"; CANCCU_ROOT=/nonexistent
+  . "$1/lib/canccu-config.default"; for k in $(cfg_keys); do cfg_check "$k" "${!k-}" || echo "($k)"; done' _ "$root")" ""
+while IFS='|' read -r k v want; do
+  out=$(chk "$k" "$v"); rc=$?
+  ok "cfg_check $k=$v fails: $want" eq "$rc $out" "1 $want"
+done <<'CHK'
+CAP|0|CAP must be a whole number from 1 to 20
+CAP|x|CAP must be a whole number from 1 to 20
+CAP|08|CAP must be a whole number from 1 to 20
+DIGEST_ISSUE|x|DIGEST_ISSUE must be a whole number from 1 to 9999999, or empty
+PING|maybe|PING must be one of: on, off
+FIX_EFFORT|huge|FIX_EFFORT must be one of: low, medium, high, xhigh, max, empty
+BUDGET_WORK|10 2|BUDGET_WORK must be three whole numbers: turns, USD, minutes (for example "120 25 120")
+GATED_PATHS|(|GATED_PATHS is not a pattern grep -E accepts
+RESUME_ON|answer,nope|RESUME_ON may only hold: answer, plan, fix, ci, needs-work, merge, limited, blocked, user, all
+AUTO_MERGE_UNTIL|2026-13-01|AUTO_MERGE_UNTIL must be a date as YYYY-MM-DD, or empty
+MODEL|a b|MODEL may only hold letters, digits and . _ : / [ ] -
+CHK
+out=$(chk WORKER_EXTRA $'a\tb'); rc=$?
+ok "cfg_check: a tab fails for every type" eq "$rc $out" "1 WORKER_EXTRA must be one line without tabs"
+out=$(chk CAP $'2\n3'); rc=$?
+ok "… a newline too" eq "$rc $out" "1 CAP must be one line without tabs"
+while IFS='|' read -r k v; do
+  ok "cfg_check $k=$v passes" eq "$(chk "$k" "$v"; echo "rc=$?")" "rc=0"
+done <<'CHK'
+CAP|20
+DIGEST_ISSUE|
+PING|off
+FIX_EFFORT|
+BUDGET_WORK|120 25 120
+GATED_PATHS|^x/
+RESUME_ON|answer,plan
+PING_KINDS|accept plan
+AUTO_MERGE_UNTIL|2030-02-28
+MODEL|claude-opus-5-5[1m]
+WORKER_EXTRA|it's fine
+CHK
+act() { (CANCCU_ACTOR=$1; [ "$1" = - ] && unset CANCCU_ACTOR; . "$root/lib/canccu-configcmd.sh"; cfg_actor); }
+ok "cfg_actor: leader, run, and po for anything else" eq "$(act leader) $(act run) $(act -) $(act '') $(act Leader)" "leader run po po po"
+
+# ---------------------------------------------------------------- config set and unset
+
+cs() { out=$("$root/bin/canccu-dispatcher" config "$@" 2>&1); rc=$?; }
+hist() { cat "$CANCCU_ROOT/projects/web/config.history" 2>/dev/null; }
+cfgenv set-place - "WORKER_EXTRA=''" $'CAP=3\n# CAP=3\nMODEL=x'
+P=$CANCCU_ROOT/projects/web; chmod 640 "$P/config"
+cs set CAP=2
+ok "config set CAP=2: the new line in the old one's place, the comment kept, the rest unchanged" eq "$(cat "$P/config")" "REPO=example-org/web
+CLONE=$E/code/web
+CAP='2'
+# CAP=3
+MODEL=x"
+ok "… the mode unchanged" eq "$(stat -c %a "$P/config")" 640
+ok "… it says where, when, and what the value is now" eq "$rc
+$out" "0
+CAP=2 written to $P/config; it applies at the dispatcher's next pass
+now: 2 (from project)"
+ok "… no temporary file left" eq "$(find "$P" -maxdepth 1 -name '.*' | wc -l)" 0
+cs set STALL_MIN=15
+ok "config set STALL_MIN=15 with no such line: the last line" eq "$(tail -1 "$P/config")" "STALL_MIN='15'"
+cs set "WORKER_EXTRA=it's fine"
+ok "config set WORKER_EXTRA=\"it's fine\": the rules file gives it back" eq "$rc $(. "$P/rules"; printf %s "$WORKER_EXTRA")" "0 it's fine"
+cs set 'GATED_PATHS=^x/'
+ok "GATED_PATHS goes to the project's rules" grep -qxF "GATED_PATHS='^x/'" "$P/rules"
+ok "… not to its config" not grep -q GATED_PATHS "$P/config"
+cs set --global CAP=2
+ok "--global CAP=2: a new \$CANCCU_ROOT/config, mode 600" eq "$rc $(cat "$CANCCU_ROOT/config") $(stat -c %a "$CANCCU_ROOT/config")" "0 CAP='2' 600"
+ok "… its history in \$CANCCU_ROOT/config.history" eq "$(cut -f3-6 "$CANCCU_ROOT/config.history")" "set	CAP	-	2"
+ok "… the project's config still says 2" grep -qxF "CAP='2'" "$P/config"
+cs set TOTAL_CAP=2
+ok "TOTAL_CAP without --global: status 2, is global" eq "$rc $out" "2 canccu-dispatcher: TOTAL_CAP is global: use --global"
+cs set REPO=a/b
+ok "REPO: status 2, not changed with this command" eq "$rc $out" "2 canccu-dispatcher: REPO is not changed with this command: edit the config file by hand and restart the dispatcher"
+cs set NOPE=1
+ok "an unknown key: status 2" eq "$rc $out" "2 canccu-dispatcher: unknown setting NOPE"
+cp "$P/config" "$E/before"; n=$(hist | wc -l)
+cs set CAP=0
+ok "a value out of range: status 2, the check's line, nothing written" eq "$rc $out $(cmp -s "$P/config" "$E/before"; echo $?) $(hist | wc -l)" "2 canccu-dispatcher: CAP must be a whole number from 1 to 20 0 $n"
+HOME=$CANCCU_ROOT cs set CAP=4
+ok "the path is shown with ~ for \$HOME" eq "$(head -1 <<<"$out")" "CAP=4 written to ~/projects/web/config; it applies at the dispatcher's next pass"
+
+cfgenv set-locked - "GATED_PATHS='^\.github/'"
+P=$CANCCU_ROOT/projects/web; cp "$P/rules" "$E/before"
+for a in leader run; do
+  out=$(CANCCU_ACTOR=$a "$root/bin/canccu-dispatcher" config set 'GATED_PATHS=^x/' 2>&1); rc=$?
+  ok "CANCCU_ACTOR=$a config set GATED_PATHS: status 3, refused, the file unchanged" \
+    eq "$rc $out $(cmp -s "$P/rules" "$E/before"; echo $?)" "3 canccu-dispatcher: refused: GATED_PATHS is locked; only the product owner changes it 0"
+  ok "… one history line: $a refused" eq "$(hist | tail -1 | cut -f2-6)" "$a	refused	GATED_PATHS	^\.github/	^x/"
+done
+ok "… two lines in all" eq "$(hist | wc -l)" 2
+out=$(CANCCU_ACTOR=run "$root/bin/canccu-dispatcher" config unset GATED_PATHS 2>&1); rc=$?
+ok "a run's unset of a locked key is refused too" eq "$rc $(hist | tail -1 | cut -f2-6)" "3 run	refused	GATED_PATHS	^\.github/	-"
+cs set 'GATED_PATHS=^x/'
+ok "without CANCCU_ACTOR the product owner writes it" eq "$rc $(grep -c "^GATED_PATHS='^x/'$" "$P/rules") $(hist | tail -1 | cut -f2,3)" "0 1 po	set"
+out=$(CANCCU_ACTOR=leader "$root/bin/canccu-dispatcher" config set CAP=2 2>&1); rc=$?
+ok "CANCCU_ACTOR=leader config set CAP=2 (open): written, the history says leader" eq "$rc $(grep -c "^CAP='2'$" "$P/config") $(hist | tail -1 | cut -f2,3)" "0 1 leader	set"
+
+cfgenv set-history - "" CAP=3
+P=$CANCCU_ROOT/projects/web
+cs set CAP=2 --why "less load"
+ok "the history line: seven columns, UTC time, actor, set, key, old, new, why" \
+  eq "$(hist | awk -F'\t' '{print NF}') $(hist | cut -f1 | grep -cE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$') $(hist | cut -f2-7)" \
+  "7 1 po	set	CAP	3	2	less load"
+ok "… config.history has mode 600" eq "$(stat -c %a "$P/config.history")" 600
+cs set CAP=2
+ok "a second identical set: is already, no history line" eq "$rc $out $(hist | wc -l)" "0 CAP is already 2 in $P/config 1"
+cs set STALL_MIN=12 --why $'a\tb\nc'
+ok "no old value: -; tabs and newlines in --why become spaces" eq "$(hist | tail -1 | cut -f3-7)" "set	STALL_MIN	-	12	a b c"
+cs set MODEL=m
+ok "no --why: -" eq "$(hist | tail -1 | cut -f7)" "-"
+printf '# CAP=3\n' >> "$P/config"
+cs unset CAP
+ok "config unset CAP: the line goes, the comment stays" eq "$rc $(grep -c '^CAP=' "$P/config") $(grep -c '^# CAP=3$' "$P/config")" "0 0 1"
+ok "… it says so and what the value is now" eq "$out" "CAP removed from $P/config; it applies at the dispatcher's next pass
+now: 3 (from default)"
+ok "… a history line with unset" eq "$(hist | tail -1 | cut -f3-7)" "unset	CAP	2	-	-"
+n=$(hist | wc -l); cs unset CAP
+ok "a second unset: is not set, no history line" eq "$rc $out $(hist | wc -l)" "0 CAP is not set in $P/config $n"
+
+cfgenv set-later - "" CAP=1
+cs set --global CAP=2
+ok "config set --global CAP=2 under a project's CAP=1: the output ends with now: 1 (from project)" eq "$(tail -1 <<<"$out")" "now: 1 (from project)"
+
+cfgenv set-invalid - "" 'if then'
+P=$CANCCU_ROOT/projects/web; cp "$P/config" "$E/before"
+cs set CAP=2
+ok "a target that would not be valid shell: status 1, nothing changed" \
+  eq "$rc $out $(cmp -s "$P/config" "$E/before"; echo $?) $(find "$P" -maxdepth 1 -name '.*' | wc -l)" \
+  "1 canccu-dispatcher: $P/config would not be valid shell; nothing changed 0 0"
+
+cs; ok "config alone: the usage, status 2" eq "$rc $(grep -c 'config set' <<<"$out")" "2 1"
+cs nope; ok "config nope: the usage, status 2" eq "$rc $(grep -c 'config unset' <<<"$out")" "2 1"
+
+# ---------------------------------------------------------------- config set between two passes
+
+loopenv reload-set
+cat > "$E/between" <<SH
+#!/usr/bin/env bash
+[ "\$1" = 1 ] || exit 1
+jq -r .caps.cap "$CANCCU_HOME/status.json" > "$E/cap-1"
+"$root/bin/canccu-dispatcher" config set CAP=1 > "$E/set.out" 2>&1
+touch -d "@\$(( \$(stat -c %Y "$CANCCU_HOME/config") + 10 ))" "$CANCCU_HOME/config"
+SH
+chmod +x "$E/between"
+loop
+ok "config set CAP=1 between two passes of one dispatcher: the second pass runs with CAP=1" \
+  eq "$(cat "$E/cap-1") $(jq -r .caps.cap "$CANCCU_HOME/status.json") $(cat "$E/sleeps")" "3 1 2"
+
 echo "canccu-config tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
