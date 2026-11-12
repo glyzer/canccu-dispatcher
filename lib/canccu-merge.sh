@@ -223,3 +223,75 @@ queue_kick() {
   fi
   log "#$n PR #$pr: the merge queue started no merge_group run in ${NO_CHECKS_MIN:-10} min; dequeued and enqueued again"
 }
+
+# ---------------------------------------------------------------- a merge of main only
+
+# pr_fetch <pr>: the PR head and main into the main clone, for the reads below
+pr_fetch() { mut git -C "$CLONE" fetch -q origin main "pull/$1/head" || log "PR #$1: git fetch failed"; }
+
+# main_merge_only <base> <head>: what head adds to base is nothing but merges of main: from head,
+# at most 5 steps, each commit has two parents, the second on origin/main, and its tree is the
+# one git makes of merging the two (merge-tree, no worktree); its first parent is the next step,
+# and the walk reaches base. Such a tree holds nothing a person or a run wrote by hand. Any git
+# error (a git older than 2.38 has no merge-tree --write-tree) is false: that only costs a review.
+main_merge_only() {
+  local base=$1 c=$2 i p1 p2 more t
+  for ((i = 0; i < 5; i++)); do
+    read -r _ p1 p2 more <<<"$(guard 20 git -C "$CLONE" rev-list --parents -n 1 "$c" 2>/dev/null)"
+    [ -n "$p2" ] && [ -z "$more" ] || return 1
+    guard 20 git -C "$CLONE" merge-base --is-ancestor "$p2" origin/main 2>/dev/null || return 1
+    t=$(guard 60 git -C "$CLONE" merge-tree --write-tree "$p1" "$p2" 2>/dev/null) && [ -n "$t" ] || return 1
+    [ "${t%%$'\n'*}" = "$(guard 20 git -C "$CLONE" rev-parse "$c^{tree}" 2>/dev/null)" ] || return 1
+    c=$p1
+    [ "$c" = "$base" ] && return 0
+  done
+  return 1
+}
+
+# postpass_full <base> <head>: why the change base..head needs a full review, not a fix-check; nothing
+# when it does not. The change counts only the files of the PR's own diff at head, so main's edits
+# elsewhere do not; main's edits to those files do, which can only cause a full review.
+postpass_full() {
+  local base=$1 head=$2 mb stats total p re max=${FIXCHECK_FULL_LINES:-100} files=()
+  [[ $max =~ ^[0-9]+$ ]] || max=100
+  mb=$(guard 20 git -C "$CLONE" merge-base origin/main "$head" 2>/dev/null)
+  # no file list read: the whole diff counts
+  [ -n "$mb" ] && mapfile -t files < <(guard 20 git -C "$CLONE" diff --name-only "$mb" "$head" 2>/dev/null)
+  stats=$(guard 30 git -C "$CLONE" diff --numstat "$base" "$head" -- "${files[@]}" 2>/dev/null) || { echo "the change cannot be read"; return; }
+  total=$(awk -F '\t' '{ for (i = 1; i <= 2; i++) if ($i ~ /^[0-9]+$/) t += $i } END { print t + 0 }' <<<"$stats")
+  (( total > max )) && { echo "$total changed lines, over FIXCHECK_FULL_LINES=$max"; return; }
+  p=$(cut -f3- <<<"$stats" | grep -m1 -E "$(gated_re)") && { echo "gated path $p"; return; }
+  for re in "$RISKY_PATHS" "$FIXCHECK_RISKY"; do
+    [ -n "$re" ] && p=$(cut -f3- <<<"$stats" | grep -m1 -iE "$re") && { echo "risky path $p"; return; }
+  done
+  return 0
+}
+
+# postpass_step <n> <pr> <head>: check_pr's new head after a pass (pass_sha), outside a fix round. A
+# merge of main only takes the pass on (CI is green here); another change gets a fix-check of
+# everything since the last full review (full_sha), so several small pushes never add up
+# unreviewed, or a full review when the change is big or touches a gated or risky path. 1: not
+# such a head, check_pr goes on.
+postpass_step() {
+  local n=$1 pr=$2 head=$3 psha base why
+  psha=$(st_get "$n" pass_sha)
+  [ -n "$psha" ] && [ "$head" != "$psha" ] || return 1
+  case $(st_get "$n" stage) in fixing|fixcheck) return 1 ;; esac
+  pr_fetch "$pr"
+  if main_merge_only "$psha" "$head"; then
+    log "#$n PR #$pr: the new head ${head:0:7} is a merge of main only since the pass at ${psha:0:7}; no new review"
+    # moved only once acted on: a classify retry or a failed merge sees this head again
+    after_pass "$n" "$pr" "$head" "merge of main" && st_set "$n" pass_sha="$head"
+    return 0
+  fi
+  base=$(st_get "$n" full_sha); base=${base:-$psha}
+  backing_off && return 0
+  if [ -n "$(reviewer_token_problem)" ]; then room || return 0; else room "$n" || return 0; fi
+  why=$(postpass_full "$base" "$head")
+  if [ -n "$why" ]; then
+    log "#$n PR #$pr: push after the pass; full review ($why)"; start_review "$pr" "$n" "$head"
+  else
+    log "#$n PR #$pr: push after the pass; fix-check of ${base:0:7}..${head:0:7}"; start_reviewer "$pr" "$n" "$head" postpass "$base"
+  fi
+  return 0
+}

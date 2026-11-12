@@ -225,6 +225,7 @@ check_pr() {
       review_mode="$(cat "$CANCCU_HOME/reviews/$pr.mode" 2>/dev/null)"
     return
   fi
+  postpass_step "$n" "$pr" "$head" && return
   # the worker fixed the full review's findings: the fix-check of reviewed_sha..head, never a
   # second full review. A push after a fix-check voids it (its verdict names the old head): a
   # new fix-check of the whole fix diff runs.

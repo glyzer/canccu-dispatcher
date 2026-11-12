@@ -91,6 +91,16 @@ head>` runs against them; each of your comments counts as a blocking item. A lin
 comment that is just `full review` (any case; `*`, `_`, backticks and a final `.` or `!`
 allowed) asks for a new full review instead, as does a `needs-work` on a refused accept.
 
+**A push after a pass** (a new head after a review or fix-check passed, outside a fix round): if
+every commit since the passed sha is a merge of `origin/main` that git would have made the same
+way by itself (no conflict resolved by hand, nothing else changed), there is no new review: the
+pass carries over and the PR goes on to the accept or merge step. Otherwise a fix-check of `<last
+full review>..<head>` runs (window `fixcheck#<pr>`), told to read only the hand-resolved conflict
+hunks of what came from main and to catch a correctness or security bug in the rest. A full
+review runs instead when the PR's own files changed more than `FIXCHECK_FULL_LINES` lines (100)
+since that review, when they touch a gated or `RISKY_PATHS`/`FIXCHECK_RISKY` path, or when the
+diff cannot be read. A pass of that fix-check counts like a review's pass.
+
 ## The verdict line
 
 A verdict counts only if it is the last non-empty line of a comment **by `REVIEWER_LOGIN`**,

@@ -217,7 +217,22 @@ Reject: comment here and label issue #$(lead_of "$n") \`needs-work\`."
 }
 
 # new_cycle <n>: a new start, an adoption, plan-ok or needs-work: the next review is a full one
-new_cycle() { st_set "$1" stage= reviewed_sha= review_maccept= review_risk= open_sha=; }
+new_cycle() { st_set "$1" stage= reviewed_sha= review_maccept= review_risk= open_sha= full_sha= pass_sha=; }
+
+# after_pass <n> <pr> <head> <how>: that head passed (a review, a fix-check, or a merge of main only
+# after a pass): classify, then merge it or wait for the accept. 1 when nothing was done (classify
+# could not read the PR, or the merge failed): the caller sees the pass again next pass.
+after_pass() {
+  local n=$1 pr=$2 head=$3 c
+  c=$(classify "$pr" "$n")
+  [[ $c == retry:* ]] && { log "#$n PR #$pr: $4 pass · $c; again next pass"; return 1; }
+  log "#$n PR #$pr: $4 pass · $c"
+  # the open items are fixed: cleared before the merge step, so a failed merge or accept
+  # leaves none behind for a later needs-work, which then starts a new cycle
+  st_set "$n" open_sha=
+  if [ "$c" = auto ]; then merge_auto "$n" "$pr" auto "$head" || return 1
+  else to_accept "$n" "$pr" "$c" "$head"; fi
+}
 
 # save_findings <n> <pr> <file> <text>: the items a fix-check checks (findings_file), or the open
 # items a fix-check left (open_file), always written whole: a second needs-work never appends
@@ -235,22 +250,20 @@ save_findings() {
 # verdict counts as acted on (verdict_at) only once the merge, the accept request or the resume has
 # happened: a failed step sees it again next pass.
 act_verdict() {
-  local n=$1 pr=$2 j=$3 v c head at stage what body="" b ff bi ma mo
+  local n=$1 pr=$2 j=$3 v head at stage what body="" b ff bi ma mo mode
   v=$(verdict_of "$j" "$(st_get "$n" verdict_at)"); head=$(jqr .headRefOid <<<"$j"); at=$(verdict_at "$j")
-  stage=$(st_get "$n" stage)
-  what=review; [ "$(st_get "$n" review_mode)" = fixcheck ] && what=fix-check
+  stage=$(st_get "$n" stage) mode=$(st_get "$n" review_mode)
+  what=review; is_fixcheck_mode "$mode" && what=fix-check
+  # a push after a pass is checked against these (postpass_step)
+  case $v in pass|changes) is_fixcheck_mode "$mode" || st_set "$n" full_sha="$head" ;; esac
   # non-blocking findings never reach the worker: they go to the wave's follow-up issue
   case $v in pass|changes) body=$(verdict_body "$j"); collect_nonblocking "$n" "$pr" "$head" "$body" "$at" ;; esac
   case $v in
     pass)
-      c=$(classify "$pr" "$n")
-      [[ $c == retry:* ]] && { log "#$n PR #$pr: $what pass · $c; again next pass"; return 0; }
-      log "#$n PR #$pr: $what pass · $c"
-      # the open items are fixed: cleared before the merge step, so a failed merge or accept
-      # leaves none behind for a later needs-work, which then starts a new cycle
-      st_set "$n" open_sha=
-      if [ "$c" = auto ]; then merge_auto "$n" "$pr" auto "$head" || return 0
-      else to_accept "$n" "$pr" "$c" "$head"; fi
+      # a post-pass check that passed leaves the fix-check stage: the next push is again
+      # measured against full_sha, not taken for a fix of findings
+      st_set "$n" pass_sha="$head"; [ "$mode" = postpass ] && st_set "$n" stage=review
+      after_pass "$n" "$pr" "$head" "$what" || return 0
       st_set "$n" verdict_at="$at" ;;
     changes)
       case $stage in
