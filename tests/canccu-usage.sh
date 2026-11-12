@@ -31,6 +31,26 @@ ok "usage: the newest reading over all projects counts" eq "$(lib usage_read | c
 jq --argjson r "$((NOW - 5))" '.info.unifiedWindows.five_hour.resetsAt = $r' "$CANCCU_ROOT/projects/web/workers/usage.json" > "$E/u" && mv "$E/u" "$CANCCU_ROOT/projects/web/workers/usage.json"
 ok "usage: a window past its reset counts as 0" eq "$(lib usage_read | cut -d' ' -f1,2)" "0 41"
 
+# ---------------------------------------------------------------- USAGE_MAX_AGE_MIN: an old reading is unknown (#64)
+
+env_new usage-stale
+use 20 96 web $((7 * 3600))
+ok "usage: weekly 96%, 7 hours old → unknown: normal, nothing throttled" \
+  eq "$(lib usage_read) | $(lib usage_state) $(lib usage_cap)" "- - - - $((NOW - 7 * 3600)) | normal 3"
+ok "… the text says how old the last reading is" eq "$(lib usage_text)" "usage unknown (last reading 7 h old)"
+use 20 96 web 600
+ok "… the same reading 10 minutes old → drain, the text ends with its age" \
+  eq "$(lib usage_state) | $(lib usage_text)" "drain | draining (weekly 96%) (10 min old)"
+use 20 50 web 600
+ok "… a normal text gains the age too" eq "$(lib usage_text)" "5-hour 20% · weekly 50% (10 min old)"
+use 20 96 web 600; touch -d "@$((NOW - 300))" "$CANCCU_HOME/dispatch.pid"
+ok "… 10 minutes old but older than this dispatcher's start (dispatch.pid) → unknown" \
+  eq "$(lib usage_state) | $(lib usage_text)" "normal | usage unknown (last reading 10 min old)"
+env_new usage-stale-off USAGE_MAX_AGE_MIN=0
+use 20 96 web $((7 * 3600))
+ok "USAGE_MAX_AGE_MIN=0, no dispatch.pid: a 7-hour-old reading counts, as before" \
+  eq "$(lib usage_state) | $(lib usage_text)" "drain | draining (weekly 96%) (7 h old)"
+
 # ---------------------------------------------------------------- USAGE_SLOW: one run at a time over all projects
 
 env_new usage-slow
@@ -38,7 +58,7 @@ use 60 10
 { issue 5 ready; issue 6 ready; } | issues
 dispatch --once
 ok "usage: 5-hour 60% → one run at a time; the fast lane counts too" eq "$(grep -c -- '^--quiet' "$FAKE/worker.log")" 1
-ok "… the state is slow" eq "$(lib usage_state) $(lib usage_text)" "slow one run at a time (5-hour 60%)"
+ok "… the state is slow" eq "$(lib usage_state) $(lib usage_text)" "slow one run at a time (5-hour 60%) (1 min old)"
 live_lock 5
 mkdir -p "$CANCCU_ROOT/projects/web/workers"
 dispatch --once
@@ -138,7 +158,7 @@ state 5 phase=check pr=50 "check_at=$NOW"
 dispatch --once
 ok "usage: weekly 92% → drain: no fast-lane, planner or package start" eq "$(started 6 && echo fast) $(grep -c -- '--key plan-' "$FAKE/worker.log")" " 0"
 ok "… a PR in the pipeline still gets its review" grep -q -- '--key review-50' "$FAKE/worker.log"
-ok "… the text says draining" eq "$(lib usage_text)" "draining (weekly 92%)"
+ok "… the text says draining" eq "$(lib usage_text)" "draining (weekly 92%) (1 min old)"
 use 75 92
 ok "usage (review 2, finding 6): drain mode keeps the USAGE_SLOW one-run cap" eq "$(lib usage_state) $(lib usage_cap)" "drain 1"
 rm -f "$WORKERS_DIR/web-review-50.lock"; use 20 50
@@ -151,8 +171,8 @@ env_new usage-show
 use 30 93
 dispatch --once
 ok "usage: the snapshot shows the shares and the state" \
-  eq "$(jq -c '.usage | [.five_hour, .seven_day, .state, .text]' "$CANCCU_HOME/status.json")" '[30,93,"drain","draining (weekly 93%)"]'
-ok "usage: canccu-status shows them" grep -qx 'usage: draining (weekly 93%)' <<<"$(PATH="$fb:$PATH" "$root/bin/canccu-status" 2>&1)"
+  eq "$(jq -c '.usage | [.five_hour, .seven_day, .state, .text]' "$CANCCU_HOME/status.json")" '[30,93,"drain","draining (weekly 93%) (1 min old)"]'
+ok "usage: canccu-status shows them" grep -qx 'usage: draining (weekly 93%) (1 min old)' <<<"$(PATH="$fb:$PATH" "$root/bin/canccu-status" 2>&1)"
 if [ -x "$MON_VENV/bin/python" ]; then
   out=$("$MON_VENV/bin/python" -I "$root/lib/canccu-monitor.py" --file "$CANCCU_HOME/status.json" --once --width 160 2>&1 | sed 's/\x1b\[[0-9;]*m//g')
   ok "usage: the monitor's header shows 'draining (weekly 93%)'" grep -qF 'draining (weekly 93%)' <<<"$out"

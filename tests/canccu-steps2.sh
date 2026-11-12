@@ -515,11 +515,22 @@ rvenv budget-review 0
 dispatch --once
 ok "budget (finding 2): a package's review run is charged to its step" \
   eq "$(grep -c -- '--key review-50' "$FAKE/worker.log") $(grep -cx 'review-50' "$CANCCU_HOME/steps/12.keys")" "1 1"
+# #65: at STEP_BUDGET the open PR is still reviewed; no worker of the step starts. Package b (102)
+# is ready to start in the same wave.
 rvenv budget-review-held 0 STEP_BUDGET=5
+{ issue 90 epic "" "3 Events"; issue 101 in-progress "" "3 Events"; issue 102 ready "" "3 Events"; } | issues
+wave 1 '{"schema":1,"step":12,"wave":1,"packages":[{"name":"a","issues":[101],"risk":"normal","risk_reason":"x","areas":[],"depends_on":[]},
+  {"name":"b","issues":[102],"risk":"normal","risk_reason":"x","areas":[],"depends_on":[]}]}'
 printf 'pkg-12-a\n' > "$CANCCU_HOME/steps/12.keys"; printf '%s\tweb\tpkg-12-a\t6.00\n' "$((NOW - 100))" > "$WORKERS_DIR/spend.log"
 dispatch --once
-ok "budget (finding 2): at STEP_BUDGET the package's review does not start" not grep -q -- '--key review-50' "$FAKE/worker.log"
-ok "… said once in the log" eq "$(grep -c 'review of PR #50 held: step 3 Events reached STEP_BUDGET' "$CANCCU_HOME/dispatch.log")" 1
+ok "budget (#65): at STEP_BUDGET the package's review of its open PR, CI green, starts" grep -q -- '--key review-50' "$FAKE/worker.log"
+ok "… the step's other package does not start" not started 102
+rvenv budget-review-free 0
+{ issue 90 epic "" "3 Events"; issue 101 in-progress "" "3 Events"; issue 102 ready "" "3 Events"; } | issues
+wave 1 '{"schema":1,"step":12,"wave":1,"packages":[{"name":"a","issues":[101],"risk":"normal","risk_reason":"x","areas":[],"depends_on":[]},
+  {"name":"b","issues":[102],"risk":"normal","risk_reason":"x","areas":[],"depends_on":[]}]}'
+dispatch --once
+ok "… (under the budget, the same package does start)" started 102
 
 # finding 3: a package whose issues were closed without a merged PR is final
 senv closed-pkg 0

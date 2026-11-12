@@ -139,7 +139,17 @@ ok "… and one written by hand gets the missing columns as -" eq "$(tail -1 "$W
 
 printf '1. src/a.ts:3 off by one; fix: use <=\n   - nested detail\n2. src/b.ts:9 leak\n\nNon-blocking:\n- naming\n* wording\n\nRisk: normal — x\nReview verdict: changes %s\n' "$HA" > "$E/rev.md"
 ok "findings: blocking before Non-blocking, non-blocking after, top-level items only" eq "$(lib findings_count "$E/rev.md")" "2 2"
+# #94: a changes review with no Blocking heading (an older prompt, a fix-check): its unheaded items block
+printf '1. src/a.ts:3 off by one\n2. src/b.ts:9 leak\n\nNon-blocking:\n- naming\n\nReview verdict: changes %s\n' "$HA" > "$E/unheaded.md"
+ok "findings: a changes review without a Blocking heading → the items before Non-blocking block" eq "$(lib findings_count "$E/unheaded.md")" "2 1"
+printf 'Checked:\n- the tests\n\nBlocking:\n1. src/a.ts:3 off by one\n\nNon-blocking:\n- naming\n\nReview verdict: changes %s\n' "$HA" > "$E/headed.md"
+ok "findings: a changes review with a Blocking heading → only its items block" eq "$(lib findings_count "$E/headed.md")" "1 1"
 ok "findings: no file → none" eq "$(lib findings_count "$E/none.md")" "0 0"
+# #94: what a passed review lists before any heading (what it checked) counts as neither
+printf 'Checked:\n1. the tests\n2. the docs\n3. the config\n\nNon-blocking:\n- naming\n\nReview verdict: pass %s\n' "$HA" > "$E/pass.md"
+ok "findings: a passed review's list of checks, no Blocking heading → 0 blocking" eq "$(lib findings_count "$E/pass.md")" "0 1"
+printf 'I checked:\n- the tests\n\n**Blocking**\n1. src/a.ts:3 off by one\n\n## Non-blocking\n- naming\n- wording\n' > "$E/both.md"
+ok "findings: both headings → each part counted, the items before them in neither" eq "$(lib findings_count "$E/both.md")" "1 2"
 printf '%s\tweb\treview-50\t1.00\treview\t-\thigh\tfresh\t-\t-\t-\t-\t-\t-\t-\n%s\tweb\t5\t1.00\tfix\t-\t-\tresumed\t-\t-\t-\t-\t-\t-\t-\n' "$((NOW - 30))" "$((NOW - 20))" >> "$WORKERS_DIR/spend.log"
 touch -d "@$NOW" "$E/rev.md"
 lib spend_review_note 5 50 "$E/rev.md" "$HA" "$((NOW - 100))"

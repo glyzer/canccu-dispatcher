@@ -8,15 +8,20 @@
 # usage-limit back-off) stay the fallback. docs/canccu-dispatch.md, "Usage throttle".
 
 # usage_read → "<5-hour %|-> <weekly %|-> <5-hour reset|-> <weekly reset|-> <reading time|->"; a
-# window whose reset has passed counts as 0 %
+# window whose reset has passed counts as 0 %. A stale reading keeps only its time: older than
+# USAGE_MAX_AGE_MIN, or than this dispatcher's start (dispatch.pid): nothing new starts in drain,
+# so no run would ever replace a reading of another account or of long ago.
 usage_read() {
-  local f best="" bt=0 t
+  local f best="" bt=0 t p max=${USAGE_MAX_AGE_MIN:-360}
   for f in "$CANCCU_ROOT"/projects/*/workers/usage.json; do
     [ -f "$f" ] || continue
     t=$(jq -r '.at // 0' "$f" 2>/dev/null) || continue
     [[ $t =~ ^[0-9]+$ ]] && (( t > bt )) && { bt=$t best=$f; }
   done
   [ -n "$best" ] || { echo "- - - - -"; return 0; }
+  [[ $max =~ ^[0-9]+$ ]] || max=360
+  p=$(stat -c %Y "$CANCCU_HOME/dispatch.pid" 2>/dev/null) || p=0
+  if { (( max > 0 )) && (( $(now) - bt > max * 60 )); } || (( bt < p )); then echo "- - - - $bt"; return 0; fi
   jq -r --argjson now "$(now)" '.at as $at | (.info.unifiedWindows // {}) as $w
     | def pct($x): if $x == null or $x.utilization == null then "-"
                    elif ($x.resetsAt // 0) > 0 and ($x.resetsAt // 0) <= $now then "0"
@@ -47,13 +52,17 @@ usage_cap() {
 # draining: weekly drain mode: nothing new starts (packages, planner waves, health, the fast
 # lane); started work finishes its whole pipeline
 draining() { [ "$(usage_state)" = drain ]; }
-# usage_text: "5-hour 42% · weekly 50%" and the throttle, e.g. "draining (weekly 92%)"
+# usage_text: "5-hour 42% · weekly 50% (12 min old)" and the throttle, e.g. "draining (weekly 92%)
+# (12 min old)"; "usage unknown (last reading 7 h old)" for a stale reading
 usage_text() {
-  local f w; read -r f w _ <<<"${USAGE_NOW:-$(usage_read)}"
+  local f w at age; read -r f w _ _ at <<<"${USAGE_NOW:-$(usage_read)}"
+  [[ $at =~ ^[0-9]+$ ]] || { echo "usage unknown"; return 0; }
+  age=$(( ($(now) - at) / 60 )); (( age < 0 )) && age=0
+  if (( age < 60 )); then age="$age min old"; else age="$(( age / 60 )) h old"; fi
   case $(usage_state) in
-    stop) echo "stopping (5-hour $f%)" ;; drain) echo "draining (weekly $w%)" ;;
-    slow) echo "one run at a time (5-hour $f%)" ;;
-    *) [ "$f" = - ] && echo "usage unknown" || echo "5-hour $f% · weekly $w%" ;;
+    stop) echo "stopping (5-hour $f%) ($age)" ;; drain) echo "draining (weekly $w%) ($age)" ;;
+    slow) echo "one run at a time (5-hour $f%) ($age)" ;;
+    *) [ "$f" = - ] && echo "usage unknown (last reading $age)" || echo "5-hour $f% · weekly $w% ($age)" ;;
   esac
 }
 # usage_tick: at the stop, each running worker gets the nudge (its .nudge file), once per run

@@ -180,6 +180,30 @@ echo 0 > "$FAKE/behind"; echo "$((NOW + 3600))" > "$CANCCU_ROOT/backoff"
 dispatch --once
 ok "backing off: no fix run" eq "$(wc -l < "$FAKE/worker.log")" 0
 
+# #94: while backing off, a review's changes and a merged contract PR start no run and change
+# no state; after the back-off they run once
+review_env fix-backoff 'Review verdict: changes' review
+echo "$((NOW + 3600))" > "$CANCCU_ROOT/backoff"
+dispatch --once
+ok "a changes verdict while backing off → no engine call, no 'could not start', no fix counted" \
+  eq "$(wc -l < "$FAKE/worker.log") $(grep -c 'could not start' "$CANCCU_HOME/dispatch.log") [$(st 5 fixes)] [$(st 5 verdict_at)]" "0 0 [] []"
+rm -f "$CANCCU_ROOT/backoff"
+dispatch --once
+ok "… after the back-off the fix run starts once" \
+  eq "$(grep -c 'The independent reviewer asked for changes on PR #50' "$FAKE/worker.log") $(st 5 fixes)" "1 1"
+env_new contract-backoff
+{ issue 5 in-progress; } | issues
+pr 50 5 "$HA" green "" true | prs
+state 5 phase=check pr=50 contract_merged=51 "check_at=$NOW"
+echo "$((NOW + 3600))" > "$CANCCU_ROOT/backoff"
+dispatch --once
+ok "a merged contract PR while backing off → no engine call, no 'could not start', still to do" \
+  eq "$(wc -l < "$FAKE/worker.log") $(grep -c 'could not start' "$CANCCU_HOME/dispatch.log") $(st 5 contract_merged)" "0 0 51"
+rm -f "$CANCCU_ROOT/backoff"
+dispatch --once
+ok "… after the back-off its resume starts once" \
+  eq "$(grep -c 'The contract PR #51 merged into main' "$FAKE/worker.log") [$(st 5 contract_merged)]" "1 []"
+
 # ---------------------------------------------------------------- the cap
 
 redenv cap-ci

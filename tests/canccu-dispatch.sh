@@ -91,6 +91,23 @@ dispatch --once
 ok "needs-work on a pending-CI check PR, CAP 1: the resume takes the slot" grep -q 'web 5 Rules for this run: .* The user rejected PR #50' "$FAKE/worker.log"
 ok "… and the ready issue does not start" not started 8
 
+# #69: a plan-ok issue whose blocker is open reserves no slot; once the blocker closes it does again
+env_new wanting-blocker CAP=1
+{ issue 5 in-progress,plan-ok "Blocked by #9"; issue 9 in-progress; issue 6 in-progress,plan-ok; issue 7 in-progress; } | issues
+state 5 phase=plan; state 6 phase=plan; state 7 phase=work "started=$NOW"
+ok "wanting: a plan-ok issue with an open blocker reserves nothing" eq "$(lib eval 'fetch && wanting 5')" 0
+ok "wanting: a plan-ok issue without blockers reserves as today" eq "$(lib eval 'fetch && wanting 6')" 1
+: > "$FAKE/gh.log"
+lib eval 'fetch && wanting 7' > /dev/null
+ok "wanting: a unit with no plan-ok or needs-work makes no blocker read" not grep -q 'dependencies/blocked_by' "$FAKE/gh.log"
+{ issue 5 in-progress,plan-ok "Blocked by #9"; issue 6 in-progress,plan-ok; issue 7 in-progress; } | issues
+ok "wanting: … the blocker closed: it reserves again" eq "$(lib eval 'fetch && wanting 5')" 1
+env_new wanting-blocker-slot CAP=1
+{ issue 5 in-progress,plan-ok "Blocked by #9"; issue 9 in-progress; issue 8 ready; } | issues
+state 5 phase=plan
+dispatch --once
+ok "one slot, a plan-ok issue with an open blocker and a ready issue: the ready issue starts" started 8
+
 env_new wanting-green-no-slot CAP=1
 { issue 5 in-progress; issue 8 ready; } | issues
 p=$(pr 50 5 $HA green); printf '%s\n' "$p" | prs
@@ -323,7 +340,7 @@ ok "agent config: AGENTS.md" eq "$(c 'AGENTS.md' "" "" "" example-org/web 0)" "m
 ok "a file merely named like it is not" eq "$(c 'docs/CLAUDE.md.txt' "" "" "" example-org/web 0)" auto
 ok "freeze date not YYYY-MM-DD → manual" eq "$(lib eval 'AUTO_MERGE_UNTIL=2031-3-1; classify_pure src/a.ts "" "" "" example-org/web 0')" "manual: AUTO_MERGE_UNTIL (2031-3-1) is not a YYYY-MM-DD date"
 ok "freeze date that is no date → manual" eq "$(lib eval 'AUTO_MERGE_UNTIL=2031-02-30; classify_pure src/a.ts "" "" "" example-org/web 0')" "manual: AUTO_MERGE_UNTIL (2031-02-30) is not a YYYY-MM-DD date"
-ok "gh error → manual" eq "$(lib classify 77)" "manual: gh error reading PR #77"
+ok "gh error reading the PR → retry (#94)" eq "$(lib classify 77)" "retry: gh error reading PR #77"
 state 5 phase=review pr=51
 p=$(pr 51 5 $HB); json pr51.json "$(detail "$p" 2030-11-05T10:00:00Z)"; route 'pr view 51 *' pr51.json
 json files51.json '[{"filename": "src/a.ts"}]'; route 'api --paginate repos/example-org/web/pulls/51/files*' files51.json

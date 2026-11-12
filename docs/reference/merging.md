@@ -71,7 +71,11 @@ applies:
 9. the passing review has a `Maintainer accept: <reason>` line (a breaking contract, a
    destructive migration);
 10. `AUTO_MERGE_UNTIL` is set and is not a real date, or today is on or after it;
-11. any `gh` error while classifying.
+11. any other `gh` error while classifying (reading the PR's files, its comments).
+
+**Retry**: when the PR itself cannot be read, `canccu-classify` prints `retry: gh error reading
+PR #<pr>`. The dispatcher logs it and classifies the passed review again at the next pass; it asks
+no accept, so a GitHub blip never turns an automatic merge into a manual one.
 
 **Your accept**: label the PR `accepted`, or run `canccu-ship <n>`. `canccu-ship` merges the way
 the dispatcher's own merge does: auto-merge with the repo's merge method, pinned to the head, and
@@ -90,7 +94,8 @@ requests a review from you and never relies on approvals.
 - Never touch rulesets, secrets, variables or collaborators.
 - Never review, merge or comment on a PR that is not ours.
 - "No checks reported" is never green.
-- On any error while classifying: manual.
+- On any error while classifying: manual, but for a failed read of the PR itself: again next
+  pass.
 - A PR that waits for your accept is never left armed: an auto-merge someone else enabled is
   disabled.
 - The reviewer token is used only by the dispatcher's own `gh` calls ([`../security.md`](../security.md)).

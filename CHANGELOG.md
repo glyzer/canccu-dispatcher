@@ -18,6 +18,26 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 - A fresh follow-up run always keeps its safety rules: they come first in its prompt, and the
   handoff no longer repeats the whole first prompt. A fix round's long findings are read from the
   findings file. Workers use no subagents, packages included (#88).
+- `REVIEW_EFFORT_MAX` (`low`, `medium` or `high`) caps the effort of every review and fix-check on
+  the machine, gated paths and agent configuration included; empty, the default, changes nothing
+  (#84).
+- A running dispatcher reads its config files again at the next pass when one changed: a raised
+  `STEP_BUDGET` applies without a restart. A syntax error keeps the old values; `REPO`, `CLONE`
+  and `GH_CONFIG_DIR` still need a restart. A step at `STEP_BUDGET` still reviews, fix-checks
+  and merges its open PRs; only new workers, resumes and answers wait (#65).
+- A `plan-ok` or `needs-work` issue whose blocker is open no longer reserves a run slot: with one
+  slot, a runnable issue starts instead (#69).
+- An old usage reading no longer throttles: one older than `USAGE_MAX_AGE_MIN` (6 hours) or than
+  the dispatcher's start counts as unknown, so a restart after an account switch ends a drain. The
+  usage text shows the reading's age (#64).
+- A failed GitHub read of a passed PR is tried again next pass (`retry:` from `canccu-classify`)
+  instead of asking for an accept. A review's fix round and the resume after a merged contract PR
+  wait for the end of a back-off without changing any state. A passed review's list of what it
+  checked no longer counts as blocking findings in the spend log; the reviewer lists its blocking
+  findings under `Blocking:`, and a `changes` review without that heading still counts its items
+  before `Non-blocking:` (#94).
+- A reviewer that ends `done` without a valid review file is asked once per head, in its own
+  session, to write it; only a second miss goes to `needs-you` (#93).
 
 ## [0.1.2] — 2026-11-10
 

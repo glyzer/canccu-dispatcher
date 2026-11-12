@@ -16,6 +16,10 @@ fix_kind() { case $1 in fix|ci|needs-work) return 0 ;; esac; return 1; }
 fixes_used() { [ "$(st_get "$1" fixes_pr)" = "$2" ] && echo "$(( $(st_get "$1" fixes) + 0 ))" || echo 0; }
 fix_left() { (( $(fixes_used "$1" "$2") < $(fix_max) )); }
 fix_count() { st_set "$1" fixes=$(( $(fixes_used "$1" "$2") + 1 )) fixes_pr="$2"; }
+# may_start <K>: a follow-up run of the unit can start now: no back-off, and a slot. Checked before
+# its state changes, so a refused start leaves the work for the next pass (the engine would refuse
+# it anyway, and log that every pass)
+may_start() { backing_off && return 1; room "$1"; }
 
 # handoff <K> [kind]: what a fresh follow-up session gets instead of the old conversation: the PR,
 # its body (Decisions made:, Follow-up:), the branch's commits and their diff stat, uncommitted
@@ -138,7 +142,7 @@ ci_red() {
     conflict)
       # one conflict run per head: one that pushed nothing gets no second try
       [ "$(st_get "$k" conflict_sha)" = "$head" ] && { needs_you "$k" "CI is red on PR #$pr and merging origin/main into it conflicts in: $MERGE_WHY; the worker's merge run pushed no resolution" "$(run_msg "$k")" "" ci; return; }
-      backing_off && return 0; room "$k" || return 0
+      may_start "$k" || return 0
       resume "$k" "Merging origin/main into the branch of PR #$pr conflicts in: $MERGE_WHY. Run git merge origin/main, resolve the conflicts keeping what both sides meant, rerun the checks, push once (a normal push, never a rebase or force-push) and stop: the dispatcher watches CI." merge || return 0
       st_set "$k" conflict_sha="$head"; return 0 ;;
     error)
@@ -147,7 +151,7 @@ ci_red() {
       st_set "$k" mm_err="$err"; log "#$k PR #$pr: CI red; merging main failed ($MERGE_WHY), again next pass"; return 0 ;;
   esac
   fix_left "$k" "$pr" || { needs_you "$k" "CI is red on PR #$pr after $(fix_max) automatic fix runs (FIX_ATTEMPTS)" "$(run_msg "$k")" "" ci; return; }
-  backing_off && return 0; room "$k" || return 0
+  may_start "$k" || return 0
   if [ "$MERGED" = current ]; then task="CI is red on PR #$pr, with main already merged in, so the failure is the PR's. Fix it,"
   else task="CI is red on PR #$pr; main was not merged in by script ($MERGE_WHY). First run git merge origin/main (a normal merge and push, never a rebase or force-push), then fix what is still red,"; fi
   resume "$k" "$task rerun the checks, push once and stop: the dispatcher watches CI. $(ci_log_tail "$pr")" ci || return 0
@@ -165,7 +169,7 @@ finish_once() {
   commits=$(guard 20 git -C "$wt" log --oneline origin/main..HEAD 2>/dev/null | head -n1)
   dirty=$(guard 20 git -C "$wt" status --porcelain 2>/dev/null | head -n1)
   [ -n "$commits$dirty" ] || return 1
-  backing_off && return 0; room "$k" || return 0
+  may_start "$k" || return 0
   # the handoff (its commits, diff stat and uncommitted files) is this session's context, not the whole task again
   st_set "$k" no_pr=
   resume "$k" "Finish: your earlier run ended with work in this worktree and no PR (its turn ended while work ran in the background, or before its push). Run nothing in the background. Commit what is uncommitted, run the tests of the files you changed in the foreground, push the branch and open the PR, ready, with the body the task asks for; then stop: the dispatcher watches CI." finish || return 0

@@ -214,6 +214,8 @@ quiet() {
 # text is in dispatch.log) says so in the pane, and the snapshot says so too (ok=false).
 run_pass() {
   local rc
+  # outside the pass's subshell: what it reads holds for the loop too (INTERVAL)
+  canccu_reload_config
   # shellcheck disable=SC2034  # PASS_STARTED: read by write_status
   PASS_STARTED=$(now) BLOCKERS_CACHE=$(mktemp -d) || BLOCKERS_CACHE=""
   rm -f "$CANCCU_HOME/.pass-written"

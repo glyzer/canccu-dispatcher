@@ -79,6 +79,39 @@ dispatch --once
 ok "a normal-risk package's review runs at medium effort" grep -q 'review#50 .*Run the code-review skill at medium effort' "$FAKE/worker.log"
 ok "… recorded" eq "$(cat "$CANCCU_HOME/reviews/50.effort")" medium
 
+# REVIEW_EFFORT_MAX caps every review and fix-check effort, gated paths and no files included
+env_new effort-cap
+cap() { lib eval "REVIEW_EFFORT_MAX=$1; $2"; }
+ok "cap medium: a code diff that is high → medium capped" \
+  eq "$(cap medium "review_effort_pure \$'src/a.ts\t500' 'Tier: feature'")" "medium capped"
+ok "cap medium: a gated path → medium capped" \
+  eq "$(cap medium "review_effort_pure \$'.github/workflows/ci.yml\t3' 'Tier: fix'")" "medium capped"
+ok "cap medium: agent configuration → medium capped" \
+  eq "$(cap medium "review_effort_pure \$'CLAUDE.md\t3' 'Tier: fix'")" "medium capped"
+ok "cap medium: no files → medium capped" eq "$(cap medium "review_effort_pure '' 'Tier: fix'")" "medium capped"
+ok "cap medium: a package rated high → medium capped" \
+  eq "$(cap medium "review_effort_pure \$'docs/x.md\t3' 'Tier: fix' high")" "medium capped"
+ok "cap medium never raises: a docs-only diff stays medium, not capped" \
+  eq "$(cap medium "review_effort_pure \$'docs/x.md\t3' 'Tier: fix'")" medium
+ok "cap high: high stays high, not capped" eq "$(cap high "review_effort_pure \$'src/a.ts\t500' 'Tier: feature'")" high
+ok "cap low: a docs-only diff → low capped" eq "$(cap low "review_effort_pure \$'docs/x.md\t3' 'Tier: fix'")" "low capped"
+ok "cap low: a fix-check diff over FIXCHECK_BIG → low capped" \
+  eq "$(cap low "fixcheck_effort_pure \$'400\t1\tsrc/a.ts'")" "low capped"
+ok "cap low: a small fix-check diff stays low, not capped" eq "$(cap low "fixcheck_effort_pure \$'1\t1\tsrc/a.ts'")" low
+ok "cap medium: a fix-check with no lines stays medium" eq "$(cap medium "fixcheck_effort_pure ''")" medium
+ok "an invalid cap is ignored: high stays high" eq "$(cap fast "review_effort_pure \$'src/a.ts\t500' 'Tier: feature'")" high
+ok "… and a fix-check's medium stays medium" eq "$(cap fast "fixcheck_effort_pure \$'400\t1\tsrc/a.ts'")" medium
+ok "… with one warning in the log" eq "$(grep -c 'REVIEW_EFFORT_MAX is not low, medium or high (fast): ignored' "$CANCCU_HOME/dispatch.log")" 1
+ok "REVIEW_EFFORT_MAX defaults to empty" eq "$( . "$root/lib/canccu-config.default"; echo "[$REVIEW_EFFORT_MAX]")" "[]"
+
+# a reviewer started under the cap: the effort file says so, the prompt names the effort only
+effenv effort-cap-start '[{"filename": "src/a.ts", "changes": 500}]' 'Tier: feature'
+echo "REVIEW_EFFORT_MAX=medium" >> "$CANCCU_HOME/config"
+dispatch --once
+ok "a capped review's prompt names medium" grep -q 'review#50 .*Run the code-review skill at medium effort on the diff' "$FAKE/worker.log"
+ok "… recorded as medium (capped)" eq "$(cat "$CANCCU_HOME/reviews/50.effort" 2>/dev/null)" "medium (capped)"
+ok "… and logged with the effort word" grep -qF "#5 PR #50: reviewer started at ${HA:0:7} (medium effort," "$CANCCU_HOME/dispatch.log"
+
 # ---------------------------------------------------------------- model by kind
 
 ok "REVIEW_MODEL and FIXCHECK_MODEL default to empty (MODEL)" \

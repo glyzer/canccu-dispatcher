@@ -26,6 +26,7 @@ are in `workers/` ([`reference/engine.md`](reference/engine.md)).
 | "usage limit until <time>" | A run hit the Claude usage limit | Nothing: it resumes after the reset ([`reference/usage.md`](reference/usage.md)) |
 | "usage limit until <time>" after an early reset | The back-off and the last reading | `canccu-resume --usage` |
 | "draining (weekly N%)" | The weekly share passed `USAGE_WEEKLY_DRAIN` | Nothing new starts until it drops; raise the threshold if you accept the risk |
+| "draining (weekly N%)" on a fresh account | The last reading is the old account's | Restart the dispatcher: a reading older than its start counts as unknown ([`reference/usage.md`](reference/usage.md)) |
 | `could not start …: TOTAL_CAP (…) runs over all projects are running` | Another project uses the slots | Wait, or raise `TOTAL_CAP` in `~/.canccu/config` |
 | `could not start …: the free slot goes to <project>, which waits for one`, or `canccu-status` says `waiting for a slot held by <project>` | The fair share: the free slot is owed to a project with work and fewer runs ([`reference/projects.md`](reference/projects.md#fair-share-of-total_cap)) | Nothing: the busy project yields at its next phase boundary |
 | `canccu-up: session … exists but canccu-dispatch is not running` | The session outlived its dispatcher | Start it in window `dispatch`: `canccu-dispatch --project <name>` |

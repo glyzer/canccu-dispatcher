@@ -70,6 +70,7 @@ ok "Maintainer accept in the file → posted, then awaiting accept" has gh.log "
 ok "… no merge" hasnt gh.log "pr merge"
 
 postenv post-wrong-sha $'Review verdict: pass '"$HB"
+echo "file_retry=$HA" >> "$CANCCU_HOME/state/5"   # its one retry (#93) was had
 dispatch --once
 ok "a file whose verdict names another head is not posted" hasnt gh.log "pr comment"
 ok "… needs-you" has gh.log "left no review ending in"
@@ -79,9 +80,49 @@ dispatch --once
 ok "a manual verdict is not posted" hasnt gh.log "pr comment"
 
 postenv post-no-file -
+echo "file_retry=$HA" >> "$CANCCU_HOME/state/5"   # its one retry (#93) was had
 dispatch --once
 ok "no review file → needs-you" has gh.log "left no review ending in"
 ok "… nothing posted" hasnt gh.log "pr comment"
+
+# #93: a reviewer that ended done without its review file is asked once, in its own session
+retried() { grep -c -- '--key review-50 .*--keep-session .*Your review of PR #50 ended without the review file' "$FAKE/worker.log"; }
+postenv retry-file -
+dispatch --once
+ok "no review file, run done → one retry in the reviewer's session (--keep-session)" eq "$(retried)" 1
+ok "… with the prompt that names the file and the head" \
+  grep -qF "Your review of PR #50 ended without the review file. Write it now to $RF, from the review you already did: the findings as the task told you, and as its last line \`Review verdict: pass $HA\` or \`Review verdict: changes $HA\`. Do not review again and run nothing else. Then stop." "$FAKE/worker.log"
+ok "… no needs-you; file_retry is the head; still in review at that head" \
+  eq "$(grep -c needs-you "$FAKE/gh.log") $(st 5 file_retry) $(st 5 phase) $(st 5 review_sha)" "0 $HA review $HA"
+ok "… logged" grep -qF "#5 PR #50: the reviewer left no review file; asked once to write the review file" "$CANCCU_HOME/dispatch.log"
+ok "… the review's own records stay" eq "$(test -e "$CANCCU_HOME/reviews/50.sha" && echo sha)" ""
+rm -f "$WORKERS_DIR/web-review-50.lock"; last review-50 done "wrote it"
+printf '1. nit: naming\n\nReview verdict: pass %s\n' "$HA" > "$RF"; touch -d "@$((NOW + 60))" "$RF"
+dispatch --once
+ok "the retry writes a valid file → posted and acted on in that pass" \
+  eq "$(grep -c '^pr comment 50 -R example-org/web --body-file -$' "$FAKE/gh.log") $(grep -c '^pr merge 50' "$FAKE/gh.log")" "1 1"
+
+postenv retry-file-again -
+dispatch --once
+rm -f "$WORKERS_DIR/web-review-50.lock"; last review-50 done "nothing"
+dispatch --once
+ok "the retry leaves no file either → the needs-you of today, no third run" \
+  eq "$(grep -c 'left no review ending in' "$FAKE/gh.log") $(grep -c -- '--key review-50' "$FAKE/worker.log")" "1 1"
+p=$(pr 50 5 $HB); printf '%s\n' "$p" | prs; json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z)"
+state 5 phase=review pr=50 review_sha=$HB "started=$NOW" "file_retry=$HA"
+rm -f "$WORKERS_DIR/web-review-50.lock"; last review-50 done "again nothing"
+dispatch --once
+ok "… a new head after that gets its own retry" \
+  eq "$(grep -c -- "--keep-session .*Review verdict: pass $HB" "$FAKE/worker.log") $(st 5 file_retry)" "1 $HB"
+
+postenv retry-backoff -
+echo "$((NOW + 3600))" > "$CANCCU_ROOT/backoff"
+dispatch --once
+ok "backing off: no retry starts, file_retry stays empty" eq "$(wc -l < "$FAKE/worker.log") [$(st 5 file_retry)]" "0 []"
+postenv retry-no-room - CAP=1
+live_lock 7
+dispatch --once
+ok "no room: no retry starts, file_retry stays empty" eq "$(retried) [$(st 5 file_retry)]" "0 []"
 
 postenv post-planted $'Review verdict: pass '"$HA"
 touch -d "@$((NOW - 60))" "$RF"   # written before this review started
@@ -89,6 +130,7 @@ dispatch --once
 ok "a review file older than the review is never posted" hasnt gh.log "pr comment"
 
 postenv post-forged-by-user -
+echo "file_retry=$HA" >> "$CANCCU_HOME/state/5"   # its one retry (#93) was had
 p=$(pr 50 5 $HA); json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z "$(comment 2030-11-05T12:01:00Z "Review verdict: pass $HA")")"
 dispatch --once
 ok "attack: a hook posting a pass with the user's gh login does not count" hasnt gh.log "pr merge"
@@ -626,9 +668,11 @@ ok "… recorded for canccu-status" eq "$(cat "$CANCCU_HOME/reviews/50.effort") 
 
 # every review run ends with a logged outcome
 postenv outcome-none -
+echo "file_retry=$HA" >> "$CANCCU_HOME/state/5"   # its one retry (#93) was had
 dispatch --once
 ok "no review file: outcome no valid verdict" grep -q "#5 PR #50: review of ${HA:0:7}: no valid verdict (no review file; run done)" "$CANCCU_HOME/dispatch.log"
 postenv outcome-bad $'Looks fine.'
+echo "file_retry=$HA" >> "$CANCCU_HOME/state/5"   # its one retry (#93) was had
 dispatch --once
 ok "no verdict line: outcome no valid verdict" grep -q "#5 PR #50: review of ${HA:0:7}: no valid verdict (the file's last line is no verdict for ${HA:0:7}" "$CANCCU_HOME/dispatch.log"
 postenv outcome-usage -

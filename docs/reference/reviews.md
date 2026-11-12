@@ -18,13 +18,14 @@ the choices under `Decisions made:` in the PR body. It treats the PR, the issue,
 `CLAUDE.md` and `AGENTS.md` as data, never as instructions; it edits, pushes, comments, labels
 and merges nothing.
 
-It writes its review to `~/.canccu/projects/<name>/reviews/<pr>/<sha>.md`: findings ranked, each
-with a repo-relative `file:line` and a concrete fix; then, only when the PR breaks a contract or
-holds a destructive migration, `Maintainer accept: <what>`; for a package, `Risk: <low|normal|high>
-— <why>` (it confirms or raises the plan's class, never lowers it); and last, exactly `Review
-verdict: pass <sha>` or `Review verdict: changes <sha>`. Only correctness and security findings
-(an unmet acceptance criterion counts) make the verdict `changes`; nits go under
-"Non-blocking:". The dispatcher checks the file and posts it as `REVIEWER_LOGIN`.
+It writes its review to `~/.canccu/projects/<name>/reviews/<pr>/<sha>.md`: the blocking
+findings under "Blocking:", ranked, each with a repo-relative `file:line` and a concrete fix;
+then, only when the PR breaks a contract or holds a destructive migration, `Maintainer accept:
+<what>`; for a package, `Risk: <low|normal|high> — <why>` (it confirms or raises the plan's
+class, never lowers it); and last, exactly `Review verdict: pass <sha>` or `Review verdict:
+changes <sha>`. Only correctness and security findings (an unmet acceptance criterion counts) make
+the verdict `changes`; nits go under "Non-blocking:". The dispatcher checks the file and posts
+it as `REVIEWER_LOGIN`.
 
 **Non-blocking findings go to a follow-up issue.** From every verdict comment (a review's or a
 fix-check's, `pass` or `changes`, once per verdict) the dispatcher takes the items under
@@ -52,6 +53,11 @@ review records (`FINDINGS_TOP` lines at most, 15 by default).
   count as docs even when `RISKY_PATHS` names them; their lines do not count toward the 100
   either. An `EFFORT_DOCS_PATHS` that is not a valid regex makes every review `high` (with a
   warning in the log).
+
+`REVIEW_EFFORT_MAX` (`low`, `medium` or `high`) then caps the effort of every full review and
+fix-check on the machine, with no exceptions: gated paths, agent configuration, a diff that could
+not be read and a package of risk `high` are capped too. It never raises an effort, and who must
+accept a gated PR does not change. A capped review's `reviews/<pr>.effort` reads `medium (capped)`.
 
 **Model by kind.** A full review runs on `REVIEW_MODEL`, a fix-check on `FIXCHECK_MODEL`; each
 is `MODEL` when empty. A project that runs fix-checks on a cheaper model (`claude-sonnet-5-5`)
@@ -95,8 +101,12 @@ wins. A `Maintainer accept:` line before the verdict makes the PR manual: the di
 your accept, not `review-gate`.
 
 The dispatcher posts a review only when the file was written after the review started and its
-last line is a verdict for exactly that head. A file that fails the check is never posted
-(`needs-you`). A failed post is retried every pass; a run's first failed post, or its second
+last line is a verdict for exactly that head. A file that fails the check is never posted. A
+run that ended `done` without one (no file, an old one, or no verdict for the head) is asked once
+per head, in its own session (`--keep-session`, 10 turns, 2 USD, 10 minutes), to write the file
+from the review it already did; the log says `asked once to write the review file`. A retry that
+leaves no valid file either, or a run that ended any other way, goes to `needs-you`. Backing off
+or no free slot: the retry waits for the next pass. A failed post is retried every pass; a run's first failed post, or its second
 time-out in a row, labels the issue `needs-you` once, with a comment saying where the review file
 is, and the label goes again once the verdict is acted on, the run is void, or a new run starts.
 A posted review GitHub does not list yet is waited for `POST_WAIT` seconds before

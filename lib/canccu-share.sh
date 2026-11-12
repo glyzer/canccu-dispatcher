@@ -17,8 +17,11 @@ SLOT_REFUSED=75
 
 declare -gA WANT_KEYS=()   # the units this pass could not start for want of a shared slot
 # want_slot <key>: note the unit as waiting, unless the project's own CAP holds it, or its step's
-# budget (that run would not start in a free slot either: the others would yield it for nothing)
-want_slot() { [ -n "${1:-}" ] && (( $(running_count) < CAP )) && ! unit_held "$1" && WANT_KEYS[$1]=1; return 0; }
+# budget (that run would not start in a free slot either: the others would yield it for nothing;
+# a unit in check is not held, its review starts)
+want_slot() {
+  [ -n "${1:-}" ] && (( $(running_count) < CAP )) && { unit_check_free "$1" || ! unit_held "$1"; } && WANT_KEYS[$1]=1; return 0
+}
 # want_write: the pass's wait, for the other projects' dispatchers and canccu-status. Written by
 # every pass, also one that ends early with no wait, so an old wait never outlives its cause.
 want_write() {

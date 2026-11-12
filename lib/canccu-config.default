@@ -55,6 +55,7 @@ USAGE_SLOW=60               # 5-hour share (%) from which one run at a time runs
 USAGE_STOP=90               # … from which no run starts and running workers are nudged to stop
 USAGE_WEEKLY_DRAIN=90       # weekly share (%) from which nothing new starts; started work finishes
 USAGE_WINDOW_DELTA=0        # 1: each run's spend.log line has the 5-hour share before and after it (one run at a time only)
+USAGE_MAX_AGE_MIN=360       # a usage reading older than this (minutes) counts as unknown; 0: never
 
 # ---- rules: the project's rules file (~/.canccu/projects/<name>/rules) sets these. It lives
 # on this host, never in the repo, so a PR can never change its own gating.
@@ -64,6 +65,7 @@ RISKY_PATHS='^(\.github|deploy)/|migration|sign-?in|login|auth|rights|permission
 # paths (grep -E) that count as docs for a full review's effort, on top of docs/ and *.md, even
 # when RISKY_PATHS names them; never agent configuration or a gated path
 EFFORT_DOCS_PATHS=''
+REVIEW_EFFORT_MAX=''        # cap for the review and fix-check effort: low, medium or high; empty: none
 # the same as RISKY_PATHS for a fix-check's fix diff: medium instead of low effort
 FIXCHECK_RISKY='(^|/)deploy/|sign-?in|login|auth|rights|permission|session|secret|tenan|(^|[/_.-])rls([/_.-]|$)|migrations?(/|_|\.|$)|\.sql$|schema'
 # gated paths (grep -E): a PR touching one waits for the user's accept. Agent configuration

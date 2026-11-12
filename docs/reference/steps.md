@@ -62,5 +62,7 @@ in the next wave like any other issue of the step. Without `ready` it waits for 
 `STEP_BUDGET` (USD) covers the exact costs (`workers/spend.log`) of the step's planner, package,
 review, fix-check, answerer and health runs since the step became current. Runs without a
 reported cost (stopped at a budget, stalled or crashed) are counted apart. At the limit no new
-run of the step starts (running ones finish) and the epic gets `needs-you` once; raising
-`STEP_BUDGET` clears it on the next pass. The fast lane is not charged.
+worker, resume or answer of the step starts (running ones finish; a fix run after a `changes`
+verdict is a resume and waits too), and the epic gets `needs-you` once. Reviews, fix-checks and
+merges of the step's open PRs go on, so the work already paid for is not left unreviewed. Raising
+`STEP_BUDGET` clears it on the next pass, without a restart. The fast lane is not charged.
