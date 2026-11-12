@@ -154,7 +154,8 @@ cat > "$E/between" <<SH
 case \$1 in
   1) printf 'STEP_BUDGET=50\nif then\n' >> "$CANCCU_HOME/config"; touch -d "@\$(( \$(stat -c %Y "$CANCCU_HOME/config") + 10 ))" "$CANCCU_HOME/config" ;;
   2) grep -c -- '--key plan-12' "$FAKE/worker.log" > "$E/plans-2"
-     sed -i '/^if then\$/d' "$CANCCU_HOME/config"; touch -d "@\$(( \$(stat -c %Y "$CANCCU_HOME/config") + 10 ))" "$CANCCU_HOME/config" ;;
+     m=\$(stat -c %Y "$CANCCU_HOME/config")  # sed -i resets the mtime: two passes in one second would match
+     sed -i '/^if then\$/d' "$CANCCU_HOME/config"; touch -d "@\$(( m + 10 ))" "$CANCCU_HOME/config" ;;
   *) exit 1 ;;
 esac
 SH
