@@ -132,15 +132,17 @@ cfg_check() {
       [[ $v =~ ^(0|[1-9][0-9]{0,8})$ ]] && (( v >= lo && v <= hi )) && return 0
       echo "$k must be a whole number from $lo to $hi$([ "$a" = intopt ] && echo ", or empty")" ;;
     enum:*)
-      [[ "|$alts|" == *"|$v|"* ]] && return 0
+      # a | in the value would match several alternatives at once
+      [[ $v != *'|'* && "|$alts|" == *"|$v|"* ]] && return 0
       echo "$k must be one of: $(_cfg_list "$alts")" ;;
     words:*)
       # RESUME_ON is read with commas, PING_KINDS with spaces: both separate here
       IFS=$', ' read -ra ws <<<"$v"
-      for w in "${ws[@]}"; do [[ "|$alts|" == *"|$w|"* ]] || { echo "$k may only hold: $(_cfg_list "$alts")"; return 1; }; done
+      for w in "${ws[@]}"; do [[ $w != *'|'* && "|$alts|" == *"|$w|"* ]] || { echo "$k may only hold: $(_cfg_list "$alts")"; return 1; }; done
       return 0 ;;
     budget)
-      [[ $v =~ ^\ *[0-9]+\ +[0-9]+\ +[0-9]+\ *$ ]] && return 0
+      # no leading zero, as for int: the worker's $((mins + 2)) reads 09 as a bad octal number
+      [[ $v =~ ^\ *(0|[1-9][0-9]*)\ +(0|[1-9][0-9]*)\ +(0|[1-9][0-9]*)\ *$ ]] && return 0
       echo "$k must be three whole numbers: turns, USD, minutes (for example \"120 25 120\")" ;;
     regex)
       grep -E -- "$v" </dev/null >/dev/null 2>&1; [ $? = 2 ] || return 0
