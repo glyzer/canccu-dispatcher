@@ -6,6 +6,9 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 
 ## Unreleased
 
+- `canccu-dispatcher config set KEY=VALUE` and `config unset KEY` check a setting, write only its
+  line (atomically, checked with `bash -n`), keep a `config.history` line, and refuse a locked
+  setting to the leader and to runs, which now carry `CANCCU_ACTOR=run` (#109).
 - `canccu-dispatcher config show [--project <name>] [--global] [--origin] [KEY…]` prints every
   setting with its value, its default and the file it comes from; `lib/canccu-settings.tsv` lists
   every setting's type, file and whether it is locked (#108).

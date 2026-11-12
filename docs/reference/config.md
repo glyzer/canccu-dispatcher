@@ -39,6 +39,25 @@ the log, and the pass runs; the corrected file applies at the pass after. `REPO`
 `REPO`, `CLONE` or `GH_CONFIG_DIR` keeps its old value, with a warning in the log. Every other
 `canccu-*` command reads the files when it starts.
 
+## Changing a setting
+
+`canccu-dispatcher config set KEY=VALUE` is the checked way to change one
+([`commands.md`](commands.md#config-set-and-config-unset)). It writes `KEY='VALUE'` in the place
+of the file's old line for the key (every uncommented `KEY=` line goes; a `# KEY=…` comment
+stays), or at the end when there was none, in the key's own file: a rules key in the project's
+`rules`, any other in the project's `config`, and with `--global` in `~/.canccu/config` (created,
+mode 600, when missing). The value is in single quotes: it never expands a variable. The file is
+rewritten in a temporary file, checked with `bash -n` and moved over the old one, one writer at
+a time (`flock` on `<file>.lock`), so the dispatcher never reads half a file. `config unset KEY`
+removes the lines the same way. The change applies at the dispatcher's next pass, as an edit does.
+
+Each change, and each refusal of a locked key, adds a line to `config.history` beside the file
+(`~/.canccu/projects/<name>/config.history` for a project's two files,
+`~/.canccu/config.history` for the global config), mode 600, tab-separated:
+`<UTC time>	<actor>	<set|unset|refused>	<KEY>	<old>	<new>	<why>`. The actor is `po` (you),
+`leader` or `run`; `<old>` is the value the file held (`-`: none), `<new>` the value written
+(`-` for an unset), `<why>` the `--why` text (`-`: none).
+
 ## Keys
 
 Budgets are three numbers: turns, USD and minutes for one run. A run that reaches any of them

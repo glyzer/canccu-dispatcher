@@ -94,5 +94,10 @@ rule keeps personal paths out of this repo (`tests/leak-check.sh`).
   close this.
 - **A worker trusts its issue.** Label `ready` only issues whose text you have read; on a public
   repo, comments by others are part of what a worker reads.
+- **Locked settings are refused by a marker, not a boundary.** `config set` and `config unset`
+  refuse a locked setting ([`reference/config.md`](reference/config.md#the-settings-table)) when
+  `CANCCU_ACTOR` is `leader` or `run`; the dispatcher exports `CANCCU_ACTOR=run` into every run and
+  answerer it starts. This is not a security boundary: a process can unset the marker. Package S2
+  replaces it.
 - **A worker runs code.** Workers and reviewers run the repo's tests on the host as your user.
   Run the tool under a user and on a host that holds nothing else of value.
