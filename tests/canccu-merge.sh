@@ -591,8 +591,12 @@ ok "a refusal (not mergeable) → the needs-you at once, no retry" \
   eq "$(st 5 phase) $(dlog 'trying again next pass')" "needs-you 0"
 ok "… with gh's error, no tries named" eq "$(grep -c 'Pull request is not mergeable' "$FAKE/gh.log") $(grep -c 'tries)' "$FAKE/gh.log")" "1 0"
 
-review_env merge-direct-502 'Review verdict: pass' review
+# merging_step's direct merge (no auto-merge in the repo), CI green on the passed head
+env_new merge-direct-502
+{ issue 5 in-progress; } | issues
+pr 50 5 $HA green | prs
 json repo.json '{"allow_auto_merge": false}'
+state 5 phase=merging pr=50 merge_sha=$HA how=auto merge_mode=direct "merge_at=$((NOW - 60))"
 flaky 1 'HTTP 503: Service Unavailable'
 fpass
 ok "a direct merge's 503 → retried: merging (direct), no needs-you" \
@@ -623,6 +627,10 @@ ok "… the worker is not resumed" not started 5
 munpark merge-unpark-push $HB
 dispatch --once
 ok "… with a newer head → requeued for review instead" eq "$(st 5 phase) $(dlog 'review again') $(dlog 'needs-you lifted at the merge')" "check 1 0"
+munpark merge-unpark-auto $HA
+sed -i '/^accept_sha=/d' "$CANCCU_HOME/state/5"
+dispatch --once
+ok "… no accept_sha (an automatic merge) → left in needs-you" eq "$(st 5 phase) $(dlog 'needs-you lifted')" "needs-you 0"
 munpark merge-unpark-label $HA needs-you
 dispatch --once
 ok "… the label still there → nothing" eq "$(st 5 phase) $(dlog 'needs-you lifted')" "needs-you 0"

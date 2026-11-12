@@ -37,6 +37,7 @@ INTERVAL=60                 # seconds between passes
 CI_WAIT_MIN=90              # a finished worker's PR with CI still pending this long → needs-you
 NO_CHECKS_MIN=10            # a finished worker's PR with no CI check reported this long → needs-you
 MERGE_WAIT_MIN=240          # auto-merge armed this long without a merge → disarmed, needs-you
+MERGE_RETRY=3               # a merge that fails on a GitHub server error is tried again on this many passes, then needs-you
 KEEP_ACCEPT_ON_MAIN_MERGE=0 # 1: an accept carries over a push that is a clean merge of main only; keep 0 until package S2
 POST_WAIT=600               # seconds a posted review may take to show up on GitHub
 # work packages per step (docs/canccu-dispatch.md, "Work packages per step")

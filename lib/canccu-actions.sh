@@ -149,16 +149,50 @@ merge_auto() {
   if [ "$AUTO_MERGE_ALLOWED" != false ]; then
     merge_flags 0
     if mut_out gh pr merge "$pr" -R "$REPO" --auto "${MF[@]}" --match-head-commit "$head"; then
-      st_set "$n" phase=merging how="$how" merge_sha="$head" merge_at="$(now)" merge_mode=
+      st_set "$n" phase=merging how="$how" merge_sha="$head" merge_at="$(now)" merge_mode= merge_tries=
       log "#$n PR #$pr: auto-merge enabled ($how)"; return 0
     fi
     if ! grep -qiE 'auto.?merge is not allowed' <<<"$MUT_OUT"; then
-      needs_you "$n" "\`gh pr merge $pr --auto${MF[*]:+ ${MF[*]}} --match-head-commit ${head:0:7}\` failed; merge it by hand or check the merge queue. gh: $(oneline 300 "$MUT_OUT")"; return 1
+      merge_retry "$n" "$pr" && return 1
+      needs_you "$n" "\`gh pr merge $pr --auto${MF[*]:+ ${MF[*]}} --match-head-commit ${head:0:7}\` failed; merge it by hand or check the merge queue. gh: $(oneline 300 "$MUT_OUT")$MERGE_AFTER"; return 1
     fi
     AUTO_MERGE_ALLOWED=false
   fi
   st_set "$n" phase=merging how="$how" merge_sha="$head" merge_at="$(now)" merge_mode=direct
   merge_direct "$n" "$pr"
+}
+
+# merge_retry <n> <pr>: the merge call failed (its output in MUT_OUT). 0 when the error looks
+# transient (gh_transient) and merge_tries is below MERGE_RETRY: the try is counted and logged and
+# the phase kept, so the next pass's step (accept_step, merging_step, or check_pr acting on the same
+# verdict again) runs the same merge. 1: raise the needs-you, with MERGE_AFTER appended to it.
+merge_retry() {
+  local n=$1 pr=$2 k max=${MERGE_RETRY:-3}
+  MERGE_AFTER=""
+  gh_transient "$MUT_OUT" || return 1
+  k=$(st_get "$n" merge_tries); k=${k:-0}
+  (( k >= max )) && { MERGE_AFTER=" (after $max tries)"; return 1; }
+  st_set "$n" merge_tries=$(( k + 1 ))
+  log "#$n PR #$pr: GitHub error on the merge (try $(( k + 1 )) of $max); trying again next pass: $(oneline 200 "$MUT_OUT")"
+}
+
+# merge_unpark <n>: a needs-you at the merge step (ny_stage merge) whose label the user removed
+# with no comment since it parked means "try again": back to accept, where accept_step checks the
+# user's accept and the head again before it merges, so no new accept is asked. A push since the
+# accept → requeue, as accept_step would. A comment leaves it to resume_step; a gh error reading
+# the comments, to the next pass. A unit without an accept (accept_sha empty: auto-merged) is left
+# as it is: in accept it would wait for a label nobody adds. 0 when it left needs-you.
+merge_unpark() {
+  local n=$1 pr c
+  [ "$(st_get "$n" ny_stage)" = merge ] && [ -n "$(st_get "$n" accept_sha)" ] && ! has_label "$n" needs-you || return 1
+  pr=$(st_get "$n" pr); [ -n "$pr" ] && pr_is_open "$pr" || return 1
+  c=$(user_comments "$n" "$pr" "$(st_get "$n" ny_at)") || return 1
+  [ -z "$c" ] || return 1
+  if [ "$(pr_get "$pr" .headRefOid)" != "$(st_get "$n" accept_sha)" ]; then
+    requeue "$n" "$pr" "new push since the merge needs-you"; return 0
+  fi
+  st_set "$n" phase=accept merge_tries=
+  log "#$n PR #$pr: needs-you lifted at the merge; trying the merge again"
 }
 
 # armed <n> <pr>: auto-merge may be armed on the PR: the state says auto-merge (merge_mode empty),
@@ -172,7 +206,7 @@ direct_ci() { local c; c=$(ci_state "$1"); [ "$c" = green ] && review_checks_run
 # only while it is the PR's head (a push: merging_step reviews again) and CI is green on it
 # (direct_ci; pending or none: wait; red: needs-you). merge_mode=merged after (merge_at: then):
 # the PR is still in this pass's list, and finish_unit logs the merge once the issue closes. 1
-# after a needs-you.
+# after a needs-you or a retry (merge_retry).
 merge_direct() {
   local n=$1 pr=$2 sha; sha=$(st_get "$n" merge_sha)
   is_full_sha "$sha" || { needs_you "$n" "the head of PR #$pr ($sha) is not a full commit sha; not merged"; return 1; }
@@ -184,9 +218,10 @@ merge_direct() {
   esac
   merge_flags 1
   if ! mut_out gh pr merge "$pr" -R "$REPO" "${MF[@]}" --match-head-commit "$sha"; then
-    needs_you "$n" "\`gh pr merge $pr${MF[*]:+ ${MF[*]}} --match-head-commit ${sha:0:7}\` failed; merge it by hand. gh: $(oneline 300 "$MUT_OUT")"; return 1
+    merge_retry "$n" "$pr" && return 1
+    needs_you "$n" "\`gh pr merge $pr${MF[*]:+ ${MF[*]}} --match-head-commit ${sha:0:7}\` failed; merge it by hand. gh: $(oneline 300 "$MUT_OUT")$MERGE_AFTER"; return 1
   fi
-  st_set "$n" merge_mode=merged merge_at="$(now)"
+  st_set "$n" merge_mode=merged merge_at="$(now)" merge_tries=
   log "#$n PR #$pr: merged directly ($(st_get "$n" how))"
 }
 
