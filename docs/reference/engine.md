@@ -77,8 +77,10 @@ of the handoff.
   a run that pushed no resolution leads to `needs-you`. A fetch or push that fails 3 passes in a
   row leads to `needs-you` with git's error.
 - **Red CI**: main is merged in first and CI runs again (another merged PR may have caused it);
-  still red with main in, a fresh fix session gets the failing GitHub Actions job's log tail
-  (`gh run view --job <id> --log-failed`).
+  still red with main in, its failed GitHub Actions jobs are rerun once per head
+  (`gh run rerun <id> --failed`), so a flaky check costs no AI run; still red after that, a fresh
+  fix session gets the failing job's log tail (`gh run view --job <id> --log-failed`). Every
+  `needs-you` of a red CI ends with `; failed: <the failed checks>`.
 - **Cap**: at most `FIX_ATTEMPTS` (default 2) automatic fix runs per PR, review fix rounds and
   red-CI fixes together, then `needs-you`. `needs-work` rounds are yours and never count.
 - **Per machine**: a fix run (review fix, red CI, `needs-work`) runs on `FIX_MODEL` and

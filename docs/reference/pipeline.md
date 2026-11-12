@@ -47,7 +47,8 @@ Every `INTERVAL` seconds, under the project's lock:
        green) → wait up to `NO_CHECKS_MIN`, then `needs-you`; CI red → main is merged into the
        branch by script (`git merge origin/main`, a normal push, no AI run) and CI runs again,
        since another merged PR may have caused it; a merge that conflicts is aborted and a fresh
-       session resolves it; still red with main in → a fresh fix session with the failing job's
+       session resolves it; still red with main in → the failed Actions jobs rerun once per head;
+       still red → a fresh fix session with the failing job's
        log tail, at most `FIX_ATTEMPTS` automatic fix runs per PR (review fix rounds included),
        then `needs-you`. Checks in `REVIEW_CHECKS` are ignored here. A `needs-you`
        that only waited on CI goes back to `check` by itself once CI is green or red;

@@ -124,21 +124,64 @@ ci_log_tail() {
   else printf 'Read the failing checks with gh pr checks %s -R %s and their logs with gh run view --log-failed.' "$pr" "$REPO"; fi
 }
 
+# ci_failed <pr>: the failed checks of the PR's head in $PRS, one per line: "<run id>\t<name>"; the
+# run id empty for a check that is not a GitHub Actions run
+ci_failed() {
+  jqr --argjson p "$1" '.[] | select(.number == $p) | .statusCheckRollup[]?
+      | select(((.conclusion // .state // "") | ascii_upcase) | IN("FAILURE", "TIMED_OUT", "ERROR", "STARTUP_FAILURE"))
+      | "\((.detailsUrl // .targetUrl // "") | capture("/actions/runs/(?<id>[0-9]+)/").id // "")\t\(.name // .context // "?")"' <<<"$PRS"
+}
+# ci_names <pr>: the failed checks' names, comma-separated, at most 5 then …
+ci_names() {
+  ci_failed "$1" | cut -f2 | awk '!seen[$0]++' | awk 'NR <= 5 { o = o (NR > 1 ? ", " : "") $0 } NR == 6 { o = o ", …" } END { printf "%s", o }'
+}
+# ci_fresh <pr> <epoch>: a failed check of the head completed after that time (a rerun since has ended)
+ci_fresh() {
+  [ "$(jqr --argjson p "$1" --arg t "$(iso "$2")" '[.[] | select(.number == $p) | .statusCheckRollup[]?
+      | select(((.conclusion // .state // "") | ascii_upcase) | IN("FAILURE", "TIMED_OUT", "ERROR", "STARTUP_FAILURE"))
+      | select((.completedAt // "") > $t)] | length' <<<"$PRS")" != 0 ]
+}
+
+# ci_rerun <K> <pr> <head>: the failed GitHub Actions runs of a red head rerun (--failed), once per
+# head, before any fix run: a flaky check costs no AI run. 1: none rerun (none to rerun, done for
+# this head, or every rerun call failed), the fix run goes on in this pass.
+ci_rerun() {
+  local k=$1 pr=$2 head=$3 id ids done=0
+  [ "$(st_get "$k" ci_rerun)" != "$head" ] || return 1
+  ids=$(ci_failed "$pr" | cut -f1 | grep -E '^[0-9]+$' | sort -u)
+  [ -n "$ids" ] || return 1
+  st_set "$k" ci_rerun="$head" ci_rerun_at= check_at="$(now)"
+  for id in $ids; do
+    if mut_out gh run rerun "$id" --failed -R "$REPO"; then done=1
+    else log "#$k PR #$pr: rerun of run $id failed ($(oneline 200 "$MUT_OUT"))"; fi
+  done
+  (( done )) || return 1
+  st_set "$k" ci_rerun_at="$(now)"
+  log "#$k PR #$pr: CI red on ${head:0:7} ($(ci_names "$pr")); failed jobs rerun once before any fix run"
+}
+
 # fix_max: FIX_ATTEMPTS, or its default 2 when it is no whole number (a typo must not break the
 # (( )) tests or lift the cap)
 fix_max() { [[ ${FIX_ATTEMPTS:-} =~ ^[0-9]+$ ]] && echo "$FIX_ATTEMPTS" || echo 2; }
 
 # ci_red <K> <pr>: CI is red on the PR. Main is merged in first (by script: another merged PR may
-# have caused the failure) and CI runs again; still red with main in, a fresh fix session gets the
-# failing job's log tail. At most FIX_ATTEMPTS automatic fix runs per PR, one conflict run per
-# head and MERGE_TRIES failed merges in a row, then needs-you: nothing repeats unbounded.
+# have caused the failure) and CI runs again; still red with main in, its failed jobs are rerun once
+# (ci_rerun); still red, a fresh fix session gets the failing job's log tail. At most FIX_ATTEMPTS
+# automatic fix runs per PR, one conflict run and one rerun per head and MERGE_TRIES failed merges
+# in a row, then needs-you (naming the failed checks): nothing repeats unbounded.
 ci_red() {
-  local k=$1 pr=$2 head mm at err task
+  local k=$1 pr=$2 head mm at err task f ra
   head=$(pr_get "$pr" .headRefOid); mm=$(st_get "$k" main_merged); at=$(st_get "$k" check_at)
+  f=$(ci_names "$pr"); f=${f:+; failed: $f}
   # pushed a merge of main, but GitHub still lists the old head: its red is not the new head's.
   # Only for a while: a push by someone else since would hold it forever.
   if [ -n "$mm" ] && [ "$head" != "$mm" ] && (( $(now) - ${at:-0} < 600 )); then log "#$k PR #$pr: main merged in; waiting for GitHub to list ${mm:0:7}"; return 0; fi
-  (( $(fix_max) > 0 )) || { needs_you "$k" "CI is red on PR #$pr" "$(run_msg "$k")" "" ci; return; }
+  # rerun, but GitHub still lists the result from before it: bounded like the wait above
+  ra=$(st_get "$k" ci_rerun_at)
+  if [ -n "$ra" ] && [ "$(st_get "$k" ci_rerun)" = "$head" ] && (( $(now) - ra < 600 )) && ! ci_fresh "$pr" "$ra"; then
+    log "#$k PR #$pr: failed jobs rerun; waiting for their result"; return 0
+  fi
+  (( $(fix_max) > 0 )) || { needs_you "$k" "CI is red on PR #$pr$f" "$(run_msg "$k")" "" ci; return; }
   main_merge "$k" "$pr"
   [ "$MERGED" = error ] || st_set "$k" mm_err=
   case $MERGED in
@@ -147,16 +190,17 @@ ci_red() {
       log "#$k PR #$pr: CI red; merged main into the branch (no AI run), CI runs again"; return 0 ;;
     conflict)
       # one conflict run per head: one that pushed nothing gets no second try
-      [ "$(st_get "$k" conflict_sha)" = "$head" ] && { needs_you "$k" "CI is red on PR #$pr and merging origin/main into it conflicts in: $MERGE_WHY; the worker's merge run pushed no resolution" "$(run_msg "$k")" "" ci; return; }
+      [ "$(st_get "$k" conflict_sha)" = "$head" ] && { needs_you "$k" "CI is red on PR #$pr and merging origin/main into it conflicts in: $MERGE_WHY; the worker's merge run pushed no resolution$f" "$(run_msg "$k")" "" ci; return; }
       may_start "$k" || return 0
       resume "$k" "$(conflict_task "$pr" "$MERGE_WHY")" merge || return 0
       st_set "$k" conflict_sha="$head"; return 0 ;;
     error)
       err=$(( $(st_get "$k" mm_err) + 1 ))
-      (( err >= ${MERGE_TRIES:-3} )) && { st_set "$k" mm_err=; needs_you "$k" "CI is red on PR #$pr and merging main into it by script failed $err times: $MERGE_WHY" "" "" ci; return; }
+      (( err >= ${MERGE_TRIES:-3} )) && { st_set "$k" mm_err=; needs_you "$k" "CI is red on PR #$pr and merging main into it by script failed $err times: $MERGE_WHY$f" "" "" ci; return; }
       st_set "$k" mm_err="$err"; log "#$k PR #$pr: CI red; merging main failed ($MERGE_WHY), again next pass"; return 0 ;;
   esac
-  fix_left "$k" "$pr" || { needs_you "$k" "CI is red on PR #$pr after $(fix_max) automatic fix runs (FIX_ATTEMPTS)" "$(run_msg "$k")" "" ci; return; }
+  ci_rerun "$k" "$pr" "$head" && return 0
+  fix_left "$k" "$pr" || { needs_you "$k" "CI is red on PR #$pr after $(fix_max) automatic fix runs (FIX_ATTEMPTS)$f" "$(run_msg "$k")" "" ci; return; }
   may_start "$k" || return 0
   if [ "$MERGED" = current ]; then task="CI is red on PR #$pr, with main already merged in, so the failure is the PR's. Fix it,"
   else task="CI is red on PR #$pr; main was not merged in by script ($MERGE_WHY). First run git merge origin/main (a normal merge and push, never a rebase or force-push), then fix what is still red,"; fi

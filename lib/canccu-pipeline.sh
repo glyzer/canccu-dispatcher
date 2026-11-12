@@ -213,7 +213,9 @@ check_pr() {
         st_set "$n" ny_wait=ci
       return ;;
   esac
-  spend_note "$n" "$(st_get "$n" started)" ci=green
+  # a rerun of failed jobs that turned the head green: a flaky check, for the spend log
+  if [ "$(st_get "$n" ci_rerun)" = "$(pr_get "$pr" .headRefOid)" ]; then spend_note "$n" "$(st_get "$n" started)" ci=rerun-green
+  else spend_note "$n" "$(st_get "$n" started)" ci=green; fi
   j=$(pr_detail "$pr") || { log "#$n PR #$pr: gh error; retrying next pass"; return; }
   contract_closes "$n" "$pr" "$j" && return
   head=$(jqr .headRefOid <<<"$j")
