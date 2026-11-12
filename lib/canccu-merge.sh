@@ -158,20 +158,20 @@ accept_step() {
   return 0
 }
 
-# conflict_merge <n> <pr> <head> [disarm]: GitHub says the PR conflicts with main (DIRTY): merge
+# conflict_merge <n> <pr> <head> [disarm|queue]: GitHub says the PR conflicts with main (DIRTY; queue: the merge queue said so): merge
 # main in by script (main_merge), once per head, so a merge that leaves it conflicting never loops.
 # Its push is a new head: a merge of main only needs no new review (postpass_step). A real conflict
 # gets one worker merge run; that run pushed nothing (still this head) → needs-you. disarm: auto-merge
 # is switched off first, so the push requeues cleanly. BEHIND is left to the merge queue. 1: nothing done.
 conflict_merge() {
   local n=$1 pr=$2 head=$3
-  [ "$(pr_get "$pr" '.mergeStateStatus // ""')" = DIRTY ] || return 1
+  [ "${4:-}" = queue ] || [ "$(pr_get "$pr" '.mergeStateStatus // ""')" = DIRTY ] || return 1
   if [ "$(st_get "$n" conflict_merge)" = "$head" ]; then
     [ "$(st_get "$n" conflict_sha)" = "$head" ] || return 1
     needs_you "$n" "PR #$pr conflicts with main in: $(st_get "$n" conflict_paths), and the worker's merge run pushed no resolution"; return 0
   fi
   st_set "$n" conflict_merge="$head"
-  [ -n "${4:-}" ] && armed "$n" "$pr" && mut gh pr merge "$pr" -R "$REPO" --disable-auto
+  [ "${4:-}" = disarm ] && armed "$n" "$pr" && mut gh pr merge "$pr" -R "$REPO" --disable-auto
   main_merge "$n" "$pr"
   case $MERGED in
     merged) log "#$n PR #$pr: conflicts with main; merged main into the branch by script (no AI run)" ;;
@@ -247,10 +247,41 @@ merging_step() {
       else st_set "$n" merge_mode=merged merge_at="$(now)"; log "#$n PR #$pr: merged (auto-merge is off because it is done)"; fi
       return 0
     fi
-    needs_you "$n" "auto-merge was disabled or the merge queue rejected PR #$pr"
+    queue_removed "$n" "$pr" "$head" "$at" || needs_you "$n" "auto-merge was disabled or the merge queue rejected PR #$pr"
   elif [ "$(st_get "$n" queue_kick)" != "$head" ] && (( $(now) - at > ${NO_CHECKS_MIN:-10} * 60 )); then
     queue_kick "$n" "$pr" "$head"
   fi
+  return 0
+}
+
+# queue_removal <pr>: "<reason>\t<createdAt>" of the PR's newest removal from the merge queue;
+# nothing when there is none or gh fails
+queue_removal() {
+  ghj api graphql -F o="${REPO%%/*}" -F r="${REPO#*/}" -F p="$1" \
+    -f query='query($o: String!, $r: String!, $p: Int!) { repository(owner: $o, name: $r) { pullRequest(number: $p) { timelineItems(itemTypes: [REMOVED_FROM_MERGE_QUEUE_EVENT], last: 1) { nodes { ... on RemovedFromMergeQueueEvent { reason createdAt } } } } } }' \
+    -q '.data.repository.pullRequest.timelineItems.nodes[-1] // empty | "\(.reason // "")\t\(.createdAt // "")"' 2>/dev/null
+}
+
+# queue_removed <n> <pr> <head> <merge_at>: auto-merge is off and the PR is out of the queue: act on
+# the queue's reason, if it removed the PR after this merge was armed. GitHub's reason is no
+# documented enum, so it is matched by substring. Never enqueued again: failed checks in a merge
+# group can be a real bug that only shows with the group's other PRs. 1: no such removal.
+queue_removed() {
+  local n=$1 pr=$2 why at names
+  IFS=$'\t' read -r why at <<<"$(queue_removal "$pr")"
+  [ -n "$why" ] && [ -n "$at" ] && (( $(iso_epoch "$at") + 0 > $4 )) || return 1
+  case ${why,,} in
+    *conflict*)
+      log "#$n PR #$pr: the merge queue removed it (merge conflict); merging main by script"
+      conflict_merge "$n" "$pr" "$3" queue || needs_you "$n" "the merge queue removed PR #$pr for a conflict with main; main was merged in by script once on this head already" ;;
+    *check*|*fail*)
+      # gh's --jq takes no --arg: the prefix goes in the filter (pr is a number)
+      names=$(ghj api "repos/$REPO/actions/runs?event=merge_group&per_page=20" -q '[.workflow_runs[]?
+        | select((.head_branch // "") | startswith("gh-readonly-queue/main/pr-'"$pr"'-"))
+        | select(.conclusion | IN("failure", "timed_out", "cancelled")) | "\(.name) \(.html_url)"] | join(", ")' 2>/dev/null)
+      needs_you "$n" "the merge queue removed PR #$pr because checks failed in its merge group: ${names:-none found}. Not enqueued again: a failure there can be a real bug that only shows with the other PRs of the group" ;;
+    *) needs_you "$n" "the merge queue removed PR #$pr (reason: $why); a manual removal or a queue change. Not enqueued again" ;;
+  esac
   return 0
 }
 

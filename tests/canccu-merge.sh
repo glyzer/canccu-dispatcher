@@ -501,5 +501,40 @@ for ph in accept merging; do
 done
 ok "fetch_prs reads mergeStateStatus" grep -q 'mergeStateStatus' "$root/lib/canccu-github.sh"
 
+# ---------------------------------------------------------------- the merge queue's removal reason (#90)
+
+# qrenv <name> <reason> <createdAt>: auto-merge off, not queued, 10 min after it was armed (11:50),
+# and the PR's newest RemovedFromMergeQueueEvent; merge_group runs of PR 50 and of another PR
+qrenv() {
+  merging_off "$1" '{"state": "OPEN"}'
+  mkdir -p "$WORKERS_DIR/worktrees/web/issue-5" && touch "$WORKERS_DIR/worktrees/web/issue-5/.git"
+  echo 5-thing > "$FAKE/branch"; echo 2 > "$FAKE/behind"
+  jq -n --arg r "$2" --arg t "$3" '{data: {repository: {pullRequest: {timelineItems: {nodes: [{reason: $r, createdAt: $t}]}}}}}' > "$FAKE/qr.json"
+  route 'api graphql *RemovedFromMergeQueueEvent*' qr.json
+  json mgruns.json '{"workflow_runs": [
+    {"name": "CI", "html_url": "https://github.com/example-org/web/actions/runs/901", "head_branch": "gh-readonly-queue/main/pr-50-abc", "conclusion": "failure"},
+    {"name": "Lint", "html_url": "https://github.com/example-org/web/actions/runs/902", "head_branch": "gh-readonly-queue/main/pr-50-abc", "conclusion": "success"},
+    {"name": "CI", "html_url": "https://github.com/example-org/web/actions/runs/903", "head_branch": "gh-readonly-queue/main/pr-51-def", "conclusion": "failure"}]}'
+  route 'api repos/example-org/web/actions/runs?event=merge_group&per_page=20*' mgruns.json
+}
+qrenv qr-conflict MERGE_CONFLICT 2030-11-05T11:55:00Z
+dispatch --once
+ok "the queue removed it for a conflict → main merged in by script" has git.log "merge --no-edit origin/main"
+ok "… no needs-you" hasnt gh.log "needs-you"
+ok "… logged" grep -qF '#5 PR #50: the merge queue removed it (merge conflict); merging main by script' "$CANCCU_HOME/dispatch.log"
+qrenv qr-checks FAILED_CHECKS 2030-11-05T11:55:00Z
+dispatch --once
+ok "the queue removed it for failed checks → needs-you naming the failed run of its group" \
+  has gh.log "the merge queue removed PR #50 because checks failed in its merge group: CI https://github.com/example-org/web/actions/runs/901. Not enqueued again"
+ok "… not another PR's run, nor a green one" eq "$(grep -c -e 'runs/903' -e 'runs/902' "$FAKE/gh.log")" 0
+ok "… no enqueue" not grep -q 'enqueuePullRequest' "$FAKE/gh.log"
+qrenv qr-manual MANUAL 2030-11-05T11:55:00Z
+dispatch --once
+ok "removed for another reason → needs-you that says so" has gh.log "the merge queue removed PR #50 (reason: MANUAL); a manual removal or a queue change. Not enqueued again"
+qrenv qr-old FAILED_CHECKS 2030-11-05T11:40:00Z
+dispatch --once
+ok "a removal from before merge_at → today's needs-you" has gh.log "auto-merge was disabled or the merge queue rejected PR #50"
+ok "… not the removal's" hasnt gh.log "checks failed in its merge group"
+
 echo "canccu-merge tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
