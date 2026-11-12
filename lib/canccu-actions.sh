@@ -242,7 +242,7 @@ save_findings() {
 }
 
 # act_verdict <n> <pr> <pr_detail json>. The flow is one full review, one fix by the worker, one
-# fix-check, then merge or the maintainer: no further loop. A `changes` from the full review
+# fix-check, then merge or the product owner: no further loop. A `changes` from the full review
 # resumes the worker once with the findings (stage fixing; the next review is the fix-check of
 # reviewed_sha..head). A `changes` once the findings were given (from the fix-check, or a full
 # review started by hand meanwhile) → needs-you with the open items, kept (open_sha and its open
@@ -270,7 +270,7 @@ act_verdict() {
         fixing|fixcheck)
           save_findings "$n" "$pr" "$(open_file "$pr" "$head")" "$body"
           # its own Maintainer accept and Risk lines are kept like the full review's: the fix-check
-          # after a needs-work may not copy them, and its pass must still wait for the maintainer
+          # after a needs-work may not copy them, and its pass must still wait for the product owner
           ma=$(oneline 200 "$(maintainer_accept_of "$j")") mo=$(st_get "$n" review_maccept)
           if [ -n "$ma" ] && [ "$ma" != "$mo" ]; then
             st_set "$n" review_maccept="$(oneline 200 "${mo:+$mo; }$ma")"
@@ -292,7 +292,7 @@ act_verdict() {
           save_findings "$n" "$pr" "$ff" "$b"
           if (( ${#b} > 3000 )); then bi="${b:0:3000} The findings are cut here; read all of them in $ff."
           else bi="$b (also in $ff)"; fi
-          resume "$n" "The independent reviewer asked for changes on PR #$pr (full comment: gh pr view $pr -R $REPO --comments). This is your one fix round: fix every blocking finding below, rerun the checks, push once and stop: the dispatcher watches CI. Leave its non-blocking findings alone: they went to a follow-up issue. A narrow fix-check of your fix diff follows, then the merge or the maintainer. The blocking findings: $bi" fix || return 0
+          resume "$n" "The independent reviewer asked for changes on PR #$pr (full comment: gh pr view $pr -R $REPO --comments). This is your one fix round: fix every blocking finding below, rerun the checks, push once and stop: the dispatcher watches CI. Leave its non-blocking findings alone: they went to a follow-up issue. A narrow fix-check of your fix diff follows, then the merge or the product owner. The blocking findings: $bi" fix || return 0
           fix_count "$n" "$pr"
           st_set "$n" stage=fixing reviewed_sha="$head" verdict_at="$at" review_maccept="$(oneline 200 "$(maintainer_accept_of "$j")")" \
             review_risk="$(review_risk_of "$j")"

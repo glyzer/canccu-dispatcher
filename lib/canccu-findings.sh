@@ -43,7 +43,7 @@ followup_title() {
 
 # file_nonblocking <K> <pr> <sha> <items>: the items go to the unit's follow-up issue: a comment on
 # the recorded one while it is open (this pass's open issues list it), else a new issue, not
-# `ready` (the maintainer decides what of it gets built). A recorded issue that is the unit or that
+# `ready` (the leader decides what of it gets built). A recorded issue that is the unit or that
 # the PR closes counts as not open: the merge would close the findings with it. A gh error is
 # logged: the items are still in the PR's review comment, and the merge never waits for them.
 file_nonblocking() {
@@ -85,7 +85,7 @@ collect_nonblocking() {
 # ---------------------------------------------------------------- the report
 
 # findings_report: the most common findings across the review records (reviews/<pr>/<sha>.md, the
-# files the reviewers wrote), so the maintainer can turn them into rules in AGENTS.md. Findings are
+# files the reviewers wrote), so the leader can turn them into rules in AGENTS.md. Findings are
 # free text: each item line is cut to its gist (file:line refs, list marks and markdown dropped,
 # then everything from its first separator on, lower case), and equal gists are counted. The files
 # cited most come after, each counted once per PR.
