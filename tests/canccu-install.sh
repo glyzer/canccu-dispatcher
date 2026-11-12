@@ -80,6 +80,7 @@ inst_env fresh
 inst "$S" --no-monitor
 ok "a fresh install: exit 0" eq "$rc" 0
 ok "… the tree is a release of its version" test -f "$R/9.9.0/bin/canccu-dispatch"
+ok "… with the settings table and config show's lib" test -f "$R/9.9.0/lib/canccu-settings.tsv" -a -f "$R/9.9.0/lib/canccu-configcmd.sh"
 ok "… current points at it" eq "$(readlink "$B/current")" releases/9.9.0
 bad=""
 for c in $cmds; do [ "$(readlink "$P/bin/$c")" = "$B/current/bin/$c" ] || bad+=" $c"; done
