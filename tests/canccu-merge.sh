@@ -457,8 +457,8 @@ dirtyenv() {
   env_new "$1"
   { issue 5 in-progress,awaiting-accept; } | issues
   pr 50 5 $HA | jq --arg m "$3" '.mergeStateStatus = $m' | prs
-  if [ "$2" = accept ]; then state 5 phase=accept pr=50 accept_sha=$HA rounds=0 "accept_at=$((NOW - 3600))"
-  else state 5 phase=merging pr=50 merge_sha=$HA how=auto "merge_at=$((NOW - 60))"; fi
+  if [ "$2" = accept ]; then state 5 phase=accept pr=50 accept_sha=$HA pass_sha=$HA rounds=0 "accept_at=$((NOW - 3600))"
+  else state 5 phase=merging pr=50 merge_sha=$HA pass_sha=$HA how=auto "merge_at=$((NOW - 60))"; fi
   mkdir -p "$WORKERS_DIR/worktrees/web/issue-5" && touch "$WORKERS_DIR/worktrees/web/issue-5/.git"
   echo 5-thing > "$FAKE/branch"; echo 2 > "$FAKE/behind"
 }
@@ -480,10 +480,13 @@ ok "the merge of main conflicts → aborted, nothing pushed" eq "$(grep -c 'merg
 ok "… the worker resolves it, a merge run, told the files" grep -q -- '--fresh .*web 5 Rules for this run: .* Merging origin/main into the branch of PR #50 conflicts in: src/a.ts src/b.ts' "$FAKE/worker.log"
 ok "… logged" grep -qF '#5 PR #50: conflicts with main in: src/a.ts src/b.ts; the worker resolves them' "$CANCCU_HOME/dispatch.log"
 ok "… conflict_sha is the head; not a fix attempt" eq "$(st 5 conflict_sha) $(st 5 fixes)" "$HA "
-rm -f "$WORKERS_DIR/web-5.lock"; st5=$(cat "$CANCCU_HOME/state/5"); printf '%s\nphase=accept\n' "$st5" > "$CANCCU_HOME/state/5"
+rm -f "$WORKERS_DIR/web-5.lock"; last 5 done "could not resolve the conflict"
 dispatch --once
-ok "… its run pushed nothing, the next pass on the same head → needs-you" has gh.log "PR #50 conflicts with main in: src/a.ts src/b.ts, and the worker's merge run pushed no resolution"
-ok "… no second run" eq "$(grep -c 'Merging origin/main into the branch' "$FAKE/worker.log")" 1
+ok "… its run ends, reaped to check" eq "$(st 5 phase)" check
+json pr50.json "$(detail "$(pr 50 5 $HA)" 2030-11-05T10:00:00Z)"; route 'pr view 50 *' pr50.json
+dispatch --once
+ok "… it pushed nothing (still the passed head) → needs-you" has gh.log "PR #50 conflicts with main in: src/a.ts src/b.ts, and the worker's merge run pushed no resolution"
+ok "… no second review, no second run" eq "$(grep -c -- '--key review-50' "$FAKE/worker.log") $(grep -c 'Merging origin/main into the branch' "$FAKE/worker.log")" "0 1"
 
 dirtyenv dirty-dirty accept DIRTY; printf ' M src/a.ts\n' > "$FAKE/dirty"
 dispatch --once

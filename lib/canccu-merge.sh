@@ -356,11 +356,15 @@ postpass_full() {
 # postpass_step <n> <pr> <head>: check_pr's new head after a pass (pass_sha), outside a fix round. A
 # merge of main only takes the pass on (CI is green here); another change gets a fix-check of
 # everything since the last full review (full_sha), so several small pushes never add up
-# unreviewed, or a full review when the change is big or touches a gated or risky path. 1: not
-# such a head, check_pr goes on.
+# unreviewed, or a full review when the change is big or touches a gated or risky path. The
+# worker's merge run for a conflict (conflict_merge) ends here, reaped to check: if it pushed
+# nothing (still the passed head), needs-you, never a second review. 1: not such a head, check_pr goes on.
 postpass_step() {
   local n=$1 pr=$2 head=$3 psha base why
   psha=$(st_get "$n" pass_sha)
+  if [ -n "$psha" ] && [ "$head" = "$psha" ] && [ "$(st_get "$n" conflict_sha)" = "$head" ]; then
+    needs_you "$n" "PR #$pr conflicts with main in: $(st_get "$n" conflict_paths), and the worker's merge run pushed no resolution"; return 0
+  fi
   [ -n "$psha" ] && [ "$head" != "$psha" ] || return 1
   case $(st_get "$n" stage) in fixing|fixcheck) return 1 ;; esac
   pr_fetch "$pr"
