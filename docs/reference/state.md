@@ -105,7 +105,7 @@ the rest were added after them. `-` is an unknown value.
 | 8 | session | `fresh` or `resumed` |
 | 9–12 | tokens | Input, output, cache read and cache write tokens, from the final `result` event's `usage` |
 | 13–14 | window | The 5-hour window's utilization (%) before and after the run, only with `USAGE_WINDOW_DELTA=1` ([`config.md`](config.md)); after: `-` when the run's own stream reported no reading |
-| 15 | outcome | `k=v` fields joined by `,`, filled in by the dispatcher when it reaps the run: `pr=<n>` or `pr=none` and `ci=green` or `ci=red` (a worker's run); `verdict=pass`, `changes`, `none` or `void`, `blocking=<n>`, `nonblocking=<n>` (a review or fix-check: its top-level list items before and after "Non-blocking", an estimate); `answer=answered`, `escalate` or `none`; `rounds=<n>` (the unit's fix runs so far) |
+| 15 | outcome | `k=v` fields joined by `,`, filled in by the dispatcher when it reaps the run: `pr=<n>` or `pr=none` and `ci=green` or `ci=red` (a worker's run); `verdict=pass`, `changes`, `none` or `void`, `blocking=<n>`, `nonblocking=<n>` (a review or fix-check: its top-level list items under "Blocking" and under "Non-blocking", an estimate; in a `changes` file with no "Blocking" heading, the items before "Non-blocking" block); `answer=answered`, `escalate` or `none`; `rounds=<n>` (the unit's fix runs so far) |
 
 `canccu-status --spend` reads it with `merged.log`: the cost of every merged PR (its unit's runs,
 lost ones included, its reviews and fix-checks, its answerers), grouped by model and run type,

@@ -137,8 +137,13 @@ printf '%s\tweb\t7\t1.00\n' "$((NOW - 5))" >> "$WORKERS_DIR/spend.log"
 lib spend_note 7 0 pr=none
 ok "… and one written by hand gets the missing columns as -" eq "$(tail -1 "$WORKERS_DIR/spend.log")" "$((NOW - 5))	web	7	1.00	-	-	-	-	-	-	-	-	-	-	pr=none"
 
-printf 'Blocking:\n1. src/a.ts:3 off by one; fix: use <=\n   - nested detail\n2. src/b.ts:9 leak\n\nNon-blocking:\n- naming\n* wording\n\nRisk: normal — x\nReview verdict: changes %s\n' "$HA" > "$E/rev.md"
+printf '1. src/a.ts:3 off by one; fix: use <=\n   - nested detail\n2. src/b.ts:9 leak\n\nNon-blocking:\n- naming\n* wording\n\nRisk: normal — x\nReview verdict: changes %s\n' "$HA" > "$E/rev.md"
 ok "findings: blocking before Non-blocking, non-blocking after, top-level items only" eq "$(lib findings_count "$E/rev.md")" "2 2"
+# #94: a changes review with no Blocking heading (an older prompt, a fix-check): its unheaded items block
+printf '1. src/a.ts:3 off by one\n2. src/b.ts:9 leak\n\nNon-blocking:\n- naming\n\nReview verdict: changes %s\n' "$HA" > "$E/unheaded.md"
+ok "findings: a changes review without a Blocking heading → the items before Non-blocking block" eq "$(lib findings_count "$E/unheaded.md")" "2 1"
+printf 'Checked:\n- the tests\n\nBlocking:\n1. src/a.ts:3 off by one\n\nNon-blocking:\n- naming\n\nReview verdict: changes %s\n' "$HA" > "$E/headed.md"
+ok "findings: a changes review with a Blocking heading → only its items block" eq "$(lib findings_count "$E/headed.md")" "1 1"
 ok "findings: no file → none" eq "$(lib findings_count "$E/none.md")" "0 0"
 # #94: what a passed review lists before any heading (what it checked) counts as neither
 printf 'Checked:\n1. the tests\n2. the docs\n3. the config\n\nNon-blocking:\n- naming\n\nReview verdict: pass %s\n' "$HA" > "$E/pass.md"

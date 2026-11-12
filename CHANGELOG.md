@@ -33,7 +33,9 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 - A failed GitHub read of a passed PR is tried again next pass (`retry:` from `canccu-classify`)
   instead of asking for an accept. A review's fix round and the resume after a merged contract PR
   wait for the end of a back-off without changing any state. A passed review's list of what it
-  checked no longer counts as blocking findings in the spend log (#94).
+  checked no longer counts as blocking findings in the spend log; the reviewer lists its blocking
+  findings under `Blocking:`, and a `changes` review without that heading still counts its items
+  before `Non-blocking:` (#94).
 - A reviewer that ends `done` without a valid review file is asked once per head, in its own
   session, to write it; only a second miss goes to `needs-you` (#93).
 
