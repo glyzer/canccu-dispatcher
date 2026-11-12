@@ -74,6 +74,8 @@ ok "… and sets no HOST_PROFILE" not grep -qE '^[[:space:]]*HOST_PROFILE=' "$ro
 # the issue fixed that a host's model stays its own choice
 ok "… and no model" not grep -qE '^[[:space:]]*[A-Z_]*MODEL[A-Z_]*=' "$root/hosts/pro.conf"
 env_new pro-load
+# the harness's project config sets CAP, which wins over any profile
+sed -i '/^CAP=/d' "$CANCCU_HOME/config"
 ok "HOST_PROFILE=pro: one run at a time, small budgets, a medium review effort" \
   eq "$(CANCCU_HOST_PROFILE=pro load '$HOST_PROFILE|$CAP|$TOTAL_CAP|$BUDGET_REVIEW|$REVIEW_EFFORT_MAX')" "pro|1|1|30 6 30|medium"
 printf 'HOST_PROFILE=pro\nTOTAL_CAP=2\nREVIEW_EFFORT_MAX=high\n' > "$CANCCU_ROOT/config"

@@ -6,6 +6,9 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 
 ## Unreleased
 
+- A host profile for a Claude Pro plan: `HOST_PROFILE=pro` (`hosts/pro.conf`) runs one thing at a
+  time with small budgets and `REVIEW_EFFORT_MAX=medium`; it sets no model. The getting-started
+  guide's paste block for a small plan is now that one line (#101).
 - A merged PR that leaves an issue of its unit open no longer parks the unit for good: the issue
   gets `needs-you` and a comment, and the unit is released; `ready` builds it again from main. An
   issue its `Closes` names gets `MERGE_WAIT_MIN` to be closed by GitHub first. A finished
