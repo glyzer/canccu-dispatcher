@@ -1,5 +1,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # shellcheck shell=bash
+# _canccu_lib, _canccu_hp, _canccu_hpf and _canccu_cfg_ghdir are canccu-common.sh's; the keys set
+# here are read by the files that source it
+# shellcheck disable=SC2154,SC2034
 # Reading the config files, at load and again when one changed (docs/reference/config.md, "When a
 # change applies"). Sourced by canccu-common.sh, which sets _canccu_lib, _canccu_hp and
 # _canccu_hpf (the host profile and its file) before it calls canccu_load_config.

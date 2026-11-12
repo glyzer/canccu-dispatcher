@@ -117,7 +117,7 @@ reap_review() {
         return
       fi
       # a run that ended well but wrote no valid file is asked once per head to write it
-      if [ "$kind" = done ] && [ "$(st_get "$n" file_retry)" != "$sha" ]; then
+      if [ "$kind" = "done" ] && [ "$(st_get "$n" file_retry)" != "$sha" ]; then
         may_start "$n" || return 0
         retry_review_file "$pr" "$n" "$sha" || return 0
         st_set "$n" file_retry="$sha" started="$(now)"
