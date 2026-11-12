@@ -295,5 +295,57 @@ h=$( ( PATH="$fb:$PATH"; CANCCU_WORKER="$fb/worker"; . "$root/lib/canccu-common.
 ok "handoff K limited under set -u: it runs to its last line" grep -qF "This run is on issue #5, branch" <<<"$h"
 ok "… nothing on stderr" eq "$(cat "$E/err")" ""
 
+# ---------------------------------------------------------------- a rerun of the failed jobs (#21)
+
+# rrenv <name> [config...]: red CI on HA with main in; its failed check is job 77 of run 700
+rrenv() {
+  redenv "$@"; echo 0 > "$FAKE/behind"
+  json ok.json '{}'; route 'run rerun *' ok.json
+}
+# redat <sha> <completedAt> [detailsUrl]: PR 50 is red on that head, its failed check completed then
+redat() {
+  pr 50 5 "$1" red | jq --arg t "$2" --arg u "${3:-https://github.com/example-org/web/actions/runs/700/job/77}" \
+    '.statusCheckRollup[0].detailsUrl = $u | .statusCheckRollup[0].completedAt = $t' | prs
+}
+rrenv rerun-once
+dispatch --once
+ok "red CI with main in → the failed jobs rerun once" eq "$(grep -c '^run rerun 700 --failed -R example-org/web' "$FAKE/gh.log")" 1
+ok "… no fix run" eq "$(wc -l < "$FAKE/worker.log")" 0
+ok "… logged with the failed check" grep -qF "#5 PR #50: CI red on ${HA:0:7} (test); failed jobs rerun once before any fix run" "$CANCCU_HOME/dispatch.log"
+ok "… noted for the head" eq "$(st 5 ci_rerun)" "$HA"
+dispatch --once
+ok "… GitHub still lists the old result → wait, no second rerun, no fix run" eq "$(grep -c '^run rerun' "$FAKE/gh.log") $(wc -l < "$FAKE/worker.log")" "1 0"
+redat "$HA" 2030-11-05T12:30:00Z
+dispatch --once
+ok "red again on the same head after the rerun → the fix run" eq "$(grep -c '^run rerun' "$FAKE/gh.log") $(grep -c 'CI is red on PR #50' "$FAKE/worker.log")" "1 1"
+
+rrenv rerun-new-head
+state 5 phase=check pr=50 "check_at=$NOW" ci_rerun=$HB
+dispatch --once
+ok "a red head other than the one rerun → a new rerun" eq "$(grep -c '^run rerun 700 --failed' "$FAKE/gh.log") $(st 5 ci_rerun)" "1 $HA"
+
+rrenv rerun-no-actions
+redat "$HA" 2030-11-05T10:00:00Z https://ci.example.com/build/9
+dispatch --once
+ok "a failed check that is no Actions run → no rerun, the fix run" eq "$(grep -c '^run rerun' "$FAKE/gh.log") $(grep -c 'CI is red on PR #50' "$FAKE/worker.log")" "0 1"
+
+rrenv rerun-fails; : > "$FAKE/routes"; route 'run view --job 77 *' joblog
+dispatch --once
+ok "a rerun call that fails → logged, the fix run in the same pass" eq "$(grep -c 'rerun of run 700 failed' "$CANCCU_HOME/dispatch.log") $(grep -c 'CI is red on PR #50' "$FAKE/worker.log")" "1 1"
+
+rrenv rerun-cap
+state 5 phase=check pr=50 "check_at=$NOW" fixes=2 fixes_pr=50 ci_rerun=$HA
+dispatch --once
+ok "the needs-you after FIX_ATTEMPTS names the failed check" has gh.log "CI is red on PR #50 after 2 automatic fix runs (FIX_ATTEMPTS); failed: test"
+
+ok "ci_names: at most 5 names, then …" eq "$(lib eval 'PRS=$(jq -n "[{number: 50, statusCheckRollup: [range(7) | {name: \"c\(.)\", conclusion: \"FAILURE\"}]}]"); ci_names 50')" "c0, c1, c2, c3, c4, …"
+
+rrenv rerun-green
+state 5 phase=check pr=50 "check_at=$NOW" ci_rerun=$HA "started=$((NOW - 600))"
+pr 50 5 $HA green | prs
+printf '%s\tweb\t5\t2.00\tbuild\t-\t-\tfresh\t-\t-\t-\t-\t-\t-\t-\n' "$((NOW - 10))" > "$WORKERS_DIR/spend.log"
+dispatch --once
+ok "the rerun head turned green → rerun-green on the worker's spend line" eq "$(cut -f15 "$WORKERS_DIR/spend.log")" "ci=rerun-green"
+
 echo "canccu-followup tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

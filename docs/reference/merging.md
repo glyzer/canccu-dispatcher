@@ -84,8 +84,20 @@ In a repo without auto-merge the accept request names only the label. Only an `a
 event by `USER_LOGIN`, newer than the accept request, counts: a label left from an older head
 never does. An `accepted` label on the unit's issue (any issue of a package) is taken as well,
 by the same checks, and removed from the issue once it counts; a new push removes it from the
-PR and from the issues. Everything except reviews and pings is authored as you, so the dispatcher never
+PR and from the issues (with `KEEP_ACCEPT_ON_MAIN_MERGE=1`, a push that is a clean merge of main
+only keeps the PR's own label and merges: [`config.md`](config.md)). Everything except reviews and pings is authored as you, so the dispatcher never
 requests a review from you and never relies on approvals.
+
+### A PR that conflicts with main
+
+A PR that waits for your accept, or sits in auto-merge or a direct merge, and that GitHub marks as
+conflicting with main (`mergeStateStatus` `DIRTY`) gets main merged into its branch by script, in
+the unit's worktree, without an AI run (auto-merge is disabled first). It is tried once per head,
+so a merge that leaves the PR still conflicting never loops. The push is a new head: a merge of
+main only needs no new review ([`reviews.md`](reviews.md)). Where git cannot merge it, the worker
+gets one merge run (not a fix round of `FIX_ATTEMPTS`) with the conflicting paths; a run that
+pushed nothing (its PR is still the passed head when the run ends: no second review), or a merge by script that could not run (no worktree, uncommitted changes, a
+failed push), is `needs-you`. A PR only behind main (`BEHIND`) is left to the merge queue.
 
 ## Guards
 

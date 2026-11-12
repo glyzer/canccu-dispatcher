@@ -407,5 +407,137 @@ env_new health-accept
 state pkg-12-health pkg=health step=12 health=1 members= branch=pkg-12-health
 ok "a health pass has no issue to read accepted from" eq "$(lib members_of pkg-12-health)" ""
 
+# ---------------------------------------------------------------- a merge of main only (#91)
+
+env_new main-merge-only; mmrepo
+mmo() { lib eval ". '$root/lib/canccu-merge.sh'; main_merge_only $1 $2 && echo yes || echo no"; }
+ok "main_merge_only: one clean merge of main → true" eq "$(mmo "$MB_B" "$MB_MM1")" yes
+ok "main_merge_only: two stacked clean merges of main → true" eq "$(mmo "$MB_B" "$MB_MM2")" yes
+ok "main_merge_only: a merge of main with one more edited line → false" eq "$(mmo "$MB_B" "$MB_MX")" no
+ok "main_merge_only: a merge of a branch that is not on main → false" eq "$(mmo "$MB_B" "$MB_MO")" no
+ok "main_merge_only: a plain commit → false" eq "$(mmo "$MB_B" "$MB_PC")" no
+ok "main_merge_only: a base the walk never reaches → false" eq "$(mmo "$MB_PC" "$MB_MM1")" no
+ok "main_merge_only: a git error (an unknown head) → false" eq "$(mmo "$MB_B" "$HA")" no
+
+# ---------------------------------------------------------------- the accept kept on a merge of main (#92)
+
+# keepenv <name> <phase> <setting> <new head>: PR 50, accepted by the user on MB_B (in accept, or
+# in merging with how=accepted), has moved to the new head
+keepenv() {
+  env_new "$1" "KEEP_ACCEPT_ON_MAIN_MERGE=$3"; mmrepo
+  { issue 5 in-progress,awaiting-accept; } | issues
+  pr 50 5 "$4" green accepted | prs
+  json events50.json '[{"event": "labeled", "label": {"name": "accepted"}, "actor": {"login": "octo"}, "created_at": "2030-11-05T11:30:00Z"}]'
+  route 'api --paginate repos/example-org/web/issues/50/events' events50.json
+  if [ "$2" = accept ]; then state 5 phase=accept pr=50 "accept_sha=$MB_B" rounds=0 "accept_at=$((NOW - 3600))"
+  else state 5 phase=merging pr=50 "merge_sha=$MB_B" how=accepted "merge_at=$((NOW - 600))" "accept_sha=$MB_B" "accept_at=$((NOW - 3600))"; fi
+}
+for ph in accept merging; do
+  keepenv "keep-$ph" "$ph" 1 "$MB_MM1"
+  dispatch --once
+  ok "$ph, KEEP_ACCEPT_ON_MAIN_MERGE=1, a clean merge of main → \`accepted\` kept" hasnt gh.log "remove-label accepted"
+  ok "… auto-merge on the new head" has gh.log "pr merge 50 -R example-org/web --auto --match-head-commit $MB_MM1"
+  ok "… logged" grep -qF "#5 PR #50: \`accepted\` carried over from ${MB_B:0:7} to ${MB_MM1:0:7}: a merge of main only (KEEP_ACCEPT_ON_MAIN_MERGE=1)" "$CANCCU_HOME/dispatch.log"
+  ok "… merging, how accepted, on the new head" eq "$(st 5 phase) $(st 5 how) $(st 5 merge_sha)" "merging accepted $MB_MM1"
+  keepenv "keep-$ph-plus" "$ph" 1 "$MB_MX"
+  dispatch --once
+  ok "$ph, KEEP_ACCEPT_ON_MAIN_MERGE=1, a merge of main plus one line → \`accepted\` dropped" has gh.log "pr edit 50 -R example-org/web --remove-label accepted"
+  ok "… no merge, review again" eq "$(grep -c -- '--auto' "$FAKE/gh.log")/$(st 5 phase)" 0/check
+  keepenv "keep-$ph-off" "$ph" 0 "$MB_MM1"
+  dispatch --once
+  ok "$ph, KEEP_ACCEPT_ON_MAIN_MERGE=0, a clean merge of main → \`accepted\` dropped" has gh.log "pr edit 50 -R example-org/web --remove-label accepted"
+  ok "… no merge, review again" eq "$(grep -c -- '--auto' "$FAKE/gh.log")/$(st 5 phase)" 0/check
+done
+
+# ---------------------------------------------------------------- a conflict with main (#89)
+
+# dirtyenv <name> <phase> <mergeStateStatus>: PR 50 (branch 5-thing, worktree of issue 5) waits in
+# accept, or in merging with auto-merge armed, at HA; main is 2 commits ahead
+dirtyenv() {
+  env_new "$1"
+  { issue 5 in-progress,awaiting-accept; } | issues
+  pr 50 5 $HA | jq --arg m "$3" '.mergeStateStatus = $m' | prs
+  if [ "$2" = accept ]; then state 5 phase=accept pr=50 accept_sha=$HA pass_sha=$HA rounds=0 "accept_at=$((NOW - 3600))"
+  else state 5 phase=merging pr=50 merge_sha=$HA pass_sha=$HA how=auto "merge_at=$((NOW - 60))"; fi
+  mkdir -p "$WORKERS_DIR/worktrees/web/issue-5" && touch "$WORKERS_DIR/worktrees/web/issue-5/.git"
+  echo 5-thing > "$FAKE/branch"; echo 2 > "$FAKE/behind"
+}
+for ph in accept merging; do
+  dirtyenv "dirty-$ph" "$ph" DIRTY
+  dispatch --once
+  ok "$ph, the PR conflicts with main → main merged in by script, pushed" eq "$(grep -c 'merge --no-edit origin/main' "$FAKE/git.log") $(grep -c 'push origin HEAD:refs/heads/5-thing' "$FAKE/git.log")" "1 1"
+  ok "… no AI run" eq "$(wc -l < "$FAKE/worker.log")" 0
+  ok "… logged" grep -qF '#5 PR #50: conflicts with main; merged main into the branch by script (no AI run)' "$CANCCU_HOME/dispatch.log"
+  ok "… noted for the head" eq "$(st 5 conflict_merge)" "$HA"
+  [ "$ph" = merging ] && ok "… auto-merge disabled first" has gh.log "pr merge 50 -R example-org/web --disable-auto"
+  dispatch --once
+  ok "… once per head: GitHub still says DIRTY on the same head → no second merge" eq "$(grep -c 'merge --no-edit origin/main' "$FAKE/git.log")" 1
+done
+
+dirtyenv dirty-conflict accept DIRTY; printf 'src/a.ts\nsrc/b.ts\n' > "$FAKE/merge-conflict"
+dispatch --once
+ok "the merge of main conflicts → aborted, nothing pushed" eq "$(grep -c 'merge --abort' "$FAKE/git.log") $(grep -c push "$FAKE/git.log")" "1 0"
+ok "… the worker resolves it, a merge run, told the files" grep -q -- '--fresh .*web 5 Rules for this run: .* Merging origin/main into the branch of PR #50 conflicts in: src/a.ts src/b.ts' "$FAKE/worker.log"
+ok "… logged" grep -qF '#5 PR #50: conflicts with main in: src/a.ts src/b.ts; the worker resolves them' "$CANCCU_HOME/dispatch.log"
+ok "… conflict_sha is the head; not a fix attempt" eq "$(st 5 conflict_sha) $(st 5 fixes)" "$HA "
+rm -f "$WORKERS_DIR/web-5.lock"; last 5 done "could not resolve the conflict"
+dispatch --once
+ok "… its run ends, reaped to check" eq "$(st 5 phase)" check
+json pr50.json "$(detail "$(pr 50 5 $HA)" 2030-11-05T10:00:00Z)"; route 'pr view 50 *' pr50.json
+dispatch --once
+ok "… it pushed nothing (still the passed head) → needs-you" has gh.log "PR #50 conflicts with main in: src/a.ts src/b.ts, and the worker's merge run pushed no resolution"
+ok "… no second review, no second run" eq "$(grep -c -- '--key review-50' "$FAKE/worker.log") $(grep -c 'Merging origin/main into the branch' "$FAKE/worker.log")" "0 1"
+
+dirtyenv dirty-dirty accept DIRTY; printf ' M src/a.ts\n' > "$FAKE/dirty"
+dispatch --once
+ok "the merge by script cannot run → needs-you saying why" has gh.log "PR #50 conflicts with main; the merge by script did not run (uncommitted changes in the worktree)"
+
+dirtyenv dirty-current accept DIRTY; echo 0 > "$FAKE/behind"
+dispatch --once
+ok "DIRTY but main is in already (GitHub's state is stale) → logged only" grep -qF '#5 PR #50: conflicts with main; the merge by script did not run (main is in already)' "$CANCCU_HOME/dispatch.log"
+ok "… no needs-you, no push" eq "$(grep -c needs-you "$FAKE/gh.log") $(grep -c push "$FAKE/git.log")" "0 0"
+
+for ph in accept merging; do
+  dirtyenv "behind-$ph" "$ph" BEHIND
+  dispatch --once
+  ok "$ph, BEHIND only → nothing merged" hasnt git.log "merge --no-edit"
+done
+ok "fetch_prs reads mergeStateStatus" grep -q 'mergeStateStatus' "$root/lib/canccu-github.sh"
+
+# ---------------------------------------------------------------- the merge queue's removal reason (#90)
+
+# qrenv <name> <reason> <createdAt>: auto-merge off, not queued, 10 min after it was armed (11:50),
+# and the PR's newest RemovedFromMergeQueueEvent; merge_group runs of PR 50 and of another PR
+qrenv() {
+  merging_off "$1" '{"state": "OPEN"}'
+  mkdir -p "$WORKERS_DIR/worktrees/web/issue-5" && touch "$WORKERS_DIR/worktrees/web/issue-5/.git"
+  echo 5-thing > "$FAKE/branch"; echo 2 > "$FAKE/behind"
+  jq -n --arg r "$2" --arg t "$3" '{data: {repository: {pullRequest: {timelineItems: {nodes: [{reason: $r, createdAt: $t}]}}}}}' > "$FAKE/qr.json"
+  route 'api graphql *RemovedFromMergeQueueEvent*' qr.json
+  json mgruns.json '{"workflow_runs": [
+    {"name": "CI", "html_url": "https://github.com/example-org/web/actions/runs/901", "head_branch": "gh-readonly-queue/main/pr-50-abc", "conclusion": "failure"},
+    {"name": "Lint", "html_url": "https://github.com/example-org/web/actions/runs/902", "head_branch": "gh-readonly-queue/main/pr-50-abc", "conclusion": "success"},
+    {"name": "CI", "html_url": "https://github.com/example-org/web/actions/runs/903", "head_branch": "gh-readonly-queue/main/pr-51-def", "conclusion": "failure"}]}'
+  route 'api repos/example-org/web/actions/runs?event=merge_group&per_page=20*' mgruns.json
+}
+qrenv qr-conflict MERGE_CONFLICT 2030-11-05T11:55:00Z
+dispatch --once
+ok "the queue removed it for a conflict → main merged in by script" has git.log "merge --no-edit origin/main"
+ok "… no needs-you" hasnt gh.log "needs-you"
+ok "… logged" grep -qF '#5 PR #50: the merge queue removed it (merge conflict); merging main by script' "$CANCCU_HOME/dispatch.log"
+qrenv qr-checks FAILED_CHECKS 2030-11-05T11:55:00Z
+dispatch --once
+ok "the queue removed it for failed checks → needs-you naming the failed run of its group" \
+  has gh.log "the merge queue removed PR #50 because checks failed in its merge group: CI https://github.com/example-org/web/actions/runs/901. Not enqueued again"
+ok "… not another PR's run, nor a green one" eq "$(grep -c -e 'runs/903' -e 'runs/902' "$FAKE/gh.log")" 0
+ok "… no enqueue" not grep -q 'enqueuePullRequest' "$FAKE/gh.log"
+qrenv qr-manual MANUAL 2030-11-05T11:55:00Z
+dispatch --once
+ok "removed for another reason → needs-you that says so" has gh.log "the merge queue removed PR #50 (reason: MANUAL); a manual removal or a queue change. Not enqueued again"
+qrenv qr-old FAILED_CHECKS 2030-11-05T11:40:00Z
+dispatch --once
+ok "a removal from before merge_at → today's needs-you" has gh.log "auto-merge was disabled or the merge queue rejected PR #50"
+ok "… not the removal's" hasnt gh.log "checks failed in its merge group"
+
 echo "canccu-merge tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

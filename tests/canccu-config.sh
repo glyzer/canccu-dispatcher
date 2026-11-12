@@ -190,6 +190,10 @@ types='^(int|intopt):[0-9]+:[0-9]+$|^(enum|words):[^|]*(\|[^|]*)*$|^(budget|rege
 ok "… a type of the list" eq "$(grep -v '^#' "$TSV" | cut -f2 | grep -cvE "$types")" 0
 ok "… a file of the list" eq "$(grep -v '^#' "$TSV" | cut -f3 | grep -cvxE 'project|rules|global|fixed')" 0
 ok "… locked or open" eq "$(grep -v '^#' "$TSV" | cut -f4 | grep -cvxE 'locked|open')" 0
+ok "FIXCHECK_FULL_LINES is in the table, locked (#91)" grep -qxP 'FIXCHECK_FULL_LINES\tint:[0-9]+:[0-9]+\tproject\tlocked' "$TSV"
+ok "… default 100" grep -qE '^FIXCHECK_FULL_LINES=100( |$)' "$root/lib/canccu-config.default"
+ok "KEEP_ACCEPT_ON_MAIN_MERGE is in the table, locked (#92)" grep -qxP 'KEEP_ACCEPT_ON_MAIN_MERGE\tenum:0\|1\tproject\tlocked' "$TSV"
+ok "… default 0" grep -qE '^KEEP_ACCEPT_ON_MAIN_MERGE=0( |$)' "$root/lib/canccu-config.default"
 
 # ---------------------------------------------------------------- config show
 

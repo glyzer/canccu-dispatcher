@@ -820,5 +820,89 @@ ok "stage_of: work + fixcheck (resumed after needs-you) → fixing" eq "$(lib st
 # 10: the old tool name is gone
 
 
+# ---------------------------------------------------------------- a push after a pass (#91)
+
+review_env pp-shas 'Review verdict: pass' review
+dispatch --once
+ok "a full review's pass records full_sha and pass_sha" eq "$(st 5 full_sha) $(st 5 pass_sha)" "$HA $HA"
+review_env pp-shas-changes 'Review verdict: changes' review
+dispatch --once
+ok "a full review's changes records full_sha, no pass_sha" eq "$(st 5 full_sha) [$(st 5 pass_sha)]" "$HA []"
+review_env pp-new-cycle 'Review verdict: pass' review
+lib eval 'st_set 5 full_sha=x pass_sha=y; new_cycle 5'
+ok "new_cycle clears full_sha and pass_sha" eq "[$(st 5 full_sha)][$(st 5 pass_sha)]" "[][]"
+
+# ppenv <name> <full_sha> <pass_sha> <head> [numstat]: PR 50 passed, then got a push; CI green
+ppenv() {
+  review_env "$1" 'Review verdict: pass' review
+  sethead "$4"
+  state 5 phase=check pr=50 stage=review "full_sha=$2" "pass_sha=$3" verdict_at=2030-11-05T11:00:00Z "check_at=$NOW"
+  [ -n "${5:-}" ] && printf '%s\n' "$5" > "$FAKE/numstat"
+  return 0
+}
+ppenv pp-small $HA $HA $HB $'1\t0\tsrc/a.ts'
+dispatch --once
+ok "pass, then a one-line push → a fix-check of full_sha..head" grep -qF "fixcheck#50 " "$FAKE/worker.log"
+ok "… of the change since the pass" grep -qF "A full review passed on $HA (any fix-check after it passed too), and the PR got new commits since. Read git diff $HA..$HB." "$FAKE/worker.log"
+ok "… no full reviewer" not grep -q 'You are the independent reviewer' "$FAKE/worker.log"
+ok "… logged" grep -qF "#5 PR #50: push after the pass; fix-check of ${HA:0:7}..${HB:0:7}" "$CANCCU_HOME/dispatch.log"
+ok "… mode postpass, stage fixcheck" eq "$(st 5 review_mode) $(st 5 stage) $(cat "$CANCCU_HOME/reviews/50.mode")" "postpass fixcheck postpass"
+ok "… shown as a fix-check" eq "$(lib run_label review-50) / $(lib stage_of 5)" "fix-check PR #50 / fix-check"
+
+ppenv pp-two $HA $HB $HC $'2\t1\tsrc/a.ts'
+dispatch --once
+ok "pass, then two pushes → the fix-check covers both (base full_sha)" grep -qF "Read git diff $HA..$HC." "$FAKE/worker.log"
+ok "… no full reviewer" not grep -q 'You are the independent reviewer' "$FAKE/worker.log"
+
+ppenv pp-gated $HA $HA $HB $'1\t0\t.github/workflows/ci.yml'
+dispatch --once
+ok "pass, then a push touching a gated path → full review" grep -q 'You are the independent reviewer' "$FAKE/worker.log"
+ok "… logged with the reason" grep -qF "#5 PR #50: push after the pass; full review (gated path .github/workflows/ci.yml)" "$CANCCU_HOME/dispatch.log"
+ppenv pp-risky $HA $HA $HB $'1\t0\tsrc/auth/session.ts'
+dispatch --once
+ok "pass, then a push touching a risky path → full review" grep -q 'You are the independent reviewer' "$FAKE/worker.log"
+
+ppenv pp-big $HA $HA $HB $'80\t21\tsrc/a.ts'
+dispatch --once
+ok "pass, then a push of more than FIXCHECK_FULL_LINES lines → full review" grep -q 'You are the independent reviewer' "$FAKE/worker.log"
+ok "… logged with the count" grep -qF "full review (101 changed lines, over FIXCHECK_FULL_LINES=100)" "$CANCCU_HOME/dispatch.log"
+ppenv pp-limit $HA $HA $HB $'80\t20\tsrc/a.ts'
+dispatch --once
+ok "… exactly FIXCHECK_FULL_LINES lines → still a fix-check" grep -qF "fixcheck#50 " "$FAKE/worker.log"
+ppenv pp-diff-error $HA $HA $HB
+dispatch --once
+ok "the change cannot be read → full review" grep -q 'You are the independent reviewer' "$FAKE/worker.log"
+
+ppenv pp-main-only "" "" "" ; mmrepo
+sethead "$MB_MM1"
+state 5 phase=check pr=50 stage=review "full_sha=$MB_B" "pass_sha=$MB_B" verdict_at=2030-11-05T11:00:00Z "check_at=$NOW"
+dispatch --once
+ok "pass, then a merge of main only → merged, no reviewer started" eq "$(wc -l < "$FAKE/worker.log")" 0
+ok "… after_pass arms auto-merge on the new head" has gh.log "pr merge 50 -R example-org/web --auto --match-head-commit $MB_MM1"
+ok "… logged" grep -qF "#5 PR #50: the new head ${MB_MM1:0:7} is a merge of main only since the pass at ${MB_B:0:7}; no new review" "$CANCCU_HOME/dispatch.log"
+ok "… pass_sha moves to the new head, full_sha stays" eq "$(st 5 pass_sha) $(st 5 full_sha)" "$MB_MM1 $MB_B"
+ok "… the PR head and main were fetched for the check" grep -qF "fetch -q origin main pull/50/head" "$FAKE/git.log"
+
+ppenv pp-main-plus "" "" ""; mmrepo
+sethead "$MB_MX"; printf '1\t0\ta.txt\n' > "$FAKE/numstat"
+state 5 phase=check pr=50 stage=review "full_sha=$MB_B" "pass_sha=$MB_B" verdict_at=2030-11-05T11:00:00Z "check_at=$NOW"
+dispatch --once
+ok "a merge of main plus an edit → no merge, a fix-check of the change" eq "$(grep -c '^pr merge' "$FAKE/gh.log") $(grep -c 'fixcheck#50 ' "$FAKE/worker.log")" "0 1"
+
+# the post-pass fix-check's verdicts
+fxenv pp-fx-changes $'1. src/a.ts:9 the new branch never returns\n\nReview verdict: changes '"$HB"
+sed -i -e 's/^review_mode=fixcheck$/review_mode=postpass/' -e '/^reviewed_sha=/d' "$CANCCU_HOME/state/5"
+printf 'full_sha=%s\npass_sha=%s\n' "$HA" "$HA" >> "$CANCCU_HOME/state/5"
+dispatch --once
+ok "a postpass fix-check with changes → today's needs-you with the open items" has gh.log "still finds open items after the fix"
+ok "… no resume" eq "$(st 5 phase) $(wc -l < "$FAKE/worker.log")" "needs-you 0"
+ok "… the open items kept" eq "$(st 5 open_sha)" "$HB"
+fxenv pp-fx-pass $'Nothing broke.\n\nReview verdict: pass '"$HB"
+sed -i -e 's/^review_mode=fixcheck$/review_mode=postpass/' -e '/^reviewed_sha=/d' "$CANCCU_HOME/state/5"
+printf 'full_sha=%s\npass_sha=%s\n' "$HA" "$HA" >> "$CANCCU_HOME/state/5"
+dispatch --once
+ok "a postpass fix-check with pass → after_pass merges the head" has gh.log "pr merge 50 -R example-org/web --auto --match-head-commit $HB"
+ok "… pass_sha moves, full_sha stays, and the next push takes the post-pass path again" eq "$(st 5 pass_sha) $(st 5 full_sha) $(st 5 stage)" "$HB $HA review"
+
 echo "canccu-review tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

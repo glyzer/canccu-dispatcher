@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # shellcheck shell=bash disable=SC2034,SC2154  # globals are shared with the other lib/canccu-*.sh parts
-# Sourced by canccu-dispatch after canccu-common.sh; never run: the dispatcher pass, steps 5 (accept, merging) and 6 (after merge).
+# Sourced by canccu-dispatch after canccu-common.sh; never run: the dispatcher pass, step 5 (accept, merging; step 6 is lib/canccu-aftermerge.sh).
 
 # ---------------------------------------------------------------- 5. accept
 
@@ -116,12 +116,33 @@ requeue() {
 # (never the reviewer bot) and came after the accept request
 accepted_by_user() { label_by_user "$1" accepted "${2:-0}"; }
 
+# keep_accept <n> <pr> <old> <head>: with KEEP_ACCEPT_ON_MAIN_MERGE=1, an accept of old carries over
+# to head when head adds nothing to old but merges of main (main_merge_only) and the PR's own
+# `accepted` is still the user's, since the accept request: auto-merge on head. Only the PR's label
+# counts: an accept taken off an issue of the unit has left no label to check again. Off by
+# default: until package S2 a run can forge such a merge as easily as the label. 1: today's path.
+keep_accept() {
+  local n=$1 pr=$2 old=$3 head=$4
+  [ "${KEEP_ACCEPT_ON_MAIN_MERGE:-0}" = 1 ] && [ -n "$old" ] || return 1
+  pr_has_label "$pr" accepted && accepted_by_user "$pr" "$(st_get "$n" accept_at)" || return 1
+  pr_fetch "$pr"
+  main_merge_only "$old" "$head" || return 1
+  st_set "$n" accept_sha="$head"
+  log "#$n PR #$pr: \`accepted\` carried over from ${old:0:7} to ${head:0:7}: a merge of main only (KEEP_ACCEPT_ON_MAIN_MERGE=1)"
+  merge_auto "$n" "$pr" accepted "$head"
+  return 0
+}
+
 accept_step() {
   local n=$1 pr head i on=""
   pr=$(st_get "$n" pr)
   pr_is_open "$pr" || { pr_gone "$n" "$pr"; return; }
   head=$(pr_get "$pr" .headRefOid)
-  if [ "$head" != "$(st_get "$n" accept_sha)" ]; then requeue "$n" "$pr" "new push since the classification"; return; fi
+  if [ "$head" != "$(st_get "$n" accept_sha)" ]; then
+    keep_accept "$n" "$pr" "$(st_get "$n" accept_sha)" "$head" || requeue "$n" "$pr" "new push since the classification"
+    return 0
+  fi
+  conflict_merge "$n" "$pr" "$head" && return 0
   # the label on an issue of the unit is tolerated too, under the same checks as on the PR
   if pr_has_label "$pr" accepted; then on=$pr
   else for i in $(members_of "$n"); do has_label "$i" accepted && { on=$i; break; }; done; fi
@@ -134,6 +155,38 @@ accept_step() {
     fi
     merge_auto "$n" "$pr" accepted "$head"
   else warn_once "accept-$pr" "#$n PR #$pr: \`accepted\` on #$on was not added by $USER_LOGIN after the accept request; ignored"; fi
+  return 0
+}
+
+# conflict_merge <n> <pr> <head> [disarm|queue]: GitHub says the PR conflicts with main (DIRTY; queue: the merge queue said so): merge
+# main in by script (main_merge), once per head, so a merge that leaves it conflicting never loops.
+# Its push is a new head: a merge of main only needs no new review (postpass_step). A real conflict
+# gets one worker merge run; that run pushed nothing (still this head) → needs-you. disarm: auto-merge
+# is switched off first, so the push requeues cleanly. BEHIND is left to the merge queue. 1: nothing done.
+conflict_merge() {
+  local n=$1 pr=$2 head=$3
+  [ "${4:-}" = queue ] || [ "$(pr_get "$pr" '.mergeStateStatus // ""')" = DIRTY ] || return 1
+  if [ "$(st_get "$n" conflict_merge)" = "$head" ]; then
+    [ "$(st_get "$n" conflict_sha)" = "$head" ] || return 1
+    needs_you "$n" "PR #$pr conflicts with main in: $(st_get "$n" conflict_paths), and the worker's merge run pushed no resolution"; return 0
+  fi
+  st_set "$n" conflict_merge="$head"
+  [ "${4:-}" = disarm ] && armed "$n" "$pr" && mut gh pr merge "$pr" -R "$REPO" --disable-auto
+  main_merge "$n" "$pr"
+  case $MERGED in
+    merged) log "#$n PR #$pr: conflicts with main; merged main into the branch by script (no AI run)" ;;
+    conflict)
+      [ "$(st_get "$n" conflict_sha)" = "$head" ] && { needs_you "$n" "PR #$pr conflicts with main in: $MERGE_WHY, and the worker's merge run pushed no resolution"; return 0; }
+      # no slot: nothing was changed (the merge was aborted), so the next pass tries again
+      may_start "$n" || { st_set "$n" conflict_merge=; return 0; }
+      resume "$n" "$(conflict_task "$pr" "$MERGE_WHY")" merge || { st_set "$n" conflict_merge=; return 0; }
+      st_set "$n" conflict_sha="$head" conflict_paths="$MERGE_WHY"
+      log "#$n PR #$pr: conflicts with main in: $MERGE_WHY; the worker resolves them" ;;
+    current)  # GitHub's merge state is stale: said only; the next head gets its own try
+      log "#$n PR #$pr: conflicts with main; the merge by script did not run (main is in already)"; return 1 ;;
+    *) log "#$n PR #$pr: conflicts with main; the merge by script did not run ($MERGE_WHY)"
+       needs_you "$n" "PR #$pr conflicts with main; the merge by script did not run ($MERGE_WHY)" ;;
+  esac
   return 0
 }
 
@@ -161,10 +214,12 @@ merging_step() {
   head=$(pr_get "$pr" .headRefOid)
   if [ "$head" != "$(st_get "$n" merge_sha)" ]; then
     armed "$n" "$pr" && mut gh pr merge "$pr" -R "$REPO" --disable-auto
+    [ "$(st_get "$n" how)" = accepted ] && keep_accept "$n" "$pr" "$(st_get "$n" merge_sha)" "$head" && return 0
     if [ -z "$mode" ]; then requeue "$n" "$pr" "new push after auto-merge was enabled; auto-merge disabled"
     else requeue "$n" "$pr" "new push after the review passed; not merged"; fi
     return
   fi
+  [ "$mode" != merged ] && conflict_merge "$n" "$pr" "$head" disarm && return 0
   at=$(st_get "$n" merge_at); [ -n "$at" ] || { at=$(now); st_set "$n" merge_at="$at"; }
   case $mode in
     merged)   # the PR is still in this pass's list; open long after the merge → needs-you
@@ -192,10 +247,41 @@ merging_step() {
       else st_set "$n" merge_mode=merged merge_at="$(now)"; log "#$n PR #$pr: merged (auto-merge is off because it is done)"; fi
       return 0
     fi
-    needs_you "$n" "auto-merge was disabled or the merge queue rejected PR #$pr"
+    queue_removed "$n" "$pr" "$head" "$at" || needs_you "$n" "auto-merge was disabled or the merge queue rejected PR #$pr"
   elif [ "$(st_get "$n" queue_kick)" != "$head" ] && (( $(now) - at > ${NO_CHECKS_MIN:-10} * 60 )); then
     queue_kick "$n" "$pr" "$head"
   fi
+  return 0
+}
+
+# queue_removal <pr>: "<reason>\t<createdAt>" of the PR's newest removal from the merge queue;
+# nothing when there is none or gh fails
+queue_removal() {
+  ghj api graphql -F o="${REPO%%/*}" -F r="${REPO#*/}" -F p="$1" \
+    -f query='query($o: String!, $r: String!, $p: Int!) { repository(owner: $o, name: $r) { pullRequest(number: $p) { timelineItems(itemTypes: [REMOVED_FROM_MERGE_QUEUE_EVENT], last: 1) { nodes { ... on RemovedFromMergeQueueEvent { reason createdAt } } } } } }' \
+    -q '.data.repository.pullRequest.timelineItems.nodes[-1] // empty | "\(.reason // "")\t\(.createdAt // "")"' 2>/dev/null
+}
+
+# queue_removed <n> <pr> <head> <merge_at>: auto-merge is off and the PR is out of the queue: act on
+# the queue's reason, if it removed the PR after this merge was armed. GitHub's reason is no
+# documented enum, so it is matched by substring. Never enqueued again: failed checks in a merge
+# group can be a real bug that only shows with the group's other PRs. 1: no such removal.
+queue_removed() {
+  local n=$1 pr=$2 why at names
+  IFS=$'\t' read -r why at <<<"$(queue_removal "$pr")"
+  [ -n "$why" ] && [ -n "$at" ] && (( $(iso_epoch "$at") + 0 > $4 )) || return 1
+  case ${why,,} in
+    *conflict*)
+      log "#$n PR #$pr: the merge queue removed it (merge conflict); merging main by script"
+      conflict_merge "$n" "$pr" "$3" queue || needs_you "$n" "the merge queue removed PR #$pr for a conflict with main; main was merged in by script once on this head already" ;;
+    *check*|*fail*)
+      # gh's --jq takes no --arg: the prefix goes in the filter (pr is a number)
+      names=$(ghj api "repos/$REPO/actions/runs?event=merge_group&per_page=20" -q '[.workflow_runs[]?
+        | select((.head_branch // "") | startswith("gh-readonly-queue/main/pr-'"$pr"'-"))
+        | select(.conclusion | IN("failure", "timed_out", "cancelled")) | "\(.name) \(.html_url)"] | join(", ")' 2>/dev/null)
+      needs_you "$n" "the merge queue removed PR #$pr because checks failed in its merge group: ${names:-none found}. Not enqueued again: a failure there can be a real bug that only shows with the other PRs of the group" ;;
+    *) needs_you "$n" "the merge queue removed PR #$pr (reason: $why); a manual removal or a queue change. Not enqueued again" ;;
+  esac
   return 0
 }
 
@@ -224,149 +310,78 @@ queue_kick() {
   log "#$n PR #$pr: the merge queue started no merge_group run in ${NO_CHECKS_MIN:-10} min; dequeued and enqueued again"
 }
 
-# ---------------------------------------------------------------- 6. after merge
+# ---------------------------------------------------------------- a merge of main only
 
-# advance <n>: issues n blocked that carry the dispatcher's own `blocked` and have no open
-# blocker left → unblocked
-advance() {
-  local n=$1 d deps
-  deps=$( { ghj api "repos/$REPO/issues/$n/dependencies/blocking" 2>/dev/null | jqr '.[] | select(.state == "open") | .number'
-            jqr --argjson n "$n" '.[] | select((.body // "") | split("\n") | any(test("blocked by"; "i") and test("#\($n)\\b"))) | .number' <<<"$ISSUES"
-          } | sort -un)
-  for d in $deps; do
-    has_label "$d" blocked && blocked_ours "$d" || continue
-    [ -z "$(blockers_open "$d" | grep -vx "$n")" ] || continue
-    unblock "$d"
+# pr_fetch <pr>: the PR head and main into the main clone, for the reads below
+pr_fetch() { mut git -C "$CLONE" fetch -q origin main "pull/$1/head" || log "PR #$1: git fetch failed"; }
+
+# main_merge_only <base> <head>: what head adds to base is nothing but merges of main: from head,
+# at most 5 steps, each commit has two parents, the second on origin/main, and its tree is the
+# one git makes of merging the two (merge-tree, no worktree); its first parent is the next step,
+# and the walk reaches base. Such a tree holds nothing a person or a run wrote by hand. Any git
+# error (a git older than 2.38 has no merge-tree --write-tree) is false: that only costs a review.
+main_merge_only() {
+  local base=$1 c=$2 i p1 p2 more t
+  for ((i = 0; i < 5; i++)); do
+    read -r _ p1 p2 more <<<"$(guard 20 git -C "$CLONE" rev-list --parents -n 1 "$c" 2>/dev/null)"
+    [ -n "$p2" ] && [ -z "$more" ] || return 1
+    guard 20 git -C "$CLONE" merge-base --is-ancestor "$p2" origin/main 2>/dev/null || return 1
+    t=$(guard 60 git -C "$CLONE" merge-tree --write-tree "$p1" "$p2" 2>/dev/null) && [ -n "$t" ] || return 1
+    [ "${t%%$'\n'*}" = "$(guard 20 git -C "$CLONE" rev-parse "$c^{tree}" 2>/dev/null)" ] || return 1
+    c=$p1
+    [ "$c" = "$base" ] && return 0
   done
+  return 1
 }
 
-# unblock <n>: the dispatcher's own `blocked` goes; an issue nobody manages gets `ready` for it
-unblock() {
-  local n=$1 r=()
-  is_managed "$(unit_of_issue "$n")" || r=(--add-label ready)
-  mut gh issue edit "$n" -R "$REPO" --remove-label blocked "${r[@]}" || return 1
-  blocked_unmark "$n"
-  ISSUES=$(jq -c --argjson n "$n" --argjson r "${#r[@]}" 'map(if .number == $n then .labels |= (map(select(.name != "blocked" and .name != "ready"))
-    + (if $r > 0 then [{name: "ready"}] else [] end)) else . end)' <<<"$ISSUES")
-  log "#$n unblocked: blocked$( (( ${#r[@]} )) && echo " → ready")"
-}
-
-# links_closed <n>: issue n's blocked-by links (the dependencies API and its "Blocked by #k" lines)
-# are all closed: prints how many there are. Fails on an open link, or one that cannot be read (an
-# API error, a body link off the capped open list whose state gh cannot tell).
-links_closed() {
-  local n=$1 api b links
-  api=$(ghj api "repos/$REPO/issues/$n/dependencies/blocked_by" 2>/dev/null) || return 1
-  [ "$(jqr 'any(.[]; .state != "closed")' <<<"$api")" = false ] || return 1
-  links=$(jqr 'length' <<<"$api")
-  for b in $(blocked_by_refs "$n"); do
-    is_open "$b" && return 1
-    [ "$(ghj issue view "$b" -R "$REPO" --json state 2>/dev/null | jqr '.state // empty')" = CLOSED ] || return 1
-    links=$((links + 1))
-  done
-  echo "$links"
-}
-
-# unblock_tick: the dispatcher's own `blocked` (a quiet wait's) goes once the blocked-by links are
-# all closed, whatever closed them: a merge (advance does that too, at once), the dispatcher
-# closing an epic, the lead closing a checkpoint, a hand. A package's wait is on its lead issue but
-# waits on any member's links: every member's count. With no link at all the label stays. A
-# `blocked` someone else set is theirs to lift: never removed (said once when its links are all
-# closed). A mark whose label is gone goes too, so a person's later `blocked` is never taken for
-# the dispatcher's. This pass's issue list takes the new labels (unblock).
-unblock_tick() {
-  local n f m c links
-  for f in "$CANCCU_HOME"/blocked/*; do
-    [ -e "$f" ] || continue; n=${f##*/}
-    [ "$(jqr --argjson n "$n" 'any(.[]; .number == $n and all(.labels[]; .name != "blocked"))' <<<"$ISSUES")" = true ] && blocked_unmark "$n"
-  done
-  for n in $(jqr '.[] | select(any(.labels[]; .name == "blocked")) | .number' <<<"$ISSUES"); do
-    if ! blocked_ours "$n"; then
-      c=$(links_closed "$n") && (( c > 0 )) &&
-        warn_once "blocked-theirs-$n" "#$n is labelled \`blocked\` by someone else and its blocked-by links are all closed: remove the label to release it"
-      continue
-    fi
-    links=0
-    for m in $(members_of "$(unit_of_issue "$n")"); do c=$(links_closed "$m") || continue 2; links=$((links + c)); done
-    (( links > 0 )) || continue
-    unblock "$n"
+# postpass_full <base> <head>: why the change base..head needs a full review, not a fix-check; nothing
+# when it does not. The change counts only the files of the PR's own diff at head, so main's edits
+# elsewhere do not; main's edits to those files do, which can only cause a full review.
+postpass_full() {
+  local base=$1 head=$2 mb stats total p re max=${FIXCHECK_FULL_LINES:-100} files=()
+  [[ $max =~ ^[0-9]+$ ]] || max=100
+  mb=$(guard 20 git -C "$CLONE" merge-base origin/main "$head" 2>/dev/null)
+  # no file list read: the whole diff counts
+  [ -n "$mb" ] && mapfile -t files < <(guard 20 git -C "$CLONE" diff --name-only "$mb" "$head" 2>/dev/null)
+  stats=$(guard 30 git -C "$CLONE" diff --numstat "$base" "$head" -- "${files[@]}" 2>/dev/null) || { echo "the change cannot be read"; return; }
+  total=$(awk -F '\t' '{ for (i = 1; i <= 2; i++) if ($i ~ /^[0-9]+$/) t += $i } END { print t + 0 }' <<<"$stats")
+  (( total > max )) && { echo "$total changed lines, over FIXCHECK_FULL_LINES=$max"; return; }
+  p=$(cut -f3- <<<"$stats" | grep -m1 -E "$(gated_re)") && { echo "gated path $p"; return; }
+  for re in "$RISKY_PATHS" "$FIXCHECK_RISKY"; do
+    [ -n "$re" ] && p=$(cut -f3- <<<"$stats" | grep -m1 -iE "$re") && { echo "risky path $p"; return; }
   done
   return 0
 }
 
-# close_epics <n>: an open epic (n's parent, or one whose Order: line names n) with every sub-issue closed
-close_epics() {
-  local n=$1 e subs
-  for e in $( { ghj api "repos/$REPO/issues/$n/parent" 2>/dev/null | jqr '.number // empty'
-                jqr --argjson n "$n" '.[] | select(any(.labels[]; .name == "epic"))
-                  | select((.body // "") | split("\n") | any(test("^\\s*\\**Order:") and test("#\($n)\\b"))) | .number' <<<"$ISSUES"
-              } | sort -un); do
-    is_open "$e" && has_label "$e" epic || continue
-    step_holds_epic "$e" && continue   # a step's epic closes with its step (close_step_epic)
-    subs=$(ghj api --paginate "repos/$REPO/issues/$e/sub_issues" | jqr '.[] | "\(.number) \(.state)"') || continue
-    [ -n "$subs" ] || continue
-    subs=$(grep -v "^$n " <<<"$subs")   # n itself is closed even if the API lags
-    grep -q ' open$' <<<"$subs" && continue
-    mut gh issue close "$e" -R "$REPO" --comment "All sub-issues are closed. $CANCCU_MARK" && log "epic #$e closed"
-  done
-}
-
-# unit_cleanup <K> <pr>: a unit whose PR merged leaves nothing behind: its worktree and branch,
-# the PR's review worktree, its session id and question
-unit_cleanup() {
-  local n=$1 pr=$2 wt br m
-  wt=$(unit_wt "$n")
-  if [ -e "$wt/.git" ]; then
-    br=$(guard 10 git -C "$wt" branch --show-current)
-    mut git -C "$CLONE" worktree remove --force "$wt"
-    [ -n "$br" ] && mut git -C "$CLONE" branch -D "$br"
+# postpass_step <n> <pr> <head>: check_pr's new head after a pass (pass_sha), outside a fix round. A
+# merge of main only takes the pass on (CI is green here); another change gets a fix-check of
+# everything since the last full review (full_sha), so several small pushes never add up
+# unreviewed, or a full review when the change is big or touches a gated or risky path. The
+# worker's merge run for a conflict (conflict_merge) ends here, reaped to check: if it pushed
+# nothing (still the passed head), needs-you, never a second review. 1: not such a head, check_pr goes on.
+postpass_step() {
+  local n=$1 pr=$2 head=$3 psha base why
+  psha=$(st_get "$n" pass_sha)
+  if [ -n "$psha" ] && [ "$head" = "$psha" ] && [ "$(st_get "$n" conflict_sha)" = "$head" ]; then
+    needs_you "$n" "PR #$pr conflicts with main in: $(st_get "$n" conflict_paths), and the worker's merge run pushed no resolution"; return 0
   fi
-  [ -e "$(review_wt "$pr")/.git" ] && mut git -C "$CLONE" worktree remove --force "$(review_wt "$pr")"
-  mut rm -f "$WORKERS_DIR/$REPO_NAME-$n.id" "$(qfile "$n")"
-  for m in $(members_of "$n"); do blocked_unmark "$m"; done
-}
-
-# unit_merged <K> <pr> <PR title> <closed member...>: the record and cleanup of a merged unit
-# (finish_unit, merged_left); the closed members unblock what they blocked and close their epics
-unit_merged() {
-  local n=$1 pr=$2 title=$3 how m; shift 3
-  how=$(st_get "$n" how)
-  (( CANCCU_DRY )) || printf '%s\t%s\t%s\t%s\t%s\n' "$(now)" "$n" "$pr" "${how:-by hand}" "$title" >> "$CANCCU_HOME/merged.log"
-  log "#$n merged (PR #$pr, ${how:-by hand})"
-  unit_cleanup "$n" "$pr"
-  [ "$(guard 10 git -C "$CLONE" branch --show-current)" = main ] && { mut git -C "$CLONE" pull -q --ff-only || log "git pull in $CLONE failed"; }
-  for m; do advance "$m"; close_epics "$m"; done
-}
-
-# finish_unit <K>: a managed unit is closed: an issue; a package with every issue closed; the
-# health pass with its PR merged (or nothing to do)
-finish_unit() {
-  local n=$1 pr state=none j l m lbls="" title="" body=""
-  # the open list is capped, so confirm before cleaning up
-  for m in $(members_of "$n"); do
-    j=$(ghj issue view "$m" -R "$REPO" --json state,labels) || { log "#$n: gh error reading issue #$m; retrying next pass"; return; }
-    [ "$(jqr .state <<<"$j")" = CLOSED ] || { log "#$n: #$m is open but missing from the issue list; skipped"; return; }
-    lbls+="$m $(jqr '[.labels[].name] | join(" ")' <<<"$j")"$'\n'
-  done
-  pr=$(st_get "$n" pr)
-  if [ -n "$pr" ]; then
-    j=$(ghj pr view "$pr" -R "$REPO" --json state,title,body) || { log "#$n: gh error reading PR #$pr; retrying next pass"; return; }
-    state=$(jqr .state <<<"$j"); title=$(jqr .title <<<"$j"); body=$(jqr '.body // ""' <<<"$j")
+  [ -n "$psha" ] && [ "$head" != "$psha" ] || return 1
+  case $(st_get "$n" stage) in fixing|fixcheck) return 1 ;; esac
+  pr_fetch "$pr"
+  if main_merge_only "$psha" "$head"; then
+    log "#$n PR #$pr: the new head ${head:0:7} is a merge of main only since the pass at ${psha:0:7}; no new review"
+    # moved only once acted on: a classify retry or a failed merge sees this head again
+    after_pass "$n" "$pr" "$head" "merge of main" && st_set "$n" pass_sha="$head"
+    return 0
   fi
-  if [ "$state" = MERGED ]; then
-    # shellcheck disable=SC2046  # issue numbers: one word each
-    unit_merged "$n" "$pr" "$title" $(members_of "$n")
+  base=$(st_get "$n" full_sha); base=${base:-$psha}
+  backing_off && return 0
+  if [ -n "$(reviewer_token_problem)" ]; then room || return 0; else room "$n" || return 0; fi
+  why=$(postpass_full "$base" "$head")
+  if [ -n "$why" ]; then
+    log "#$n PR #$pr: push after the pass; full review ($why)"; start_review "$pr" "$n" "$head"
   else
-    log "#$n closed without a merged PR; its worktree is kept"
-    mut rm -f "$(qfile "$n")"
+    log "#$n PR #$pr: push after the pass; fix-check of ${base:0:7}..${head:0:7}"; start_reviewer "$pr" "$n" "$head" postpass "$base"
   fi
-  is_health "$n" && health_labels_clear "$n"
-  step_unit_finished "$n" "$state" "$pr" "$body"
-  while read -r m l; do
-    [ -n "$m" ] || continue
-    for l in in-progress awaiting-accept needs-you; do
-      grep -qw -- "$l" <<<"$(grep "^$m " <<<"$lbls")" && mut gh issue edit "$m" -R "$REPO" --remove-label "$l"
-    done
-  done <<<"$lbls"
-  st_rm "$n"
+  return 0
 }

@@ -31,6 +31,7 @@ INTERVAL	int:10:3600	project	open
 CI_WAIT_MIN	int:1:1440	project	open
 NO_CHECKS_MIN	int:1:1440	project	open
 MERGE_WAIT_MIN	int:1:10080	project	open
+KEEP_ACCEPT_ON_MAIN_MERGE	enum:0|1	project	locked
 POST_WAIT	int:10:86400	project	open
 STEP_BUDGET	int:1:100000	project	open
 BUDGET_PLAN	budget	project	open
@@ -41,6 +42,7 @@ PACKAGE_MIN_ISSUES	int:1:20	rules	open
 PLAN_MODEL	name	project	open
 REVIEW_MODEL	name	project	open
 FIXCHECK_MODEL	name	project	open
+FIXCHECK_FULL_LINES	int:0:100000	project	locked
 HEALTH_MODEL	name	project	open
 HEALTH_EFFORT	enum:low|medium|high|xhigh|max|	project	open
 USAGE_SLOW	int:1:100	project	open

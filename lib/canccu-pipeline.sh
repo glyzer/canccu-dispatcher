@@ -213,7 +213,9 @@ check_pr() {
         st_set "$n" ny_wait=ci
       return ;;
   esac
-  spend_note "$n" "$(st_get "$n" started)" ci=green
+  # a rerun of failed jobs that turned the head green: a flaky check, for the spend log
+  if [ "$(st_get "$n" ci_rerun)" = "$(pr_get "$pr" .headRefOid)" ]; then spend_note "$n" "$(st_get "$n" started)" ci=rerun-green
+  else spend_note "$n" "$(st_get "$n" started)" ci=green; fi
   j=$(pr_detail "$pr") || { log "#$n PR #$pr: gh error; retrying next pass"; return; }
   contract_closes "$n" "$pr" "$j" && return
   head=$(jqr .headRefOid <<<"$j")
@@ -225,6 +227,7 @@ check_pr() {
       review_mode="$(cat "$CANCCU_HOME/reviews/$pr.mode" 2>/dev/null)"
     return
   fi
+  postpass_step "$n" "$pr" "$head" && return
   # the worker fixed the full review's findings: the fix-check of reviewed_sha..head, never a
   # second full review. A push after a fix-check voids it (its verdict names the old head): a
   # new fix-check of the whole fix diff runs.

@@ -17,6 +17,8 @@ self=$(realpath "$0")
 . "$(dirname "$self")/../lib/canccu-pipeline.sh"
 # shellcheck source=../lib/canccu-merge.sh
 . "$(dirname "$self")/../lib/canccu-merge.sh"
+# shellcheck source=../lib/canccu-aftermerge.sh
+. "$(dirname "$self")/../lib/canccu-aftermerge.sh"
 
 usage() { sed -n '3,8s/^# \{0,1\}//p' "$self" >&2; exit 2; }
 
