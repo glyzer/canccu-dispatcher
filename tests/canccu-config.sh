@@ -178,5 +178,76 @@ ok "REPO changed in the config: the restart warning is logged once" \
 ok "… the old REPO stays: no call on the new one, and the other values apply" \
   eq "$(grep -c 'example-org/other' "$FAKE/gh.log") $(plans)" "0 1"
 
+# ---------------------------------------------------------------- the settings table
+
+tname=settings-table
+TSV=$root/lib/canccu-settings.tsv
+ok "the table has one line per key the defaults assign, in their order" \
+  eq "$(grep -v '^#' "$TSV" | cut -f1)" "$(grep -oE '^[A-Z_]+=' "$root/lib/canccu-config.default" | tr -d =)"
+ok "… every line has four columns" eq "$(grep -v '^#' "$TSV" | awk -F'\t' 'NF != 4' | wc -l)" 0
+types='^(int|intopt):[0-9]+:[0-9]+$|^(enum|words):[^|]*(\|[^|]*)*$|^(budget|regex|date|name|text)$'
+ok "… a type of the list" eq "$(grep -v '^#' "$TSV" | cut -f2 | grep -cvE "$types")" 0
+ok "… a file of the list" eq "$(grep -v '^#' "$TSV" | cut -f3 | grep -cvxE 'project|rules|global|fixed')" 0
+ok "… locked or open" eq "$(grep -v '^#' "$TSV" | cut -f4 | grep -cvxE 'locked|open')" 0
+
+# ---------------------------------------------------------------- config show
+
+# cfgenv <name> <global config or -> <rules> [project config]: a root with project web
+cfgenv() {
+  tname=$1; E=$T/$1; unset CANCCU_PROJECT CANCCU_HOME CANCCU_HOST_PROFILE
+  export CANCCU_ROOT=$E/root; mkdir -p "$CANCCU_ROOT/projects/web"
+  [ "$2" = - ] || printf '%s\n' "$2" > "$CANCCU_ROOT/config"
+  printf '%s\n' "$3" > "$CANCCU_ROOT/projects/web/rules"
+  printf '%s\n' "REPO=example-org/web" "CLONE=$E/code/web" "${4:-}" > "$CANCCU_ROOT/projects/web/config"
+}
+show() { out=$("${CFG_BIN:-$root/bin/canccu-dispatcher}" config show "$@" 2>&1); rc=$?; }
+H=$'KEY\tVALUE\tDEFAULT\tORIGIN\tLOCKED'
+
+cfgenv show-origin CAP=2 "GATED_PATHS='^x/'" CAP=1
+show --origin CAP GATED_PATHS STALL_MIN
+ok "config show --origin: the header, then value, default, origin and locked, in the table's order" eq "$rc
+$out" "0
+$H
+CAP	1	3	project	
+STALL_MIN	10	10	default	
+GATED_PATHS	^x/	^\.github/	rules	locked"
+show CAP REPO
+ok "config show: KEY=value lines" eq "$out" "REPO=example-org/web
+CAP=1"
+show --project web
+ok "config show: every setting" eq "$rc $(grep -c . <<<"$out")" "0 $(grep -vc '^#' "$TSV")"
+
+cfgenv total-cap "TOTAL_CAP=4" "" "TOTAL_CAP=9"
+show --origin TOTAL_CAP
+ok "TOTAL_CAP in a project config does not show: the global layer's value and origin" eq "$out" "$H
+TOTAL_CAP	4	3	global	"
+
+cfgenv host HOST_PROFILE=max ""
+# the shipped max.conf pins today's defaults (no value differs): a copy sets one that does
+src_copy "$E/src"; sed -i 's/^CAP=3$/CAP=4/' "$E/src/hosts/max.conf"
+CFG_BIN=$E/src/bin/canccu-dispatcher show --origin CAP HOST_PROFILE
+ok "HOST_PROFILE=max: a key max.conf sets comes from host:max; HOST_PROFILE from global" eq "$out" "$H
+HOST_PROFILE	max		global	
+CAP	4	3	host:max	"
+
+cfgenv unknown - ""
+show NOPE
+ok "config show NOPE: status 2, unknown setting" eq "$rc $out" "2 canccu-dispatcher: unknown setting NOPE"
+mkdir -p "$CANCCU_ROOT/projects/tools"; printf 'REPO=example-user/tools\n' > "$CANCCU_ROOT/projects/tools/config"
+show CAP
+ok "two projects and no --project: status 2, name a project" eq "$rc $out" "2 canccu-dispatcher: name a project: --project <name> (Projects: tools web)"
+show --project nope CAP
+ok "an unknown project ends as doctor does" eq "$rc $out" "1 canccu-dispatcher: no project 'nope'. Projects: tools web"
+rm -rf "$CANCCU_ROOT/projects"
+show --global --origin CAP REPO
+ok "--global: no project needed, the first three layers only" eq "$rc $out" "0 $H
+REPO			default	
+CAP	3	3	default	"
+
+cfgenv canary - "" "REVIEWER_TOKEN_FILE=$T/canary/token" "GH_CONFIG_DIR=$T/canary/gh"
+mkdir -p "$T/canary/gh"; echo SECRET-CANARY > "$T/canary/token"; echo SECRET-CANARY > "$T/canary/gh/hosts.yml"
+show --origin
+ok "config show --origin prints the token file's path, never its content" eq "$(grep -c SECRET-CANARY <<<"$out") $(grep -c "^REVIEWER_TOKEN_FILE	$T/canary/token	" <<<"$out")" "0 1"
+
 echo "canccu-config tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
