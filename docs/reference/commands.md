@@ -38,6 +38,8 @@ Every command but `canccu-init` and `canccu-dispatcher` takes `--project <name>`
 | `canccu-pause` / `canccu-resume` | While paused nothing new starts; running runs continue; --usage clears the usage-limit wait after an early reset |
 | `canccu-dispatcher --version`, `doctor`, `rollback`, `uninstall` | The installed tool itself ([`../install.md`](../install.md)) |
 | `canccu-dispatcher config show [--project <name>] [--global] [--origin] [KEY…]` | Every setting, its default and where it comes from (below) |
+| `canccu-dispatcher config set [--project <name> \| --global] KEY=VALUE [--why <text>]` | Checks one setting and writes it to the file it belongs in, with a history line (below) |
+| `canccu-dispatcher config unset [--project <name> \| --global] KEY [--why <text>]` | Removes that file's line for one setting, with a history line (below) |
 
 ### config show
 
@@ -56,6 +58,31 @@ canccu-dispatcher config show                          # every setting of the on
 canccu-dispatcher config show --project web CAP MODEL  # two settings of project web
 canccu-dispatcher config show --global                 # what every project starts from
 canccu-dispatcher config show --origin GATED_PATHS     # KEY VALUE DEFAULT ORIGIN LOCKED
+```
+
+### config set and config unset
+
+`canccu-dispatcher config set KEY=VALUE` checks the key, its type and its range
+([`config.md`](config.md#the-settings-table)) and writes `KEY='VALUE'` to the file the key belongs
+in: the project's `rules` or `config`, or with `--global` `~/.canccu/config` (the default for
+every project). `config unset KEY` removes that file's line for the key, so the layer before it
+applies again. The project is chosen as in `config show`. Both write one line to
+`config.history` ([`config.md`](config.md#changing-a-setting)); `--why` puts a reason in it. The
+output names the file and ends with `now: <value> (from <origin>)`: what the commands read after
+the write, where a later layer may still win. A set to the value the file already has, or an
+unset of a key the file does not set, changes nothing and records nothing (status 0).
+
+- Status 2: an unknown key, a value that fails the check (the message says what fits), a key
+  the command does not change (`REPO`, `CLONE`, `HOST_PROFILE`, `REVIEWER_TOKEN_FILE`,
+  `GH_CONFIG_DIR`: edit the file and restart the dispatcher), or `TOTAL_CAP` without `--global`.
+- Status 3: a locked key, when the leader or a run calls (`CANCCU_ACTOR=leader` or `run`): it is
+  refused, nothing is written, and the history records the refusal
+  ([`../security.md`](../security.md#known-limits)).
+- Status 1: the file would not be valid shell after the change; nothing is changed.
+
+```
+canccu-dispatcher config set CAP=2 --why "less load"   # the project's config
+canccu-dispatcher config unset --project web CAP       # back to the global or default value
 ```
 
 ## Labels

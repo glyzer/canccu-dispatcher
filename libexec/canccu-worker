@@ -105,6 +105,8 @@ run() {
   # no credential reaches claude, whatever the tmux server's environment holds
   unset GH_TOKEN GITHUB_TOKEN WORKER_GH_TOKEN_FILE REVIEWER_TOKEN_FILE
   export WORKER_NUDGE_FILE="$base.nudge"   # libexec/canccu-nudge-hook: the dispatcher asks the run to stop at a safe point
+  # config set refuses locked keys to a run (lib/canccu-configcmd.sh); a marker, not a boundary
+  export CANCCU_ACTOR=run
   sed -i -e "s/^pid=.*/pid=$$/" -e '/^pstart=/d' "$lock"
   echo "pstart=$(proc_start $$)" >> "$lock"
   trap '[ -n "$wpid" ] && kill "$wpid" 2>/dev/null; rm -f "$lock" "$errf" "$sumf" "$stallf"' EXIT

@@ -4,6 +4,8 @@
 #   canccu-dispatcher --version                       the version; plus the commit from a checkout
 #   canccu-dispatcher doctor [--project <name>]       one line per problem; exit 0 when clean
 #   canccu-dispatcher config show [--project <name>] [--global] [--origin] [KEY…]   every setting, its default and where it comes from
+#   canccu-dispatcher config set [--project <name> | --global] KEY=VALUE [--why <text>]   checks and writes one setting
+#   canccu-dispatcher config unset [--project <name> | --global] KEY [--why <text>]       removes one setting's line
 #   canccu-dispatcher rollback [--prefix DIR]         current back to the previous release
 #   canccu-dispatcher uninstall [--prefix DIR] [--purge-state --yes] [--force]
 # --prefix defaults to the prefix of the release this runs from (~/.local from a checkout).
@@ -32,7 +34,7 @@ CANCCU_USER_PATH=$PATH
 # shellcheck source=../lib/canccu-configcmd.sh
 . "$here/lib/canccu-configcmd.sh"
 
-usage() { sed -n '3,9s/^# \{0,1\}//p' "$self" >&2; exit 2; }
+usage() { sed -n '3,11s/^# \{0,1\}//p' "$self" >&2; exit 2; }
 cmd=${1:-}; [ $# -gt 0 ] && shift
 # from a checkout, the prefix of the PREFIX/bin link this was run through ($0, not resolved)
 prefix=$(canccu_default_prefix "$here" "$0") purge=0 yes=0 force=0
@@ -63,7 +65,12 @@ case $cmd in
       _cmd_die "no project '$only'. Projects: $(canccu_profiles | tr '\n' ' ' | sed 's/ $//')"
     fi
     canccu_doctor "$here" "$only" "$prefix" ;;
-  config) [ "${1:-}" = show ] || usage; shift; cfg_show "$@" ;;
+  config)
+    case ${1:-} in
+      show) shift; cfg_show "$@" ;;
+      set|unset) c=$1; shift; cfg_set "$c" "$@" ;;
+      *) usage ;;
+    esac ;;
   rollback) opts "$@"; canccu_rollback "$prefix" ;;
   uninstall) opts "$@"; canccu_uninstall "$prefix" "$purge" "$yes" "$force" ;;
   "") usage ;;
