@@ -449,5 +449,57 @@ for ph in accept merging; do
   ok "… no merge, review again" eq "$(grep -c -- '--auto' "$FAKE/gh.log")/$(st 5 phase)" 0/check
 done
 
+# ---------------------------------------------------------------- a conflict with main (#89)
+
+# dirtyenv <name> <phase> <mergeStateStatus>: PR 50 (branch 5-thing, worktree of issue 5) waits in
+# accept, or in merging with auto-merge armed, at HA; main is 2 commits ahead
+dirtyenv() {
+  env_new "$1"
+  { issue 5 in-progress,awaiting-accept; } | issues
+  pr 50 5 $HA | jq --arg m "$3" '.mergeStateStatus = $m' | prs
+  if [ "$2" = accept ]; then state 5 phase=accept pr=50 accept_sha=$HA rounds=0 "accept_at=$((NOW - 3600))"
+  else state 5 phase=merging pr=50 merge_sha=$HA how=auto "merge_at=$((NOW - 60))"; fi
+  mkdir -p "$WORKERS_DIR/worktrees/web/issue-5" && touch "$WORKERS_DIR/worktrees/web/issue-5/.git"
+  echo 5-thing > "$FAKE/branch"; echo 2 > "$FAKE/behind"
+}
+for ph in accept merging; do
+  dirtyenv "dirty-$ph" "$ph" DIRTY
+  dispatch --once
+  ok "$ph, the PR conflicts with main → main merged in by script, pushed" eq "$(grep -c 'merge --no-edit origin/main' "$FAKE/git.log") $(grep -c 'push origin HEAD:refs/heads/5-thing' "$FAKE/git.log")" "1 1"
+  ok "… no AI run" eq "$(wc -l < "$FAKE/worker.log")" 0
+  ok "… logged" grep -qF '#5 PR #50: conflicts with main; merged main into the branch by script (no AI run)' "$CANCCU_HOME/dispatch.log"
+  ok "… noted for the head" eq "$(st 5 conflict_merge)" "$HA"
+  [ "$ph" = merging ] && ok "… auto-merge disabled first" has gh.log "pr merge 50 -R example-org/web --disable-auto"
+  dispatch --once
+  ok "… once per head: GitHub still says DIRTY on the same head → no second merge" eq "$(grep -c 'merge --no-edit origin/main' "$FAKE/git.log")" 1
+done
+
+dirtyenv dirty-conflict accept DIRTY; printf 'src/a.ts\nsrc/b.ts\n' > "$FAKE/merge-conflict"
+dispatch --once
+ok "the merge of main conflicts → aborted, nothing pushed" eq "$(grep -c 'merge --abort' "$FAKE/git.log") $(grep -c push "$FAKE/git.log")" "1 0"
+ok "… the worker resolves it, a merge run, told the files" grep -q -- '--fresh .*web 5 Rules for this run: .* Merging origin/main into the branch of PR #50 conflicts in: src/a.ts src/b.ts' "$FAKE/worker.log"
+ok "… logged" grep -qF '#5 PR #50: conflicts with main in: src/a.ts src/b.ts; the worker resolves them' "$CANCCU_HOME/dispatch.log"
+ok "… conflict_sha is the head; not a fix attempt" eq "$(st 5 conflict_sha) $(st 5 fixes)" "$HA "
+rm -f "$WORKERS_DIR/web-5.lock"; st5=$(cat "$CANCCU_HOME/state/5"); printf '%s\nphase=accept\n' "$st5" > "$CANCCU_HOME/state/5"
+dispatch --once
+ok "… its run pushed nothing, the next pass on the same head → needs-you" has gh.log "PR #50 conflicts with main in: src/a.ts src/b.ts, and the worker's merge run pushed no resolution"
+ok "… no second run" eq "$(grep -c 'Merging origin/main into the branch' "$FAKE/worker.log")" 1
+
+dirtyenv dirty-dirty accept DIRTY; printf ' M src/a.ts\n' > "$FAKE/dirty"
+dispatch --once
+ok "the merge by script cannot run → needs-you saying why" has gh.log "PR #50 conflicts with main; the merge by script did not run (uncommitted changes in the worktree)"
+
+dirtyenv dirty-current accept DIRTY; echo 0 > "$FAKE/behind"
+dispatch --once
+ok "DIRTY but main is in already (GitHub's state is stale) → logged only" grep -qF '#5 PR #50: conflicts with main; the merge by script did not run (main is in already)' "$CANCCU_HOME/dispatch.log"
+ok "… no needs-you, no push" eq "$(grep -c needs-you "$FAKE/gh.log") $(grep -c push "$FAKE/git.log")" "0 0"
+
+for ph in accept merging; do
+  dirtyenv "behind-$ph" "$ph" BEHIND
+  dispatch --once
+  ok "$ph, BEHIND only → nothing merged" hasnt git.log "merge --no-edit"
+done
+ok "fetch_prs reads mergeStateStatus" grep -q 'mergeStateStatus' "$root/lib/canccu-github.sh"
+
 echo "canccu-merge tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

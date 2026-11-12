@@ -12,7 +12,7 @@ fetch() {
 # fetch_prs: this pass's open PRs (read again where a stale list would mislead: reap_worker)
 fetch_prs() {
   local p
-  p=$(ghj pr list -R "$REPO" -s open -L 300 --json number,title,url,isDraft,headRefOid,headRefName,author,isCrossRepository,autoMergeRequest,labels,closingIssuesReferences,body,statusCheckRollup) &&
+  p=$(ghj pr list -R "$REPO" -s open -L 300 --json number,title,url,isDraft,headRefOid,headRefName,author,isCrossRepository,autoMergeRequest,labels,closingIssuesReferences,body,statusCheckRollup,mergeStateStatus) &&
     PRS=$p
 }
 

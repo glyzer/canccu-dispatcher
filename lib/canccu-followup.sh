@@ -105,6 +105,12 @@ main_merge() {
   MERGED=merged
 }
 
+# conflict_task <pr> <paths>: the task of a worker's merge run (kind merge: no fix attempt), for a
+# merge of main that conflicts, whether red CI (ci_red) or GitHub's merge state (conflict_merge) found it
+conflict_task() {
+  printf 'Merging origin/main into the branch of PR #%s conflicts in: %s. Run git merge origin/main, resolve the conflicts keeping what both sides meant, rerun the checks, push once (a normal push, never a rebase or force-push) and stop: the dispatcher watches CI.' "$1" "$2"
+}
+
 # ci_log_tail <pr>: the newest log lines of the first failing job of a red CI (its check links to
 # a GitHub Actions job); else how to read them
 ci_log_tail() {
@@ -143,7 +149,7 @@ ci_red() {
       # one conflict run per head: one that pushed nothing gets no second try
       [ "$(st_get "$k" conflict_sha)" = "$head" ] && { needs_you "$k" "CI is red on PR #$pr and merging origin/main into it conflicts in: $MERGE_WHY; the worker's merge run pushed no resolution" "$(run_msg "$k")" "" ci; return; }
       may_start "$k" || return 0
-      resume "$k" "Merging origin/main into the branch of PR #$pr conflicts in: $MERGE_WHY. Run git merge origin/main, resolve the conflicts keeping what both sides meant, rerun the checks, push once (a normal push, never a rebase or force-push) and stop: the dispatcher watches CI." merge || return 0
+      resume "$k" "$(conflict_task "$pr" "$MERGE_WHY")" merge || return 0
       st_set "$k" conflict_sha="$head"; return 0 ;;
     error)
       err=$(( $(st_get "$k" mm_err) + 1 ))

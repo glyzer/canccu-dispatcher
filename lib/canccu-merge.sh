@@ -142,6 +142,7 @@ accept_step() {
     keep_accept "$n" "$pr" "$(st_get "$n" accept_sha)" "$head" || requeue "$n" "$pr" "new push since the classification"
     return 0
   fi
+  conflict_merge "$n" "$pr" "$head" && return 0
   # the label on an issue of the unit is tolerated too, under the same checks as on the PR
   if pr_has_label "$pr" accepted; then on=$pr
   else for i in $(members_of "$n"); do has_label "$i" accepted && { on=$i; break; }; done; fi
@@ -154,6 +155,38 @@ accept_step() {
     fi
     merge_auto "$n" "$pr" accepted "$head"
   else warn_once "accept-$pr" "#$n PR #$pr: \`accepted\` on #$on was not added by $USER_LOGIN after the accept request; ignored"; fi
+  return 0
+}
+
+# conflict_merge <n> <pr> <head> [disarm]: GitHub says the PR conflicts with main (DIRTY): merge
+# main in by script (main_merge), once per head, so a merge that leaves it conflicting never loops.
+# Its push is a new head: a merge of main only needs no new review (postpass_step). A real conflict
+# gets one worker merge run; that run pushed nothing (still this head) → needs-you. disarm: auto-merge
+# is switched off first, so the push requeues cleanly. BEHIND is left to the merge queue. 1: nothing done.
+conflict_merge() {
+  local n=$1 pr=$2 head=$3
+  [ "$(pr_get "$pr" '.mergeStateStatus // ""')" = DIRTY ] || return 1
+  if [ "$(st_get "$n" conflict_merge)" = "$head" ]; then
+    [ "$(st_get "$n" conflict_sha)" = "$head" ] || return 1
+    needs_you "$n" "PR #$pr conflicts with main in: $(st_get "$n" conflict_paths), and the worker's merge run pushed no resolution"; return 0
+  fi
+  st_set "$n" conflict_merge="$head"
+  [ -n "${4:-}" ] && armed "$n" "$pr" && mut gh pr merge "$pr" -R "$REPO" --disable-auto
+  main_merge "$n" "$pr"
+  case $MERGED in
+    merged) log "#$n PR #$pr: conflicts with main; merged main into the branch by script (no AI run)" ;;
+    conflict)
+      [ "$(st_get "$n" conflict_sha)" = "$head" ] && { needs_you "$n" "PR #$pr conflicts with main in: $MERGE_WHY, and the worker's merge run pushed no resolution"; return 0; }
+      # no slot: nothing was changed (the merge was aborted), so the next pass tries again
+      may_start "$n" || { st_set "$n" conflict_merge=; return 0; }
+      resume "$n" "$(conflict_task "$pr" "$MERGE_WHY")" merge || { st_set "$n" conflict_merge=; return 0; }
+      st_set "$n" conflict_sha="$head" conflict_paths="$MERGE_WHY"
+      log "#$n PR #$pr: conflicts with main in: $MERGE_WHY; the worker resolves them" ;;
+    current)  # GitHub's merge state is stale: said only; the next head gets its own try
+      log "#$n PR #$pr: conflicts with main; the merge by script did not run (main is in already)"; return 1 ;;
+    *) log "#$n PR #$pr: conflicts with main; the merge by script did not run ($MERGE_WHY)"
+       needs_you "$n" "PR #$pr conflicts with main; the merge by script did not run ($MERGE_WHY)" ;;
+  esac
   return 0
 }
 
@@ -186,6 +219,7 @@ merging_step() {
     else requeue "$n" "$pr" "new push after the review passed; not merged"; fi
     return
   fi
+  [ "$mode" != merged ] && conflict_merge "$n" "$pr" "$head" disarm && return 0
   at=$(st_get "$n" merge_at); [ -n "$at" ] || { at=$(now); st_set "$n" merge_at="$at"; }
   case $mode in
     merged)   # the PR is still in this pass's list; open long after the merge → needs-you
