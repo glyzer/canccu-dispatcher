@@ -92,6 +92,9 @@ rule keeps personal paths out of this repo (`tests/leak-check.sh`).
   the strong accept, but only where the repo allows auto-merge: in a repo without it the label is
   the only accept, and this limit applies in full. Running the reviewer as its own OS user would
   close this.
+- **A merge of main can carry an accept.** With `KEEP_ACCEPT_ON_MAIN_MERGE=1` your accept holds
+  over a push that is a clean merge of main only; a run can push such a merge as easily as it
+  adds the label, so keep the setting `0` until package S2.
 - **A worker trusts its issue.** Label `ready` only issues whose text you have read; on a public
   repo, comments by others are part of what a worker reads.
 - **Locked settings are refused by a marker, not a boundary.** `config set` and `config unset`

@@ -419,5 +419,35 @@ ok "main_merge_only: a plain commit → false" eq "$(mmo "$MB_B" "$MB_PC")" no
 ok "main_merge_only: a base the walk never reaches → false" eq "$(mmo "$MB_PC" "$MB_MM1")" no
 ok "main_merge_only: a git error (an unknown head) → false" eq "$(mmo "$MB_B" "$HA")" no
 
+# ---------------------------------------------------------------- the accept kept on a merge of main (#92)
+
+# keepenv <name> <phase> <setting> <new head>: PR 50, accepted by the user on MB_B (in accept, or
+# in merging with how=accepted), has moved to the new head
+keepenv() {
+  env_new "$1" "KEEP_ACCEPT_ON_MAIN_MERGE=$3"; mmrepo
+  { issue 5 in-progress,awaiting-accept; } | issues
+  pr 50 5 "$4" green accepted | prs
+  json events50.json '[{"event": "labeled", "label": {"name": "accepted"}, "actor": {"login": "octo"}, "created_at": "2030-11-05T11:30:00Z"}]'
+  route 'api --paginate repos/example-org/web/issues/50/events' events50.json
+  if [ "$2" = accept ]; then state 5 phase=accept pr=50 "accept_sha=$MB_B" rounds=0 "accept_at=$((NOW - 3600))"
+  else state 5 phase=merging pr=50 "merge_sha=$MB_B" how=accepted "merge_at=$((NOW - 600))" "accept_sha=$MB_B" "accept_at=$((NOW - 3600))"; fi
+}
+for ph in accept merging; do
+  keepenv "keep-$ph" "$ph" 1 "$MB_MM1"
+  dispatch --once
+  ok "$ph, KEEP_ACCEPT_ON_MAIN_MERGE=1, a clean merge of main → \`accepted\` kept" hasnt gh.log "remove-label accepted"
+  ok "… auto-merge on the new head" has gh.log "pr merge 50 -R example-org/web --auto --match-head-commit $MB_MM1"
+  ok "… logged" grep -qF "#5 PR #50: \`accepted\` carried over from ${MB_B:0:7} to ${MB_MM1:0:7}: a merge of main only (KEEP_ACCEPT_ON_MAIN_MERGE=1)" "$CANCCU_HOME/dispatch.log"
+  ok "… merging, how accepted, on the new head" eq "$(st 5 phase) $(st 5 how) $(st 5 merge_sha)" "merging accepted $MB_MM1"
+  keepenv "keep-$ph-plus" "$ph" 1 "$MB_MX"
+  dispatch --once
+  ok "$ph, KEEP_ACCEPT_ON_MAIN_MERGE=1, a merge of main plus one line → \`accepted\` dropped" has gh.log "pr edit 50 -R example-org/web --remove-label accepted"
+  ok "… no merge, review again" eq "$(grep -c -- '--auto' "$FAKE/gh.log")/$(st 5 phase)" 0/check
+  keepenv "keep-$ph-off" "$ph" 0 "$MB_MM1"
+  dispatch --once
+  ok "$ph, KEEP_ACCEPT_ON_MAIN_MERGE=0, a clean merge of main → \`accepted\` dropped" has gh.log "pr edit 50 -R example-org/web --remove-label accepted"
+  ok "… no merge, review again" eq "$(grep -c -- '--auto' "$FAKE/gh.log")/$(st 5 phase)" 0/check
+done
+
 echo "canccu-merge tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
