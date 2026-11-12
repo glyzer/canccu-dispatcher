@@ -99,12 +99,14 @@ product owner touches per merged issue. Added by this plan:
 
 - **Escaped defects per merged issue.** A bug issue or a revert carries `Regression of: #<pr>`.
   Baseline in 0.2; 1.0 must be no worse while cost falls.
+- **Rounds to pass.** The share of PRs that pass at their first review, and the reviewer's
+  score on its test set (T1). Baseline in 0.2; neither may fall while cost falls.
 - **Stalls found by a person:** a unit that sat past `IDLE_ALARM_MIN` with no feed line. Target: 0.
 - **Messages to the product owner per merged issue.** Baseline in 0.2; it must fall in 0.3.
 
 ## Release 0.2: stop the waste, close the holes
 
-Twelve packages, in this order: P1, E1, C1, M1, R1, F1, N1, S1, S2, L1, P2, T1. See [`0.2.md`](0.2.md).
+Thirteen packages, in this order: P1, E1, C1, M1, Q1, R1, F1, N1, S1, S2, L1, P2, T1. See [`0.2.md`](0.2.md).
 
 ## Release 0.3: the product layout (outline)
 

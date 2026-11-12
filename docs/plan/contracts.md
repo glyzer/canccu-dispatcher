@@ -125,6 +125,8 @@ A package adds its setting with the name and default below (rule 5 of the plan a
 | `ACCEPT_CHANNELS` | all | which accept channels count: `label`, `ship`, `reply`, `leader`, or `all` | S2 | yes |
 | `LEADER_ACCEPTS` | none | `technical` or `none`; read by the owner rule from F1, acted on from L1 | F1 | yes |
 | `LEADER_ACCEPTS_HIGH_RISK` | 0 | 1 lets the leader accept high-risk technical PRs (hardened level only) | F1 | yes |
+| `BRAKE_DEFECTS` | 2 | escaped defects within `BRAKE_WINDOW` that stop all automatic merges; 0 switches the brake off | L1 | yes |
+| `BRAKE_WINDOW` | 20 | the number of most recent merged PRs the brake counts over | L1 | yes |
 | `WORKER_WATCHES_CI` | 1 | 0: workers stop at "PR ready" and the dispatcher watches CI | P2 | no |
 | `NOTIFY` | github | `github`, `telegram`, both, or `off` | 0.3 | yes |
 | `NOTIFY_BATCH_MIN` | 30 | asks are collected this long into one message; 0 sends each at once | 0.3 | no |
@@ -157,3 +159,26 @@ field adds its migration and a test that upgrades with units in flight.
 From L1: `actions.log` in the project's home, one line per command a person or the leader ran,
 tab-separated: `<time>	<actor>	<command>	<unit or ->	<result>`. The actor is `po`,
 `leader` or `dispatcher`.
+
+## 8. The review file and the PR body
+
+From Q1. The review file the reviewer writes has, in this order:
+
+1. The summary line, exactly
+   `Findings: <b> blocking, <n> non-blocking, <p> pre-existing` (all three counts, zeros
+   included).
+2. `Blocking:`, then the findings, ranked. Each is
+   `<n>. <file>:<line> — <class>: <what is wrong>. Fix: <the fix>`, followed by one
+   `   also <file>:<line>` line per further instance of the same class.
+3. `Non-blocking:`, then the findings, one per line, each with `<file>:<line>`.
+4. `Pre-existing:`, then the findings, one per line, each with `<file>:<line>`.
+5. The `Maintainer accept:` line when it applies, the `Risk:` line and the verdict line, as today.
+
+A heading with no findings is followed by `none`. Only `Blocking:` findings make the verdict
+`changes`. The dispatcher files the non-blocking and pre-existing findings in the follow-up issue,
+the pre-existing ones marked `(pre-existing)`.
+
+The PR body of every work PR has, besides today's lines:
+
+- `Testing:` each command run, then the last lines it printed, in a code block; or `none — <why>`.
+- `Revert:` `plain revert`, or the numbered steps that undo state, config or a release.
