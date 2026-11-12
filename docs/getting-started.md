@@ -74,22 +74,16 @@ REVIEWER_LOGIN=review-bot
 
 `canccu-dispatcher doctor` should now complain only about things a project fixes.
 
-**On a Pro plan.** There is no Pro host profile yet: install with `--host-profile max` as above,
-then run one thing at a time on a smaller model and smaller budgets, in `~/.canccu/config`:
+**On a Pro plan.** Install with `--host-profile pro` instead, or set the one line in
+`~/.canccu/config`:
 
 ```sh
-CAP=1
-TOTAL_CAP=1
-MODEL=sonnet
-BUDGET_WORK="120 30 90"
-BUDGET_RESUME="40 10 30"
-BUDGET_REVIEW="30 8 25"
-BUDGET_FIXCHECK="15 3 15"
-BUDGET_ANSWER="20 5 15"
+HOST_PROFILE=pro
 ```
 
-(Turns, USD and minutes per run: [`reference/config.md`](reference/config.md).) This note goes
-away when `hosts/pro.conf` lands (#14).
+It runs one thing at a time with small budgets; the values are in
+[`hosts/pro.conf`](../hosts/pro.conf) ([`reference/config.md`](reference/config.md), "Host
+profiles"), and `~/.canccu/config` overrides any of them. It sets no model: `MODEL` stays yours.
 
 **Known limits.** Keep a test repo's full suite well under 10 minutes for now (#26), and never
 run two dispatchers on one repo (#15).

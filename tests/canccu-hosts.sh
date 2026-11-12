@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # tests/canccu-hosts.sh — host profiles: HOST_PROFILE (CANCCU_HOST_PROFILE, else ~/.canccu/config),
 # the load order defaults → hosts/<profile>.conf → ~/.canccu/config → rules → the project's
-# config, hosts/max.conf (the harness: tests/lib/harness.sh).
+# config, hosts/max.conf, hosts/pro.conf (the harness: tests/lib/harness.sh).
 # shellcheck source=lib/harness.sh
 . "$(dirname "$0")/lib/harness.sh"
 
@@ -45,7 +45,7 @@ env_new unknown
 echo 'HOST_PROFILE=nosuch' > "$CANCCU_ROOT/config"
 out=$(load ok); rc=$( (. "$S/lib/canccu-common.sh") >/dev/null 2>&1; echo $?)
 ok "an unknown profile is refused" eq "$rc" 1
-ok "… with the list of profiles" grep -q "no host profile 'nosuch'.*lab, max" <<<"$out"
+ok "… with the list of profiles" grep -q "no host profile 'nosuch'.*lab, max, pro" <<<"$out"
 ok "… so canccu-status refuses too" grep -q "no host profile 'nosuch'" <<<"$(CANCCU_HOST_PROFILE=nosuch "$S/bin/canccu-status" 2>&1)"
 ok "a name that is a path is no profile" grep -q "no host profile '../lib/canccu-config'" <<<"$(CANCCU_HOST_PROFILE=../lib/canccu-config load ok)"
 
@@ -65,6 +65,21 @@ done
 ok "… each to today's default" eq "${diff# }" ""
 env_new max-load
 ok "HOST_PROFILE=max loads" eq "$(CANCCU_HOST_PROFILE=max load '$HOST_PROFILE|$BUDGET_WORK')" "max|250 80 150"
+
+# ---------------------------------------------------------------- hosts/pro.conf
+
+tname=pro
+ok "hosts/pro.conf ships" test -f "$root/hosts/pro.conf"
+ok "… and sets no HOST_PROFILE" not grep -qE '^[[:space:]]*HOST_PROFILE=' "$root/hosts/pro.conf"
+# the issue fixed that a host's model stays its own choice
+ok "… and no model" not grep -qE '^[[:space:]]*[A-Z_]*MODEL[A-Z_]*=' "$root/hosts/pro.conf"
+env_new pro-load
+# the harness's project config sets CAP, which wins over any profile
+sed -i '/^CAP=/d' "$CANCCU_HOME/config"
+ok "HOST_PROFILE=pro: one run at a time, small budgets, a medium review effort" \
+  eq "$(CANCCU_HOST_PROFILE=pro load '$HOST_PROFILE|$CAP|$TOTAL_CAP|$BUDGET_REVIEW|$REVIEW_EFFORT_MAX')" "pro|1|1|30 6 30|medium"
+printf 'HOST_PROFILE=pro\nTOTAL_CAP=2\nREVIEW_EFFORT_MAX=high\n' > "$CANCCU_ROOT/config"
+ok "… a value in ~/.canccu/config overrides it" eq "$(load '$TOTAL_CAP|$REVIEW_EFFORT_MAX|$BUDGET_REVIEW')" "2|high|30 6 30"
 
 echo "canccu-hosts tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

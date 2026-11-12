@@ -43,7 +43,7 @@ is stopped and its issue goes to `needs-you`.
 |---|---|---|
 | `REPO` | none | The only repo (`owner/repo`) the project's dispatcher works on. Project config only |
 | `CLONE` | none | Its main clone; every worktree hangs off it. `canccu-init` writes `~/code/<repo>` or the path it was given |
-| `HOST_PROFILE` | empty | The host profile, `hosts/<name>.conf` (for example `max`); empty: none. Set it in `~/.canccu/config`, or `CANCCU_HOST_PROFILE` for one command. An unknown name is refused with the list |
+| `HOST_PROFILE` | empty | The host profile, `hosts/<name>.conf` (`max` or `pro`); empty: none. Set it in `~/.canccu/config`, or `CANCCU_HOST_PROFILE` for one command. An unknown name is refused with the list |
 | `CAP` | `3` | The project's workers, reviewers and answerers running at once |
 | `TOTAL_CAP` | `3` | The same over all projects of this host together (they share one Claude account), shared by need ([`projects.md`](projects.md#fair-share-of-total_cap)). Up to `~/.canccu/config` only |
 | `MODEL` | empty | Passed as `--model` to every run; empty: no `--model`, the account's default model |
@@ -93,7 +93,9 @@ is stopped and its issue goes to `needs-you`.
 A host profile pins the values that depend on the Claude plan and the host, so a later change to
 the defaults does not move a running host. `hosts/max.conf` (a Claude Max plan) sets today's
 defaults of `CAP`, `TOTAL_CAP`, every `BUDGET_*` key, `STEP_BUDGET`, `USAGE_SLOW`, `USAGE_STOP`
-and `USAGE_WEEKLY_DRAIN`. `~/.canccu/config` overrides any of them. `install.sh --host-profile
+and `USAGE_WEEKLY_DRAIN`. `hosts/pro.conf` (a Claude Pro plan) sets the same keys for one run
+at a time with small budgets, and `REVIEW_EFFORT_MAX=medium`. Neither sets a model.
+`~/.canccu/config` overrides any of them. `install.sh --host-profile
 <name>` adds `HOST_PROFILE=<name>` to a config without that key.
 
 The tools read `HOST_PROFILE` from `~/.canccu/config` in a subshell, so nothing else in that
