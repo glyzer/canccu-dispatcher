@@ -18,6 +18,8 @@ HC=cccccccccccccccccccccccccccccccccccc3333 BOT=review-bot
 export FAKE_MERGED=dddddddddddddddddddddddddddddddddddd4444   # the fake git's head after a merge of main
 FAKE_TOKEN=fake-reviewer-token-for-tests
 export FAKE_BOT=$BOT
+# the real git, for the tests whose commit graph must be real (mmrepo, $FAKE/realgit)
+FAKE_REAL_GIT=$(command -v git); export FAKE_REAL_GIT
 # the venv with rich for the monitor tests (CANCCU_VENV, else the usual one); unset afterwards, so
 # no command under test sees it
 MON_VENV=${CANCCU_VENV:-$HOME/.local/share/canccu/venv}; unset CANCCU_VENV
@@ -124,6 +126,16 @@ cat > "$fb/git" <<'EOF'
 # fake git: records the call; `diff --numstat` prints $FAKE/numstat (fails without it)
 a="$*"; printf '%s\n' "$a" >> "$FAKE/git.log"
 printf '%s\t%s\t%s\n' "${GH_CONFIG_DIR:-<default>}" "${GIT_CONFIG_COUNT:-<unset>}" "$a" >> "$FAKE/git.cfg"
+# $FAKE/realgit: the reads of the commit graph (main_merge_only, the change after a pass) go to the
+# real git, on the repo mmrepo built in CLONE; $FAKE/numstat still answers diff --numstat
+if [ -e "$FAKE/realgit" ]; then
+  case " $a " in
+    *" merge-tree "*|*" merge-base "*|*" rev-list --parents "*|*" diff --name-only "*) exec "$FAKE_REAL_GIT" "$@" ;;
+    *" rev-parse HEAD "*) ;;
+    *" rev-parse "*) exec "$FAKE_REAL_GIT" "$@" ;;
+    *" diff --numstat "*) [ -e "$FAKE/numstat" ] || exec "$FAKE_REAL_GIT" "$@" ;;
+  esac
+fi
 case " $a " in *" diff --numstat "*) cat "$FAKE/numstat" 2>/dev/null || exit 128 ;; esac
 # a worktree's branch (branch --show-current: $FAKE/branch), how far main is ahead (rev-list
 # --count: $FAKE/behind), its commits (log --oneline: $FAKE/gitlog) and their diff stat (diff --stat:
@@ -336,6 +348,32 @@ effenv() {   # effenv <name> <files json> <pr body>: PR 50 of managed issue 5 wa
   json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z)"; route 'pr view 50 *' pr50.json
   json files50.json "$2"; route 'api --paginate repos/example-org/web/pulls/50/files*' files50.json
   state 5 phase=check "check_at=$NOW" pr=50
+}
+
+# mmrepo: a real repo in CLONE for "a merge of main only" (main_merge_only), its shas exported:
+# MB_B the passed (or accepted) head; main moves on to M1, then M2 (origin/main). MB_MM1 merges
+# M1 into B cleanly, MB_MM2 merges M2 into MB_MM1 cleanly, MB_MX merges M1 with one more edited
+# line, MB_MO merges a branch that is not on main, MB_PC is a plain commit on B. fake git
+# delegates to it once $FAKE/realgit exists.
+mmrepo() {
+  local d=$E/code/web
+  _mmg() { GIT_AUTHOR_DATE=2030-11-05T10:00:00Z GIT_COMMITTER_DATE=2030-11-05T10:00:00Z \
+             "$FAKE_REAL_GIT" -C "$d" -c user.name=octo -c user.email=octo@example.com -c init.defaultBranch=main "$@"; }
+  _mmq() { _mmg "$@" >/dev/null 2>&1; }
+  rm -rf "$d"; mkdir -p "$d"; _mmq init
+  printf 'a1\na2\na3\n' > "$d/a.txt"; printf 'm1\n' > "$d/m.txt"; _mmq add .; _mmq commit -m root
+  _mmq checkout -b pr; echo a4 >> "$d/a.txt"; _mmq commit -am "the PR"; MB_B=$(_mmg rev-parse HEAD)
+  _mmq checkout main; echo m2 >> "$d/m.txt"; _mmq commit -am M1
+  _mmq checkout pr; _mmq merge --no-edit main; MB_MM1=$(_mmg rev-parse HEAD)
+  _mmq checkout main; echo m3 >> "$d/m.txt"; _mmq commit -am M2; _mmq update-ref refs/remotes/origin/main main
+  _mmq checkout pr; _mmq merge --no-edit main; MB_MM2=$(_mmg rev-parse HEAD)
+  _mmq checkout -b mx "$MB_B"; _mmq merge --no-commit main~1; echo a5 >> "$d/a.txt"; _mmq add a.txt; _mmq commit -m "merge plus"; MB_MX=$(_mmg rev-parse HEAD)
+  _mmq checkout -b side main~2; echo s1 > "$d/s.txt"; _mmq add s.txt; _mmq commit -m side
+  _mmq checkout -b mo "$MB_B"; _mmq merge --no-edit side; MB_MO=$(_mmg rev-parse HEAD)
+  _mmq checkout -b pc "$MB_B"; echo a5 >> "$d/a.txt"; _mmq commit -am plain; MB_PC=$(_mmg rev-parse HEAD)
+  _mmq checkout main
+  export MB_B MB_MM1 MB_MM2 MB_MX MB_MO MB_PC
+  touch "$FAKE/realgit"
 }
 
 # ---------------------------------------------------------------- the fix-check fixtures

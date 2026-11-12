@@ -407,5 +407,17 @@ env_new health-accept
 state pkg-12-health pkg=health step=12 health=1 members= branch=pkg-12-health
 ok "a health pass has no issue to read accepted from" eq "$(lib members_of pkg-12-health)" ""
 
+# ---------------------------------------------------------------- a merge of main only (#91)
+
+env_new main-merge-only; mmrepo
+mmo() { lib eval ". '$root/lib/canccu-merge.sh'; main_merge_only $1 $2 && echo yes || echo no"; }
+ok "main_merge_only: one clean merge of main → true" eq "$(mmo "$MB_B" "$MB_MM1")" yes
+ok "main_merge_only: two stacked clean merges of main → true" eq "$(mmo "$MB_B" "$MB_MM2")" yes
+ok "main_merge_only: a merge of main with one more edited line → false" eq "$(mmo "$MB_B" "$MB_MX")" no
+ok "main_merge_only: a merge of a branch that is not on main → false" eq "$(mmo "$MB_B" "$MB_MO")" no
+ok "main_merge_only: a plain commit → false" eq "$(mmo "$MB_B" "$MB_PC")" no
+ok "main_merge_only: a base the walk never reaches → false" eq "$(mmo "$MB_PC" "$MB_MM1")" no
+ok "main_merge_only: a git error (an unknown head) → false" eq "$(mmo "$MB_B" "$HA")" no
+
 echo "canccu-merge tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
