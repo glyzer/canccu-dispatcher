@@ -205,12 +205,14 @@ snap_milestones() {
 # output of commands, "  │ …", does not). Consecutive lines that differ only in a counter (a
 # try number "try N", "after N min", "×N", or a number that ends the line) fold into one row: the
 # newest line's time and text, count (the lines folded), first_at (the oldest one's time).
-# canccu-monitor folds with the same rule (lib/canccu_monitor/parts.py, fold_key). The times are
-# the log's local time: one date call reads them all.
+# canccu-monitor folds with the same rule (lib/canccu_monitor/parts.py, fold_key). A line starts
+# with its UTC time (2030-11-05T12:00:00Z) or, written before 0.2, the host's local time
+# (2030-11-05 12:00:00): one date call reads both.
 snap_events() {
   local rows epochs
-  rows=$(tail -n 2000 "$CANCCU_HOME/dispatch.log" 2>/dev/null | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} ' | tail -500 |
-    jq -Rsc 'split("\n") | map(select(. != "") | {ts: .[0:19], text: .[20:]}
+  rows=$(tail -n 2000 "$CANCCU_HOME/dispatch.log" 2>/dev/null |
+    grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9]{2}:[0-9]{2}:[0-9]{2}Z| [0-9]{2}:[0-9]{2}:[0-9]{2}) ' | tail -500 |
+    jq -Rsc 'split("\n") | map(select(. != "") | (if .[10:11] == "T" then 20 else 19 end) as $w | {ts: .[0:$w], text: .[$w + 1:]}
                | .k = (.text | gsub("try [0-9]+"; "try N") | gsub("after [0-9]+ min"; "after N min")
                        | gsub("×[0-9]+"; "×N") | gsub("(?<![#\\w-])[0-9]+$"; "N")))
              | reduce .[] as $l ([]; if length > 0 and .[length - 1].k == $l.k

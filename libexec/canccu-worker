@@ -143,7 +143,7 @@ run() {
     # a worker hears the dispatcher's nudge (usage near the limit) after each tool call
     else args+=(--settings "{\"hooks\":{\"PostToolUse\":[{\"matcher\":\"*\",\"hooks\":[{\"type\":\"command\",\"command\":\"$(dirname "$self")/canccu-nudge-hook\"}]}]}}"); fi
     for d in ${WORKER_ADD_DIRS:-}; do args+=(--add-dir "$d"); done
-    printf '\n=== %s %s#%s "%s" %s %s · budget %st/$%s/%sm%s\n' "$(date '+%F %T')" "$repo" "$key" \
+    printf '\n=== %s %s#%s "%s" %s %s · budget %st/$%s/%sm%s\n' "$(date -u '+%FT%TZ')" "$repo" "$key" \
       "$prompt" "${sargs[0]#--}" "$sid" "$turns" "$cost" "$mins" "${model:+ · $model}" >> "$base.log"
     stop="" ; rm -f "$sumf" "$stallf"
     exec 4< <(cd "$dir" && timed_exec "${mins}m" claude "${args[@]}" -- "$prompt" 2>"$errf")

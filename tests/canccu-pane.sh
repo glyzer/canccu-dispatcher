@@ -20,7 +20,7 @@ ok "--dry-run still prints what it would do" grep -q '^  would: ' <<<"$out"
 dispatch --once
 ok "clean output: the pass merged, unblocked and started (it had things to say)" \
   eq "$(grep -cE '#5 merged|#6 unblocked|#3 started' "$E/out")" 3
-ok "clean output: every line in the pane is one of the dispatcher's own" not grep -vE '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9:]{8} ' "$E/out"
+ok "clean output: every line in the pane is one of the dispatcher's own" not grep -vE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z ' "$E/out"
 ok "… gh's URLs went to dispatch.log" grep -qF '  │ https://github.com/example-org/web/issues/' "$CANCCU_HOME/dispatch.log"
 ok "… so did gh's merge-queue note" grep -qF '  │ ✓ Pull request' "$CANCCU_HOME/dispatch.log"
 ok "… and git's Deleted branch" grep -qF '  │ Deleted branch issue-5-thing' "$CANCCU_HOME/dispatch.log"
@@ -64,7 +64,7 @@ env_new colours-pane
 state 5 phase=work color=1
 e=$'\e'
 ok "pane colour: the issue number in its colour (forced terminal)" \
-  eq "$(lib eval 'CANCCU_FORCE_COLOR=1 log "#5 worker done"')" "$(date -d "@$NOW" '+%F %T') ${e}[38;5;208m#5${e}[0m worker done"
+  eq "$(lib eval 'CANCCU_FORCE_COLOR=1 log "#5 worker done"')" "2030-11-05T12:00:00Z ${e}[38;5;208m#5${e}[0m worker done"
 ok "pane colour: a needs-you line is red" grep -qF "${e}[31m needs-you: x${e}[0m" <<<"$(lib eval 'CANCCU_FORCE_COLOR=1 log "#5 needs-you: x"')"
 ok "pane colour: a merged line is green" grep -qF "${e}[32m merged (PR #50, auto)" <<<"$(lib eval 'CANCCU_FORCE_COLOR=1 log "#5 merged (PR #50, auto)"')"
 ok "pane colour: NO_COLOR → plain" not grep -q "$e" <<<"$(lib eval 'CANCCU_FORCE_COLOR=1 NO_COLOR=1 log "#5 needs-you: x"')"

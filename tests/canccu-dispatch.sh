@@ -210,7 +210,7 @@ ok "… phase limited" eq "$(st 5 phase)" limited
 ok "… no needs-you" hasnt gh.log "needs-you"
 ok "… no comment on the issue" hasnt gh.log "issue comment"
 ok "… nothing starts while backed off" eq "$(wc -l < "$FAKE/worker.log")" 0
-ok "… canccu-status shows the usage limit" grep -q "usage limit until $(date -d "@$R5" '+%F %T')" <<<"$(PATH="$fb:$PATH" "$root/bin/canccu-status" 2>&1)"
+ok "… canccu-status shows the usage limit" grep -q "usage limit until $(date -u -d "@$R5" +%FT%TZ)" <<<"$(PATH="$fb:$PATH" "$root/bin/canccu-status" 2>&1)"
 dispatch --once
 ok "… still backed off on the next pass: nothing starts" eq "$(wc -l < "$FAKE/worker.log")" 0
 echo $((NOW - 1)) > "$CANCCU_ROOT/backoff"
