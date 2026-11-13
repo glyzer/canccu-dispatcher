@@ -350,7 +350,7 @@ extra_round() {
   full_review_asked "$c" && return 1
   items=$(cat "$(open_file "$pr" "$osha")" 2>/dev/null)
   [ -n "$items" ] || items="The open items of the fix-check were not saved: read the newest PR comment ending in 'Review verdict: changes $osha' (gh pr view $pr -R $REPO --comments)."
-  resume "$n" "The user asked for one more fix round on PR #$pr (needs-work) for the open items of its fix-check. Fix them and address their comments, rerun the checks, push once and stop: the dispatcher watches CI. A narrow fix-check of this fix diff against those items follows, then the merge or the maintainer. The open items: $items Their comments: ${c:-none found; read the latest comments on the PR and the issue}" needs-work || return 0
+  resume "$n" "The user asked for one more fix round on PR #$pr (needs-work) for the open items of its fix-check. Fix them and address their comments, rerun the checks, push once and stop: the dispatcher watches CI. A narrow fix-check of this fix diff against those items follows, then the merge or the product owner. The open items: $items Their comments: ${c:-none found; read the latest comments on the PR and the issue}" needs-work || return 0
   [ -n "$c" ] && cm=$'\n\n'"The user's needs-work comments (also to be fixed): $c"
   # rebuilt from the saved items each time, so a second needs-work in the round never appends
   save_findings "$n" "$pr" "$(findings_file "$pr" "$osha")" "$items$cm"
