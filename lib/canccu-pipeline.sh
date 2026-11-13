@@ -7,20 +7,31 @@
 # reap_worker, reap_review, reap_answer: the pass read the phase before the run ended; canccu-stop
 # sets phase=stopped before it kills the run, so a run whose phase moved on meanwhile is not reaped
 reap_worker() {
-  local n=$1 started last kind status q r b="" p
+  local n=$1 started last kind status q r b="" p ph
   run_alive "$n" && return 0
-  [ "$(st_get "$n" phase)" = work ] || return 0
-  [ -e "$(run_lock "$n")" ] && mut "$CANCCU_WORKER" --unlock "$REPO_NAME" "$n" >/dev/null
+  # starting: run_worker set it before the engine call, so a dispatcher killed in between leaves
+  # a unit the reap still finds
+  ph=$(st_get "$n" phase)
+  case $ph in work|starting) ;; *) return 0 ;; esac
   started=$(st_get "$n" started); last="$WORKERS_DIR/$REPO_NAME-$n.last"
   if [ -e "$last" ] && (( $(stat -c %Y "$last") >= ${started:-0} )); then
     IFS='|' read -r kind status <<<"$(run_exit "$last")"
+  elif [ "$ph" = starting ]; then
+    (( $(now) - ${started:-0} < STARTING_GRACE )) && return 0
+    kind=crashed status="killed while starting"
   else kind=none status="ended without an exit report"; fi
-  # the classifier's denials mark the exit `blocked` even when the run worked around them and
-  # finished: an open PR is the proof of the work, so check_pr judges it like any done run
+  [ -e "$(run_lock "$n")" ] && mut "$CANCCU_WORKER" --unlock "$REPO_NAME" "$n" >/dev/null
+  [ "$ph" = starting ] && st_set "$n" phase=work prev_phase=
+  # an older worker's report says `blocked` for the classifier's denials even when the run worked
+  # around them: an open PR is the proof of the work, so check_pr judges it like any done run
   [ "$kind" = blocked ] && [ -n "$(pr_for "$n")" ] && kind="done"
   p=$(pr_for "$n"); spend_note "$n" "${started:-0}" "pr=${p:-none}" "rounds=$(fix_rounds "$n")"
+  if [ "$kind" = "done" ] && run_msg "$n" | grep -qxF 'Permission denials (information):'; then
+    denied_ok "$n" "$p" || return 0
+  fi
   case $kind in
     done)
+      st_set "$n" crash_tries= retry_status=
       q=$(worker_question "$(run_msg "$n")")
       # a run that finished with no PR is resumed afresh (resume); one nudged to stop mid-work is not
       p=$(pr_for "$n")
@@ -47,25 +58,11 @@ reap_worker() {
       set_backoff "$(usage_reset "$(run_msg "$n")")"
       handoff_keep "$n" ""   # cut off mid-step: no handoff, and an older one is not this stop's
       st_set "$n" phase=limited; log "#$n hit the usage limit; resumes after the back-off" ;;
+    crashed|none|stalled)
+      # an error result (run_exit's crashed too) is the run's own outcome: a retry would meet it again
+      { [[ $status != error* ]] && crash_retry "$n" "$status"; } || needs_you "$n" "the worker stopped: $status" "$(run_msg "$n")" ;;
     *) needs_you "$n" "the worker stopped: $status" "$(run_msg "$n")" ;;
   esac
-}
-
-# wait_blocked <K> <what it waits on>: a worker stopped blocked or not started, with no PR: a quiet
-# wait (phase waiting), never needs-you or the answerer, even when it also asked a question. The
-# lead issue gets `blocked`, marked as the dispatcher's (unblock_tick lifts it once its blocked-by
-# links close); a label already there is the user's. resume_step resumes it once the label goes.
-wait_blocked() {
-  local n=$1 l; l=$(lead_of "$1")
-  if ! unit_blocked "$n"; then
-    # without the label nothing would hold it: the next pass would resume it at once
-    edit_issue "$n" --add-label blocked || { log "#$n stopped blocked; adding \`blocked\` failed, again next pass"; return 0; }
-    blocked_mark "$l"
-    # this pass's list too, or resume_step would see it unblocked and resume it at once
-    ISSUES=$(jq -c --argjson n "$l" 'map(if .number == $n then .labels += [{name: "blocked"}] else . end)' <<<"$ISSUES")
-  fi
-  st_set "$n" phase=waiting reason="$(oneline 200 "$2")"
-  log "#$n waits (no PR): $(oneline 120 "$2")"
 }
 
 # reap_review <n>: the reviewer (a full review or a fix-check) wrote its review to a file and
@@ -391,8 +388,13 @@ resume_step() {
     [ -n "$c" ] && room "$n" && resume "$n" "The user answered: $c" "$([ "$(st_get "$n" ny_kind)" = question ] && echo answer || echo user)"
   elif [ "$phase" = limited ]; then
     room "$n" && resume "$n" "$(limited_task "$n")" limited && handoff_keep "$n" ""
+  elif [ "$phase" = retry ]; then
+    room "$n" && resume "$n" "$(crash_task "$n")" crash
   elif [ "$phase" = waiting ]; then
     unit_blocked "$n" || { blocked_unmark "$(lead_of "$n")"; room "$n" && resume "$n" "The issue is no longer labelled \`blocked\`: check its blockers again, then do the work." blocked; }
   fi
   return 0
 }
+
+# shellcheck source=canccu-exits.sh
+. "$_canccu_lib/canccu-exits.sh"

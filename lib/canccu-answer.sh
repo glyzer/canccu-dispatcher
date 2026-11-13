@@ -118,5 +118,5 @@ usage_reset() {
 set_backoff() {
   local b; b=$(backoff_until); (( b > $1 )) || b=$1
   (( CANCCU_DRY )) || echo "$b" > "$CANCCU_ROOT/backoff"
-  log "usage limit: back-off until $(date -d "@$b" '+%F %T')"
+  log "usage limit: back-off until $(iso "$b")"
 }

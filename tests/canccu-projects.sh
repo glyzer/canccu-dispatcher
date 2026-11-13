@@ -75,7 +75,8 @@ ok "… while shop's runs" eq "$rcb" 0
 # the global TOTAL_CAP holds over both projects; a project's config cannot raise it
 penv total tools shop
 echo tools > "$CANCCU_ROOT/default-project"; echo 'TOTAL_CAP=2' > "$CANCCU_ROOT/config"
-pconf tools CAP=3 TOTAL_CAP=10; pconf shop CAP=3 TOTAL_CAP=10
+# a run whose lock goes ended with no report: needs-you, so its slot stays free (no crash retry)
+pconf tools CAP=3 TOTAL_CAP=10 CRASH_RETRY=0; pconf shop CAP=3 TOTAL_CAP=10 CRASH_RETRY=0
 projissues tools 1 2 3; projissues shop 11 12 13
 dispatch --project tools --once
 dispatch --project shop --once

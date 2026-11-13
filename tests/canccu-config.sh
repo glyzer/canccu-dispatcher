@@ -63,7 +63,7 @@ env_new home-paths "REVIEWER_TOKEN_FILE=/home/someone/.canccu/reviewer-token" PI
 p=$(pr 50 6 "$HA"); printf '%s\n' "$p" | prs
 json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z)"; route 'pr view 50 *' pr50.json
 json files50.json '[{"filename": "src/a.ts"}]'; route 'api --paginate repos/example-org/web/pulls/50/files*' files50.json
-state 5 phase=work "started=$NOW"
+state 5 phase=work "started=$NOW" crash_tries=1   # its one crash retry is spent: needs-you
 last 5 "crashed (exit 1)" "cannot read /home/someone/code/web/notes.txt; see /home/someone"
 state 6 phase=review pr=50 review_sha=$HA "started=$NOW" rounds=0
 last review-50 done "wrote the review"
@@ -273,7 +273,7 @@ FIX_EFFORT|huge|FIX_EFFORT must be one of: low, medium, high, xhigh, max, empty
 BUDGET_WORK|10 2|BUDGET_WORK must be three whole numbers: turns, USD, minutes (for example "120 25 120")
 BUDGET_WORK|120 25 090|BUDGET_WORK must be three whole numbers: turns, USD, minutes (for example "120 25 120")
 GATED_PATHS|(|GATED_PATHS is not a pattern grep -E accepts
-RESUME_ON|answer,nope|RESUME_ON may only hold: answer, plan, fix, ci, needs-work, merge, limited, blocked, user, all
+RESUME_ON|answer,nope|RESUME_ON may only hold: answer, plan, fix, ci, needs-work, merge, limited, blocked, crash, user, all
 AUTO_MERGE_UNTIL|2026-13-01|AUTO_MERGE_UNTIL must be a date as YYYY-MM-DD, or empty
 MODEL|a b|MODEL may only hold letters, digits and . _ : / [ ] -
 CHK
@@ -285,7 +285,7 @@ done <<'CHK'
 PING on|off PING must be one of: on, off
 FIX_EFFORT low|high FIX_EFFORT must be one of: low, medium, high, xhigh, max, empty
 FIX_EFFORT max| FIX_EFFORT must be one of: low, medium, high, xhigh, max, empty
-RESUME_ON answer|plan RESUME_ON may only hold: answer, plan, fix, ci, needs-work, merge, limited, blocked, user, all
+RESUME_ON answer|plan RESUME_ON may only hold: answer, plan, fix, ci, needs-work, merge, limited, blocked, crash, user, all
 CHK
 out=$(chk WORKER_EXTRA $'a\tb'); rc=$?
 ok "cfg_check: a tab fails for every type" eq "$rc $out" "1 WORKER_EXTRA must be one line without tabs"

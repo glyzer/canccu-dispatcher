@@ -183,5 +183,12 @@ dispatch --once
 ok "#54: a pass that cannot read GitHub keeps the large previous snapshot" \
   eq "$(sj '[.pass.ok, (.step_overview[0].issues | length), (.stale | index("steps") != null)] | map(tostring) | join(" ")')" "false 300 true"
 
+# log times: a line written before the upgrade (the host's local time) and one after it (UTC, Z)
+env_new events-two-forms
+printf '2030-11-05 21:00:00 #5 worker started\n2030-11-05T12:01:00Z #6 worker started\n' > "$CANCCU_HOME/dispatch.log"
+ev=$(TZ=JST-9 lib eval ". \"$root/lib/canccu-snapshot.sh\"; snap_events" | jq -sc 'map("\(.issue) \(.at) \(.text)")')
+ok "snap_events: an old local-time line and a new UTC line, both with their epochs" \
+  eq "$ev" "$(jq -nc --arg a "5 $NOW #5 worker started" --arg b "6 $((NOW + 60)) #6 worker started" '[$a, $b]')"
+
 echo "canccu-snapshot2 tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

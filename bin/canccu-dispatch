@@ -77,6 +77,10 @@ pass() {
   USAGE_NOW=$(usage_read)   # one usage reading for the whole pass
   # a test stands for a pass that dies half-way (an unbound variable, a die in a helper)
   [ -n "${CANCCU_TEST_PASS_DIES:-}" ] && exit 3
+  # a GitHub rate limit: every call until the reset would fail and spend more of the limit
+  if gh_limit_tick; then
+    ( ISSUES="[]" PRS="[]"; want_write; write_status "GitHub rate limit until $(iso "$(gh_limit_until)")" ); return 0
+  fi
   # the project's own credential first: without it this project does nothing (logged once, in
   # the snapshot and canccu-status); the other projects' dispatchers keep running
   cred=$(gh_credential_problem)
@@ -103,7 +107,7 @@ pass() {
   for n in $(managed); do if is_open "$n"; then open+=("$n"); else closed+=("$n"); fi; done
   # 2. reap finished workers and reviewers; PRs waiting for CI or a slot get their review
   for n in "${open[@]}"; do
-    case $(st_get "$n" phase) in work) reap_worker "$n" ;; review) reap_review "$n" ;; answer) reap_answer "$n" ;; esac
+    case $(st_get "$n" phase) in work|starting) reap_worker "$n" ;; review) reap_review "$n" ;; answer) reap_answer "$n" ;; esac
   done
   for n in "${open[@]}"; do
     case $(st_get "$n" phase) in
@@ -118,8 +122,9 @@ pass() {
   # health pass when due, its packages. The steps' bookkeeping runs also while nothing may start.
   go=1 START_FREE=0
   if paused; then go=0; (( CANCCU_DRY )) && echo "  paused: nothing new starts"
-  elif backing_off; then go=0; (( CANCCU_DRY )) && echo "  backing off (usage limit) until $(date -d "@$(backoff_until)" '+%F %T')"
+  elif backing_off; then go=0; (( CANCCU_DRY )) && echo "  backing off (usage limit) until $(iso "$(backoff_until)")"
   elif draining; then go=0; (( CANCCU_DRY )) && echo "  draining: nothing new starts"
+  elif disk_tick; then go=0
   else
     wn=$(wanting "${open[@]}")
     START_FREE=$(( $(free_slots) - wn )) OWN_FREE=$(( CAP - $(running_count) - wn ))
@@ -165,7 +170,8 @@ dry_run() {
   cred=$(gh_credential_problem); [ -z "$cred" ] || die "$cred: project $CANCCU_PROJECT would do nothing"
   cred=$(login_problem); [ -z "$cred" ] || die "$cred: project $CANCCU_PROJECT would do nothing"
   fetch || die "gh error reading $REPO"
-  echo "canccu-dispatch --dry-run · project $CANCCU_PROJECT · $REPO · $(date -d "@$(now)" '+%F %T') · nothing is written"
+  echo "canccu-dispatch --dry-run · project $CANCCU_PROJECT · $REPO · $(iso "$(now)") · nothing is written"
+  state_migrate
   echo "runnable queue (in order):"
   VERBOSE=1 runnable | sed 's/^/  #/'
   echo "steps (current):"
@@ -205,6 +211,7 @@ mkdir -p "$CANCCU_HOME"
 exec 8>"$CANCCU_HOME/.dispatch.lock"
 flock -n 8 || die "another canccu-dispatch is running for project $CANCCU_PROJECT (lock $CANCCU_HOME/.dispatch.lock)"
 echo $$ > "$CANCCU_HOME/dispatch.pid"   # for canccu-status and canccu-up; they never touch the lock
+state_migrate
 # the pane shows the dispatcher's own lines only: the output of every write goes to the log (mut),
 # and so does the stderr of every command of a pass, each line prefixed "  │ "
 export CANCCU_MUT_TO_LOG=1
@@ -231,7 +238,8 @@ run_pass() {
   [ -n "$BLOCKERS_CACHE" ] && rm -rf "$BLOCKERS_CACHE"
   return "$rc"
 }
-quiet ensure_labels
+# under a GitHub rate limit the labels wait for the next start: they exist after the first one
+[ -n "$(gh_limit_until)" ] || quiet ensure_labels
 if [ "${1:-}" = --once ]; then run_pass; exit; fi
 log "canccu-dispatch started: project $CANCCU_PROJECT ($REPO), every ${INTERVAL}s, CAP $CAP, TOTAL_CAP $TOTAL_CAP"
 trap 'rm -f "$CANCCU_HOME/want"' EXIT   # a stopped dispatcher waits for no slot

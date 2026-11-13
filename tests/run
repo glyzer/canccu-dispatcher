@@ -37,16 +37,16 @@ tests_for() {
     lib/canccu-stream.py) echo tests/canccu-usage.sh tests/canccu-engine.sh ;;
     libexec/canccu-worker|lib/canccu-engine.sh)
       echo tests/canccu-engine.sh tests/canccu-units.sh tests/canccu-usage.sh tests/canccu-pane.sh tests/canccu-install.sh tests/canccu-install2.sh tests/canccu-doctor.sh ;;
-    lib/canccu-common.sh|lib/canccu-projects.sh|lib/canccu-config.default)
-      echo tests/canccu-dispatch.sh tests/canccu-review-effort.sh tests/canccu-projects.sh tests/canccu-config.sh tests/canccu-cost.sh tests/canccu-compat.sh tests/canccu-hosts.sh tests/canccu-install.sh tests/canccu-doctor.sh tests/canccu-docs.sh ;;
+    lib/canccu-common.sh|lib/canccu-colour.sh|lib/canccu-projects.sh|lib/canccu-config.default)
+      echo tests/canccu-dispatch.sh tests/canccu-dispatch2.sh tests/canccu-review-effort.sh tests/canccu-projects.sh tests/canccu-config.sh tests/canccu-cost.sh tests/canccu-compat.sh tests/canccu-hosts.sh tests/canccu-install.sh tests/canccu-doctor.sh tests/canccu-docs.sh ;;
     lib/canccu-snapshot.sh)
-      echo tests/canccu-snapshot2.sh tests/canccu-pane.sh tests/canccu-dispatch.sh tests/canccu-compat.sh tests/canccu-version.sh ;;
+      echo tests/canccu-snapshot2.sh tests/canccu-pane.sh tests/canccu-dispatch.sh tests/canccu-dispatch2.sh tests/canccu-compat.sh tests/canccu-version.sh ;;
     bin/canccu-status)
-      echo tests/canccu-dispatch.sh tests/canccu-review-effort.sh tests/canccu-projects.sh tests/canccu-config.sh tests/canccu-cost.sh tests/canccu-compat.sh \
+      echo tests/canccu-dispatch.sh tests/canccu-dispatch2.sh tests/canccu-review-effort.sh tests/canccu-projects.sh tests/canccu-config.sh tests/canccu-cost.sh tests/canccu-compat.sh \
         tests/canccu-version.sh tests/canccu-hosts.sh tests/canccu-share.sh ;;
     lib/canccu-units.sh|lib/canccu-packages.sh) echo tests/canccu-units.sh tests/canccu-cost.sh tests/canccu-health-review.sh tests/canccu-share.sh ;;
     lib/canccu-share.sh)
-      echo tests/canccu-share.sh tests/canccu-projects.sh tests/canccu-dispatch.sh tests/canccu-steps.sh tests/canccu-steps2.sh tests/canccu-units.sh \
+      echo tests/canccu-share.sh tests/canccu-projects.sh tests/canccu-dispatch.sh tests/canccu-dispatch2.sh tests/canccu-steps.sh tests/canccu-steps2.sh tests/canccu-units.sh \
         tests/canccu-health-review.sh tests/canccu-cost.sh ;;
     lib/canccu-version.sh|VERSION)
       echo tests/canccu-version.sh tests/canccu-compat.sh tests/canccu-install.sh tests/canccu-install2.sh tests/canccu-doctor.sh ;;
@@ -58,12 +58,12 @@ tests_for() {
     hosts/*) echo tests/canccu-hosts.sh tests/canccu-doctor.sh tests/canccu-docs.sh ;;
     lib/canccu-ping.sh) echo tests/canccu-pings.sh tests/canccu-steps2.sh ;;
     lib/canccu-runs.sh|lib/canccu-answer.sh|lib/canccu-github.sh|lib/canccu-merge.sh|lib/canccu-aftermerge.sh|lib/canccu-pipeline.sh|lib/canccu-actions.sh|lib/canccu-queue.sh|lib/canccu-followup.sh|lib/canccu-findings.sh)
-      echo tests/canccu-findings.sh tests/canccu-followup.sh tests/canccu-dispatch.sh tests/canccu-waits.sh tests/canccu-merge.sh tests/canccu-review.sh tests/canccu-review2.sh tests/canccu-review-effort.sh tests/canccu-cost.sh tests/canccu-health-review.sh tests/canccu-config.sh \
+      echo tests/canccu-findings.sh tests/canccu-followup.sh tests/canccu-dispatch.sh tests/canccu-dispatch2.sh tests/canccu-waits.sh tests/canccu-merge.sh tests/canccu-review.sh tests/canccu-review2.sh tests/canccu-review-effort.sh tests/canccu-cost.sh tests/canccu-health-review.sh tests/canccu-config.sh \
         tests/canccu-compat.sh tests/canccu-share.sh ;;
     bin/canccu-init)
-      echo tests/canccu-dispatch.sh tests/canccu-projects.sh tests/canccu-config.sh tests/canccu-cost.sh tests/canccu-compat.sh tests/canccu-ci.sh ;;
+      echo tests/canccu-dispatch.sh tests/canccu-dispatch2.sh tests/canccu-projects.sh tests/canccu-config.sh tests/canccu-cost.sh tests/canccu-compat.sh tests/canccu-ci.sh ;;
     lib/canccu-*|bin/canccu-*|profiles/*)
-      echo tests/canccu-dispatch.sh tests/canccu-review-effort.sh tests/canccu-projects.sh tests/canccu-config.sh tests/canccu-cost.sh tests/canccu-compat.sh tests/canccu-docs.sh \
+      echo tests/canccu-dispatch.sh tests/canccu-dispatch2.sh tests/canccu-review-effort.sh tests/canccu-projects.sh tests/canccu-config.sh tests/canccu-cost.sh tests/canccu-compat.sh tests/canccu-docs.sh \
         tests/canccu-share.sh ;;
     .github/scripts/release*|tests/fixtures/home/*) echo tests/canccu-release.sh tests/canccu-ci.sh tests/canccu-repo.sh ;;
     .github/*) echo tests/canccu-ci.sh tests/canccu-repo.sh ;;

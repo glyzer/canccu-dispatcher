@@ -25,6 +25,8 @@ are in `workers/` ([`reference/engine.md`](reference/engine.md)).
 | "paused" | `canccu-pause` | `canccu-resume` |
 | "usage limit until <time>" | A run hit the Claude usage limit | Nothing: it resumes after the reset ([`reference/usage.md`](reference/usage.md)) |
 | "usage limit until <time>" after an early reset | The back-off and the last reading | `canccu-resume --usage` |
+| "disk low: N MB (DISK_MIN_MB M)" | Less free space where the worktrees live than `DISK_MIN_MB` | Free space (old worktrees, logs); starts resume on the next pass |
+| "GitHub rate limit until <time>" | The project's `gh` login used up its GitHub API limit | Nothing: the passes resume after the reset; fewer projects on one login, or a longer `INTERVAL`, use less |
 | "draining (weekly N%)" | The weekly share passed `USAGE_WEEKLY_DRAIN` | Nothing new starts until it drops; raise the threshold if you accept the risk |
 | "draining (weekly N%)" on a fresh account | The last reading is the old account's | Restart the dispatcher: a reading older than its start counts as unknown ([`reference/usage.md`](reference/usage.md)) |
 | `could not start …: TOTAL_CAP (…) runs over all projects are running` | Another project uses the slots | Wait, or raise `TOTAL_CAP` in `~/.canccu/config` |

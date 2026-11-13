@@ -21,8 +21,9 @@ REVIEWER_TOKEN_FILE=$CANCCU_ROOT/reviewer-token   # its token, mode 600, one for
 GH_CONFIG_DIR=               # the project's own gh login (a narrow token): empty → ~/.canccu/projects/<name>/gh when it exists, else the default gh login
 BUDGET_WORK="250 80 150"    # turns, USD, minutes: a new issue
 BUDGET_RESUME="80 20 45"    # a follow-up run of a worker (review fixes, red CI, plan OK, answers)
-RESUME_ON=answer,plan       # follow-ups that resume the session (answer plan fix ci needs-work merge limited blocked user, or all); the rest start fresh with a handoff
+RESUME_ON=answer,plan       # follow-ups that resume the session (answer plan fix ci needs-work merge limited blocked crash user, or all); the rest start fresh with a handoff
 FIX_ATTEMPTS=2              # automatic fix runs per PR (review fix rounds plus red-CI fixes), then needs-you
+CRASH_RETRY=1               # fresh runs with the handoff after a worker crashed, stalled or was killed, then needs-you
 FIX_MODEL=                  # the fix run's model (review fixes, red CI, needs-work); empty: MODEL
 FIX_EFFORT=                 # the fix run's --effort (low, medium, high, xhigh, max); empty: none, the account's
 BUDGET_REVIEW="60 15 40"    # the independent reviewer
@@ -59,6 +60,7 @@ USAGE_STOP=90               # … from which no run starts and running workers a
 USAGE_WEEKLY_DRAIN=90       # weekly share (%) from which nothing new starts; started work finishes
 USAGE_WINDOW_DELTA=0        # 1: each run's spend.log line has the 5-hour share before and after it (one run at a time only)
 USAGE_MAX_AGE_MIN=360       # a usage reading older than this (minutes) counts as unknown; 0: never
+DISK_MIN_MB=200             # below this free space (MB) where the worktrees live, a pass starts nothing new and says so
 
 # ---- rules: the project's rules file (~/.canccu/projects/<name>/rules) sets these. It lives
 # on this host, never in the repo, so a PR can never change its own gating.

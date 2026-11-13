@@ -19,14 +19,23 @@ Every `INTERVAL` seconds, under the project's lock:
    no new issue, package, planner or health pass starts (step 3); work in flight still gets its
    reviews, answers and resumes. Backing off from a usage limit: nothing starts and nothing
    resumes.
+   A GitHub rate limit (a failed `gh` call that says so) writes `gh_limit` with the reset (the
+   primary limit's from `gh api rate_limit`, else 15 minutes): until then every pass returns at
+   once, with no `gh` call, logging `GitHub rate limit: passes pause until <time>` once and
+   `GitHub rate limit over; passes resume` when it ends. Free space below `DISK_MIN_MB` on the
+   worktrees' file system: nothing new starts (step 3), logged once when it starts and once when
+   it ends; reaping, running reviews and merges go on.
 2. **Reap.** For each managed issue whose run has finished:
    - A worker that finished with no PR (the PR list read again to be sure) and a status line
      starting `blocked` or `not started` → phase `waiting`, quietly: no `needs-you`, no answerer
      (even if it asked too). Its issue (a package's lead) gets `blocked`, marked as the
      dispatcher's own; the run resumes once the label goes. If the label cannot be set, the run is
      reaped again next pass.
-   - A worker whose exit report says `blocked` (the permission classifier denied a call) but
-     whose PR is open is treated as finished, like any other (next item). A `needs-you` of a
+   - Permission denials in a run's exit report are information, not a status: a finished run
+     that lists denials is checked against its PR. When the PR's head is the worktree's HEAD and
+     nothing is uncommitted, it is treated as finished, like any other (next item); otherwise
+     (no PR, a head that differs, uncommitted files, a worktree gone) → `needs-you` with the
+     denials. An older worker whose report says `blocked` with an open PR is still finished. A `needs-you` of a
      finished worker whose label the lead removes, with no comment and a PR waiting for review
      (open, not a draft, CI green), goes back to `check` and the review starts.
    - A worker that stopped with a question (a line starting `Question:`) → the answerer.
@@ -76,7 +85,11 @@ Every `INTERVAL` seconds, under the project's lock:
    - A run that ended its turn with background work still running (`error: ended with
      background work pending`) → phase `check`, like a finished one: its PR decides, or the
      finish session above.
-   - A blocked, over-budget, stalled or crashed run → `needs-you` with the reason.
+   - A crashed, stalled or killed run (an `error` result excepted) gets `CRASH_RETRY` fresh runs
+     with its handoff, never its own session: phase `retry`, and the run starts once a slot is
+     free. Past that → `needs-you`. A unit in phase `starting` (its engine was being started)
+     whose run is gone after 60 s counts as killed while starting.
+   - A blocked, over-budget, stalled or crashed run past its retries → `needs-you` with the reason.
    - A usage limit in any run's output → phase `limited` and a global back-off until the reset
      the message names ([`usage.md`](usage.md)). No `needs-you`, no comment.
    - **Unblock.** Each open issue with the dispatcher's own `blocked` (a `waiting` run's) whose
@@ -148,7 +161,7 @@ Every `INTERVAL` seconds, under the project's lock:
 
 ## Phases
 
-`work` (worker running) → `check` (waiting for the PR and CI) → `review` (reviewer or
+`starting` (the engine is being started; a start that fails puts back the phase it had) → `work` (worker running) → `check` (waiting for the PR and CI) → `review` (reviewer or
 fix-check running) → `merging` (merge armed) or `accept` (waiting for your accept). A question:
 `question` (waiting for a slot) → `answer` → `work` or `needs-you`. Waiting: `needs-you`,
-`limited` (usage limit), `waiting` (blocked, until `blocked` goes) and `stopped` (`canccu-stop`).
+`limited` (usage limit), `retry` (a crashed run waits for a slot for its fresh run), `waiting` (blocked, until `blocked` goes) and `stopped` (`canccu-stop`).

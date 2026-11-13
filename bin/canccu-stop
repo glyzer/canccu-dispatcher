@@ -4,19 +4,47 @@
 # the windows the engine recorded for them. The phase is set to stopped first, so a dispatcher
 # pass in between never reaps the kill as a failure. Keeps the worktree and the session id;
 # canccu-run <n> continues it.
+# canccu-stop --forget <n> — the same, then the dispatcher lets go of the unit: its worktree, run
+# files and state go, and its labels; the PR and the branch stay (the work is kept).
 set -uo pipefail
 self=$(realpath "$0")
 # shellcheck source=../lib/canccu-common.sh
 . "$(dirname "$self")/../lib/canccu-common.sh"
 
-n=${1:-}; [[ $n =~ ^[0-9]+$ ]] || { echo "usage: canccu-stop [--project <name>] <n>" >&2; exit 2; }
+forget=0; [ "${1:-}" = --forget ] && { forget=1; shift; }
+n=${1:-}; [[ $n =~ ^[0-9]+$ ]] || { echo "usage: canccu-stop [--project <name>] [--forget] <n>" >&2; exit 2; }
+issue=$n
 n=$(unit_of_issue "$n")   # an issue of a work package stops the package
+if (( forget )) && [ ! -e "$(st_file "$n")" ]; then echo "nothing to forget for #$issue"; exit 0; fi
 keys=()
 for key in "$n" "review-$(st_get "$n" pr)" "answer-$n"; do
   [ "$key" = review- ] && continue
   run_alive "$key" && keys+=("$key")
 done
-(( ${#keys[@]} )) || { echo "nothing running for #$n"; exit 0; }
-is_managed "$n" && st_set "$n" phase=stopped
-for key in "${keys[@]}"; do "$CANCCU_WORKER" --kill "$REPO_NAME" "$key"; done
-log "#$n stopped (canccu-stop: ${keys[*]})"
+if (( ${#keys[@]} )); then
+  is_managed "$n" && st_set "$n" phase=stopped
+  for key in "${keys[@]}"; do "$CANCCU_WORKER" --kill "$REPO_NAME" "$key"; done
+  (( forget )) || log "#$n stopped (canccu-stop: ${keys[*]})"
+elif (( ! forget )); then echo "nothing running for #$n"; exit 0; fi
+(( forget )) || exit 0
+
+# the members are read before the state goes
+members=$(members_of "$n")
+wt=$(unit_wt "$n")
+if [ -e "$wt" ]; then
+  git -C "$CLONE" worktree remove --force "$wt" >/dev/null 2>&1
+  rm -rf "$wt"
+fi
+for key in "$n" "answer-$n"; do
+  rm -f "$WORKERS_DIR/$REPO_NAME-$key.lock" "$WORKERS_DIR/$REPO_NAME-$key.id" "$WORKERS_DIR/$REPO_NAME-$key.nudge"
+done
+st_rm "$n"
+for m in $members; do
+  labels=in-progress,needs-you,awaiting-accept
+  # a blocked the user set is theirs: only the dispatcher's own (its marker) goes
+  [ -e "$CANCCU_HOME/blocked/$m" ] && labels+=,blocked
+  guard 60 gh issue edit "$m" -R "$REPO" --remove-label "$labels" >/dev/null 2>&1 ||
+    echo "canccu-stop: could not remove the labels of #$m; remove $labels by hand" >&2
+  rm -f "$CANCCU_HOME/blocked/$m"
+done
+log "#$n forgotten (canccu-stop --forget): runs stopped, state and worktree removed, labels cleared"

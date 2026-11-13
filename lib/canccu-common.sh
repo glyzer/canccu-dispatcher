@@ -129,20 +129,29 @@ newest_of() { printf '%s\n' "$@" | grep -E '^[0-9]+$' | sort -n | tail -1; }
 # --slurpfile x <(printf '%s' "$v") or stdin, never --argjson: Linux caps one argument at 128 KiB
 # (MAX_ARG_STRLEN). --slurpfile binds [value]: read $x[0], not $x.
 jqr() { guard 20 jq -r "$@"; }
-ghj() { guard 30 gh "$@"; }
+# ghj: a gh read. Its stderr passes through, and a failed read that names a rate limit holds the
+# passes (gh_limit_seen).
+ghj() {
+  local ef rc
+  ef=$(mktemp 2>/dev/null) || { guard 30 gh "$@"; return; }
+  guard 30 gh "$@" 2>"$ef"; rc=$?
+  (( rc == 0 )) || gh_limit_seen "$(cat "$ef")"
+  cat "$ef" >&2; rm -f "$ef"
+  return "$rc"
+}
 
-# log <text>: a line with the time, to stdout and dispatch.log. On a terminal (and without
+# log <text>: a line with the time (UTC, as iso writes it), to stdout and dispatch.log. On a terminal (and without
 # NO_COLOR) the leading #<n> has the issue's colour, and needs-you lines are red, waiting lines
 # yellow, merges green; the file always gets the plain line.
 log() {
-  local line; line="$(date -d "@$(now)" '+%F %T') $*"
+  local line; line="$(iso "$(now)") $*"
   if colour_on; then colour_line "$line"; else echo "$line"; fi
   (( CANCCU_DRY )) || echo "$line" >> "$CANCCU_HOME/dispatch.log"
 }
 # colour_on: stdout takes colour (CANCCU_FORCE_COLOR=1 is for the tests only)
 colour_on() { [ -z "${NO_COLOR:-}" ] && { [ -t 1 ] || (( ${CANCCU_FORCE_COLOR:-0} )); }; }
 colour_line() {
-  local ts=${1:0:19} rest=${1:20} head="" tone="" c on off=$'\e[0m'
+  local ts=${1:0:20} rest=${1:21} head="" tone="" c on off=$'\e[0m'
   case $rest in
     *needs-you*|*" failed"*) tone=31 ;;
     *"awaiting accept"*|*paused*|*back-off*|*"usage limit"*) tone=33 ;;
@@ -173,6 +182,7 @@ mut_out() {
   if (( CANCCU_DRY )); then echo "  would: $*"; return 0; fi
   local rc; MUT_OUT=$(guard 60 "$@" 2>&1); rc=$?
   mut_show "$MUT_OUT"
+  (( rc == 0 )) || gh_limit_seen "$MUT_OUT"
   return $rc
 }
 # mut_show <output>: a write's captured output: in the dispatcher to dispatch.log, each line
@@ -288,58 +298,31 @@ backoff_until() { local b; b=$(cat "$CANCCU_ROOT/backoff" 2>/dev/null); [[ $b =~
 backing_off() { (( $(backoff_until) > $(now) )); }
 paused() { [ -e "$CANCCU_HOME/paused" ]; }
 
-# ---------------------------------------------------------------- colour per issue
+# ---------------------------------------------------------------- the state format
 
-# 6 well-separated ANSI 256 colours: blue, orange, purple, teal, pink, olive. Red, yellow and
-# green are left out: they mean needs-you, waiting and merged.
-CANCCU_PALETTE=(33 208 135 37 205 142)
-# issue_live <n>: a run of the issue is live: its worker, its answerer or its PR's reviewer
-issue_live() {
-  local pr
-  if run_alive "$1" || run_alive "answer-$1"; then return 0; fi
-  pr=$(st_get "$1" pr); [ -n "$pr" ] && run_alive "review-$pr"
-}
-# issue_color <n>: the issue's palette index (0-5) from state/<n>, or nothing
-issue_color() { local c; c=$(st_get "$1" color); [[ $c =~ ^[0-5]$ ]] && echo "$c"; return 0; }
-# claim_color <n>: a run starts, or the issue becomes managed: an issue without a colour gets the
-# lowest index no other managed issue holds. When all 6 are held, the holder that has waited
-# longest (no live run, the oldest state file) gives its up (color=-, until its next run claims
-# one); when every holder runs (only with CAP above 6), the index is shared. The state file goes
-# on close, and the colour with it.
-claim_color() {
-  local n=$1 c m i victim="" vt=0 t
-  local -A held=()
-  [ -n "$(issue_color "$n")" ] && return 0
-  for m in $(managed); do
-    [ "$m" = "$n" ] && continue
-    c=$(issue_color "$m"); [ -n "$c" ] && held[$c]=$m
+# state.format holds the format of state/ and steps/ (a missing file: 0, a release before it).
+# A release that adds or changes a state field raises STATE_FORMAT and adds state_migrate_<new>,
+# which prints what it did (docs/reference/state.md).
+STATE_FORMAT=1
+state_migrate_1() { echo "no field changes (the format file is new)"; }
+# state_migrate: run by canccu-dispatch under its lock before the first pass. An older release
+# after a newer one would misread fields it does not know: it stops instead. Under --dry-run it
+# only checks.
+state_migrate() {
+  local f="$CANCCU_HOME/state.format" v=0 what
+  if [ -e "$f" ]; then
+    v=$(tr -d '[:space:]' < "$f")
+    [[ $v =~ ^[0-9]+$ ]] || die "state format file ${f/#$HOME/\~} holds '$v', not a number"
+  fi
+  (( v > STATE_FORMAT )) && die "state format $v is newer than this release knows ($STATE_FORMAT); install a newer release"
+  while (( v < STATE_FORMAT )); do
+    if (( CANCCU_DRY )); then echo "  would: migrate the state format $v → $((v + 1))"; v=$((v + 1)); continue; fi
+    what=$("state_migrate_$((v + 1))") || die "state format $v → $((v + 1)) failed; the state stays at format $v"
+    # the number is written after each step: a migration that dies later starts from there
+    echo "$((v + 1))" > "$f.tmp" && mv -f "$f.tmp" "$f" || die "cannot write ${f/#$HOME/\~}"
+    log "state format $v → $((v + 1)): $what"
+    v=$((v + 1))
   done
-  for i in 0 1 2 3 4 5; do
-    [ -n "${held[$i]+x}" ] || { st_set "$n" color="$i"; return 0; }
-  done
-  for i in 0 1 2 3 4 5; do
-    m=${held[$i]}; issue_live "$m" && continue
-    t=$(stat -c %Y "$(st_file "$m")" 2>/dev/null || echo 0)
-    if [ -z "$victim" ] || (( t < vt )); then victim=$i vt=$t; fi
-  done
-  if [ -n "$victim" ]; then st_set "${held[$victim]}" color=-
-  else victim=$n; [[ $n =~ ^[0-9]+$ ]] || victim=$(cksum <<<"$n" | cut -d' ' -f1)
-    victim=$(( victim % 6 )); warn_once colours "more than 6 issues run at once: some share a colour"; fi
-  st_set "$n" color="$victim"
-}
-# color_code <n>: the issue's ANSI 256 colour number, or nothing
-color_code() { local c; c=$(issue_color "$1"); [ -n "$c" ] && echo "${CANCCU_PALETTE[c]}"; return 0; }
-# paint_window <window name> <n>: the run's tmux window (only that one) gets the issue's colour.
-# Never another window, a session option or the user's config; any tmux error is ignored.
-paint_window() {
-  local c w
-  (( CANCCU_DRY )) && return 0
-  [ -z "${NO_COLOR:-}" ] || return 0
-  c=$(color_code "$2"); [ -n "$c" ] || return 0
-  w=$(window_by_name "$1"); [ -n "$w" ] || return 0
-  tmux set-option -w -t "$w" window-status-style "fg=colour$c" >/dev/null 2>&1
-  tmux set-option -w -t "$w" window-status-current-style "fg=colour$c,bold" >/dev/null 2>&1
-  return 0
 }
 
 # ---------------------------------------------------------------- spend and progress
@@ -366,6 +349,10 @@ run_progress() {
 }
 
 # ---------------------------------------------------------------- the parts
+# shellcheck source=canccu-holds.sh
+. "$_canccu_lib/canccu-holds.sh"
+# shellcheck source=canccu-colour.sh
+. "$_canccu_lib/canccu-colour.sh"
 # shellcheck source=canccu-usage.sh
 . "$_canccu_lib/canccu-usage.sh"
 # shellcheck source=canccu-units.sh
