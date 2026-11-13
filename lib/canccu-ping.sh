@@ -19,8 +19,19 @@
 # check reads the bot's comments there. An issue listed twice keeps its first line that
 # PING_KINDS lets through (ping_tick). An item of owner leader is left out: the leader reads it from
 # the feed, and the mention goes to the product owner only (need_owner).
+# ping_step_kind <n> <kind>: the kind snap_steps gives issue n when it is the issue of a step that
+# reached STEP_BUDGET (budget) or holds an invalid plan (plan-invalid), else <kind>
+ping_step_kind() {
+  local f m
+  for f in "$CANCCU_HOME"/steps/*; do
+    m=${f##*/}; [[ $m =~ ^[0-9]+$ ]] && [ -f "$f" ] && [ "$(step_issue "$m")" = "$1" ] || continue
+    [ -n "$(step_get "$m" budget_ny)" ] && { echo budget; return 0; }
+    [ "$(step_get "$m" phase)" = needs-you ] && [ "$(step_get "$m" ny_kind)" != stop ] && { echo plan-invalid; return 0; }
+  done
+  echo "$2"
+}
 ping_states() {
-  local n k m kind pr ns rc
+  local n k m kind pr ns rc o
   local -A cpw=()
   while read -r n m; do
     cpw[$n]=$m; rc=0
@@ -33,7 +44,9 @@ ping_states() {
     k=$(unit_of_issue "$n"); kind=needs-you
     is_managed "$k" && [ "$(st_get "$k" phase)" = needs-you ] && kind=$(ny_item_kind "$k")
     [ "$kind" = plan ] && has_label "$n" plan-ok && continue
-    [ "$(need_owner "$k" "$kind")" = po ] || continue
+    # a step's issue: its owner by the snapshot's kind (budget, plan-invalid: po)
+    o=$kind; is_managed "$k" || o=$(ping_step_kind "$n" "$kind")
+    [ "$(need_owner "$k" "$o")" = po ] || continue
     echo "$n $kind -"
   done
   ns=$(jqr '.[] | select(any(.labels[]?; .name == "needs-you")) | .number' <<<"$PRS") || return 1

@@ -282,11 +282,13 @@ st_set() {
   (( ! moved )) || unit_moved "$k" "$old" "$new"
 }
 _st_put() { local k=$1; shift; kv_set "$(st_file "$k")" "$k" "$@"; }
-# st_rm takes the file's lock too, and keeps the lock file: a writer waiting on it never runs
-# beside one that would lock a new one
+# st_rm <K> [new state]: takes the file's lock too, and keeps the lock file: a writer waiting on
+# it never runs beside one that would lock a new one. A waiting item the unit still holds (its
+# feed line, its idle line) settles first: no phase write announces a state that goes.
 st_rm() {
-  local f; f=$(st_file "$1")
+  local f id; f=$(st_file "$1")
   (( CANCCU_DRY )) && return 0
+  for id in $(st_get "$1" ev_id) $(st_get "$1" idle_ev); do feed_closed "$id" "${2:-gone}" "$1"; done
   ( flock -w 30 9 && rm -f "$f" ) 9>>"$(kv_lock "$f")"
 }
 # step_get <m> <key>, step_set <m> key=value...: a step's state, steps/<milestone number>

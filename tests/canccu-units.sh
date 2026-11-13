@@ -173,6 +173,10 @@ rsn 5 "the worker's question needs the product owner (https://github.com/example
 ok "… a question the answerer escalated → po" eq "$(ow 5 question "$L")" po
 rsn 5 "the worker's question needs the product owner; the answerer stopped: crashed"
 ok "… one it did not → leader" eq "$(ow 5 question "$L")" leader
+rsn 5 "the worker asks a plan-tier question (always for the product owner)"
+ok "… a plan-tier question → po (rule 3)" eq "$(ow 5 question "$L")" po
+rsn 5 "the worker's question needs the product owner"
+ok "… an escalated question whose comment link was not found → po" eq "$(ow 5 question "$L")" po
 rsn 5 "the worker stopped: crashed (exit 1)"
 ok "… a needs-you, a PR's needs-you → leader (rule 6)" eq "$(ow 5 needs-you "$L") $(ow 5 pr-needs-you "$L")" "leader leader"
 rsn 6 "x"; ok "… a plan of a unit with an issue labelled manual-accept → po (rule 5)" eq "$(ow 6 plan "$L") $(ow 5 plan "$L")" "po leader"

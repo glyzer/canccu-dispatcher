@@ -59,6 +59,23 @@ state 5 phase=work "started=$NOW"; last 5 'stopped: time budget 150m' 'I was sti
 dispatch --once
 ok "a run that ends by a budget writes one run-ended line" eq "$(lines) $(field 1 5) $(field 1 3)" "1 run-ended po"
 
+# a unit's state that goes without a phase write still settles its items
+env_new feed-gone
+{ issue 5 in-progress,awaiting-accept; } | issues
+pr 50 5 "$HA" green | prs
+state 5 phase=check pr=50 "check_at=$NOW"
+lib st_set 5 phase=accept pr=50 accept_sha="$HA" "accept_at=$NOW" "reason=manual: users see it: web/pages/a.tsx"
+json pr50.json '{"state": "MERGED", "title": "feat: thing"}'; route 'pr view 50 *' pr50.json
+json issue5.json '{"state": "CLOSED", "labels": [{"name": "in-progress"}]}'; route 'issue view 5 *' issue5.json
+echo '[]' > "$FAKE/issues.json"; echo '[]' > "$FAKE/prs.json"
+dispatch --once
+ok "a unit in accept whose PR is merged by hand: its state goes" test ! -e "$CANCCU_HOME/state/5"
+ok "… and its accept line settles" eq "$(grep -cP '\tcloses 1: ' "$(EV)")" 1
+env_new feed-forget
+state 5 phase=needs-you ev_id=3 idle_ev=4
+lib st_rm 5
+ok "st_rm: one closed line per item the unit held" eq "$(cut -f5,6,9 "$(EV)" | tr '\t\n' '| ')" "closed|5|closes 3: gone closed|5|closes 4: gone "
+
 # ---------------------------------------------------------------- the idle alarm
 
 env_new feed-idle IDLE_ALARM_MIN=60

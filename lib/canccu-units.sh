@@ -110,8 +110,13 @@ owner_of() {
   [ "${LEADER:-off}" = on ] || { echo po; return 0; }
   case $kind in checkpoint|budget|plan-invalid|dispatcher) echo po; return 0 ;; esac
   r=$(st_get "$k" reason 2>/dev/null); r=${r#manual: }
-  # the answerer escalated: needs_you names its "Needs the product owner:" comment's link
-  [ "$kind" = question ] && [[ $r == *"needs the product owner (http"* ]] && { echo po; return 0; }
+  # rule 3: a plan-tier question, or one the answerer escalated (needs_you names its "Needs the
+  # product owner:" comment's link, or the answerer finished without one); an answerer that
+  # stopped without escalating leaves it to the leader
+  if [ "$kind" = question ]; then
+    [[ $r == *"always for the product owner"* || $r == *"needs the product owner (http"* ]] && { echo po; return 0; }
+    [[ $r == *"needs the product owner"* && $r != *"; the answerer stopped:"* ]] && { echo po; return 0; }
+  fi
   if [ "$kind" = accept ]; then
     case $r in
       "users see it:"*|"changes agent config"*|"changes a gated path"*|"changes "*"/ ("*|"maintainer accept:"*|"the issue has manual-accept"*)
