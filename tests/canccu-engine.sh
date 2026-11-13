@@ -199,9 +199,11 @@ mkdir -p "$E/code/web/.git"
 printf 'end=$((SECONDS + 6)); while (( SECONDS < end )); do :; done\n' > "$FAKE/claude.do"
 eng 31 "$E" "" WORKER_STALL_SEC=3 WORKER_STALL_POLL=1 > /dev/null
 ok "stall: a silent run whose tool spends CPU is not killed" eq "$(lib run_exit "$WORKERS_DIR/web-31.last")" "done|done"
-printf 'sleep 12\n' > "$FAKE/claude.do"
+# the idle tool outlasts any stall detection (a loaded runner stretches each poll to seconds: #147)
+# and ends within the run's 2-minute budget: only a stall ends it early, a missed one shows done|done
+printf 'sleep 100\n' > "$FAKE/claude.do"
 eng 32 "$E" "" WORKER_STALL_SEC=3 WORKER_STALL_POLL=1 > /dev/null
-ok "stall: a silent run whose tool waits idle is killed as stalled" eq "$(lib run_exit "$WORKERS_DIR/web-32.last" | cut -d'|' -f1)" stalled
+ok "stall: a silent run whose tool waits idle is killed as stalled" eq "$(lib run_exit "$WORKERS_DIR/web-32.last")" "stalled|stalled: no output for 10m, killed"
 ok "… its CPU record is removed" eq "$(find "$WORKERS_DIR" -name "*.ticks*" | wc -l)" 0
 rm -f "$FAKE/claude.do"
 # tool_ticks: the processes below claude (the child of timeout), never claude itself

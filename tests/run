@@ -163,7 +163,8 @@ run_part() {
     (( rc )) && grep -E '^In |SC[0-9]{4}|syntax error' "$log" | head -20
     echo "lint: $( ((rc)) && echo FAILED || echo ok) · ${#lint[@]} file(s)"
   else
-    (( rc )) && grep -A3 -E '^FAIL' "$log" | grep -E '^(FAIL|    )' | head -20
+    # a check's expected/got lines come before its FAIL line (eq, has, hasnt print them first)
+    (( rc )) && grep -B2 -E '^FAIL' "$log" | grep -E '^(FAIL|    )' | head -20
     echo "$p: $( ((rc)) && echo FAILED || echo ok) · $(tail -n1 "$log")$( ((rc == 124 || rc == 137)) && echo ' (timed out)')"
   fi
   return $rc
