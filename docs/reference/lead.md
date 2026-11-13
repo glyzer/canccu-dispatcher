@@ -54,5 +54,27 @@ The monitor's NEEDS YOU box and `canccu-status` list it; pings tell your phone
 | `needs-you` (CI red, no PR, a failed run) | Read the latest comments; comment to resume the worker, `needs-work` with your comments, or fix it yourself |
 | An invalid plan, the step budget | Comment on the epic and remove `needs-you` to plan again; raise `STEP_BUDGET` |
 
+## The owner of a waiting item
+
+Every waiting item has one owner: `po` (the product owner, you) or `leader`. With `LEADER=off`,
+the default, every item is `po`. With `LEADER=on`, the first matching rule decides
+(contracts §1):
+
+1. a checkpoint, an invalid plan, a step budget, or a question the answerer escalated to the
+   product owner → `po`;
+2. an accept whose reason is `users see it:`, `changes agent config`, a gated path or directory,
+   `maintainer accept:` or `the issue has manual-accept`; a `risk high` accept while
+   `LEADER_ACCEPTS_HIGH_RISK=0`; any accept while `LEADER_ACCEPTS=none` → `po`;
+3. a plan (its needs-you, or the accept of a plan-tier PR) of a unit with an issue labelled
+   `manual-accept` → `po`;
+4. everything else → `leader`.
+
+The dispatcher works it out from its own state and settings, never from a label the leader sets,
+and stores it as the unit's `owner` when the unit enters `accept` or `needs-you`
+([`state.md`](state.md#a-units-state)). `canccu-status` lists the leader's items under
+`leader has it:`; the monitor's NEEDS YOU box and the pings show only yours
+([`monitor.md`](monitor.md), [`pings.md`](pings.md)). The hand-over of a leader's item after 60
+minutes waits for the leader's acknowledgement, which is not built yet.
+
 `Follow-up:` and `Roadmap note:` lines from the step's PRs land in the digest and the checkpoint
 summary: the lead turns the ones you want into issues.
