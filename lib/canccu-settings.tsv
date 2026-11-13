@@ -32,6 +32,7 @@ INTERVAL	int:10:3600	project	open
 CI_WAIT_MIN	int:1:1440	project	open
 NO_CHECKS_MIN	int:1:1440	project	open
 MERGE_WAIT_MIN	int:1:10080	project	open
+MERGE_RETRY	int:0:20	project	open
 KEEP_ACCEPT_ON_MAIN_MERGE	enum:0|1	project	locked
 POST_WAIT	int:10:86400	project	open
 STEP_BUDGET	int:1:100000	project	open

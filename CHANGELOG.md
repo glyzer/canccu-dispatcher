@@ -6,6 +6,11 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 
 ## Unreleased
 
+- A merge that fails on a GitHub server error (a 5xx, a timeout, a dropped connection) is tried
+  again on later passes, up to `MERGE_RETRY` (default 3), before it needs you; a refusal still
+  needs you at once. Removing `needs-you` from an accepted PR stopped at the merge, with no
+  comment, tries the merge again (#130).
+- Worker and reviewer prompts and `CLAUDE.md` call the person who accepts the product owner (#131).
 - `canccu-dispatcher config set KEY=VALUE` and `config unset KEY` check a setting, write only its
   line (atomically, checked with `bash -n`), keep a `config.history` line, and refuse a locked
   setting to the leader and to runs, which now carry `CANCCU_ACTOR=run` (#109).

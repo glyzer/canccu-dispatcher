@@ -7,6 +7,9 @@
 #   bash tests/canccu-spend.sh   one line per failure and a summary; exit 1 on failure
 # shellcheck source=lib/harness.sh
 . "$(dirname "$0")/lib/harness.sh"
+# a dispatcher worker exports its own WORKER_* (run type, effort, window): a run under test must
+# not inherit them
+unset "${!WORKER_@}"
 
 ms() { jq -nc --argjson n "$1" --arg t "$2" --argjson c "${3:-0}" '{number: $n, title: $t, open_issues: 0, closed_issues: $c, due_on: null}'; }
 # henv <name> [config...]: step "3 Events" (milestone 12) has every work issue closed, so its

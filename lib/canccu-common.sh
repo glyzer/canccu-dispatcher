@@ -200,6 +200,13 @@ oneline() {
   printf '%s' "$s"
 }
 
+# gh_transient <output>: gh's error looks like a passing GitHub or network fault (a 5xx, a timeout,
+# a dropped connection), worth the same call again later; a refusal (checks, rules, a stale head)
+# matches none of these and must stop at once
+gh_transient() {
+  grep -qiE 'HTTP 5[0-9][0-9]|status code: 5[0-9][0-9]|Bad Gateway|Service Unavailable|Gateway Timeout|timed out|timeout|connection reset|EOF|TLS handshake' <<<"$1"
+}
+
 # quote <max> <text>: a markdown blockquote of the text, cut to max chars
 quote() {
   local s=$2; (( ${#s} > $1 )) && s="${s:0:$1}…"

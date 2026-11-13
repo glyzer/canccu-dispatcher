@@ -15,6 +15,24 @@ on the current head (or, for a manual PR, your accept of the classified head), a
 sets it), else `--squash` where allowed, else `--merge`, else `--rebase`; none if the read fails
 (one read per pass, however many merges).
 A failed merge's `needs-you` quotes `gh`'s own error.
+
+### A GitHub error on the merge
+
+A merge call (`--auto`, or a direct merge) that fails with an error that looks transient (`HTTP
+5xx`, `status code: 5xx`, `Bad Gateway`, `Service Unavailable`, `Gateway Timeout`, a timeout, a
+connection reset, `EOF`, a TLS handshake error; any case) is tried again on the next pass, up to
+`MERGE_RETRY` times (default 3; the count is `merge_tries`): the unit keeps its phase, and the log
+says `#<n> PR #<pr>: GitHub error on the merge (try <k> of <MERGE_RETRY>); trying again next pass: <gh's error>`.
+Any other error (checks, rules, a stale head, not mergeable) is a refusal and goes to `needs-you`
+at once; so does the next transient one after `MERGE_RETRY` tries, its reason ending in
+`(after <MERGE_RETRY> tries)`. A merge that goes through clears the count.
+
+A `needs-you` at the merge step of an accepted PR (its stage `merge`) is lifted by removing the
+label with no comment: if the PR is open and its head is still the accepted one, the unit goes
+back to waiting for the accept (`#<n> PR #<pr>: needs-you lifted at the merge; trying the merge
+again`), where the dispatcher checks your `accepted` label and the head again and merges; no new
+accept is asked. A push since the accept reviews it again instead. A comment resumes the worker
+as for any `needs-you`. A PR that merges without an accept keeps its `needs-you` until you act.
 A queue entry still waiting for checks `NO_CHECKS_MIN` after it was queued, with no
 `merge_group` run for its merge group (GitHub sometimes starts none), is dequeued and enqueued
 again once per head, which starts them; the log says so. Still stuck, `MERGE_WAIT_MIN` applies.

@@ -142,5 +142,9 @@ done
 ok "… and the PR body lines the prompts and the classifier read" eq "${miss# }" ""
 ok "docs explain how to merge the snippets into a repo's own files" grep -qF 'CLAUDE.snippet.md' docs/repo-contract.md
 
+# the person who accepts is the product owner (contracts §1): the agent instructions and the
+# prompts never call them "the maintainer", or workers copy it into their PR bodies (#131)
+ok "CLAUDE.md and lib/ never say \"the maintainer\"" eq "$(grep -rniw 'the maintainer' CLAUDE.md lib/)" ""
+
 echo "canccu-docs tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

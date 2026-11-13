@@ -16,10 +16,10 @@ flow below; a session started by hand follows it too.
    - **fix**: a small, local change with an obvious shape;
    - **feature**: new behaviour or a change across several files, with a short plan;
    - **plan**: the shape is not obvious, or the change is risky enough that the plan needs the
-     maintainer's OK first.
+     product owner's OK first.
 4. Create the branch `<n>-<slug>` (the slug: up to four words of the title) from `origin/main`.
    - fix and feature: continue with `execute` (a worker does not wait).
-   - plan: write `docs/plans/issue-<n>.md`, open a draft PR, and stop. The maintainer labels
+   - plan: write `docs/plans/issue-<n>.md`, open a draft PR, and stop. The product owner labels
      the issue `plan-ok`; the session is resumed and continues with `execute`.
 
 ### `execute` — do the work
@@ -39,7 +39,7 @@ flow below; a session started by hand follows it too.
 3. Watch CI (`gh pr checks <pr> --watch`, bounded with `timeout`). Red: fix, rerun the local
    check, push once. Red after two fix rounds: stop and say why.
 4. Never merge, never enable auto-merge, never add or remove the `accepted` label: an
-   independent reviewer and the maintainer take it from here.
+   independent reviewer and the product owner take it from here.
 5. End with a 5-line report: status, PR URL, what changed, verification, next action.
 
 ## The local check

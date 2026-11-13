@@ -539,5 +539,104 @@ dispatch --once
 ok "a removal from before merge_at → today's needs-you" has gh.log "auto-merge was disabled or the merge queue rejected PR #50"
 ok "… not the removal's" hasnt gh.log "checks failed in its merge group"
 
+# ---------------------------------------------------------------- a GitHub error on the merge (#130)
+
+# macc <name> [config...]: PR 50 of issue 5 waits for the accept of HA, accepted by octo since
+macc() {
+  env_new "$@"
+  { issue 5 in-progress,awaiting-accept; } | issues
+  pr 50 5 $HA green accepted | prs
+  state 5 phase=accept pr=50 accept_sha=$HA "accept_at=$((NOW - 3600))"
+  jq -n '[{event: "labeled", label: {name: "accepted"}, actor: {login: "octo"}, created_at: "2030-11-05T11:30:00Z"}]' > "$FAKE/events50.json"
+  route 'api --paginate repos/example-org/web/issues/50/events' events50.json
+}
+# flaky <times> <error>: the first <times> `gh pr merge` calls fail with that error (0: every one)
+flaky() {
+  mkdir -p "$E/sbin"
+  cat > "$E/sbin/gh" <<SH
+#!/usr/bin/env bash
+if [ "\$1 \$2" = "pr merge" ]; then
+  k=\$(( \$(cat "$E/merges" 2>/dev/null || echo 0) + 1 )); echo "\$k" > "$E/merges"
+  if [ "$1" = 0 ] || [ "\$k" -le "$1" ]; then echo "$2" >&2; exit 1; fi
+fi
+exec "$fb/gh" "\$@"
+SH
+  chmod +x "$E/sbin/gh"
+}
+fpass() { PATH="$E/sbin:$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-dispatch" --once > "$E/out" 2>&1; }
+dlog() { grep -cF -- "$1" "$CANCCU_HOME/dispatch.log"; }
+
+macc merge-502-once
+flaky 1 'HTTP 502: Bad Gateway'
+fpass
+ok "a 502 on the merge → the retry is logged" grep -qF '#5 PR #50: GitHub error on the merge (try 1 of 3); trying again next pass: HTTP 502: Bad Gateway' "$CANCCU_HOME/dispatch.log"
+ok "… the unit stays in accept, the try counted, no needs-you" eq "$(st 5 phase) $(st 5 merge_tries) $(grep -c needs-you "$FAKE/gh.log")" "accept 1 0"
+fpass
+ok "… the next pass merges" eq "$(dlog '#5 PR #50: auto-merge enabled (accepted)') $(st 5 phase)" "1 merging"
+ok "… the tries cleared, still no needs-you" eq "[$(st 5 merge_tries)] $(grep -c needs-you "$FAKE/gh.log")" "[] 0"
+
+macc merge-502-always MERGE_RETRY=2
+flaky 0 'HTTP 502: Bad Gateway'
+fpass; fpass
+ok "a 502 on every merge, MERGE_RETRY=2 → two passes retry, no needs-you yet" \
+  eq "$(dlog 'trying again next pass') $(st 5 phase) $(grep -c needs-you "$FAKE/gh.log")" "2 accept 0"
+fpass
+ok "… the third pass raises the needs-you" eq "$(st 5 phase) $(st 5 ny_stage)" "needs-you merge"
+ok "… its reason ends with the tries" has gh.log "gh: HTTP 502: Bad Gateway (after 2 tries)"
+
+macc merge-not-mergeable
+flaky 0 'GraphQL: Pull request is not mergeable (enablePullRequestAutoMerge)'
+fpass
+ok "a refusal (not mergeable) → the needs-you at once, no retry" \
+  eq "$(st 5 phase) $(dlog 'trying again next pass')" "needs-you 0"
+ok "… with gh's error, no tries named" eq "$(grep -c 'Pull request is not mergeable' "$FAKE/gh.log") $(grep -c 'tries)' "$FAKE/gh.log")" "1 0"
+
+# merging_step's direct merge (no auto-merge in the repo), CI green on the passed head
+env_new merge-direct-502
+{ issue 5 in-progress; } | issues
+pr 50 5 $HA green | prs
+json repo.json '{"allow_auto_merge": false}'
+state 5 phase=merging pr=50 merge_sha=$HA how=auto merge_mode=direct "merge_at=$((NOW - 60))"
+flaky 1 'HTTP 503: Service Unavailable'
+fpass
+ok "a direct merge's 503 → retried: merging (direct), no needs-you" \
+  eq "$(st 5 phase) $(st 5 merge_mode) $(st 5 merge_tries) $(dlog 'GitHub error on the merge (try 1 of 3)')" "merging direct 1 1"
+fpass
+ok "… the next pass merges it directly" eq "$(dlog '#5 PR #50: merged directly') $(st 5 merge_mode) [$(st 5 merge_tries)]" "1 merged []"
+
+ok "gh_transient: 5xx, timeouts and dropped connections" lib gh_transient $'x\nPost "https://api.github.com/graphql": net/http: TLS handshake timeout'
+ok "gh_transient: any case" lib gh_transient 'non-200 OK status code: 504 GATEWAY TIMEOUT'
+ok "gh_transient: a refusal is not" not lib gh_transient 'GraphQL: Head branch was modified. Review and try the merge again.'
+
+# munpark <name> <head> [labels]: a needs-you at the merge of the accepted HA; the PR's head given
+munpark() {
+  env_new "$1"
+  { issue 5 "in-progress${3:+,$3}"; } | issues
+  p=$(pr 50 5 "$2" green); printf '%s\n' "$p" | prs
+  json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z "${@:4}")"; route 'pr view 50 *' pr50.json
+  json c5.json '{"comments": []}'; route 'issue view 5 *' c5.json
+  state 5 phase=needs-you pr=50 accept_sha=$HA "accept_at=$((NOW - 3600))" "ny_at=$((NOW - 600))" ny_stage=merge merge_tries=3 \
+    "reason=gh pr merge failed (after 3 tries)"
+  touch "$CANCCU_HOME/paused"
+}
+munpark merge-unpark $HA
+dispatch --once
+ok "a merge needs-you lifted with no comment, head = accept_sha → back to accept, tries cleared" eq "$(st 5 phase) [$(st 5 merge_tries)]" "accept []"
+ok "… logged" grep -qF '#5 PR #50: needs-you lifted at the merge; trying the merge again' "$CANCCU_HOME/dispatch.log"
+ok "… the worker is not resumed" not started 5
+munpark merge-unpark-push $HB
+dispatch --once
+ok "… with a newer head → requeued for review instead" eq "$(st 5 phase) $(dlog 'review again') $(dlog 'needs-you lifted at the merge')" "check 1 0"
+munpark merge-unpark-auto $HA
+sed -i '/^accept_sha=/d' "$CANCCU_HOME/state/5"
+dispatch --once
+ok "… no accept_sha (an automatic merge) → left in needs-you" eq "$(st 5 phase) $(dlog 'needs-you lifted')" "needs-you 0"
+munpark merge-unpark-label $HA needs-you
+dispatch --once
+ok "… the label still there → nothing" eq "$(st 5 phase) $(dlog 'needs-you lifted')" "needs-you 0"
+munpark merge-unpark-comment $HA "" "$(comment 2030-11-05T11:58:00Z 'Merged it by hand, wait')"
+dispatch --once
+ok "… a comment since → not unparked (resume_step's path)" eq "$(dlog 'needs-you lifted at the merge')" 0
+
 echo "canccu-merge tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
