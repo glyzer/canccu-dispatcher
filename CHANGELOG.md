@@ -6,6 +6,22 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 
 ## Unreleased
 
+## [0.1.3] — 2026-11-13
+
+- Log times are UTC with a `Z` (`2026-11-12T19:35:14Z`) wherever a time is written for people
+  or files; readers accept both that and the old local form. `$CANCCU_HOME/state.format` holds
+  the state format (`1`); `state_migrate` upgrades it at start, and a newer format than the
+  release knows stops the dispatcher (#135).
+- A pass holds on low disk: below `DISK_MIN_MB` (default 200) free under `WORKERS_DIR` nothing
+  new starts. A GitHub rate limit pauses the project's passes until its reset. Both show in
+  `canccu-status`. `canccu-stop --forget <n>` stops a unit and removes its worktree, state, run
+  files and dispatcher labels (#134).
+- A run's permission denials no longer turn it `blocked`: they are information, and a `done` run
+  with denials is checked against its PR (same head, clean worktree) before it counts. A crashed,
+  stalled or silent run gets `CRASH_RETRY` (default 1) fresh runs with its handoff before it needs
+  you. A run is recorded as `starting` before the engine is called, so a kill in between loses
+  nothing (#133).
+
 - A merge that fails on a GitHub server error (a 5xx, a timeout, a dropped connection) is tried
   again on later passes, up to `MERGE_RETRY` (default 3), before it needs you; a refusal still
   needs you at once. Removing `needs-you` from an accepted PR stopped at the merge, with no
