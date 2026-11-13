@@ -98,7 +98,8 @@ snap_running() {
 # snap_need <kind> <n> <pr> <reason> <since> [title] [step] [url]: one item that needs the product
 # owner; its url is the issue's, an accept's the PR's, else the one given (a checkpoint's summary).
 # stage (where the unit parked: an accept at merge, a needs-you where it was, ny_stage; null
-# for a step's items and an unmanaged issue) and issues (the unit's, or the issue)
+# for a step's items and an unmanaged issue), issues (the unit's, or the issue) and owner (po or
+# leader, need_owner)
 snap_need() {
   local i url stg="" is c=""; i=$(lead_of "$2"); url="https://github.com/$REPO/issues/$i" is=$i
   [ "$1" = accept ] && [ -n "$3" ] && url="https://github.com/$REPO/pull/$3"
@@ -119,10 +120,12 @@ snap_need() {
   fi
   jq -nc --arg kind "$1" --arg n "$i" --arg pr "$3" --arg reason "$4" --arg since "$5" --arg title "${6:-}" \
     --arg url "$url" --arg color "$c" --arg p "$p" --arg s "$s" --arg stg "$stg" --arg is "$is" \
+    --arg owner "$(need_owner "$2" "$1")" \
     '{kind: $kind, issue: ($n | tonumber? // null), pr: ($pr | tonumber? // null), reason: $reason,
       since: ($since | tonumber? // null), title: $title, url: $url, color: ($color | tonumber? // null),
       package: (if $p == "" then null else $p end), step: ($s | tonumber? // null),
-      stage: (if $stg == "" then null else $stg end), issues: ($is | split(" ") | map(select(. != "") | tonumber))}'
+      stage: (if $stg == "" then null else $stg end), issues: ($is | split(" ") | map(select(. != "") | tonumber)),
+      owner: $owner}'
 }
 
 # snap_needs_you: accepts, needs-you (managed: its kind; or only labelled), plans, questions,

@@ -1,9 +1,10 @@
 {
   "schema": 2,
+  "version": "0.1.2",
   "project": "web",
   "repo": "example-org/web",
   "repo_name": "web",
-  "pid": 2379022,
+  "pid": 445725,
   "interval": 60,
   "pass": {
     "at": 1920110400,
@@ -112,9 +113,9 @@
       "kind": "budget",
       "issue": 90,
       "pr": null,
-      "reason": "step 3 Search reached STEP_BUDGET ($5.00 of $4)",
+      "reason": "step 3 Events reached STEP_BUDGET ($5.00 of $4)",
       "since": null,
-      "title": "3 Search",
+      "title": "3 Events",
       "url": "https://github.com/example-org/web/issues/90",
       "color": null,
       "package": null,
@@ -122,15 +123,16 @@
       "stage": null,
       "issues": [
         90
-      ]
+      ],
+      "owner": "po"
     },
     {
       "kind": "checkpoint",
       "issue": 95,
       "pr": null,
-      "reason": "step 3 Search is done: check it, then label checkpoint-ok or close it",
+      "reason": "step 3 Events is done: check it, then label checkpoint-ok or close it",
       "since": 1920110400,
-      "title": "3 Search",
+      "title": "3 Events",
       "url": "https://github.com/example-org/web/issues/95#issuecomment-7",
       "color": null,
       "package": null,
@@ -138,7 +140,8 @@
       "stage": null,
       "issues": [
         95
-      ]
+      ],
+      "owner": "po"
     }
   ],
   "queue": [
@@ -160,7 +163,7 @@
       "checkpoints": []
     },
     {
-      "title": "3 Search",
+      "title": "3 Events",
       "open": 4,
       "closed": 1,
       "due": null,
@@ -173,14 +176,14 @@
       ]
     },
     {
-      "title": "4 Sharing",
+      "title": "4 Payments",
       "open": 4,
       "closed": 0,
       "due": null,
       "checkpoints": []
     },
     {
-      "title": "5 Export",
+      "title": "5 Reports",
       "open": 0,
       "closed": 0,
       "due": null,
@@ -196,18 +199,18 @@
   ],
   "events": [
     {
-      "at": 1920110280,
+      "at": 1920103080,
       "issue": null,
       "package": "pkg-12-auth",
       "text": "#pkg-12-auth PR #50: reviewer started",
       "count": 1,
-      "first_at": 1920110280
+      "first_at": 1920103080
     },
     {
       "at": 1920110400,
-      "issue": 90,
+      "issue": null,
       "package": null,
-      "text": "#90 pinged @octo as review-bot: needs-you",
+      "text": "state format 0 → 1: no field changes (the format file is new)",
       "count": 1,
       "first_at": 1920110400
     },
@@ -215,7 +218,23 @@
       "at": 1920110400,
       "issue": null,
       "package": null,
-      "text": "step 3 Search reached STEP_BUDGET ($5.00 of $4): no new run of it starts · https://github.com/example-org/web/issues/90",
+      "text": "state format 1 → 2: the owner of 0 waiting unit(s) set",
+      "count": 1,
+      "first_at": 1920110400
+    },
+    {
+      "at": 1920110400,
+      "issue": null,
+      "package": null,
+      "text": "step 3 Events reached STEP_BUDGET ($5.00 of $4): no new run of it starts · https://github.com/example-org/web/issues/90",
+      "count": 1,
+      "first_at": 1920110400
+    },
+    {
+      "at": 1920110400,
+      "issue": 95,
+      "package": null,
+      "text": "#95 pinged @octo as review-bot: checkpoint",
       "count": 1,
       "first_at": 1920110400
     }
@@ -223,7 +242,7 @@
   "steps": [
     {
       "milestone": 12,
-      "title": "3 Search",
+      "title": "3 Events",
       "track": "main",
       "current": true,
       "phase": "checkpoint",
@@ -315,7 +334,7 @@
     },
     {
       "milestone": 12,
-      "title": "3 Search",
+      "title": "3 Events",
       "track": "main",
       "work_open": 4,
       "work_closed": 1,
@@ -357,7 +376,7 @@
     },
     {
       "milestone": 13,
-      "title": "4 Sharing",
+      "title": "4 Payments",
       "track": "main",
       "work_open": 4,
       "work_closed": 0,
@@ -399,7 +418,7 @@
     },
     {
       "milestone": 14,
-      "title": "5 Export",
+      "title": "5 Reports",
       "track": "main",
       "work_open": 0,
       "work_closed": 0,
@@ -437,7 +456,7 @@
     "weekly_resets_at": 2019686400,
     "at": 1920110370,
     "state": "normal",
-    "text": "5-hour 42% · weekly 50%"
+    "text": "5-hour 42% · weekly 50% (0 min old)"
   },
   "stale": []
 }

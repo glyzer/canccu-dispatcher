@@ -381,9 +381,10 @@ def owner_checks(mock, check):
         plain = mock_frame(mock, w, h, own=own)[0]
         words = words_of(plain)
         check("NEEDS YOU · %d" % (total - 1) in plain, what + ": the leader's items are counted in NEEDS YOU")
-        check("a question" not in words and "manual: plan tier" not in words, what + ": a leader's card is in NEEDS YOU")
+        box = words[words.find("NEEDS YOU"):words.find("LEADER:")]  # the event log may name the item too
+        check(q["reason"] not in box and "manual: plan tier" not in box, what + ": a leader's card is in NEEDS YOU")
         check("LEADER: 2 items · oldest 10m" in words, what + ": no LEADER line with the count and the oldest age")
-        listed = "#9 question 10m" in words and "#12 accept 5m" in words
+        listed = "#%d %s 10m" % (q["issue"], q["kind"]) in words and "#12 accept 5m" in words
         check(listed if w > PHONE_UPTO else not listed, what + ": the leader's items are listed only on the wide screen")
     for it in own["needs_you"]:
         it["owner"] = "leader"

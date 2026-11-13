@@ -8,7 +8,8 @@ The guides (getting started, install, upgrading, security, …) are in [`../READ
 | Topic | Covers |
 |---|---|
 | [`commands.md`](commands.md) | Roles, every command, the labels, whose PRs the dispatcher acts on |
-| [`config.md`](config.md) | Where the values come from, every config key with its default, host profiles, environment variables |
+| [`config.md`](config.md) | Where the values come from, every config key with its default |
+| [`hosts.md`](hosts.md) | Host profiles, environment variables |
 | [`rules.md`](rules.md) | A project's rules: risky and gated paths, extra prompt text, the freeze, the one-at-a-time lock, pings |
 | [`projects.md`](projects.md) | Projects, adding one, a narrow token per project |
 | [`lead.md`](lead.md) | The lead's session, how to write issues, steps and epics, clearing what waits for you |

@@ -75,3 +75,6 @@ REVIEW_CHECKS	text	rules	locked
 HIGH_RISK_PATHS	regex	rules	locked
 HIGH_RISK_TEXT	text	rules	locked
 PING_KINDS	words:all|accept|checkpoint|plan|question|needs-you|pr-needs-you	project	locked
+LEADER	enum:on|off	project	locked
+LEADER_ACCEPTS	enum:technical|none	project	locked
+LEADER_ACCEPTS_HIGH_RISK	enum:0|1	project	locked

@@ -273,7 +273,15 @@ kv_set() {
 # st_get <K> <key>, st_set <K> key=value...: a unit's state (K: an issue number or a package key);
 # values are single-line
 st_get() { kv_get "$(st_file "$1")" "$1" "$2"; }
-st_set() { local k=$1; shift; kv_set "$(st_file "$k")" "$k" "$@"; }
+# A write of phase= runs unit_moved after it (the owner, the feed); _st_put never does.
+st_set() {
+  local k=$1 a new="" moved=0 old=""; shift
+  for a; do [[ $a == phase=* ]] && new=${a#phase=} moved=1; done
+  (( moved )) && old=$(st_get "$k" phase)
+  _st_put "$k" "$@" || return
+  (( ! moved )) || unit_moved "$k" "$old" "$new"
+}
+_st_put() { local k=$1; shift; kv_set "$(st_file "$k")" "$k" "$@"; }
 # st_rm takes the file's lock too, and keeps the lock file: a writer waiting on it never runs
 # beside one that would lock a new one
 st_rm() {
@@ -303,8 +311,19 @@ paused() { [ -e "$CANCCU_HOME/paused" ]; }
 # state.format holds the format of state/ and steps/ (a missing file: 0, a release before it).
 # A release that adds or changes a state field raises STATE_FORMAT and adds state_migrate_<new>,
 # which prints what it did (docs/reference/state.md).
-STATE_FORMAT=1
+STATE_FORMAT=2
 state_migrate_1() { echo "no field changes (the format file is new)"; }
+# 2: owner (who a waiting unit is for), ev_id and idle_ev (its open feed lines; none before)
+state_migrate_2() {
+  local k n=0
+  for k in $(managed); do
+    case $(st_get "$k" phase) in
+      accept) _st_put "$k" owner="$(owner_of "$k" accept)" || return 1; n=$((n + 1)) ;;
+      needs-you) _st_put "$k" owner="$(owner_of "$k" "$(ny_item_kind "$k")")" || return 1; n=$((n + 1)) ;;
+    esac
+  done
+  echo "the owner of $n waiting unit(s) set"
+}
 # state_migrate: run by canccu-dispatch under its lock before the first pass. An older release
 # after a newer one would misread fields it does not know: it stops instead. Under --dry-run it
 # only checks.

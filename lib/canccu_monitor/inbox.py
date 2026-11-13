@@ -5,7 +5,8 @@ Header: every project with its pass age and ✓/⚠, the slots, the clock; today
 per project; the 5-hour and weekly usage as bars with their reset times; the release the
 dispatchers run (one line on a phone).
 
-NEEDS YOU: one card per item of every project, oldest first. Line 1: the verb, project, issue → PR
+NEEDS YOU: one card per item of the product owner (owner po, or none) of every project, oldest
+first; the leader's items are one LEADER line under it (on a phone only their count). Line 1: the verb, project, issue → PR
 (PR ← issues for a package), the whole reason, since when (clock time and age) and the stage
 where it parked, with its glyph. Line 2: how: the action that clears it (HOW, per kind), and the
 package. Line 3: the title. Line 4: the URLs as text and OSC 8 links. More than SHORTEN_FROM
@@ -182,10 +183,30 @@ def banners(snap, now, width):
 
 # ------------------------------------------------------------------ the cards
 
-def items(projects):
-    """[(project, snapshot, item)] of every project, oldest first (no time: last)."""
-    out = [(n, s, it) for n, s in projects if isinstance(s, dict) for it in lst(s, "needs_you")]
+def items(projects, owner="po"):
+    """[(project, snapshot, item)] of every project whose owner is this one, oldest first (no
+    time: last). An item without owner (an older dispatcher) is the product owner's."""
+    out = [(n, s, it) for n, s in projects if isinstance(s, dict) for it in lst(s, "needs_you")
+           if (txt(it, "owner") or "po") == owner]
     return sorted(out, key=lambda x: (num(x[2], "since") is None, num(x[2], "since") or 0))
+
+
+def leader_line(projects, now, width, phone):
+    """LEADER: <n> items · oldest <age>, then (not on the phone) each as #<i> <kind> <age>; none
+    without an item of owner leader."""
+    its = items(projects, "leader")
+    if not its:
+        return []
+    t = Text("LEADER: ", style="bold").append("%d item%s" % (len(its), "" if len(its) == 1 else "s"))
+    if num(its[0][2], "since") is not None:
+        t.append(" · oldest %s" % ago(now, num(its[0][2], "since")))
+    if not phone:
+        for _, _, it in its:
+            n = num(it, "issue") if num(it, "issue") is not None else num(it, "pr")
+            t.append(" · ", style="dim").append(("#%d " % n if n is not None else "") + (txt(it, "kind") or "?"))
+            if num(it, "since") is not None:
+                t.append(" " + ago(now, num(it, "since")), style="dim")
+    return wrap(t, width, 2)
 
 
 def issues_of(it):
@@ -326,7 +347,7 @@ def box(projects, now, width, marked, short_more=False):
     with fewer items (the height is short)."""
     its = items(projects)
     if not its:
-        return [line(glyph(DONE), (" nothing needs you", "green"))]
+        return [line(glyph(DONE), (" nothing needs you", "green"))] + leader_line(projects, now, width, False)
     inner = width - 4
     short = len(its) >= SHORTEN_FROM or short_more
     title = line((" ", ""), glyph(YOU), (" NEEDS YOU · %d " % len(its), "bold red"),
@@ -344,13 +365,13 @@ def box(projects, now, width, marked, short_more=False):
             ln.append(" " * max(0, inner - len(ln.plain)))
             rows.append(line(("┃ ", "bold red"), ln, (" ┃", "bold red")))
     rows.append(line(("┗" + "━" * (width - 2) + "┛", "bold red")))
-    return rows
+    return rows + leader_line(projects, now, width, False)
 
 
 def phone_cards(projects, now, width, marked):
     its = items(projects)
     if not its:
-        return [line(glyph(DONE), (" nothing needs you", "green"))]
+        return [line(glyph(DONE), (" nothing needs you", "green"))] + leader_line(projects, now, width, True)
     rows = [line(glyph(YOU), (" NEEDS YOU · %d" % len(its), "bold red"))]
     for name, snap, it in its:
         kind = txt(it, "kind")
@@ -366,5 +387,5 @@ def phone_cards(projects, now, width, marked):
             t.append(" · " + ago(now, num(it, "since")), style="dim")
         rows += wrap(t, width, 2)
         rows += url_lines([("", txt(it, "url") or pr_url(snap, it))], width, 2)
-    return rows
+    return rows + leader_line(projects, now, width, True)
 
