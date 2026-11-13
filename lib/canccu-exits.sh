@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # shellcheck shell=bash disable=SC2034,SC2154  # globals are shared with the other lib/canccu-*.sh parts
-# Sourced by lib/canccu-pipeline.sh: what reap_worker does with a run that was denied commands,
-# and with one that crashed or was killed (one fresh retry with the handoff).
+# Sourced by lib/canccu-pipeline.sh: what reap_worker does with a run that stopped blocked, was
+# denied commands, or crashed or was killed (one fresh retry with the handoff).
 
 # a unit in phase starting whose run is not alive yet: the engine may still be starting it (a
 # canccu-run beside the pass), so the reap waits this long before it calls the start killed
@@ -41,4 +41,21 @@ crash_retry() {
 }
 crash_task() {
   echo "Your earlier run ended without finishing ($(st_get "$1" retry_status)). Continue the task from where the branch and this handoff leave it."
+}
+
+# wait_blocked <K> <what it waits on>: a worker stopped blocked or not started, with no PR: a quiet
+# wait (phase waiting), never needs-you or the answerer, even when it also asked a question. The
+# lead issue gets `blocked`, marked as the dispatcher's (unblock_tick lifts it once its blocked-by
+# links close); a label already there is the user's. resume_step resumes it once the label goes.
+wait_blocked() {
+  local n=$1 l; l=$(lead_of "$1")
+  if ! unit_blocked "$n"; then
+    # without the label nothing would hold it: the next pass would resume it at once
+    edit_issue "$n" --add-label blocked || { log "#$n stopped blocked; adding \`blocked\` failed, again next pass"; return 0; }
+    blocked_mark "$l"
+    # this pass's list too, or resume_step would see it unblocked and resume it at once
+    ISSUES=$(jq -c --argjson n "$l" 'map(if .number == $n then .labels += [{name: "blocked"}] else . end)' <<<"$ISSUES")
+  fi
+  st_set "$n" phase=waiting reason="$(oneline 200 "$2")"
+  log "#$n waits (no PR): $(oneline 120 "$2")"
 }

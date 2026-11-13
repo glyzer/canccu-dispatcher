@@ -65,23 +65,6 @@ reap_worker() {
   esac
 }
 
-# wait_blocked <K> <what it waits on>: a worker stopped blocked or not started, with no PR: a quiet
-# wait (phase waiting), never needs-you or the answerer, even when it also asked a question. The
-# lead issue gets `blocked`, marked as the dispatcher's (unblock_tick lifts it once its blocked-by
-# links close); a label already there is the user's. resume_step resumes it once the label goes.
-wait_blocked() {
-  local n=$1 l; l=$(lead_of "$1")
-  if ! unit_blocked "$n"; then
-    # without the label nothing would hold it: the next pass would resume it at once
-    edit_issue "$n" --add-label blocked || { log "#$n stopped blocked; adding \`blocked\` failed, again next pass"; return 0; }
-    blocked_mark "$l"
-    # this pass's list too, or resume_step would see it unblocked and resume it at once
-    ISSUES=$(jq -c --argjson n "$l" 'map(if .number == $n then .labels += [{name: "blocked"}] else . end)' <<<"$ISSUES")
-  fi
-  st_set "$n" phase=waiting reason="$(oneline 200 "$2")"
-  log "#$n waits (no PR): $(oneline 120 "$2")"
-}
-
 # reap_review <n>: the reviewer (a full review or a fix-check) wrote its review to a file and
 # exited. The dispatcher checks that the file ends in a verdict for exactly the reviewed head,
 # posts it as REVIEWER_LOGIN, then acts on the posted comment (the one the review-gate check reads
