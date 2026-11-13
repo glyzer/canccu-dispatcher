@@ -77,9 +77,9 @@ is stopped and its issue goes to `needs-you`.
 | `GH_CONFIG_DIR` | empty | The project's own `gh` config dir, logged in with its narrow token. Empty: `~/.canccu/projects/<name>/gh` when it exists, else the default `gh` login, with a warning in `canccu-status` ([`projects.md`](projects.md)) |
 | `BUDGET_WORK` | `250 80 150` | A worker on a new issue |
 | `BUDGET_RESUME` | `80 20 45` | A follow-up run of a worker: review fixes, a red-CI fix, a plan OK, an answer, your comment |
-| `RESUME_ON` | `answer,plan` | The follow-up kinds that `--resume` the worker's session: `answer` (an answer to its `Question:`), `plan` (plan-ok), `fix` (a review fix round), `ci` (a red-CI fix), `needs-work`, `merge` (a merge of main the worker has to do: one that conflicts, or main after a contract PR merged), `limited` (after a usage stop), `blocked` (its blockers closed), `crash` (the retry after a crash, [`pipeline.md`](pipeline.md)), `user` (any other comment of yours, `canccu-run`), or `all`. Every other follow-up starts a fresh session with a short handoff ([`engine.md`](engine.md), "Follow-up runs") |
+| `RESUME_ON` | `answer,plan` | The follow-up kinds that `--resume` the worker's session: `answer` (an answer to its `Question:`), `plan` (plan-ok), `fix` (a review fix round), `ci` (a red-CI fix), `needs-work`, `merge` (a merge of main the worker has to do: one that conflicts, or main after a contract PR merged), `limited` (after a usage stop), `blocked` (its blockers closed), `crash` (a crash retry), `user` (any other comment of yours, `canccu-run`), or `all`. Every other follow-up starts a fresh session with a short handoff ([`engine.md`](engine.md), "Follow-up runs") |
 | `FIX_ATTEMPTS` | `2` | Automatic fix runs per PR, review fix rounds and red-CI fixes together; then `needs-you`. `0`: red CI goes to `needs-you` at once, as before; no whole number: 2 |
-| `CRASH_RETRY` | `1` | Fresh runs with the handoff (kind `crash`) after a worker crashed, stalled, ended without an exit report or was killed while starting; then `needs-you`. `0`: needs-you at once, as before ([`pipeline.md`](pipeline.md)) |
+| `CRASH_RETRY` | `1` | Fresh runs with the handoff (kind `crash`) after a worker crashed, stalled or was killed while starting; then `needs-you`. `0`: needs-you at once ([`pipeline.md`](pipeline.md)) |
 | `FIX_MODEL` | empty | The fix run's model (a review fix round, a red-CI fix, `needs-work`); empty: `MODEL`. Set it per machine in `~/.canccu/config` |
 | `FIX_EFFORT` | empty | The fix run's `--effort` (`low`, `medium`, `high`, `xhigh`, `max`); empty (or none of those, which is logged): no `--effort`, the account's. Set it per machine in `~/.canccu/config` |
 | `BUDGET_REVIEW` | `60 15 40` | The independent reviewer |
@@ -115,7 +115,7 @@ is stopped and its issue goes to `needs-you`.
 | `USAGE_WINDOW_DELTA` | `0` | `1`: each run's spend-log line records the 5-hour window's utilization before and after it ([`state.md`](state.md#the-spend-log)). Off by default: it means something only with one run at a time on a plan with a 5-hour window |
 | `USAGE_WEEKLY_DRAIN` | `90` | Weekly usage share (%) from which nothing new starts; work already started finishes |
 | `USAGE_MAX_AGE_MIN` | `360` | A usage reading older than this (minutes), or older than the dispatcher's start, counts as unknown: nothing is throttled until a run writes a fresh one ([`usage.md`](usage.md)); `0`: no age limit |
-| `DISK_MIN_MB` | `200` | Free space (MB) on the file system of the worktrees (`workers/`) below which a pass starts nothing new; reaping, running reviews and merges go on. The hold and its end are logged once each, and `canccu-status` shows `disk low` ([`pipeline.md`](pipeline.md)) |
+| `DISK_MIN_MB` | `200` | Free MB on the worktrees' file system (`workers/`) below which a pass starts nothing new; reaping, reviews and merges go on. Logged once; `canccu-status` shows `disk low` ([`pipeline.md`](pipeline.md)) |
 
 ## The settings table
 
