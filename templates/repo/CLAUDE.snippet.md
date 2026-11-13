@@ -24,12 +24,12 @@ Take issue n.
    - **feature**: new behaviour or a change across several files, with a short plan (it goes in
      the PR description);
    - **plan**: the shape is not obvious, or the change is risky enough that the plan needs the
-     maintainer's OK first.
+     product owner's OK first.
 4. Create the branch `<n>-<slug>` (the slug: up to four words of the title) from `origin/main`.
    - fix and feature: continue with `execute`.
    - plan: write `docs/plans/issue-<n>.md`, open a draft PR with a `Tier: plan` line, and stop.
-     The maintainer labels the issue `plan-ok`; the session is resumed and continues with
-     `execute`.
+     The product owner labels the issue `plan-ok`; the session is resumed and continues
+     with `execute`.
 
 If you cannot go on without an answer, write the question on its own line starting
 `Question:` and stop. Do not guess at scope, product behaviour or anything irreversible.
@@ -54,5 +54,5 @@ Open the PR.
 3. Watch CI. Red: fix, rerun the local check, push once. Red after two fix rounds: stop and say
    why.
 4. Never merge, never enable auto-merge, never add or remove the `accepted` label: an independent
-   reviewer and the maintainer take it from here. Do not review your own work.
+   reviewer and the product owner take it from here. Do not review your own work.
 5. End with a 5-line report: status, PR URL, what changed, verification, next action.

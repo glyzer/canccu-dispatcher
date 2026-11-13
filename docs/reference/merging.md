@@ -53,12 +53,14 @@ passed on its head is acted on without a new one (a body edit leaves the head as
 
 A unit's PR that merged while one of its issues is still open (neither a contract PR nor a plan
 PR) never parks the unit. An open issue the PR's `Closes` lines name is closed by GitHub a moment
-later: the dispatcher waits for that (`gone_at`), at most `MERGE_WAIT_MIN`. An open issue the PR
-does not name, or one still open after that wait, gets `needs-you` (and loses `in-progress` and
-`awaiting-accept`) with a comment, and the unit is released as after any merge: `merged.log`, its
-worktree, branch and session id gone, the closed issues advanced, a package counted as merged in
-its step. The issue stays out of the queue while it has `needs-you`. Done: close it. Work left:
-remove `needs-you` and add `ready`, and a new worker starts from main.
+later: the dispatcher waits for that (`gone_at`). One GitHub left open after `MERGE_CLOSE_MIN`
+the dispatcher closes itself, with a comment; a close that fails is tried again on the next pass,
+at most until `MERGE_WAIT_MIN`. An open issue the PR does not name, or a named one it could not
+close by then, gets `needs-you` (and loses `in-progress` and `awaiting-accept`) with a comment, and
+the unit is released as after any merge: `merged.log`, its worktree, branch and session id gone,
+the closed issues advanced, a package counted as merged in its step. The issue stays out of the
+queue while it has `needs-you`. Done: close it. Work left: remove `needs-you` and add `ready`, and
+a new worker starts from main.
 
 **Without auto-merge** (the repo does not allow it) the dispatcher merges directly, with
 `gh pr merge <pr> <method> --match-head-commit <head>` (`--squash` if the settings cannot be
