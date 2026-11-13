@@ -41,6 +41,7 @@ Every command but `canccu-init` and `canccu-dispatcher` takes `--project <name>`
 | `canccu-dispatcher config show [--project <name>] [--global] [--origin] [KEY…]` | Every setting, its default and where it comes from (below) |
 | `canccu-dispatcher config set [--project <name> \| --global] KEY=VALUE [--why <text>]` | Checks one setting and writes it to the file it belongs in, with a history line (below) |
 | `canccu-dispatcher config unset [--project <name> \| --global] KEY [--why <text>]` | Removes that file's line for one setting, with a history line (below) |
+| `canccu-dispatcher wait [--project <name>] [--owner po\|leader] [--ack <id>]` | Blocks until the feed has a line with an id above `--ack` (default: its last id at start) for that owner, prints it and exits 0; exits 3 with `heartbeat stale: <n> min; the dispatcher may be down` when the heartbeat is 10 minutes old ([`lead.md`](lead.md#the-feed)) |
 
 ### config show
 

@@ -76,5 +76,37 @@ and stores it as the unit's `owner` when the unit enters `accept` or `needs-you`
 ([`monitor.md`](monitor.md), [`pings.md`](pings.md)). The hand-over of a leader's item after 60
 minutes waits for the leader's acknowledgement, which is not built yet.
 
+## The feed
+
+The dispatcher writes `events` in the project's dir (next to `dispatch.log`): one line per change
+of state a person must act on, in the format of contracts §3, tab-separated:
+`<time> <id> <owner> <class> <kind> <unit> <pr> <url> <text>`. Ids count up from 1 under the
+file's lock; the text is one line of at most 200 characters. A state that goes on writes nothing
+more; when an item no longer waits, one line of kind `closed` says `closes <id>: <new state>`.
+Runs starting, reviews starting, a worker done, the usage slow mode and planned restarts write
+none. Every pass touches `heartbeat` beside it.
+
+`canccu-dispatcher wait --owner leader` blocks until the next line for that owner and prints it
+([`commands.md`](commands.md)); `--ack <id>` resumes after the last line handled. Exit 3 says the
+heartbeat is 10 minutes old: the dispatcher may be down. A loop for the leader:
+
+```
+ack=0; while l=$(canccu-dispatcher wait --owner leader --ack "$ack"); do ack=$(cut -f2 <<<"$l"); …; done
+```
+
+| Kind | Written when | Check, and what to do |
+|---|---|---|
+| `accept` | A unit enters `accept` | Read the PR and its review; the product owner accepts |
+| `plan` | A plan-tier plan waits | Read `docs/plans/issue-<n>.md`; `plan-ok` is the product owner's |
+| `question` | The answerer escalated a worker's question | Answer it on the issue if it is yours |
+| `needs-you`, `pr-needs-you` | A unit, or our PR, needs a person | Read the latest comments; comment to resume, or fix it |
+| `run-ended` | A run ended with no PR, by a crash or a budget | Read the run's report; comment to resume, or reword the issue |
+| `checkpoint` | A step waits for `checkpoint-ok` | Read the summary; the product owner decides |
+| `idle` | A unit no rule moved for `IDLE_ALARM_MIN` minutes with nothing running | `canccu-status` and the log: why it sits; `canccu-run`, or a comment |
+| `hold` | Nothing new starts: low disk or `STEP_BUDGET` (class `ask`), the usage back-off or a GitHub rate limit (class `info`, the end time in the text) | Free disk, raise `STEP_BUDGET`; a timer ends the others |
+| `dispatcher` | The dispatcher started after a stop it did not plan (killed, a crash, a reboot) | The log's last lines before the start |
+| `step-done` | A step is done (class `info`) | Nothing |
+| `closed` | An item no longer waits (class `info`) | Nothing: drop the item it closes |
+
 `Follow-up:` and `Roadmap note:` lines from the step's PRs land in the digest and the checkpoint
 summary: the lead turns the ones you want into issues.

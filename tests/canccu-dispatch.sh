@@ -23,6 +23,7 @@ ok "dependencies API error → treated as blocked" not started 8
 ok "start labels in-progress, drops ready, assigns" has gh.log "issue edit 3 -R example-org/web --add-label in-progress --remove-label ready --add-assignee octo"
 ok "worker runs with the work budget" grep -q 'turns=250 cost=80 min=150$' "$FAKE/worker.log"
 ok "state records phase work" eq "$(st 3 phase)" work
+ok "a pass touches the heartbeat (#83)" test -e "$CANCCU_HOME/heartbeat"
 
 # ---------------------------------------------------------------- contracts lock
 

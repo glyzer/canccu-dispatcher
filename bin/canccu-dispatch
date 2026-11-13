@@ -75,6 +75,7 @@ digest() {
 pass() {
   local n m go cred wn held rc open=() closed=()
   USAGE_NOW=$(usage_read)   # one usage reading for the whole pass
+  feed_heartbeat
   # a test stands for a pass that dies half-way (an unbound variable, a die in a helper)
   [ -n "${CANCCU_TEST_PASS_DIES:-}" ] && exit 3
   # a GitHub rate limit: every call until the reset would fail and spend more of the limit
@@ -156,6 +157,7 @@ pass() {
   done
   # 6. after merge
   for n in "${closed[@]}"; do finish_unit "$n"; done
+  feed_tick "${open[@]}"
   # 7. digest
   digest
   # the wait for a shared slot, then the status snapshot for canccu-monitor
@@ -242,7 +244,11 @@ run_pass() {
 [ -n "$(gh_limit_until)" ] || quiet ensure_labels
 if [ "${1:-}" = --once ]; then run_pass; exit; fi
 log "canccu-dispatch started: project $CANCCU_PROJECT ($REPO), every ${INTERVAL}s, CAP $CAP, TOTAL_CAP $TOTAL_CAP"
-trap 'rm -f "$CANCCU_HOME/want"' EXIT   # a stopped dispatcher waits for no slot
+# .running outlives only a stop that skipped the EXIT trap (killed, a crash, a reboot): the feed
+# tells of that one; a planned stop or restart runs the trap
+[ -e "$CANCCU_HOME/.running" ] && feed po ask dispatcher - - - "the dispatcher started after a stop it did not plan" >/dev/null
+: > "$CANCCU_HOME/.running"
+trap 'rm -f "$CANCCU_HOME/want" "$CANCCU_HOME/.running"' EXIT   # a stopped dispatcher waits for no slot
 while :; do
   run_pass
   sleep "$INTERVAL"

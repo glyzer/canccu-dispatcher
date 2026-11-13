@@ -143,12 +143,16 @@ ny_item_kind() {
   case $(st_get "$1" ny_kind) in plan) echo plan ;; question) echo question ;; *) echo needs-you ;; esac
 }
 # unit_moved <K> <old phase> <new phase>: st_set's hook on every write of phase: the owner is set
-# on entering accept or needs-you (again on a needs-you with a new kind) and goes on leaving them
+# on entering accept or needs-you (again on a needs-you with a new kind) and goes on leaving them;
+# phase_at (the idle alarm's clock) moves only with a new phase; then the feed's lines
 unit_moved() {
-  local k=$1 new=$3
+  local k=$1 new=$3 kv=()
+  [ "$2" = "$new" ] || kv+=(phase_at="$(now)")
   case $new in
-    accept) _st_put "$k" owner="$(owner_of "$k" accept)" ;;
-    needs-you) _st_put "$k" owner="$(owner_of "$k" "$(ny_item_kind "$k")")" ;;
-    *) [ -z "$(st_get "$k" owner)" ] || _st_put "$k" owner= ;;
+    accept) kv+=(owner="$(owner_of "$k" accept)") ;;
+    needs-you) kv+=(owner="$(owner_of "$k" "$(ny_item_kind "$k")")") ;;
+    *) [ -z "$(st_get "$k" owner)" ] || kv+=(owner=) ;;
   esac
+  (( ${#kv[@]} == 0 )) || _st_put "$k" "${kv[@]}"
+  feed_unit_moved "$k" "$2" "$new"
 }
