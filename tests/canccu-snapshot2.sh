@@ -103,6 +103,8 @@ ok "snapshot: a checkpoint waiting → its url is the summary comment's link" eq
   echo "checkpoint_url=https://github.com/example-org/web/issues/95#issuecomment-7" >> "$CANCCU_HOME/steps/12"
   dispatch --once; sj '.needs_you[] | select(.kind == "checkpoint") | .url')" "https://github.com/example-org/web/issues/95#issuecomment-7"
 
+ok "snapshot #70: the steps' items have an owner too" eq "$(sj '[.needs_you[] | select(.owner != "po")] | length') $(sj '.needs_you | length > 0')" "0 true"
+
 # the fixture for the monitor's step view: the same keys as what the writer writes
 F=$root/tests/fixtures/monitor/steps.json
 [ "${1:-}" = --write-fixture ] && jq --argjson now "$NOW" '.pass.at = $now' "$S" > "$F"
@@ -151,6 +153,9 @@ ok "snapshot #62: CI pending past its cap in a fix round → needs_you stage ci 
 ok "snapshot #62: events: a repeat that differs only in a try number folds into one row with its count" \
   eq "$(sj '[.events[] | select(.issue == 50) | "\(.count) \(.first_at - .at) \(.text)"] | join(" | ")')" \
   "5 -240 #50 PR #55: review post failed (try 5): GraphQL: no repo | 1 0 #50 PR #55: review posted"
+ok "snapshot #70: every needs_you item has its owner: po with LEADER=off" \
+  eq "$(sj '[.needs_you[] | .owner // "none"] | unique | join(" ")') $(sj '.needs_you | length')" "po 6"
+ok "state #70: a unit that enters needs-you stores its owner" eq "$(st 201 owner)" po
 st201=$(st 201 ny_stage)
 ok "state #62: needs_you records the stage it parked at (ny_stage)" eq "$st201" ci
 

@@ -598,6 +598,34 @@ direct_env() {   # direct_env <name> <head> <ci> <merge_at> [config...]: waiting
 direct_env direct-wait-status $HA pending $((NOW - 600))
 ok "canccu-status: a PR waiting to merge directly says so" \
   eq "$(PATH="$fb:$PATH" "$root/bin/canccu-status" 2>&1 | grep -c '#5 · PR #50 · merges directly once CI is green (accepted)')" 1
+# the owner (#70): the leader's items follow under their own heading
+owner_env() {
+  env_new "$@"
+  { issue 5 in-progress; issue 6 in-progress; issue 7 in-progress; issue 8 in-progress; } | issues
+  state 5 phase=accept pr=50 "reason=manual: plan tier" owner=leader
+  state 6 phase=accept pr=60 "reason=manual: users see it: web/a.tsx" owner=po
+  state 7 phase=needs-you "reason=the worker stopped: crashed" "ny_at=$NOW" owner=leader
+  state 8 phase=needs-you "reason=the worker finished without an open PR" "ny_at=$NOW" owner=po
+}
+waits() { PATH="$fb:$PATH" "$root/bin/canccu-status" 2>&1 | sed -n '/^awaiting accept/,/^not ours/p' | sed '$d'; }
+a=$(lib ago "$NOW")
+owner_env status-owner LEADER=on LEADER_ACCEPTS=technical
+ok "canccu-status: the product owner's items first, the leader's under 'leader has it:'" eq "$(waits)" "awaiting accept (label the PR \`accepted\`, or canccu-ship <n>):
+  #6 · PR #60 · manual: users see it: web/a.tsx
+  leader has it:
+    #5 · PR #50 · manual: plan tier
+needs you:
+  #8 · the worker finished without an open PR · $a
+  leader has it:
+    #7 · the worker stopped: crashed · $a"
+owner_env status-owner-off
+ok "canccu-status: LEADER=off: the lists of today, whatever owner a state holds" eq "$(waits)" "awaiting accept (label the PR \`accepted\`, or canccu-ship <n>):
+  #5 · PR #50 · manual: plan tier
+  #6 · PR #60 · manual: users see it: web/a.tsx
+needs you:
+  #7 · the worker stopped: crashed · $a
+  #8 · the worker finished without an open PR · $a"
+
 direct_env direct-wait-push $HB green $((NOW - 600))
 dispatch --once
 ok "a push while waiting to merge directly → nothing merges" hasnt gh.log "pr merge 50"
