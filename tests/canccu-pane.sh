@@ -207,7 +207,7 @@ dispatch --once
 ok "snapshot: a broken old snapshot and a failed milestones read → written, milestones stale" eq "$(sj '[.pass.ok, (.stale | join(","))] | map(tostring) | join(" ")')" "true milestones,steps,step_overview"
 # a pass that dies half-way: one line in the pane, and the snapshot says so
 CANCCU_TEST_PASS_DIES=1 dispatch --once
-ok "a pass that ends early says so in the pane" grep -qE '^[0-9-]{10} [0-9:]{8} the pass ended early \(exit 3\); its error is in dispatch.log$' "$E/out"
+ok "a pass that ends early says so in the pane" grep -qE '^[0-9-]{10}T[0-9:]{8}Z the pass ended early \(exit 3\); its error is in dispatch.log$' "$E/out"
 ok "… and in the snapshot" eq "$(sj '[.pass.ok, .pass.error] | map(tostring) | join(" ")')" "false the pass ended early (exit 3); see dispatch.log"
 rm -f "$S"
 PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-dispatch" --dry-run > /dev/null 2>&1

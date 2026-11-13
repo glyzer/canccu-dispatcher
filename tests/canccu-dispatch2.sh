@@ -49,7 +49,7 @@ ok "--dry-run with state format 9 stops too" \
 rm -f "$CANCCU_HOME/state.format"
 PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-dispatch" --dry-run > "$E/dry" 2>&1
 ok "--dry-run on an old project says it would migrate, and writes nothing" \
-  eq "$(grep -c 'would: migrate the state format 0 → 1' "$E/dry") $([ -e "$CANCCU_HOME/state.format" ] && echo written)" 1
+  eq "$(grep -c 'would: migrate the state format 0 → 1' "$E/dry") $([ -e "$CANCCU_HOME/state.format" ] && echo written || echo none)" "1 none"
 
 echo "canccu-dispatch2 tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

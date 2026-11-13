@@ -206,7 +206,7 @@ snap_milestones() {
 # try number "try N", "after N min", "×N", or a number that ends the line) fold into one row: the
 # newest line's time and text, count (the lines folded), first_at (the oldest one's time).
 # canccu-monitor folds with the same rule (lib/canccu_monitor/parts.py, fold_key). A line starts
-# with its UTC time (2030-11-05T12:00:00Z) or, written before 0.2, the host's local time
+# with its UTC time (2030-11-05T12:00:00Z) or, written by a release before them, the host's local time
 # (2030-11-05 12:00:00): one date call reads both.
 snap_events() {
   local rows epochs

@@ -42,12 +42,29 @@ In `~/.canccu/projects/<name>/`:
 | `answers.log` | One line per question an answerer answered, with the link to its comment |
 | `want` | The project's wait for a shared slot, rewritten by every pass: `n` (the runs it could not start for want of a slot of `TOTAL_CAP`; 0: none), `cap` (its `CAP`), `until` (the epoch the wait holds to); removed when the dispatcher exits ([`projects.md`](projects.md#fair-share-of-total_cap)) |
 | `last_start` | When the project's engine last started a run (ns since the epoch): the fair share's tie rule |
-| `dispatch.log` | One line per action, plus the raw output of the commands (prefixed `  │ `) |
+| `state.format` | The format of `state/` and `steps/`: one number (below) |
+| `dispatch.log` | One line per action, each starting with its UTC time (`2030-11-05T12:00:00Z`; lines written by an earlier release have the host's local time, `2030-11-05 12:00:00`, and readers accept both), plus the raw output of the commands (prefixed `  │ `) |
 | `dispatch.pid`, `.dispatch.lock` | The running dispatcher and its lock |
 | `paused` | Present while paused (`canccu-pause`) |
 | `status.json` | The status snapshot, written after every pass ([`snapshot.md`](snapshot.md)) |
 | `.warned-*` | The last recurring warning of a kind, so it is logged once |
 | `blocked/<n>` | Issue `n`'s `blocked` was set by the dispatcher (a `waiting` run): the only kind it removes |
+
+## The state format
+
+`state.format` holds one number: the format of the project's `state/` and `steps/` files (a
+missing file is format `0`, a release before the file). `canccu-dispatch` runs `state_migrate` at
+start, under its lock and before the first pass: each migration from the file's number up to the
+release's `STATE_FORMAT` (`1`), in order, writing the new number after each and logging
+`state format <a> → <b>: <what it did>`. Migration 0 → 1 changes no field. A number above
+`STATE_FORMAT` (an older release after a newer one ran) stops the start with
+`state format <n> is newer than this release knows (<STATE_FORMAT>); install a newer release`.
+`--dry-run` only says which migrations it would run.
+
+A release that adds or changes a state field raises `STATE_FORMAT`, adds the migration
+(`state_migrate_<n>` in `lib/canccu-common.sh`) and a test that upgrades a project with units in
+flight (`work`, `needs-you`, `merging`) and checks the next pass handles them as before
+(contracts §6).
 
 ## A unit's state
 
