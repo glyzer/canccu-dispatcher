@@ -133,11 +133,6 @@ ok "tests/run: a path outside the repo → exit 2" eq "$(tr_ --list /etc/hostnam
 ok "tests/run: a pattern that matches nothing → exit 2" eq "$(tr_ --list no-such-test >/dev/null; echo $?)" 2
 ok "tests/run: the engine maps to the engine tests" grep -qx tests/canccu-engine.sh <<<"$(tr_ --list libexec/canccu-worker)"
 ok "tests/run: bin/canccu-dispatch maps to the dispatcher's tests" grep -qx tests/canccu-dispatch.sh <<<"$(tr_ --list bin/canccu-dispatch)"
-# a failing check's expected/got lines come before its FAIL line: the summary must show them (#147)
-mkdir -p "$T/trun/tests"
-cp "$root/tests/run" "$T/trun/tests/run"
-printf '#!/usr/bin/env bash\necho "    expected: stalled"\necho "    got:      done"\necho "FAIL [x] a check"\necho "0 passed, 1 failed"\nexit 1\n' > "$T/trun/tests/canccu-failing.sh"
-ok "tests/run: a failing check's summary shows what it got" grep -qx '    got:      done' <<<"$("$T/trun/tests/run" failing 2>&1)"
 ok "tests/run: the commands and libs map to the compatibility test too" \
   eq "$(grep -cx tests/canccu-compat.sh <<<"$(tr_ --list bin/canccu-status lib/canccu-runs.sh)")" 1
 ok "tests/run: an expected compat output maps to the compatibility test" eq "$(tr_ --list tests/fixtures/compat/status-web.txt)" tests/canccu-compat.sh
@@ -152,11 +147,12 @@ ok "… runs every test file, the leak check and the monitor's self-test" \
   eq "$(grep -v '^lint:' <<<"$full" | sort | tr '\n' ' ')" "$(cd "$root" && { ls tests/*.sh; echo monitor; } | sort | tr '\n' ' ')"
 # a run: one summary line per file, the failing checks only, the full log in a file
 F=$T/runroot; mkdir -p "$F/tests/lib"; cp "$root/tests/run" "$F/tests/"
-printf '#!/usr/bin/env bash\necho "chatter"\necho "FAIL [x] the thing"\necho "    expected: 1"\necho "bad tests: 1 passed, 1 failed"\nexit 1\n' > "$F/tests/bad.sh"
+# like the harness's eq: the expected/got lines first, then the FAIL line (#147)
+printf '#!/usr/bin/env bash\necho "chatter"\necho "    expected: 1"\necho "    got:      2"\necho "FAIL [x] the thing"\necho "bad tests: 1 passed, 1 failed"\nexit 1\n' > "$F/tests/bad.sh"
 printf '#!/usr/bin/env bash\necho "chatter"\necho "good tests: 3 passed, 0 failed"\n' > "$F/tests/good.sh"
 out=$(cd "$F" && CANCCU_TEST_LOGS=$T/runlogs tests/run tests/bad.sh tests/good.sh 2>&1); rc=$?
 ok "tests/run: a failing file → exit 1" eq "$rc" 1
-ok "… its FAIL line and what follows it are shown" eq "$(grep -cE '^(FAIL \[x\] the thing|    expected: 1)$' <<<"$out")" 2
+ok "… its FAIL line and what the check printed before it are shown" eq "$(grep -cE '^(FAIL \[x\] the thing|    expected: 1|    got:      2)$' <<<"$out")" 3
 ok "… one summary line per file" eq "$(grep -cE '^tests/(bad|good)\.sh: (FAILED|ok) · (bad|good) tests: ' <<<"$out")" 2
 ok "… no chatter" not grep -q chatter <<<"$out"
 ok "… the full logs are kept, and named" eq "$(cat "$T"/runlogs/*.log | grep -c chatter) $(grep -c "full logs: $T/runlogs" <<<"$out")" "2 1"
