@@ -234,5 +234,21 @@ bg_ares='{"type":"user","parent_tool_use_id":null,"message":{"content":[{"type":
 K=45; ok "… a background subagent counts too" eq "$(bgrun "$bg_agent" "$bg_ares" | cut -d'|' -f1)" background
 rm -f "$FAKE/claude.stream"
 
+# ---------------------------------------------------------------- permission denials (#133)
+
+# a run that was denied a command but finished: done, the denials are information in the message
+cp "$fb/claude" "$T/claude.orig"
+cat > "$fb/claude" <<'EOF2'
+#!/bin/bash
+echo '{"type":"result","subtype":"success","is_error":false,"num_turns":1,"total_cost_usd":0,"result":"PR opened","permission_denials":[{"tool_name":"Bash","tool_input":{"command":"git push --force"}},{"tool_name":"Write","tool_input":{"file_path":"/etc/x"}}]}'
+EOF2
+chmod +x "$fb/claude"
+eng 46 "$E" "" > /dev/null
+ok "denials: a finished run with denials is done" eq "$(lib run_exit "$WORKERS_DIR/web-46.last")" "done|done"
+ok "… its message lists them as information" \
+  grep -qzF $'Permission denials (information):\nBash git push --force\nWrite /etc/x' "$WORKERS_DIR/web-46.last"
+ok "… and no longer says blocked" not grep -q 'Blocked by the permission classifier' "$WORKERS_DIR/web-46.last"
+cp "$T/claude.orig" "$fb/claude"
+
 echo "canccu-engine tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

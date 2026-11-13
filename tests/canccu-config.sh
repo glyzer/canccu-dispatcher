@@ -63,7 +63,7 @@ env_new home-paths "REVIEWER_TOKEN_FILE=/home/someone/.canccu/reviewer-token" PI
 p=$(pr 50 6 "$HA"); printf '%s\n' "$p" | prs
 json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z)"; route 'pr view 50 *' pr50.json
 json files50.json '[{"filename": "src/a.ts"}]'; route 'api --paginate repos/example-org/web/pulls/50/files*' files50.json
-state 5 phase=work "started=$NOW"
+state 5 phase=work "started=$NOW" crash_tries=1   # its one crash retry is spent: needs-you
 last 5 "crashed (exit 1)" "cannot read /home/someone/code/web/notes.txt; see /home/someone"
 state 6 phase=review pr=50 review_sha=$HA "started=$NOW" rounds=0
 last review-50 done "wrote the review"

@@ -140,5 +140,95 @@ ok "… the log line" grep -qF '#pkg-4-thing forgotten (canccu-stop --forget): r
 stop --forget 21; rc=$?
 ok "… a second call: nothing to forget, exit 0" eq "$(cat "$E/out") $rc" "nothing to forget for #21 0"
 
+# ---------------------------------------------------------------- run exits: denials, crashes, starting (#133)
+
+DEN=$'PR opened.\n\nPermission denials (information):\nBash git push --force\nWrite /etc/x'
+# den_env <name>: issue 5's worker finished with denials, its PR #50 at $FAKE_MERGED, its worktree there
+den_env() {
+  env_new "$1"
+  { issue 5 in-progress; } | issues
+  p=$(pr 50 5 "${2:-$FAKE_MERGED}"); printf '%s\n' "$p" | prs
+  json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z)"; route 'pr view 50 *' pr50.json
+  mkdir -p "$WORKERS_DIR/worktrees/web/issue-5"; touch "$FAKE/branch"   # the fake git's HEAD: $FAKE_MERGED
+  state 5 phase=work "started=$NOW" pr=50; last 5 done "$DEN"
+}
+den_env denied-clean
+dispatch --once
+ok "denials, PR head = worktree HEAD, clean → worker done" grep -q '#5 worker done' "$CANCCU_HOME/dispatch.log"
+ok "… no needs-you" hasnt gh.log "needs-you"
+den_env denied-head "$HA"
+dispatch --once
+ok "denials, PR head differs → needs-you: denied commands and left work" \
+  grep -qF "#5 needs-you: the worker's run was denied commands and left work its PR does not have (worktree ${FAKE_MERGED:0:7}, PR ${HA:0:7}, 0 uncommitted files)" "$CANCCU_HOME/dispatch.log"
+ok "… its body lists the denials" grep -q 'issue comment 5 .*Bash git push --force.*Write /etc/x' "$FAKE/gh.log"
+den_env denied-dirty
+echo ' M src/a.ts' > "$FAKE/dirty"
+dispatch --once
+ok "denials, clean head but one uncommitted file → the same needs-you" \
+  grep -qF "needs-you: the worker's run was denied commands and left work its PR does not have (worktree ${FAKE_MERGED:0:7}, PR ${FAKE_MERGED:0:7}, 1 uncommitted files)" "$CANCCU_HOME/dispatch.log"
+den_env denied-gone; rm -rf "$WORKERS_DIR/worktrees/web/issue-5"
+dispatch --once
+ok "denials, the worktree gone → a mismatch" grep -qF "needs-you: the worker's run was denied commands and left work" "$CANCCU_HOME/dispatch.log"
+den_env denied-no-pr; echo '[]' > "$FAKE/prs.json"; state 5 phase=work "started=$NOW"
+dispatch --once
+ok "denials, no PR → needs-you: denied commands and opened no PR" \
+  grep -qF "#5 needs-you: the worker's run was denied commands and opened no PR" "$CANCCU_HOME/dispatch.log"
+
+env_new crash-retry
+{ issue 5 in-progress; } | issues
+state 5 phase=work "started=$NOW"; last 5 'crashed (exit 1)' boom
+dispatch --once
+ok "crash: one fresh run with the handoff (kind crash)" \
+  grep -q '^--quiet --name #5 --fresh web 5 Rules for this run: .*Your earlier run ended without finishing (crashed (exit 1))\. Continue the task from where the branch and this handoff leave it\.' "$FAKE/worker.log"
+ok "… the retry log line" grep -qF '#5 the worker stopped (crashed (exit 1)); one fresh run with the handoff (try 1 of 1)' "$CANCCU_HOME/dispatch.log"
+ok "… no needs-you" hasnt gh.log "needs-you"
+ok "… crash_tries 1, phase work" eq "$(st 5 crash_tries) $(st 5 phase)" "1 work"
+rm -f "$WORKERS_DIR/web-5.lock"; last 5 'crashed (exit 1)' boom
+dispatch --once
+ok "… a second crash → needs-you: the worker stopped: crashed (exit 1)" \
+  grep -qF '#5 needs-you: the worker stopped: crashed (exit 1)' "$CANCCU_HOME/dispatch.log"
+env_new crash-then-done
+{ issue 5 in-progress; } | issues
+p=$(pr 50 5 $HA); printf '%s\n' "$p" | prs
+json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z)"; route 'pr view 50 *' pr50.json
+state 5 phase=work "started=$NOW" crash_tries=1; last 5 done 'all pushed'
+dispatch --once
+ok "crash: a done exit clears crash_tries" eq "$(st 5 crash_tries)" ""
+env_new crash-no-slot
+{ issue 5 in-progress; } | issues
+state 5 phase=work "started=$NOW"; last 5 'crashed (exit 1)' boom; touch "$FAKE/refuse"
+dispatch --once
+ok "crash, no slot: the unit waits for one (phase retry)" eq "$(st 5 phase) $(st 5 crash_tries)" "retry 1"
+rm -f "$FAKE/refuse"; dispatch --once
+ok "… and runs once there is one" grep -q 'Your earlier run ended without finishing (crashed (exit 1))' "$FAKE/worker.log"
+
+env_new starting-killed
+{ issue 5 in-progress; } | issues
+state 5 phase=starting prev_phase=needs-you "started=$((NOW - 120))"
+dispatch --once
+ok "starting, no live run, no exit report → the crash path, killed while starting" \
+  grep -qF '#5 the worker stopped (killed while starting); one fresh run with the handoff (try 1 of 1)' "$CANCCU_HOME/dispatch.log"
+env_new starting-live
+{ issue 5 in-progress; } | issues
+state 5 phase=starting prev_phase=needs-you "started=$((NOW - 120))"; live_lock 5
+dispatch --once
+ok "starting with a live run → left alone" eq "$(st 5 phase) $(grep -c '#5 ' "$CANCCU_HOME/dispatch.log")" "starting 0"
+
+env_new start-refused
+{ issue 5 in-progress; } | issues
+state 5 phase=limited "started=$((NOW - 3600))"; touch "$FAKE/refuse-5"
+dispatch --once
+ok "the engine refuses the start (SLOT_REFUSED) → the phase is back to what it was" \
+  eq "$(st 5 phase)|$(st 5 prev_phase)|$(st 5 started)" "limited||$((NOW - 3600))"
+ok "… the run was asked for" grep -q 'web 5 ' "$FAKE/worker.log"
+env_new start-refused-new
+{ issue 3 ready; } | issues; touch "$FAKE/refuse-3"
+dispatch --once
+ok "… a new issue refused: no state left behind" not test -e "$CANCCU_HOME/state/3"
+env_new start-ok
+{ issue 3 ready; } | issues
+dispatch --once
+ok "a start: phase work, prev_phase cleared" eq "$(st 3 phase)|$(st 3 prev_phase)" "work|"
+
 echo "canccu-dispatch2 tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
