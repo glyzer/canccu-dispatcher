@@ -124,6 +124,21 @@ ok "risk: the health pass is normal → auto" eq "$(lf classify 50 pkg-12-health
 json files50.json '[{"filename": "db/migrations/0003.sql"}]'
 ok "… high when it touches HIGH_RISK_PATHS" eq "$(lf classify 50 pkg-12-health)" "manual: risk high (paths)"
 
+# ---------------------------------------------------------------- user-visible paths (#78)
+
+uvc() { USER_VISIBLE_PATHS='^web/pages/'; classify_pure "$@"; }
+uv() { lib uvc "$@"; }
+ok "user-visible: a page → manual, users see it" eq "$(uv web/pages/a.tsx "" "" "" example-org/web 0)" "manual: users see it: web/pages/a.tsx"
+ok "… the first matching path that is no test" eq "$(uv $'src/a.ts\nweb/pages/tests/a.test.tsx\nweb/pages/b.tsx' "" "" "" example-org/web 0)" "manual: users see it: web/pages/b.tsx"
+ok "… only a page's tests → auto" eq "$(uv web/pages/tests/a.test.tsx "" "" "" example-org/web 0)" auto
+ok "… a .spec file beside the page → auto" eq "$(uv web/pages/a.spec.tsx "" "" "" example-org/web 0)" auto
+ok "… a gated path and a page: the gated reason" eq "$(uv $'.github/x.yml\nweb/pages/a.tsx' "" "" "" example-org/web 0)" "manual: changes .github/ (.github/x.yml)"
+ok "… before the manual-accept label" eq "$(uv web/pages/a.tsx "" manual-accept "" example-org/web 0)" "manual: users see it: web/pages/a.tsx"
+ok "… TEST_PATHS is the project's" eq "$(lib eval "USER_VISIBLE_PATHS='^docs/briefs/'; TEST_PATHS='^docs/briefs/drafts/'; classify_pure docs/briefs/drafts/x.md '' '' '' example-org/web 0")" auto
+ok "… a pattern grep refuses waits" eq "$(lib eval "USER_VISIBLE_PATHS='(web'; classify_pure src/a.ts '' '' '' example-org/web 0")" "manual: users see it: USER_VISIBLE_PATHS is not a valid pattern"
+ok "… a TEST_PATHS grep refuses: no path counts as a test" eq "$(lib eval "USER_VISIBLE_PATHS='^web/'; TEST_PATHS='(t'; classify_pure web/tests/a.ts '' '' '' example-org/web 0")" "manual: users see it: web/tests/a.ts"
+ok "USER_VISIBLE_PATHS empty: the answers of today" eq "$(c web/pages/a.tsx "" "" "" example-org/web 0) | $(c web/pages/a.tsx "" manual-accept "" example-org/web 0) | $(c web/pages/a.tsx "" "" "" example-org/web 0 "high (plan)")" "auto | manual: the issue has manual-accept | manual: risk high (plan)"
+
 # ---------------------------------------------------------------- finishing a package (task 6)
 
 pkgpr pkg-finish "101 103"

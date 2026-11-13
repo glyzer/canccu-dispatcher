@@ -58,6 +58,8 @@ EFFORT_DOCS_PATHS	regex	rules	open
 REVIEW_EFFORT_MAX	enum:low|medium|high|xhigh|max|	project	open
 FIXCHECK_RISKY	regex	rules	locked
 GATED_PATHS	regex	rules	locked
+USER_VISIBLE_PATHS	regex	rules	locked
+TEST_PATHS	regex	rules	open
 SECURITY_REVIEW_WHEN	text	rules	locked
 PLANNER_EXTRA	text	rules	open
 REVIEW_EXTRA	text	rules	locked
