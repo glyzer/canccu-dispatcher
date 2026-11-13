@@ -17,9 +17,21 @@
 # USER_LOGIN after the summary, a PR labelled accepted: this pass acts on it) is left out; a
 # checkpoint-ok checkpoint_tick ignores is no answer, so the checkpoint still pings. A ping always goes on the issue (the unit's lead), never on a PR: the review-gate
 # check reads the bot's comments there. An issue listed twice keeps its first line that
-# PING_KINDS lets through (ping_tick).
+# PING_KINDS lets through (ping_tick). An item of owner leader is left out: the leader reads it from
+# the feed, and the mention goes to the product owner only (need_owner).
+# ping_step_kind <n> <kind>: the kind snap_steps gives issue n when it is the issue of a step that
+# reached STEP_BUDGET (budget) or holds an invalid plan (plan-invalid), else <kind>
+ping_step_kind() {
+  local f m
+  for f in "$CANCCU_HOME"/steps/*; do
+    m=${f##*/}; [[ $m =~ ^[0-9]+$ ]] && [ -f "$f" ] && [ "$(step_issue "$m")" = "$1" ] || continue
+    [ -n "$(step_get "$m" budget_ny)" ] && { echo budget; return 0; }
+    [ "$(step_get "$m" phase)" = needs-you ] && [ "$(step_get "$m" ny_kind)" != stop ] && { echo plan-invalid; return 0; }
+  done
+  echo "$2"
+}
 ping_states() {
-  local n k m kind pr ns rc
+  local n k m kind pr ns rc o
   local -A cpw=()
   while read -r n m; do
     cpw[$n]=$m; rc=0
@@ -30,25 +42,31 @@ ping_states() {
   for n in $ns; do
     [ -z "${cpw[$n]+x}" ] || continue   # a waiting checkpoint: above
     k=$(unit_of_issue "$n"); kind=needs-you
-    is_managed "$k" && [ "$(st_get "$k" phase)" = needs-you ] && kind=$(ping_ny_kind "$k")
+    is_managed "$k" && [ "$(st_get "$k" phase)" = needs-you ] && kind=$(ny_item_kind "$k")
     [ "$kind" = plan ] && has_label "$n" plan-ok && continue
+    # a step's issue: its owner by the snapshot's kind (budget, plan-invalid: po)
+    o=$kind; is_managed "$k" || o=$(ping_step_kind "$n" "$kind")
+    [ "$(need_owner "$k" "$o")" = po ] || continue
     echo "$n $kind -"
   done
   ns=$(jqr '.[] | select(any(.labels[]?; .name == "needs-you")) | .number' <<<"$PRS") || return 1
   for pr in $ns; do
-    n=$(ping_pr_issue "$pr"); [ -n "$n" ] && echo "$n pr-needs-you $pr"
+    n=$(ping_pr_issue "$pr"); [ -n "$n" ] && [ "$(need_owner "$(unit_of_issue "$n")" pr-needs-you)" = po ] &&
+      echo "$n pr-needs-you $pr"
   done
   for k in $(managed); do
     case $(st_get "$k" phase) in
       needs-you)
         is_open "$k" || continue
-        n=$(lead_of "$k"); kind=$(ping_ny_kind "$k")
+        n=$(lead_of "$k"); kind=$(ny_item_kind "$k")
         [ -n "$n" ] || continue
         [ "$kind" = plan ] && has_label "$n" plan-ok && continue
+        [ "$(need_owner "$k" "$kind")" = po ] || continue
         echo "$n $kind -" ;;
       accept)
         pr=$(st_get "$k" pr); [ -n "$pr" ] && pr_is_open "$pr" || continue
         pr_has_label "$pr" accepted && continue
+        [ "$(need_owner "$k" accept)" = po ] || continue
         n=$(lead_of "$k"); [ -n "$n" ] && echo "$n accept $pr" ;;
     esac
   done
@@ -91,10 +109,6 @@ ping_kinds_check() {
   elif (( ! CANCCU_DRY )); then rm -f "$CANCCU_HOME/.warned-ping-kinds"; fi
 }
 
-# ping_ny_kind <K>: the ping kind of a managed unit in phase needs-you: plan, question or needs-you
-ping_ny_kind() {
-  case $(st_get "$1" ny_kind) in plan) echo plan ;; question) echo question ;; *) echo needs-you ;; esac
-}
 
 # ping_pr_issue <pr>: the issue a needs-you on the PR is pinged on: the lead issue of the unit it
 # is ours for (see "Whose PRs"); nothing for a PR that is not ours

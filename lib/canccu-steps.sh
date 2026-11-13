@@ -135,11 +135,13 @@ budget_tick() {
     sp=$(step_spend "$m" | cut -d' ' -f1)
     step_set "$m" budget_ny=1
     log "step $(step_title "$m") reached STEP_BUDGET (\$$sp of \$$STEP_BUDGET): no new run of it starts$(its_url "$( [ -n "$i" ] && issue_url "$i")")"
+    feed_open "hold-budget-$m" po ask hold - - "$( [ -n "$i" ] && issue_url "$i")" "step $(step_title "$m") reached STEP_BUDGET (\$$sp of \$$STEP_BUDGET): no new run of it starts"
     [ -n "$i" ] || return 0
     edit_issue "$i" --add-label needs-you
     comment_issue "$i" "**Needs you** (canccu-dispatch): step $(step_title "$m") reached STEP_BUDGET (\$$sp of \$$STEP_BUDGET). Running work finishes; no new worker, resume or answer of this step starts; reviews, fix-checks and merges of its open PRs go on. Raise STEP_BUDGET in the project config: it applies at the next pass."
   elif [ -n "$(step_get "$m" budget_ny)" ]; then
     step_set "$m" budget_ny=; log "step $(step_title "$m") is under STEP_BUDGET again"; step_ny_clear "$m"
+    feed_settle "hold-budget-$m" "under STEP_BUDGET again"
   fi
 }
 
@@ -389,7 +391,8 @@ checkpoint_tick() {
     # the summary's link: the monitor's needs-you item and this line end with it
     comment_issue_url "$c" "$(checkpoint_summary "$m")"; u=$COMMENT_URL
     step_set "$m" phase=checkpoint checkpoint_at="$(now)" checkpoint_url="$u"
-    log "step $(step_title "$m"): checkpoint #$c waits for checkpoint-ok$(its_url "${u:-$(issue_url "$c")}")"; return 0
+    log "step $(step_title "$m"): checkpoint #$c waits for checkpoint-ok$(its_url "${u:-$(issue_url "$c")}")"
+    feed_open "checkpoint-$m" po ask checkpoint - - "${u:-$(issue_url "$c")}" "step $(step_title "$m"): checkpoint #$c waits for checkpoint-ok"; return 0
   fi
   [ "$ph" = checkpoint ] || return 0
   [ -n "$c" ] || { step_done "$m" "its checkpoint is gone, so the pause ends"; return 0; }
@@ -411,6 +414,8 @@ step_done() {
   local wt; wt=$(plan_wt "$1")
   step_set "$1" phase=done done_at="$(now)"
   log "step $(step_title "$1") is done: $2"
+  feed_settle "checkpoint-$1" "done"
+  feed - info step-done - - - "step $(step_title "$1") is done: $2" >/dev/null
   [ -e "$wt" ] && { mut git -C "$CLONE" worktree remove --force "$wt" || log "step $1: cannot remove the planner worktree $wt"; }
   close_step_epic "$1"
 }

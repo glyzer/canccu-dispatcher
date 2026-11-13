@@ -28,11 +28,12 @@ disk_tick() {
     if (( CANCCU_DRY )); then echo "  disk low: $free MB free for $d: nothing new starts"
     elif [ ! -e "$f" ]; then
       : > "$f"; log "disk: $free MB free for $d, below DISK_MIN_MB (${DISK_MIN_MB:-200}); nothing new starts"
+      feed_open hold-disk po ask hold - - - "disk: $free MB free, below DISK_MIN_MB (${DISK_MIN_MB:-200}); nothing new starts"
     fi
     return 0
   fi
   if [ -e "$f" ] && (( ! CANCCU_DRY )); then
-    rm -f "$f"; log "disk: ${free:-?} MB free again; starts resume"
+    rm -f "$f"; log "disk: ${free:-?} MB free again; starts resume"; feed_settle hold-disk "disk free again"
   fi
   return 1
 }
@@ -63,8 +64,12 @@ gh_limit_tick() {
   local f="$CANCCU_HOME/gh_limit" u
   [ -e "$f" ] || return 1
   u=$(gh_limit_until)
-  if [ -n "$u" ]; then warn_once gh-limit "GitHub rate limit: passes pause until $(iso "$u")"; return 0; fi
+  if [ -n "$u" ]; then
+    warn_once gh-limit "GitHub rate limit: passes pause until $(iso "$u")"
+    feed_open hold-github - info hold - - - "GitHub rate limit: passes pause until $(iso "$u")"; return 0
+  fi
   (( CANCCU_DRY )) && return 1
   rm -f "$f" "$CANCCU_HOME/.warned-gh-limit"; log "GitHub rate limit over; passes resume"
+  feed_settle hold-github "the rate limit is over"
   return 1
 }

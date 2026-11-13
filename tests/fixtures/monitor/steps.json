@@ -122,7 +122,8 @@
       "stage": null,
       "issues": [
         90
-      ]
+      ],
+      "owner": "po"
     },
     {
       "kind": "checkpoint",
@@ -138,7 +139,8 @@
       "stage": null,
       "issues": [
         95
-      ]
+      ],
+      "owner": "po"
     }
   ],
   "queue": [

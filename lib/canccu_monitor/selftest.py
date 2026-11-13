@@ -93,6 +93,7 @@ def self_test():
     roadmap_checks(mock, check)
     screen_checks(fx, check)
     version_checks(mock, check)
+    owner_checks(mock, check)
     for f in fails:
         print("FAIL " + f)
     print("canccu-monitor self-test: %d checks failed" % len(fails) if fails else "canccu-monitor self-test: ok")
@@ -357,6 +358,41 @@ def drop_order_checks(mock, check):
             if prev is not None:
                 check(all(prev[k] or not shown[k] for k in shown), what + ": a smaller height shows more")
             prev = shown
+
+
+def owner_checks(mock, check):
+    """NEEDS YOU holds the product owner's items only; the leader's are one LEADER line under the
+    box (on the phone only their count). A snapshot without owner: every item is the product
+    owner's, as before."""
+    total = sum(len(mock[n]["needs_you"]) for n in ("tools", "web"))
+    for w, h in SIZES:
+        plain = mock_frame(mock, w, h)[0]
+        check("LEADER:" not in plain and "NEEDS YOU · %d" % total in plain,
+              "owner at %dx%d: a snapshot without owner shows every item, no LEADER line" % (w, h))
+    own = copy.deepcopy(mock["tools"])
+    for it in own["needs_you"]:
+        it["owner"] = "po"
+    q = own["needs_you"][1]
+    q.update(owner="leader", since=MOCK_NOW - 600)
+    own["needs_you"].append({"kind": "accept", "issue": 12, "pr": 13, "reason": "manual: plan tier", "owner": "leader",
+                             "since": MOCK_NOW - 300, "url": "https://github.com/example-user/tools/pull/13"})
+    for w, h in SIZES:
+        what = "owner at %dx%d" % (w, h)
+        plain = mock_frame(mock, w, h, own=own)[0]
+        words = words_of(plain)
+        check("NEEDS YOU · %d" % (total - 1) in plain, what + ": the leader's items are counted in NEEDS YOU")
+        box = words[words.find("NEEDS YOU"):words.find("LEADER:")]  # the event log may name the item too
+        check(q["reason"] not in box and "manual: plan tier" not in box, what + ": a leader's card is in NEEDS YOU")
+        check("LEADER: 2 items · oldest 10m" in words, what + ": no LEADER line with the count and the oldest age")
+        listed = "#%d %s 10m" % (q["issue"], q["kind"]) in words and "#12 accept 5m" in words
+        check(listed if w > PHONE_UPTO else not listed, what + ": the leader's items are listed only on the wide screen")
+    for it in own["needs_you"]:
+        it["owner"] = "leader"
+    alone = copy.deepcopy(mock)
+    alone["web"]["needs_you"] = []
+    plain = mock_frame(alone, 120, 55, own=own)[0]
+    check("nothing needs you" in words_of(plain) and "LEADER: 3 items" in words_of(plain),
+          "owner: only the leader's items: nothing needs you, and the LEADER line")
 
 
 def many_checks(mock, check):

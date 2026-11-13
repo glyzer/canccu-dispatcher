@@ -1,5 +1,6 @@
 canccu-dispatch --dry-run · project web · example-org/web · 2030-11-05T12:00:00Z · nothing is written
   would: migrate the state format 0 → 1
+  would: migrate the state format 1 → 2
 runnable queue (in order):
   #4 blocked by 3
   #3

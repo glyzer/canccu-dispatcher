@@ -34,7 +34,7 @@ To move a project to another host:
 ## Host profiles
 
 `HOST_PROFILE` in each host's `~/.canccu/config` picks the values that suit that host's Claude
-plan: caps, budgets and the throttle ([`reference/config.md`](reference/config.md#host-profiles)).
+plan: caps, budgets and the throttle ([`reference/config.md`](reference/hosts.md#host-profiles)).
 Two hosts on different plans get different profiles.
 
 ## The reviewer bot

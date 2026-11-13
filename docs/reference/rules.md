@@ -25,6 +25,8 @@ old path too).
 | `EFFORT_DOCS_PATHS` | empty | `grep -E`: paths that count as docs for the full review's effort, on top of `docs/` and `*.md`, even when `RISKY_PATHS` names them (for example `^contracts/` when the contracts are specs). Never a gated path or agent configuration |
 | `FIXCHECK_RISKY` | `deploy/`, sign-in, login, auth, rights, permissions, sessions, secrets, tenancy, RLS, migrations, `*.sql`, schemas | The same for a fix-check's fix diff: medium instead of low effort |
 | `GATED_PATHS` | `^\.github/` | `grep -E`: a PR touching one waits for your accept ([`merging.md`](merging.md)). Agent configuration (`.claude/`, `.mcp.json`, `CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md`, at any depth) is always gated on top |
+| `USER_VISIBLE_PATHS` | empty | `grep -E`: a PR touching one always waits for the product owner, with the reason `users see it: <path>` (below, "User-visible paths"). Locked |
+| `TEST_PATHS` | `(^\|/)(tests?\|__tests__\|spec)/\|\.(test\|spec)\.[a-z]+$` | `grep -E`: test files. A path it matches never counts as user-visible |
 | `SECURITY_REVIEW_WHEN` | sign-in, rights, sessions, secrets, tenancy/RLS or `deploy/` | Words in the reviewer's prompt: it also runs the security-review skill when the diff touches these |
 | `PLANNER_EXTRA` | empty | The project's guidance for the planner, for example "aim for 2-4 issues per package" |
 | `REVIEW_EXTRA` | empty | More for the reviewer to check: "Check every acceptance criterion, <this>, and …" |
@@ -40,6 +42,22 @@ old path too).
 | `HIGH_RISK_PATHS` | the same as `RISKY_PATHS` | `grep -iE` on the health pass's diff: it is high risk (manual accept) when it touches one |
 | `HIGH_RISK_TEXT` | migrations, sign-in or auth, rights, sessions, secrets, tenancy/RLS, `deploy/` or CI configuration | High-risk content in words: the planner gives it a package of its own, the reviewer raises a package's `Risk:` line for it |
 | `PING_KINDS` | `all` | Which states ping `USER_LOGIN` ([`pings.md`](pings.md)): `all`, or some of `accept checkpoint plan question needs-you pr-needs-you`; empty: none. An unknown word pings nothing and is logged once |
+
+## User-visible paths
+
+A PR that changes what users see (pages, screens, wording, step briefs) waits for the product
+owner's accept, whatever its risk. `USER_VISIBLE_PATHS` names those paths; empty (the default)
+switches the rule off. The first changed path it matches that `TEST_PATHS` does not is the
+reason: `manual: users see it: web/pages/a.tsx`. A change to a page's tests alone stays
+technical. Gated paths and agent configuration are checked first: their reason wins.
+
+Step briefs, for example:
+
+```sh
+USER_VISIBLE_PATHS='^docs/briefs/'
+```
+
+`USER_VISIBLE_PATHS` is locked: the leader and the runs cannot change it. `TEST_PATHS` is open.
 
 ## Writing good rules
 

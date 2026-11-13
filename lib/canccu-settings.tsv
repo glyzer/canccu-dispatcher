@@ -31,6 +31,7 @@ PING	enum:on|off	project	locked
 INTERVAL	int:10:3600	project	open
 CI_WAIT_MIN	int:1:1440	project	open
 NO_CHECKS_MIN	int:1:1440	project	open
+IDLE_ALARM_MIN	int:1:10080	project	open
 MERGE_WAIT_MIN	int:1:10080	project	open
 MERGE_RETRY	int:0:20	project	open
 KEEP_ACCEPT_ON_MAIN_MERGE	enum:0|1	project	locked
@@ -58,6 +59,8 @@ EFFORT_DOCS_PATHS	regex	rules	open
 REVIEW_EFFORT_MAX	enum:low|medium|high|xhigh|max|	project	open
 FIXCHECK_RISKY	regex	rules	locked
 GATED_PATHS	regex	rules	locked
+USER_VISIBLE_PATHS	regex	rules	locked
+TEST_PATHS	regex	rules	open
 SECURITY_REVIEW_WHEN	text	rules	locked
 PLANNER_EXTRA	text	rules	open
 REVIEW_EXTRA	text	rules	locked
@@ -73,3 +76,6 @@ REVIEW_CHECKS	text	rules	locked
 HIGH_RISK_PATHS	regex	rules	locked
 HIGH_RISK_TEXT	text	rules	locked
 PING_KINDS	words:all|accept|checkpoint|plan|question|needs-you|pr-needs-you	project	locked
+LEADER	enum:on|off	project	locked
+LEADER_ACCEPTS	enum:technical|none	project	locked
+LEADER_ACCEPTS_HIGH_RISK	enum:0|1	project	locked

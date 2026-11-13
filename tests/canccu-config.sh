@@ -194,6 +194,11 @@ ok "FIXCHECK_FULL_LINES is in the table, locked (#91)" grep -qxP 'FIXCHECK_FULL_
 ok "… default 100" grep -qE '^FIXCHECK_FULL_LINES=100( |$)' "$root/lib/canccu-config.default"
 ok "KEEP_ACCEPT_ON_MAIN_MERGE is in the table, locked (#92)" grep -qxP 'KEEP_ACCEPT_ON_MAIN_MERGE\tenum:0\|1\tproject\tlocked' "$TSV"
 ok "… default 0" grep -qE '^KEEP_ACCEPT_ON_MAIN_MERGE=0( |$)' "$root/lib/canccu-config.default"
+ok "USER_VISIBLE_PATHS is in the table, a locked rules regex (#78)" grep -qxP 'USER_VISIBLE_PATHS\tregex\trules\tlocked' "$TSV"
+ok "… default empty" grep -qE "^USER_VISIBLE_PATHS=''( |$)" "$root/lib/canccu-config.default"
+ok "TEST_PATHS is in the table, an open rules regex (#78)" grep -qxP 'TEST_PATHS\tregex\trules\topen' "$TSV"
+ok "… its default" grep -qF "TEST_PATHS='(^|/)(tests?|__tests__|spec)/|\.(test|spec)\.[a-z]+\$'" "$root/lib/canccu-config.default"
+ok "… both in the rules template, commented out" eq "$(grep -cE '^# (USER_VISIBLE_PATHS|TEST_PATHS)=' "$root/profiles/default/rules")" 2
 
 # ---------------------------------------------------------------- config show
 
@@ -221,6 +226,10 @@ ok "config show: KEY=value lines" eq "$out" "REPO=example-org/web
 CAP=1"
 show --project web
 ok "config show: every setting" eq "$rc $(grep -c . <<<"$out")" "0 $(grep -vc '^#' "$TSV")"
+show --origin USER_VISIBLE_PATHS TEST_PATHS
+ok "config show: USER_VISIBLE_PATHS (locked) and TEST_PATHS (open) (#78)" eq "$out" "$H
+USER_VISIBLE_PATHS			default	locked
+TEST_PATHS	(^|/)(tests?|__tests__|spec)/|\.(test|spec)\.[a-z]+\$	(^|/)(tests?|__tests__|spec)/|\.(test|spec)\.[a-z]+\$	default	"
 
 cfgenv total-cap "TOTAL_CAP=4" "" "TOTAL_CAP=9"
 show --origin TOTAL_CAP
@@ -358,7 +367,10 @@ for a in leader run; do
     eq "$rc $out $(cmp -s "$P/rules" "$E/before"; echo $?)" "3 canccu-dispatcher: refused: GATED_PATHS is locked; only the product owner changes it 0"
   ok "… one history line: $a refused" eq "$(hist | tail -1 | cut -f2-6)" "$a	refused	GATED_PATHS	^\.github/	^x/"
 done
-ok "… two lines in all" eq "$(hist | wc -l)" 2
+out=$(CANCCU_ACTOR=leader "$root/bin/canccu-dispatcher" config set 'USER_VISIBLE_PATHS=^web/' 2>&1); rc=$?
+ok "CANCCU_ACTOR=leader config set USER_VISIBLE_PATHS: refused, locked (#78)" \
+  eq "$rc $out $(cmp -s "$P/rules" "$E/before"; echo $?)" "3 canccu-dispatcher: refused: USER_VISIBLE_PATHS is locked; only the product owner changes it 0"
+ok "… three lines in all" eq "$(hist | wc -l)" 3
 out=$(CANCCU_ACTOR=run "$root/bin/canccu-dispatcher" config unset GATED_PATHS 2>&1); rc=$?
 ok "a run's unset of a locked key is refused too" eq "$rc $(hist | tail -1 | cut -f2-6)" "3 run	refused	GATED_PATHS	^\.github/	-"
 cs set 'GATED_PATHS=^x/'

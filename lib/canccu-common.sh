@@ -273,12 +273,22 @@ kv_set() {
 # st_get <K> <key>, st_set <K> key=value...: a unit's state (K: an issue number or a package key);
 # values are single-line
 st_get() { kv_get "$(st_file "$1")" "$1" "$2"; }
-st_set() { local k=$1; shift; kv_set "$(st_file "$k")" "$k" "$@"; }
-# st_rm takes the file's lock too, and keeps the lock file: a writer waiting on it never runs
-# beside one that would lock a new one
+# A write of phase= runs unit_moved after it (the owner, the feed); _st_put never does.
+st_set() {
+  local k=$1 a new="" moved=0 old=""; shift
+  for a; do [[ $a == phase=* ]] && new=${a#phase=} moved=1; done
+  (( moved )) && old=$(st_get "$k" phase)
+  _st_put "$k" "$@" || return
+  (( ! moved )) || unit_moved "$k" "$old" "$new"
+}
+_st_put() { local k=$1; shift; kv_set "$(st_file "$k")" "$k" "$@"; }
+# st_rm <K> [new state]: takes the file's lock too, and keeps the lock file: a writer waiting on
+# it never runs beside one that would lock a new one. A waiting item the unit still holds (its
+# feed line, its idle line) settles first: no phase write announces a state that goes.
 st_rm() {
-  local f; f=$(st_file "$1")
+  local f id; f=$(st_file "$1")
   (( CANCCU_DRY )) && return 0
+  for id in $(st_get "$1" ev_id) $(st_get "$1" idle_ev); do feed_closed "$id" "${2:-gone}" "$1"; done
   ( flock -w 30 9 && rm -f "$f" ) 9>>"$(kv_lock "$f")"
 }
 # step_get <m> <key>, step_set <m> key=value...: a step's state, steps/<milestone number>
@@ -297,33 +307,6 @@ is_managed() { [ -f "$(st_file "$1")" ] || [ -n "${DRY_ST[$1.]+x}" ]; }
 backoff_until() { local b; b=$(cat "$CANCCU_ROOT/backoff" 2>/dev/null); [[ $b =~ ^[0-9]+$ ]] && echo "$b" || echo 0; }
 backing_off() { (( $(backoff_until) > $(now) )); }
 paused() { [ -e "$CANCCU_HOME/paused" ]; }
-
-# ---------------------------------------------------------------- the state format
-
-# state.format holds the format of state/ and steps/ (a missing file: 0, a release before it).
-# A release that adds or changes a state field raises STATE_FORMAT and adds state_migrate_<new>,
-# which prints what it did (docs/reference/state.md).
-STATE_FORMAT=1
-state_migrate_1() { echo "no field changes (the format file is new)"; }
-# state_migrate: run by canccu-dispatch under its lock before the first pass. An older release
-# after a newer one would misread fields it does not know: it stops instead. Under --dry-run it
-# only checks.
-state_migrate() {
-  local f="$CANCCU_HOME/state.format" v=0 what
-  if [ -e "$f" ]; then
-    v=$(tr -d '[:space:]' < "$f")
-    [[ $v =~ ^[0-9]+$ ]] || die "state format file ${f/#$HOME/\~} holds '$v', not a number"
-  fi
-  (( v > STATE_FORMAT )) && die "state format $v is newer than this release knows ($STATE_FORMAT); install a newer release"
-  while (( v < STATE_FORMAT )); do
-    if (( CANCCU_DRY )); then echo "  would: migrate the state format $v → $((v + 1))"; v=$((v + 1)); continue; fi
-    what=$("state_migrate_$((v + 1))") || die "state format $v → $((v + 1)) failed; the state stays at format $v"
-    # the number is written after each step: a migration that dies later starts from there
-    echo "$((v + 1))" > "$f.tmp" && mv -f "$f.tmp" "$f" || die "cannot write ${f/#$HOME/\~}"
-    log "state format $v → $((v + 1)): $what"
-    v=$((v + 1))
-  done
-}
 
 # ---------------------------------------------------------------- spend and progress
 
@@ -355,6 +338,10 @@ run_progress() {
 . "$_canccu_lib/canccu-colour.sh"
 # shellcheck source=canccu-usage.sh
 . "$_canccu_lib/canccu-usage.sh"
+# shellcheck source=canccu-stateformat.sh
+. "$_canccu_lib/canccu-stateformat.sh"
+# shellcheck source=canccu-feed.sh
+. "$_canccu_lib/canccu-feed.sh"
 # shellcheck source=canccu-units.sh
 . "$_canccu_lib/canccu-units.sh"
 # shellcheck source=canccu-runs.sh

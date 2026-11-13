@@ -237,7 +237,7 @@ gated_re() { echo "${GATED_PATHS:+$GATED_PATHS|}$AGENT_PATHS"; }
 #   risk: a package's effective class with its source, e.g. "high (plan)"
 #   → "auto" or "manual: <first reason>"
 classify_pure() {
-  local files=$1 body=$2 labels=$3 maccept=$4 repo=$5 plan_ok=${6:-0} risk=${7:-} p
+  local files=$1 body=$2 labels=$3 maccept=$4 repo=$5 plan_ok=${6:-0} risk=${7:-} p t rc
   [ "$repo" = "$REPO" ] || { echo "manual: another repo ($repo)"; return; }
   if (( ! plan_ok )) && { grep -qE '^docs/plans/(issue-[0-9]+|pkg-[0-9]+-[a-z0-9-]+)\.md$' <<<"$files" || is_plan_body "$body"; }; then
     echo "manual: plan tier"; return
@@ -248,6 +248,15 @@ classify_pure() {
     elif [[ $p == */* ]] && grep -qE "$GATED_PATHS" <<<"${p%%/*}/"; then echo "manual: changes ${p%%/*}/ ($p)"
     else echo "manual: changes a gated path ($p)"; fi
     return
+  fi
+  if [ -n "$USER_VISIBLE_PATHS" ]; then
+    # a pattern grep refuses waits too (grep's status 2): a typo must never make a page auto
+    p=$(grep -E "$USER_VISIBLE_PATHS" <<<"$files"); rc=$?
+    (( rc > 1 )) && { echo "manual: users see it: USER_VISIBLE_PATHS is not a valid pattern"; return; }
+    if [ -n "$p" ] && [ -n "$TEST_PATHS" ]; then
+      t=$(grep -vE "$TEST_PATHS" <<<"$p"); (( $? > 1 )) || p=$t
+    fi
+    [ -n "$p" ] && { echo "manual: users see it: ${p%%$'\n'*}"; return; }
   fi
   grep -qx manual-accept <<<"$labels" && { echo "manual: the issue has manual-accept"; return; }
   [[ $risk == high* ]] && { echo "manual: risk $risk"; return; }

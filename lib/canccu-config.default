@@ -37,6 +37,7 @@ PING=on                     # on|off: @mention USER_LOGIN in a comment as REVIEW
 INTERVAL=60                 # seconds between passes
 CI_WAIT_MIN=90              # a finished worker's PR with CI still pending this long → needs-you
 NO_CHECKS_MIN=10            # a finished worker's PR with no CI check reported this long → needs-you
+IDLE_ALARM_MIN=60           # a unit no rule moved this long, with nothing running → one idle line in the feed
 MERGE_WAIT_MIN=240          # auto-merge armed this long without a merge → disarmed, needs-you
 MERGE_RETRY=3               # a merge that fails on a GitHub server error is tried again on this many passes, then needs-you
 KEEP_ACCEPT_ON_MAIN_MERGE=0 # 1: an accept carries over a push that is a clean merge of main only; keep 0 until package S2
@@ -76,6 +77,10 @@ FIXCHECK_RISKY='(^|/)deploy/|sign-?in|login|auth|rights|permission|session|secre
 # gated paths (grep -E): a PR touching one waits for the user's accept. Agent configuration
 # (.claude/, .mcp.json, CLAUDE.md, AGENTS.md) is always gated on top of these.
 GATED_PATHS='^\.github/'
+# grep -E on the PR's paths: a match always waits for the product owner (pages, screens,
+# wording, step briefs); a path TEST_PATHS matches never counts
+USER_VISIBLE_PATHS=''
+TEST_PATHS='(^|/)(tests?|__tests__|spec)/|\.(test|spec)\.[a-z]+$'   # grep -E: test files, never user-visible
 SECURITY_REVIEW_WHEN='sign-in, rights, sessions, secrets, tenancy/RLS or deploy/'   # the reviewer also runs security-review when the diff touches these
 PLANNER_EXTRA=''            # the project's guidance for the planner, e.g. "aim for 2-4 issues per package"
 REVIEW_EXTRA=''             # more for the reviewer to check: "Check every acceptance criterion, <this>, and …"
@@ -91,3 +96,8 @@ REVIEW_CHECKS="review-gate" # checks that wait for the review verdict: not requi
 HIGH_RISK_PATHS='^(\.github|deploy)/|migration|sign-?in|login|auth|rights|permission|session|secret|tenan|rls'   # grep -iE: a health pass touching one is high risk
 HIGH_RISK_TEXT='migrations, sign-in or auth, rights, sessions, secrets, tenancy/RLS, deploy/ or CI configuration'   # high-risk content, in words, for the planner and the reviewer
 PING_KINDS=all              # the ping kinds (PING=on): all, or some of accept checkpoint plan question needs-you pr-needs-you; empty: none
+# the leader (an optional AI session that watches the project): which waiting items are its, and
+# not the product owner's (docs/reference/lead.md). LEADER=off: every item is the product owner's
+LEADER=off                  # on or off
+LEADER_ACCEPTS=none         # technical or none: the accepts the owner rule gives the leader
+LEADER_ACCEPTS_HIGH_RISK=0  # 1: a high-risk accept is the leader's too (LEADER_ACCEPTS=technical)

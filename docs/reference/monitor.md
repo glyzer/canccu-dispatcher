@@ -19,8 +19,10 @@ a phone over ssh (80×30). Top to bottom:
   slots in use against `TOTAL_CAP`, the clock, today's spend (`≥` while a run had no reported
   cost), the freeze date, and the 5-hour and weekly usage with their reset times. Banners below:
   "dispatcher not running?", a failed pass, a newer schema, sections from an earlier pass.
-- **NEEDS YOU**, a red box that is never dropped: one card per item of every project, oldest
-  first. Line 1: the verb (`ACCEPT`, `STUCK`, `QUESTION`, `PLAN OK?`, `CHECKPOINT`, `PLAN BAD`,
+- **NEEDS YOU**, a red box that is never dropped: one card per item of every project whose owner is the product owner
+  ([`lead.md`](lead.md#the-owner-of-a-waiting-item); an item with no `owner` counts as theirs), oldest
+  first; with none, `nothing needs you`. Under the box, `LEADER: <n> items · oldest <age>` counts
+  the leader's items, listed as `#<i> <kind> <age>` on a wide screen, only the count on a phone. Line 1: the verb (`ACCEPT`, `STUCK`, `QUESTION`, `PLAN OK?`, `CHECKPOINT`, `PLAN BAD`,
   `BUDGET`), the project, the issue and PR, the reason, since when, and the stage it parked at.
   Line 2: `how:` the action that clears it (for an accept: "label PR #n accepted, or canccu-ship
   <n>"). Line 3: the title. Line 4: the URLs, as text a phone can copy and as terminal links.

@@ -100,3 +100,64 @@ unit_of_branch() {
   done
   return 0
 }
+
+# owner_of <K> <kind>: who a waiting item of the unit (or a step's issue) is for, po or leader, by
+# the owner rule of docs/plan/contracts.md §1; kind: a snap_need or ping kind. It reads only the
+# dispatcher's own state and settings, never a label the leader sets (manual-accept is the
+# product owner's). Rule 7 (the hand-over) needs the leader's acknowledgement: not built yet.
+owner_of() {
+  local k=$1 kind=$2 r m
+  [ "${LEADER:-off}" = on ] || { echo po; return 0; }
+  case $kind in checkpoint|budget|plan-invalid|dispatcher) echo po; return 0 ;; esac
+  r=$(st_get "$k" reason 2>/dev/null); r=${r#manual: }
+  # rule 3: a plan-tier question, or one the answerer escalated (needs_you names its "Needs the
+  # product owner:" comment's link, or the answerer finished without one); an answerer that
+  # stopped without escalating leaves it to the leader
+  if [ "$kind" = question ]; then
+    [[ $r == *"always for the product owner"* || $r == *"needs the product owner (http"* ]] && { echo po; return 0; }
+    [[ $r == *"needs the product owner"* && $r != *"; the answerer stopped:"* ]] && { echo po; return 0; }
+  fi
+  if [ "$kind" = accept ]; then
+    case $r in
+      "users see it:"*|"changes agent config"*|"changes a gated path"*|"changes "*"/ ("*|"maintainer accept:"*|"the issue has manual-accept"*)
+        echo po; return 0 ;;
+    esac
+    [[ $r == "risk high"* ]] && [ "${LEADER_ACCEPTS_HIGH_RISK:-0}" != 1 ] && { echo po; return 0; }
+    [ "${LEADER_ACCEPTS:-none}" = technical ] || { echo po; return 0; }
+  fi
+  # rule 5: a plan (its needs-you, or the accept of its plan PR) of a unit marked manual-accept
+  if [ "$kind" = plan ] || [ "$r" = "plan tier" ]; then
+    for m in $(members_of "$k"); do
+      jqr --argjson n "$m" 'any(.[]; .number == $n and any(.labels[]?; .name == "manual-accept"))' <<<"${ISSUES:-[]}" 2>/dev/null |
+        grep -qx true && { echo po; return 0; }
+    done
+  fi
+  echo leader
+}
+# need_owner <K> <kind>: the owner of a waiting item as shown and pinged: the one stored when the
+# unit entered accept or needs-you, else owner_of. LEADER=off wins over a stored leader (the
+# setting was switched off since).
+need_owner() {
+  local o=""
+  [ "${LEADER:-off}" = on ] || { echo po; return 0; }
+  [ -n "$1" ] && is_managed "$1" && o=$(st_get "$1" owner)
+  echo "${o:-$(owner_of "$1" "$2")}"
+}
+# ny_item_kind <K>: the item kind of a unit in phase needs-you: plan, question or needs-you
+ny_item_kind() {
+  case $(st_get "$1" ny_kind) in plan) echo plan ;; question) echo question ;; *) echo needs-you ;; esac
+}
+# unit_moved <K> <old phase> <new phase>: st_set's hook on every write of phase: the owner is set
+# on entering accept or needs-you (again on a needs-you with a new kind) and goes on leaving them;
+# phase_at (the idle alarm's clock) moves only with a new phase; then the feed's lines
+unit_moved() {
+  local k=$1 new=$3 kv=()
+  [ "$2" = "$new" ] || kv+=(phase_at="$(now)")
+  case $new in
+    accept) kv+=(owner="$(owner_of "$k" accept)") ;;
+    needs-you) kv+=(owner="$(owner_of "$k" "$(ny_item_kind "$k")")") ;;
+    *) [ -z "$(st_get "$k" owner)" ] || kv+=(owner=) ;;
+  esac
+  (( ${#kv[@]} == 0 )) || _st_put "$k" "${kv[@]}"
+  feed_unit_moved "$k" "$2" "$new"
+}

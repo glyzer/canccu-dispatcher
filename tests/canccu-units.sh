@@ -124,6 +124,63 @@ ok "risk: the health pass is normal → auto" eq "$(lf classify 50 pkg-12-health
 json files50.json '[{"filename": "db/migrations/0003.sql"}]'
 ok "… high when it touches HIGH_RISK_PATHS" eq "$(lf classify 50 pkg-12-health)" "manual: risk high (paths)"
 
+# ---------------------------------------------------------------- user-visible paths (#78)
+
+uvc() { USER_VISIBLE_PATHS='^web/pages/'; classify_pure "$@"; }
+uv() { lib uvc "$@"; }
+ok "user-visible: a page → manual, users see it" eq "$(uv web/pages/a.tsx "" "" "" example-org/web 0)" "manual: users see it: web/pages/a.tsx"
+ok "… the first matching path that is no test" eq "$(uv $'src/a.ts\nweb/pages/tests/a.test.tsx\nweb/pages/b.tsx' "" "" "" example-org/web 0)" "manual: users see it: web/pages/b.tsx"
+ok "… only a page's tests → auto" eq "$(uv web/pages/tests/a.test.tsx "" "" "" example-org/web 0)" auto
+ok "… a .spec file beside the page → auto" eq "$(uv web/pages/a.spec.tsx "" "" "" example-org/web 0)" auto
+ok "… a gated path and a page: the gated reason" eq "$(uv $'.github/x.yml\nweb/pages/a.tsx' "" "" "" example-org/web 0)" "manual: changes .github/ (.github/x.yml)"
+ok "… before the manual-accept label" eq "$(uv web/pages/a.tsx "" manual-accept "" example-org/web 0)" "manual: users see it: web/pages/a.tsx"
+ok "… TEST_PATHS is the project's" eq "$(lib eval "USER_VISIBLE_PATHS='^docs/briefs/'; TEST_PATHS='^docs/briefs/drafts/'; classify_pure docs/briefs/drafts/x.md '' '' '' example-org/web 0")" auto
+ok "… a pattern grep refuses waits" eq "$(lib eval "USER_VISIBLE_PATHS='(web'; classify_pure src/a.ts '' '' '' example-org/web 0")" "manual: users see it: USER_VISIBLE_PATHS is not a valid pattern"
+ok "… a TEST_PATHS grep refuses: no path counts as a test" eq "$(lib eval "USER_VISIBLE_PATHS='^web/'; TEST_PATHS='(t'; classify_pure web/tests/a.ts '' '' '' example-org/web 0")" "manual: users see it: web/tests/a.ts"
+ok "USER_VISIBLE_PATHS empty: the answers of today" eq "$(c web/pages/a.tsx "" "" "" example-org/web 0) | $(c web/pages/a.tsx "" manual-accept "" example-org/web 0) | $(c web/pages/a.tsx "" "" "" example-org/web 0 "high (plan)")" "auto | manual: the issue has manual-accept | manual: risk high (plan)"
+
+# ---------------------------------------------------------------- the owner of a waiting item (#70)
+
+env_new owner
+{ issue 5 ""; issue 6 manual-accept; } | issues
+# ow <K> <kind> [settings...]: owner_of with the settings, the pass's issues loaded
+ow() { local k=$1 kind=$2; shift 2; lib eval "ISSUES=\$(cat '$FAKE/issues.json'); $*; owner_of $k $kind"; }
+rsn() { state "$1" "reason=$2"; }
+rows=""
+for r in "manual: plan tier" "manual: risk high (plan)" "manual: users see it: x" "manual: on or after AUTO_MERGE_UNTIL (2030-01-01)" \
+         "the worker stopped: crashed (exit 1)" "the worker's question needs the product owner (https://x)"; do
+  rsn 5 "$r"
+  for kind in accept plan question needs-you pr-needs-you checkpoint budget plan-invalid; do
+    rows+="$(ow 5 "$kind" "LEADER_ACCEPTS=technical LEADER_ACCEPTS_HIGH_RISK=1") "
+  done
+done
+ok "owner: LEADER=off (the default): po for every kind and reason (rule 1)" eq "$(tr ' ' '\n' <<<"$rows" | sort -u | grep .)" po
+L="LEADER=on LEADER_ACCEPTS=technical"
+rsn 5 "manual: risk high (plan)"
+ok "owner: LEADER=on, technical: risk high → po while LEADER_ACCEPTS_HIGH_RISK=0" eq "$(ow 5 accept "$L")" po
+ok "… LEADER_ACCEPTS_HIGH_RISK=1 → leader" eq "$(ow 5 accept "$L LEADER_ACCEPTS_HIGH_RISK=1")" leader
+rsn 5 "manual: users see it: x"; ok "… users see it → po" eq "$(ow 5 accept "$L")" po
+rsn 5 "manual: plan tier"; ok "… plan tier → leader" eq "$(ow 5 accept "$L")" leader
+ok "… LEADER_ACCEPTS=none: plan tier → po" eq "$(ow 5 accept "LEADER=on LEADER_ACCEPTS=none")" po
+rows=""
+for r in "manual: changes agent config (CLAUDE.md)" "manual: changes a gated path (a/infra/x)" "manual: changes .github/ (.github/x.yml)" \
+         "manual: maintainer accept: breaking contract" "manual: the issue has manual-accept"; do
+  rsn 5 "$r"; rows+="$(ow 5 accept "$L LEADER_ACCEPTS_HIGH_RISK=1") "
+done
+ok "… gated, agent config, <dir>/, maintainer accept, manual-accept → po" eq "$rows" "po po po po po "
+ok "… a checkpoint, a budget, an invalid plan → po" eq "$(ow 5 checkpoint "$L") $(ow 5 budget "$L") $(ow 5 plan-invalid "$L")" "po po po"
+rsn 5 "the worker's question needs the product owner (https://github.com/example-org/web/issues/5#c1)"
+ok "… a question the answerer escalated → po" eq "$(ow 5 question "$L")" po
+rsn 5 "the worker's question needs the product owner; the answerer stopped: crashed"
+ok "… one it did not → leader" eq "$(ow 5 question "$L")" leader
+rsn 5 "the worker asks a plan-tier question (always for the product owner)"
+ok "… a plan-tier question → po (rule 3)" eq "$(ow 5 question "$L")" po
+rsn 5 "the worker's question needs the product owner"
+ok "… an escalated question whose comment link was not found → po" eq "$(ow 5 question "$L")" po
+rsn 5 "the worker stopped: crashed (exit 1)"
+ok "… a needs-you, a PR's needs-you → leader (rule 6)" eq "$(ow 5 needs-you "$L") $(ow 5 pr-needs-you "$L")" "leader leader"
+rsn 6 "x"; ok "… a plan of a unit with an issue labelled manual-accept → po (rule 5)" eq "$(ow 6 plan "$L") $(ow 5 plan "$L")" "po leader"
+
 # ---------------------------------------------------------------- finishing a package (task 6)
 
 pkgpr pkg-finish "101 103"

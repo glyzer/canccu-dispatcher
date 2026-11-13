@@ -41,6 +41,26 @@ ok "… recorded" eq "$(cat "$CANCCU_HOME/pings/5" 2>/dev/null)" accept
 dispatch --once
 ok "… a second pass: none" eq "$(pings '^(issue|pr) comment')" 1
 
+# the owner (#70): a mention goes only to the product owner's items
+env_new ping-owner PING_KINDS=all LEADER=on LEADER_ACCEPTS=technical
+{ issue 5 in-progress,awaiting-accept; issue 6 in-progress,awaiting-accept; } | issues
+{ pr 50 5 $HA green; pr 60 6 $HB green; } | prs
+state 5 phase=accept pr=50 accept_sha=$HA "accept_at=$((NOW - 60))" "reason=manual: plan tier"
+state 6 phase=accept pr=60 accept_sha=$HB "accept_at=$((NOW - 60))" "reason=manual: users see it: web/pages/a.tsx"
+dispatch --once
+ok "owner: an accept of owner leader is not pinged" eq "$(pings '^issue comment 5 ') $(test -e "$CANCCU_HOME/pings/5"; echo $?)" "0 1"
+ok "… one of owner po is" eq "$(pings '^issue comment 6 -R example-org/web --body @octo PR #60 waits for your accept')" 1
+
+# a step's epic labelled needs-you by STEP_BUDGET or an invalid plan: po's, as the snapshot shows it
+env_new ping-owner-step PING_KINDS=all LEADER=on LEADER_ACCEPTS=technical
+{ issue 90 epic,needs-you; issue 91 epic,needs-you; issue 92 epic,needs-you; } | issues
+mkdir -p "$CANCCU_HOME/steps"
+printf 'phase=running\ntitle=3 Events\nepic=90\nbudget_ny=1\n' > "$CANCCU_HOME/steps/12"
+printf 'phase=needs-you\ntitle=4 More\nepic=91\nny_reason=the plan of wave 2 is invalid: x\n' > "$CANCCU_HOME/steps/13"
+printf 'phase=running\ntitle=5 Last\nepic=92\n' > "$CANCCU_HOME/steps/14"
+ok "owner: LEADER=on, a STEP_BUDGET stop and an invalid plan are still pinged; another step needs-you is the leader's" \
+  eq "$(lib eval "ISSUES=\$(cat '$FAKE/issues.json'); PRS='[]'; ping_states" | tr '\n' ' ')" "90 needs-you - 91 needs-you - END "
+
 env_new ping-plan-question PING_KINDS=all
 { issue 5 in-progress,needs-you; issue 6 in-progress,needs-you; issue 7 in-progress,needs-you; } | issues
 state 5 phase=needs-you "ny_at=$NOW" "reason=plan ready for OK: https://github.com/example-org/web/pull/50" ny_kind=plan

@@ -10,7 +10,7 @@ Every file is shell `KEY=value` lines. A `canccu-*` command reads, in this order
 
 1. `lib/canccu-config.default`: the defaults, for every project;
 2. `hosts/<HOST_PROFILE>.conf`: the host profile, the values that suit the Claude plan and the
-   host (see "Host profiles" below);
+   host ([`hosts.md`](hosts.md#host-profiles));
 3. `~/.canccu/config`: the global config, a default for every project on this host;
 4. `~/.canccu/projects/<name>/rules`: the project's rules ([`rules.md`](rules.md));
 5. `~/.canccu/projects/<name>/config`: the project's config.
@@ -90,7 +90,11 @@ is stopped and its issue goes to `needs-you`.
 | `DIGEST_HOUR_UTC` | `6` | The daily digest is written on the first pass at or after this hour (UTC) |
 | `DIGEST_ISSUE` | empty | The issue the digest is posted on as a comment; empty: the digest is only written to `digest/<date>.md` |
 | `PING` | `on` | `on`: when something needs you, one comment as `REVIEWER_LOGIN` @mentions `USER_LOGIN` ([`pings.md`](pings.md)); `off`: never |
+| `LEADER` | `off` | `on`: the owner rule gives a leader the waiting items that are not the product owner's ([`lead.md`](lead.md#the-owner-of-a-waiting-item)). Locked |
+| `LEADER_ACCEPTS` | `none` | `technical`: the leader owns the accepts the rule does not give the product owner. Locked |
+| `LEADER_ACCEPTS_HIGH_RISK` | `0` | `1`: … a high-risk one too. Locked |
 | `INTERVAL` | `60` | Seconds between passes |
+| `IDLE_ALARM_MIN` | `60` | A managed unit with no run, not waiting for a person, whose phase has not changed for this many minutes writes one `idle` line in the feed ([`lead.md`](lead.md#the-feed)) |
 | `CI_WAIT_MIN` | `90` | A finished worker's PR whose CI is still pending after this many minutes goes to `needs-you` |
 | `NO_CHECKS_MIN` | `10` | A finished worker's PR with no CI check reported at all after this many minutes goes to `needs-you` ("is CI set up for this repo, or did a path filter skip it?") |
 | `MERGE_WAIT_MIN` | `240` | Auto-merge armed this long without a merge is disarmed, and the PR goes to `needs-you` |
@@ -131,32 +135,3 @@ reads it, and so will `config set` and the monitor's Settings view.
   ≥ 1, single spaces); `regex` (empty, or accepted by `grep -E`); `words:<a>|<b>|…` (zero or more
   of the words, by commas or spaces); `date` (empty or `YYYY-MM-DD`); `name` (empty or
   `[A-Za-z0-9._:/[]-]` characters); `text` (anything on one line).
-
-## Host profiles
-
-A host profile pins the values that depend on the Claude plan and the host, so a later change to
-the defaults does not move a running host. `hosts/max.conf` (a Claude Max plan) sets today's
-defaults of `CAP`, `TOTAL_CAP`, every `BUDGET_*` key, `STEP_BUDGET`, `USAGE_SLOW`, `USAGE_STOP`
-and `USAGE_WEEKLY_DRAIN`. `hosts/pro.conf` (a Claude Pro plan) sets the same keys for one run
-at a time with small budgets, and `REVIEW_EFFORT_MAX=medium`. Neither sets a model.
-`~/.canccu/config` overrides any of them. `install.sh --host-profile
-<name>` adds `HOST_PROFILE=<name>` to a config without that key.
-
-The tools read `HOST_PROFILE` from `~/.canccu/config` in a subshell, so nothing else in that
-file applies before the profile. A tmux server keeps the environment it started with: a
-dispatcher that `canccu-up` starts there does not see a `CANCCU_HOST_PROFILE` you export later,
-so set the profile in the config file.
-
-## Environment variables
-
-- `CANCCU_ROOT`: the state dir (default `~/.canccu`). The same tmux caveat as above applies.
-- `CANCCU_PROJECT`: the project, instead of `--project <name>`; `canccu-up` sets it in every
-  pane of a project's session.
-- `CANCCU_HOST_PROFILE`: the host profile for one command.
-- `CANCCU_VENV`: the monitor's venv (default `~/.local/share/canccu/venv`).
-- `CANCCU_TMUX_SESSION`: the default project's tmux session name (default `canccu`).
-- `NO_COLOR`: no colour in the dispatcher's pane and the monitor.
-
-Two values are constants in the code, not keys: a usage-limit back-off adds a margin of 120 s
-to the reset time (`USAGE_MARGIN`), and a fix-check runs at medium effort above 300 changed lines
-(`FIXCHECK_BIG`).

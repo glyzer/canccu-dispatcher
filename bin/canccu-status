@@ -73,17 +73,20 @@ if [ -n "$others" ]; then
   done < <(tr '\t' '\037' <<<"$others")
 fi
 
-awaiting="" merging="" waiting=""
+# the leader's accepts and needs-you (need_owner) follow the product owner's under their own heading
+awaiting="" merging="" waiting="" lawaiting="" lwaiting=""
 for n in $(managed); do
   case $(st_get "$n" phase) in
-    accept) awaiting+="  #$n · PR #$(st_get "$n" pr) · $(st_get "$n" reason)"$'\n' ;;
+    accept) l="  #$n · PR #$(st_get "$n" pr) · $(st_get "$n" reason)"$'\n'
+            if [ "$(need_owner "$n" accept)" = leader ]; then lawaiting+="  $l"; else awaiting+=$l; fi ;;
     merging) case $(st_get "$n" merge_mode) in direct) m="merges directly once CI is green" ;; merged) m="merged directly" ;; *) m="auto-merge on" ;; esac
              merging+="  #$n · PR #$(st_get "$n" pr) · $m ($(st_get "$n" how))"$'\n' ;;
     question) waiting+="  #$n · question; an answerer starts when a slot is free"$'\n' ;;
     answer) ;;
     review) f=$(st_get "$n" post_fails)
             [ "$(st_get "$n" post_ny)" = 1 ] && waiting+="  #$n · the $(stage_of "$n") of PR #$(st_get "$n" pr) could not be posted ($f tries); retried each pass"$'\n' ;;
-    needs-you) waiting+="  #$n · $(st_get "$n" reason) · $(ago "$(st_get "$n" ny_at)")"$'\n' ;;
+    needs-you) l="  #$n · $(st_get "$n" reason) · $(ago "$(st_get "$n" ny_at)")"$'\n'
+               if [ "$(need_owner "$n" "$(ny_item_kind "$n")")" = leader ]; then lwaiting+="  $l"; else waiting+=$l; fi ;;
     limited) waiting+="  #$n · usage limit; resumes after the back-off"$'\n' ;;
     retry) waiting+="  #$n · the worker stopped ($(st_get "$n" retry_status)); a fresh run starts when a slot is free"$'\n' ;;
     waiting) waiting+="  #$n · waits: $(st_get "$n" reason) (resumes once \`blocked\` goes)"$'\n' ;;
@@ -92,9 +95,11 @@ for n in $(managed); do
 done
 printf 'awaiting accept (label the PR `accepted`, or canccu-ship <n>):\n%s' "${awaiting:-  none
 }"
+[ -n "$lawaiting" ] && printf '  leader has it:\n%s' "$lawaiting"
 [ -n "$merging" ] && printf 'merging:\n%s' "$merging"
 printf 'needs you:\n%s' "${waiting:-  none
 }"
+[ -n "$lwaiting" ] && printf '  leader has it:\n%s' "$lwaiting"
 
 if fetch; then
   other=$(jqr '.[] | select(any(.labels[]; .name == "needs-you")) | .number' <<<"$ISSUES" |
