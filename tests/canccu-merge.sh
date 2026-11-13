@@ -238,9 +238,49 @@ ok "a merged PR whose Closes names the still open issue → no needs-you on the 
 dispatch --once
 ok "… nor on the next pass within MERGE_WAIT_MIN" eq "$(grep -c needs-you "$FAKE/gh.log") $(st 5 gone_at)" "0 $NOW"
 sed -i "s/^gone_at=.*/gone_at=$((NOW - 241 * 60))/" "$CANCCU_HOME/state/5"
+echo 'fail:issue close' >> "$FAKE/routes"
 dispatch --once
-ok "… still open after MERGE_WAIT_MIN → released with needs-you" \
+ok "… still open after MERGE_WAIT_MIN, its close failing → released with needs-you" \
   eq "$(grep -c "$NY5" "$FAKE/gh.log") $(test -e "$CANCCU_HOME/state/5" && echo state)" "1 "
+
+# #139: a named issue GitHub left open is closed by the dispatcher after MERGE_CLOSE_MIN
+CLOSES56='{"state": "MERGED", "title": "Package a", "body": "Closes #5\nCloses #6", "closingIssuesReferences": [{"number": 5}, {"number": 6}], "headRefName": "pkg-1-a"}'
+CL='Closed by canccu-dispatch: PR #50 merged and names this issue as closing, but GitHub left it open.'
+gone_env merged-close-both pkg-1-a "$CLOSES56" pkg=a "members=5 6" branch=pkg-1-a "gone_at=$((NOW - 3 * 60))"
+{ issue 5 in-progress; issue 6 in-progress; } | issues
+dispatch --once
+ok "both named members still open past MERGE_CLOSE_MIN → each closed with the comment" \
+  eq "$(grep -c "^issue close 5 -R example-org/web --reason completed --comment $CL" "$FAKE/gh.log") $(grep -c "^issue close 6 -R example-org/web --reason completed --comment $CL" "$FAKE/gh.log")" "1 1"
+ok "… no needs-you" eq "$(grep -c needs-you "$FAKE/gh.log")" 0
+ok "… the close lines, then the merged line" eq "$(grep -oE '#pkg-1-a (PR #50 merged; closed #[56] \(GitHub left it open\)|merged \(PR #50, auto\))' "$CANCCU_HOME/dispatch.log" | tr '\n' '|')" \
+  '#pkg-1-a PR #50 merged; closed #5 (GitHub left it open)|#pkg-1-a PR #50 merged; closed #6 (GitHub left it open)|#pkg-1-a merged (PR #50, auto)|'
+ok "… released, both advanced, counted as merged" \
+  eq "$(test -e "$CANCCU_HOME/state/pkg-1-a" && echo state) $(grep -c 'issues/[56]/dependencies/blocking' "$FAKE/gh.log")" " 2"
+ok "… in-progress taken off the closed members" eq "$(grep -c '^issue edit [56] .*--remove-label in-progress' "$FAKE/gh.log")" 2
+
+gone_env merged-close-early pkg-1-a "$CLOSES56" pkg=a "members=5 6" branch=pkg-1-a "gone_at=$((NOW - 60))"
+{ issue 5 in-progress; issue 6 in-progress; } | issues
+dispatch --once
+ok "named members open within MERGE_CLOSE_MIN → nothing closed, the unit kept" \
+  eq "$(grep -c '^issue close' "$FAKE/gh.log") $(st pkg-1-a phase)" "0 merging"
+
+gone_env merged-close-fail pkg-1-a "$CLOSES56" pkg=a "members=5 6" branch=pkg-1-a "gone_at=$((NOW - 3 * 60))"
+{ issue 5 in-progress; issue 6 in-progress; } | issues
+echo 'fail:issue close' >> "$FAKE/routes"
+dispatch --once
+ok "gh issue close failing → logged to retry, the unit kept" \
+  eq "$(grep -cF '#pkg-1-a: gh error closing issue #5; retrying next pass' "$CANCCU_HOME/dispatch.log") $(st pkg-1-a phase) $(grep -c needs-you "$FAKE/gh.log")" "1 merging 0"
+: > "$FAKE/routes"; : > "$FAKE/gh.log"; route 'pr view 50 *' pr50.json
+dispatch --once
+ok "… the next pass, gh working, closes it and releases the unit" \
+  eq "$(grep -c "^issue close 5 -R example-org/web --reason completed --comment $CL" "$FAKE/gh.log") $(test -e "$CANCCU_HOME/state/pkg-1-a" && echo state)" "1 "
+
+gone_env merged-close-mixed pkg-1-a "$CLOSES5" pkg=a "members=5 6" branch=pkg-1-a "gone_at=$((NOW - 3 * 60))"
+{ issue 5 in-progress; issue 6 in-progress; } | issues
+dispatch --once
+ok "one member named, one not → the named one closed, the other needs-you as before" \
+  eq "$(grep -c '^issue close 5 ' "$FAKE/gh.log") $(grep -c '^issue close 6 ' "$FAKE/gh.log") $(grep -c '^issue edit 6 .*--add-label needs-you' "$FAKE/gh.log") $(grep -c '^issue edit 5 .*needs-you' "$FAKE/gh.log")" "1 0 1 0"
+ok "… logged, the unit released" eq "$(grep -cF '#pkg-1-a PR #50 merged but left #6 open: needs-you, unit released' "$CANCCU_HOME/dispatch.log") $(test -e "$CANCCU_HOME/state/pkg-1-a" && echo state)" "1 "
 
 gone_env merged-pkg pkg-1-a '{"state": "MERGED", "title": "Package a", "body": "Closes #6", "closingIssuesReferences": [{"number": 6}], "headRefName": "pkg-1-a"}' \
   pkg=a "members=5 6" branch=pkg-1-a

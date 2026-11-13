@@ -22,27 +22,38 @@ pr_gone() {
 }
 
 # merged_left <K> <pr> <pr view json>: the unit's PR merged with a member still open. One its
-# `Closes` names is closed by GitHub a moment later: wait for that (gone_at), at most
-# MERGE_WAIT_MIN. A member it does not name (or one still open after the wait) never closes on its
-# own; parking the unit would block the `ready` that restarts it, so the unit is released and the
-# member waits for a person with needs-you. The open list is capped: a member missing from it is
-# confirmed with gh, and a gh error decides nothing (the next pass tries again).
+# `Closes` names is closed by GitHub a moment later: wait for that (gone_at), MERGE_CLOSE_MIN, then
+# close it ourselves (GitHub sometimes leaves it open, as after a 5xx on the merge call). A close
+# that keeps failing falls to the MERGE_WAIT_MIN bound. A member it does not name (or a named one
+# still open after that) never closes on its own; parking the unit would block the `ready` that
+# restarts it, so the unit is released and the member waits for a person with needs-you. The open
+# list is capped: a member missing from it is confirmed with gh, and a gh error decides nothing
+# (the next pass tries again).
 merged_left() {
-  local k=$1 pr=$2 j=$3 m l r s left=() open=() closed=() at
+  local k=$1 pr=$2 j=$3 m l r s left=() named=() closed=() at
   for m in $(members_of "$k"); do
     if _issue_open "$m"; then s=OPEN
     else s=$(ghj issue view "$m" -R "$REPO" --json state -q .state) && [ -n "$s" ] ||
       { log "#$k: gh error reading issue #$m; retrying next pass"; return 0; }
     fi
     if [ "$s" != OPEN ]; then closed+=("$m"); continue; fi
-    open+=("$m")
-    [ "$(jqr --argjson m "$m" 'any(.closingIssuesReferences[]?; .number == $m)' <<<"$j")" = true ] || left+=("$m")
+    if [ "$(jqr --argjson m "$m" 'any(.closingIssuesReferences[]?; .number == $m)' <<<"$j")" = true ]; then named+=("$m")
+    else left+=("$m"); fi
   done
-  if (( ! ${#left[@]} )); then
+  if (( ${#named[@]} )); then
     at=$(st_get "$k" gone_at)
     [ -n "$at" ] || { st_set "$k" gone_at="$(now)"; return 0; }
-    (( $(now) - at > MERGE_WAIT_MIN * 60 )) || return 0
-    left=("${open[@]}")
+    (( $(now) - at > MERGE_CLOSE_MIN * 60 )) || return 0
+    for m in "${named[@]}"; do
+      if mut gh issue close "$m" -R "$REPO" --reason completed --comment "Closed by canccu-dispatch: PR #$pr merged and names this issue as closing, but GitHub left it open."$'\n\n'"$CANCCU_MARK"; then
+        closed+=("$m")
+        log "#$k PR #$pr merged; closed #$m (GitHub left it open)"
+        r=(); for l in in-progress awaiting-accept needs-you; do has_label "$m" "$l" && r+=(--remove-label "$l"); done
+        (( ${#r[@]} )) && mut gh issue edit "$m" -R "$REPO" "${r[@]}"
+      elif (( $(now) - at > MERGE_WAIT_MIN * 60 )); then left+=("$m")
+      else log "#$k: gh error closing issue #$m; retrying next pass"; return 0
+      fi
+    done
   fi
   unit_merged "$k" "$pr" "$(jqr '.title // ""' <<<"$j")" "${closed[@]}"
   for m in "${left[@]}"; do
@@ -52,7 +63,8 @@ merged_left() {
   done
   step_unit_finished "$k" MERGED "$pr" "$(jqr '.body // ""' <<<"$j")"
   st_rm "$k"
-  log "#$k PR #$pr merged but left $(printf '#%s, ' "${left[@]}" | sed 's/, $//') open: needs-you, unit released"
+  (( ${#left[@]} )) && log "#$k PR #$pr merged but left $(printf '#%s, ' "${left[@]}" | sed 's/, $//') open: needs-you, unit released"
+  return 0
 }
 
 # contract_back <K> <pr>: the unit's contract-first PR merged (is_contract_pr); its issues stay

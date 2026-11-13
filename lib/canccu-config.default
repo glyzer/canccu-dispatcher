@@ -39,6 +39,7 @@ CI_WAIT_MIN=90              # a finished worker's PR with CI still pending this 
 NO_CHECKS_MIN=10            # a finished worker's PR with no CI check reported this long → needs-you
 IDLE_ALARM_MIN=60           # a unit no rule moved this long, with nothing running → one idle line in the feed
 MERGE_WAIT_MIN=240          # auto-merge armed this long without a merge → disarmed, needs-you
+MERGE_CLOSE_MIN=2           # a merged PR's named issue still open this long → the dispatcher closes it
 MERGE_RETRY=3               # a merge that fails on a GitHub server error is tried again on this many passes, then needs-you
 KEEP_ACCEPT_ON_MAIN_MERGE=0 # 1: an accept carries over a push that is a clean merge of main only; keep 0 until package S2
 POST_WAIT=600               # seconds a posted review may take to show up on GitHub
