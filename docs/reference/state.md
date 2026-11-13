@@ -67,7 +67,7 @@ release's `STATE_FORMAT` (`2`), in order, writing the new number after each and 
 `--dry-run` only says which migrations it would run.
 
 A release that adds or changes a state field raises `STATE_FORMAT`, adds the migration
-(`state_migrate_<n>` in `lib/canccu-common.sh`) and a test that upgrades a project with units in
+(`state_migrate_<n>` in `lib/canccu-stateformat.sh`) and a test that upgrades a project with units in
 flight (`work`, `needs-you`, `merging`) and checks the next pass handles them as before
 (contracts §6).
 

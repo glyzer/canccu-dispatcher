@@ -414,7 +414,7 @@ step_done() {
   local wt; wt=$(plan_wt "$1")
   step_set "$1" phase=done done_at="$(now)"
   log "step $(step_title "$1") is done: $2"
-  feed_settle "checkpoint-$1" done
+  feed_settle "checkpoint-$1" "done"
   feed - info step-done - - - "step $(step_title "$1") is done: $2" >/dev/null
   [ -e "$wt" ] && { mut git -C "$CLONE" worktree remove --force "$wt" || log "step $1: cannot remove the planner worktree $wt"; }
   close_step_epic "$1"

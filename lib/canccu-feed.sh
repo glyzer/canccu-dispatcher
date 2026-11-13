@@ -88,12 +88,13 @@ feed_tick() {
   if backing_off; then feed_open hold-usage - info hold - - - "usage back-off: nothing new starts until $(iso "$(backoff_until)")"
   else feed_settle hold-usage "the back-off is over"; fi
   local open=" "
-  for pr in $(jqr '.[] | select(any(.labels[]?; .name == "needs-you")) | .number' <<<"${PRS:-[]}"); do
+  # no jq start on a pass whose PRs carry no needs-you at all: the common case, and jq 1.6 is slow
+  [[ ${PRS:-} == *needs-you* ]] && for pr in $(jqr '.[] | select(any(.labels[]?; .name == "needs-you")) | .number' <<<"$PRS"); do
     n=$(ping_pr_issue "$pr"); [ -n "$n" ] || continue
     open+="pr-$pr "; k=$(unit_of_issue "$n")
     feed_open "pr-$pr" "$(need_owner "$k" pr-needs-you)" ask pr-needs-you "$k" "$pr" "$(pr_url "$pr")" "PR #$pr needs-you"
   done
-  for k in $(feed_open_keys pr-); do [[ $open == *" $k "* ]] || feed_settle "$k" "no needs-you"; done
+  [ -e "$(feed_open_file)" ] && for k in $(feed_open_keys pr-); do [[ $open == *" $k "* ]] || feed_settle "$k" "no needs-you"; done
   feed_idle "$@"
 }
 
