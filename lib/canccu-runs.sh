@@ -39,7 +39,7 @@ wanting() {
     p=$(st_get "$n" phase)
     [ "$p" = check ] && (( rv )) && ci_reserves "$(st_get "$n" pr)" && { c=$((c + 1)); continue; }
     unit_held "$n" && continue
-    case $p in limited|question) c=$((c + 1)); continue ;; esac
+    case $p in limited|question|retry) c=$((c + 1)); continue ;; esac
     { has_label "$n" plan-ok || has_label "$n" needs-work; } && ! run_alive "$n" &&
       { [ "$p" = check ] || ! unit_waits_blocker "$n"; } && c=$((c + 1))
   done
@@ -295,9 +295,18 @@ run_worker() {
   (( CANCCU_DRY )) || rm -f "$WORKERS_DIR/$REPO_NAME-$n.nudge"; is_managed "$n" && st_set "$n" nudged=
   # a package runs in the worktree the dispatcher made and keeps its session for the fix round
   if is_pkg "$n"; then ensure_unit_wt "$n" || return 1; args+=(--key "$n" --dir "$(unit_wt "$n")" --keep-session); fi
+  # phase starting before the engine call: a dispatcher killed during it leaves a run the reap
+  # finds (reap_worker). A refused or failed start puts the unit back as it was.
+  local prev="" prev_started="" was=0 rc
+  if is_managed "$n"; then was=1 prev=$(st_get "$n" phase) prev_started=$(st_get "$n" started); fi
+  st_set "$n" prev_phase="$prev" phase=starting started="$(now)"
   MODEL=$model RUN_EFFORT=$effort RUN_TYPE=$type engine "worker $w" "$n" "${args[@]}" "$REPO_NAME" "$n $(oneline 8000 "$2")" \
-    "turns=$turns" "cost=$cost" "min=$mins" || return   # the engine's exit: SLOT_REFUSED is a wait
-  st_set "$n" phase=work started="$(now)" no_pr= main_merged= ny_wait=
+    "turns=$turns" "cost=$cost" "min=$mins" || {
+    rc=$?   # the engine's exit: SLOT_REFUSED is a wait
+    if (( was )); then st_set "$n" phase="$prev" prev_phase= started="$prev_started"; else st_rm "$n"; fi
+    return "$rc"
+  }
+  st_set "$n" phase=work prev_phase= no_pr= main_merged= ny_wait=
   claim_color "$n"; paint_window "$w" "$n"
 }
 

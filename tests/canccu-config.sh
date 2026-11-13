@@ -273,7 +273,7 @@ FIX_EFFORT|huge|FIX_EFFORT must be one of: low, medium, high, xhigh, max, empty
 BUDGET_WORK|10 2|BUDGET_WORK must be three whole numbers: turns, USD, minutes (for example "120 25 120")
 BUDGET_WORK|120 25 090|BUDGET_WORK must be three whole numbers: turns, USD, minutes (for example "120 25 120")
 GATED_PATHS|(|GATED_PATHS is not a pattern grep -E accepts
-RESUME_ON|answer,nope|RESUME_ON may only hold: answer, plan, fix, ci, needs-work, merge, limited, blocked, user, all
+RESUME_ON|answer,nope|RESUME_ON may only hold: answer, plan, fix, ci, needs-work, merge, limited, blocked, crash, user, all
 AUTO_MERGE_UNTIL|2026-13-01|AUTO_MERGE_UNTIL must be a date as YYYY-MM-DD, or empty
 MODEL|a b|MODEL may only hold letters, digits and . _ : / [ ] -
 CHK
@@ -285,7 +285,7 @@ done <<'CHK'
 PING on|off PING must be one of: on, off
 FIX_EFFORT low|high FIX_EFFORT must be one of: low, medium, high, xhigh, max, empty
 FIX_EFFORT max| FIX_EFFORT must be one of: low, medium, high, xhigh, max, empty
-RESUME_ON answer|plan RESUME_ON may only hold: answer, plan, fix, ci, needs-work, merge, limited, blocked, user, all
+RESUME_ON answer|plan RESUME_ON may only hold: answer, plan, fix, ci, needs-work, merge, limited, blocked, crash, user, all
 CHK
 out=$(chk WORKER_EXTRA $'a\tb'); rc=$?
 ok "cfg_check: a tab fails for every type" eq "$rc $out" "1 WORKER_EXTRA must be one line without tabs"

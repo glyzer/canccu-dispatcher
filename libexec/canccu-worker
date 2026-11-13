@@ -180,7 +180,9 @@ run() {
     # its turn ended with background work still running: lost with the run, so not done (#26)
     [ "$status" = "done" ] && (( $(sget bg_pending) + 0 > 0 )) && status="error: ended with background work pending" &&
       msg+=$'\n\n'"The run ended its turn while a command or subagent it started in the background was still running."
-    [ -n "$denials" ] && status="blocked" && msg+=$'\n\n'"Blocked by the permission classifier (run it yourself or widen the allow list, then send resume):"$'\n'"$denials"
+    # a denial does not decide the outcome: the run may have worked around it. The dispatcher checks
+    # what it left against its PR (reap_worker).
+    [ -n "$denials" ] && msg+=$'\n\n'"Permission denials (information):"$'\n'"$denials"
   elif [ "$stop" = turns ]; then
     status="stopped: turn budget $turns"; msg=$(sget last_text)
   elif [ "$stop" = stalled ]; then

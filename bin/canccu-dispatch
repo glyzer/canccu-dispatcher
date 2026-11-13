@@ -107,7 +107,7 @@ pass() {
   for n in $(managed); do if is_open "$n"; then open+=("$n"); else closed+=("$n"); fi; done
   # 2. reap finished workers and reviewers; PRs waiting for CI or a slot get their review
   for n in "${open[@]}"; do
-    case $(st_get "$n" phase) in work) reap_worker "$n" ;; review) reap_review "$n" ;; answer) reap_answer "$n" ;; esac
+    case $(st_get "$n" phase) in work|starting) reap_worker "$n" ;; review) reap_review "$n" ;; answer) reap_answer "$n" ;; esac
   done
   for n in "${open[@]}"; do
     case $(st_get "$n" phase) in
@@ -168,9 +168,9 @@ dry_run() {
   USAGE_NOW=$(usage_read)
   cred=$(gh_credential_problem); [ -z "$cred" ] || die "$cred: project $CANCCU_PROJECT would do nothing"
   cred=$(login_problem); [ -z "$cred" ] || die "$cred: project $CANCCU_PROJECT would do nothing"
-  state_migrate
   fetch || die "gh error reading $REPO"
   echo "canccu-dispatch --dry-run · project $CANCCU_PROJECT · $REPO · $(iso "$(now)") · nothing is written"
+  state_migrate
   echo "runnable queue (in order):"
   VERBOSE=1 runnable | sed 's/^/  #/'
   echo "steps (current):"

@@ -113,7 +113,7 @@ ok "… no review" not grep -q -- '--key review-50' "$FAKE/worker.log"
 tr_() { "$root/tests/run" "$@" 2>&1; }
 tname=tests-run
 ok "tests/run: a test file is linted and run" eq "$(tr_ --list tests/canccu-usage.sh)" $'lint: tests/canccu-usage.sh\ntests/canccu-usage.sh'
-ok "tests/run: a pattern picks the test files it matches" eq "$(tr_ --list dispatch)" "tests/canccu-dispatch.sh"
+ok "tests/run: a pattern picks the test files it matches" eq "$(tr_ --list dispatch | LC_ALL=C sort)" $'tests/canccu-dispatch.sh\ntests/canccu-dispatch2.sh'
 ok "tests/run: monitor is the monitor's self-test" eq "$(tr_ --list monitor)" "monitor"
 ok "tests/run: a lib file is linted and its tests listed (the docs test: it cites a section)" \
   eq "$(tr_ --list lib/canccu-usage.sh)" $'lint: lib/canccu-usage.sh\ntests/canccu-usage.sh\ntests/canccu-docs.sh'

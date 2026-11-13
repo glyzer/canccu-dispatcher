@@ -1,4 +1,5 @@
-canccu-dispatch --dry-run · project web · example-org/web · 2030-11-05 12:00:00 · nothing is written
+canccu-dispatch --dry-run · project web · example-org/web · 2030-11-05T12:00:00Z · nothing is written
+  would: migrate the state format 0 → 1
 runnable queue (in order):
   #4 blocked by 3
   #3
@@ -12,5 +13,5 @@ one pass would:
   would: ping #7 as review-bot: @octo PR #70 waits for your accept: label it `accepted`, or `canccu-ship 7`.
   would: start worker #3
   would: gh issue edit 3 -R example-org/web --add-label in-progress --remove-label ready --add-assignee octo
-2030-11-05 12:00:00 #3 started: Issue 3
+2030-11-05T12:00:00Z #3 started: Issue 3
   would: write <home>/.canccu/projects/web/digest/2030-11-05.md (DIGEST_ISSUE is empty: not posted)
