@@ -19,6 +19,12 @@ Every `INTERVAL` seconds, under the project's lock:
    no new issue, package, planner or health pass starts (step 3); work in flight still gets its
    reviews, answers and resumes. Backing off from a usage limit: nothing starts and nothing
    resumes.
+   A GitHub rate limit (a failed `gh` call that says so) writes `gh_limit` with the reset (the
+   primary limit's from `gh api rate_limit`, else 15 minutes): until then every pass returns at
+   once, with no `gh` call, logging `GitHub rate limit: passes pause until <time>` once and
+   `GitHub rate limit over; passes resume` when it ends. Free space below `DISK_MIN_MB` on the
+   worktrees' file system: nothing new starts (step 3), logged once when it starts and once when
+   it ends; reaping, running reviews and merges go on.
 2. **Reap.** For each managed issue whose run has finished:
    - A worker that finished with no PR (the PR list read again to be sure) and a status line
      starting `blocked` or `not started` → phase `waiting`, quietly: no `needs-you`, no answerer

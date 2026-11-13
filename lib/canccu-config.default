@@ -58,6 +58,7 @@ USAGE_STOP=90               # … from which no run starts and running workers a
 USAGE_WEEKLY_DRAIN=90       # weekly share (%) from which nothing new starts; started work finishes
 USAGE_WINDOW_DELTA=0        # 1: each run's spend.log line has the 5-hour share before and after it (one run at a time only)
 USAGE_MAX_AGE_MIN=360       # a usage reading older than this (minutes) counts as unknown; 0: never
+DISK_MIN_MB=200             # below this free space (MB) where the worktrees live, a pass starts nothing new and says so
 
 # ---- rules: the project's rules file (~/.canccu/projects/<name>/rules) sets these. It lives
 # on this host, never in the repo, so a PR can never change its own gating.

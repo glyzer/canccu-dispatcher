@@ -77,6 +77,10 @@ pass() {
   USAGE_NOW=$(usage_read)   # one usage reading for the whole pass
   # a test stands for a pass that dies half-way (an unbound variable, a die in a helper)
   [ -n "${CANCCU_TEST_PASS_DIES:-}" ] && exit 3
+  # a GitHub rate limit: every call until the reset would fail and spend more of the limit
+  if gh_limit_tick; then
+    ( ISSUES="[]" PRS="[]"; want_write; write_status "GitHub rate limit until $(iso "$(gh_limit_until)")" ); return 0
+  fi
   # the project's own credential first: without it this project does nothing (logged once, in
   # the snapshot and canccu-status); the other projects' dispatchers keep running
   cred=$(gh_credential_problem)
@@ -119,6 +123,7 @@ pass() {
   if paused; then go=0; (( CANCCU_DRY )) && echo "  paused: nothing new starts"
   elif backing_off; then go=0; (( CANCCU_DRY )) && echo "  backing off (usage limit) until $(iso "$(backoff_until)")"
   elif draining; then go=0; (( CANCCU_DRY )) && echo "  draining: nothing new starts"
+  elif disk_tick; then go=0
   else
     wn=$(wanting "${open[@]}")
     START_FREE=$(( $(free_slots) - wn )) OWN_FREE=$(( CAP - $(running_count) - wn ))
@@ -232,7 +237,8 @@ run_pass() {
   [ -n "$BLOCKERS_CACHE" ] && rm -rf "$BLOCKERS_CACHE"
   return "$rc"
 }
-quiet ensure_labels
+# under a GitHub rate limit the labels wait for the next start: they exist after the first one
+[ -n "$(gh_limit_until)" ] || quiet ensure_labels
 if [ "${1:-}" = --once ]; then run_pass; exit; fi
 log "canccu-dispatch started: project $CANCCU_PROJECT ($REPO), every ${INTERVAL}s, CAP $CAP, TOTAL_CAP $TOTAL_CAP"
 trap 'rm -f "$CANCCU_HOME/want"' EXIT   # a stopped dispatcher waits for no slot

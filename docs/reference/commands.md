@@ -35,6 +35,7 @@ Every command but `canccu-init` and `canccu-dispatcher` takes `--project <name>`
 | `canccu-classify <pr>` | Prints `auto` or `manual: <first reason>` ([`merging.md`](merging.md)) |
 | `canccu-ship <n>` | Your accept: arms auto-merge for our PR that closes issue n, pinned to its head, with the repo's merge method (as the dispatcher's own merge). Where the repo does not allow auto-merge it merges directly once CI is green |
 | `canccu-stop <n>` | Stops the worker, reviewer and answerer of issue n (or of its package): sets the phase to `stopped` first, then kills their process trees and windows. Keeps the worktree and the session; `canccu-run <n>` continues it |
+| `canccu-stop --forget <n>` | Does what `canccu-stop <n>` does, then the dispatcher lets go of the unit (issue n's package, if it has one): removes its worktree, its run locks, `.id` and `.nudge` files and its state, and removes `in-progress`, `needs-you`, `awaiting-accept` and (only when the dispatcher set it) `blocked` from each of its issues. The PR, the branch and `ready` stay. No confirmation; without state it says `nothing to forget for #<n>` |
 | `canccu-pause` / `canccu-resume` | While paused nothing new starts; running runs continue; --usage clears the usage-limit wait after an early reset |
 | `canccu-dispatcher --version`, `doctor`, `rollback`, `uninstall` | The installed tool itself ([`../install.md`](../install.md)) |
 | `canccu-dispatcher config show [--project <name>] [--global] [--origin] [KEY…]` | Every setting, its default and where it comes from (below) |

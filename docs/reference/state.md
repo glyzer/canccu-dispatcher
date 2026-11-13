@@ -46,6 +46,8 @@ In `~/.canccu/projects/<name>/`:
 | `dispatch.log` | One line per action, each starting with its UTC time (`2030-11-05T12:00:00Z`; lines written by an earlier release have the host's local time, `2030-11-05 12:00:00`, and readers accept both), plus the raw output of the commands (prefixed `  │ `) |
 | `dispatch.pid`, `.dispatch.lock` | The running dispatcher and its lock |
 | `paused` | Present while paused (`canccu-pause`) |
+| `gh_limit` | The epoch until which passes pause for a GitHub rate limit ([`pipeline.md`](pipeline.md#one-pass)); removed when it has passed |
+| `.disk-low` | Present while free space is below `DISK_MIN_MB`, so the hold is logged once |
 | `status.json` | The status snapshot, written after every pass ([`snapshot.md`](snapshot.md)) |
 | `.warned-*` | The last recurring warning of a kind, so it is logged once |
 | `blocked/<n>` | Issue `n`'s `blocked` was set by the dispatcher (a `waiting` run): the only kind it removes |

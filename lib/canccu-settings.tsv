@@ -50,6 +50,7 @@ USAGE_STOP	int:1:100	project	open
 USAGE_WEEKLY_DRAIN	int:1:100	project	open
 USAGE_WINDOW_DELTA	enum:0|1	project	open
 USAGE_MAX_AGE_MIN	int:1:10080	project	open
+DISK_MIN_MB	int:0:1000000	project	open
 RISKY_PATHS	regex	rules	locked
 EFFORT_DOCS_PATHS	regex	rules	open
 REVIEW_EFFORT_MAX	enum:low|medium|high|xhigh|max|	project	open

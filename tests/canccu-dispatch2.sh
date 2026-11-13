@@ -131,7 +131,7 @@ ok "--forget: the run is stopped" grep -q '^--kill web pkg-4-thing$' "$FAKE/work
 ok "… no state file" not test -e "$CANCCU_HOME/state/pkg-4-thing"
 ok "… no worktree" not test -e "$wt"
 ok "… (git worktree remove --force)" grep -qF "worktree remove --force $wt" "$FAKE/git.log"
-ok "… no run lock, .id or .nudge" eq "$(ls "$WORKERS_DIR" | grep -c 'pkg-4-thing')" 0
+ok "… no run lock, .id or .nudge" eq "$(compgen -G "$WORKERS_DIR/*pkg-4-thing*" | wc -l)" 0
 ok "… the labels removed from each member" \
   eq "$(grep -c -e 'issue edit 21 -R example-org/web --remove-label in-progress,needs-you,awaiting-accept$' -e 'issue edit 22 -R example-org/web --remove-label in-progress,needs-you,awaiting-accept,blocked$' "$FAKE/gh.log")" 2
 ok "… blocked only where the dispatcher set it (its marker goes too)" not test -e "$CANCCU_HOME/blocked/22"

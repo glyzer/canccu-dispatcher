@@ -129,7 +129,16 @@ newest_of() { printf '%s\n' "$@" | grep -E '^[0-9]+$' | sort -n | tail -1; }
 # --slurpfile x <(printf '%s' "$v") or stdin, never --argjson: Linux caps one argument at 128 KiB
 # (MAX_ARG_STRLEN). --slurpfile binds [value]: read $x[0], not $x.
 jqr() { guard 20 jq -r "$@"; }
-ghj() { guard 30 gh "$@"; }
+# ghj: a gh read. Its stderr passes through, and a failed read that names a rate limit holds the
+# passes (gh_limit_seen).
+ghj() {
+  local ef rc
+  ef=$(mktemp 2>/dev/null) || { guard 30 gh "$@"; return; }
+  guard 30 gh "$@" 2>"$ef"; rc=$?
+  (( rc == 0 )) || gh_limit_seen "$(cat "$ef")"
+  cat "$ef" >&2; rm -f "$ef"
+  return "$rc"
+}
 
 # log <text>: a line with the time (UTC, as iso writes it), to stdout and dispatch.log. On a terminal (and without
 # NO_COLOR) the leading #<n> has the issue's colour, and needs-you lines are red, waiting lines
@@ -173,6 +182,7 @@ mut_out() {
   if (( CANCCU_DRY )); then echo "  would: $*"; return 0; fi
   local rc; MUT_OUT=$(guard 60 "$@" 2>&1); rc=$?
   mut_show "$MUT_OUT"
+  (( rc == 0 )) || gh_limit_seen "$MUT_OUT"
   return $rc
 }
 # mut_show <output>: a write's captured output: in the dispatcher to dispatch.log, each line
@@ -332,6 +342,8 @@ run_progress() {
 }
 
 # ---------------------------------------------------------------- the parts
+# shellcheck source=canccu-holds.sh
+. "$_canccu_lib/canccu-holds.sh"
 # shellcheck source=canccu-colour.sh
 . "$_canccu_lib/canccu-colour.sh"
 # shellcheck source=canccu-usage.sh
