@@ -23,6 +23,7 @@ BUDGET_WORK="250 80 150"    # turns, USD, minutes: a new issue
 BUDGET_RESUME="80 20 45"    # a follow-up run of a worker (review fixes, red CI, plan OK, answers)
 RESUME_ON=answer,plan       # follow-ups that resume the session (answer plan fix ci needs-work merge limited blocked crash user, or all); the rest start fresh with a handoff
 FIX_ATTEMPTS=2              # automatic fix runs per PR (review fix rounds plus red-CI fixes), then needs-you
+FIX_EXTRA_IF_FEWER=1        # 1: one more automatic fix round when the last verdict has fewer blocking findings than the one before; 0: stop as today
 CRASH_RETRY=1               # fresh runs with the handoff after a worker crashed, stalled or was killed, then needs-you
 FIX_MODEL=                  # the fix run's model (review fixes, red CI, needs-work); empty: MODEL
 FIX_EFFORT=                 # the fix run's --effort (low, medium, high, xhigh, max); empty: none, the account's
