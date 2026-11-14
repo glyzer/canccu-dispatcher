@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # lib/canccu-plan.jq — validates a planner's package plan (schema 1). Run by plan_validate:
-#   jq --slurpfile input I --argjson m M --argjson w W -f lib/canccu-plan.jq < P
+#   jq --slurpfile input I --slurpfile running R --argjson m M --argjson w W -f lib/canccu-plan.jq < P
 # (stdin and a file, never arguments: either value can pass the 128 KiB Linux allows one argument)
 # → {errors: [strings], left_out: [issue numbers]}. The schema is in docs/canccu-dispatch.md,
 # "Work packages per step". Issues the plan leaves out are no error: they join the next wave.
@@ -12,6 +12,14 @@ def known: [$input[0].issues[]?.number];
 def carried: [$input[0].carried[]?.name];
 # an earlier package of the step merged since (while the planner ran): met
 def merged: [$input[0].merged[]?.name];
+# the running packages' areas (#166): every package of the plan (the planner's raw output: the
+# dispatcher adds the carried ones only after this check, so even one with carried_from is the
+# planner's) whose area equals one of theirs, or is a path prefix of it or the other way round,
+# must depend on it, else both change the same files at once. Path prefixes only: "lib/a"
+# holds "lib/a/b.sh", never "lib/ab"; an empty area matches nothing.
+def area: sub("^(\\./)+"; "") | sub("/+$"; "");
+def overlap($a; $b): ($a | area) as $x | ($b | area) as $y
+  | $x != "" and $y != "" and ($x == $y or ($y | startswith($x + "/")) or ($x | startswith($y + "/")));
 
 . as $plan
 | ($plan.packages) as $ps
@@ -61,5 +69,12 @@ def merged: [$input[0].merged[]?.name];
     + [ $obj[] | (.name // "?") as $x | (.depends_on // []) | if strs then .[] else empty end
         | if . == $x then "\($x) depends on itself"
           elif (IN($names[]) or IN(carried[]) or IN(merged[]) | not) then "\($x) depends on unknown package \(.)" else empty end ]
-    + [ if $cycle then "dependency cycle: \($cycle)" else empty end ] ),
+    + [ if $cycle then "dependency cycle: \($cycle)" else empty end ]
+    + [ $obj[] | (.name // "?") as $x
+        | ((.depends_on // []) | if strs then . else [] end) as $d
+        | ((.areas // []) | if strs then . else [] end) as $ar
+        | $running[0][]? | select((.name | IN($d[])) | not) | . as $r
+        | [ $ar[] as $a | ($r.areas // [])[] | strings | select(overlap($a; .))
+            | [($a | area), area] | max_by(length) ] | first // empty
+        | "\($x) overlaps running \($r.name) in \(.)" ] ),
     left_out: [ known[] | select(IN([ $obj[] | .issues // [] | if type == "array" then .[] else empty end ][]) | not) ] }
