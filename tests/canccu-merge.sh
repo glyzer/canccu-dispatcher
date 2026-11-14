@@ -739,5 +739,62 @@ munpark merge-unpark-comment $HA "" "$(comment 2030-11-05T11:58:00Z 'Merged it b
 dispatch --once
 ok "… a comment since → not unparked (resume_step's path)" eq "$(dlog 'needs-you lifted at the merge')" 0
 
+# ---------------------------------------------------------------- the accept channels (#185)
+
+# chan_env <name> [config line...]: PR 50 of managed issue 5 waits for the accept of head HA, with
+# the user's `accepted` on the PR after the request
+chan_env() {
+  env_new "$@"
+  { issue 5 in-progress,awaiting-accept; } | issues
+  pr 50 5 $HA green accepted | prs
+  state 5 phase=accept pr=50 accept_sha=$HA rounds=0 "accept_at=$((NOW - 3600))"
+  json events50.json '[{"event": "labeled", "label": {"name": "accepted"}, "actor": {"login": "octo"}, "created_at": "2030-11-05T11:30:00Z"}]'
+  route 'api --paginate repos/example-org/web/issues/50/events' events50.json
+}
+ship() { PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-ship" "$@" > "$E/out" 2>&1; }
+chan_env chan-ship ACCEPT_CHANNELS=ship
+dispatch --once; dispatch --once
+ok "ACCEPT_CHANNELS=ship: the user's label → no merge" hasnt gh.log "pr merge"
+ok "… logged once" eq "$(grep -c '#5 PR #50: `accepted` label ignored: ACCEPT_CHANNELS does not list label' "$CANCCU_HOME/dispatch.log")" 1
+ship 5
+ok "… canccu-ship writes the accept record" eq "$(cat "$CANCCU_HOME/accepts.log")" "$NOW	5	50	$HA	po"
+ok "… and the PR merges at that head" has gh.log "pr merge 50 -R example-org/web --auto --match-head-commit $HA"
+chan_env chan-label ACCEPT_CHANNELS=label
+ship 5; rc=$?
+ok "ACCEPT_CHANNELS=label: canccu-ship refuses" eq "$rc $(cat "$E/out")" "1 canccu-ship: refused: ACCEPT_CHANNELS does not list ship"
+ok "… no record, no merge" eq "$([ -e "$CANCCU_HOME/accepts.log" ] && echo rec)$(grep -c '^pr merge' "$FAKE/gh.log")" 0
+dispatch --once
+ok "… the label still counts" has gh.log "pr merge 50 -R example-org/web --auto --match-head-commit $HA"
+chan_env chan-leader "ACCEPT_CHANNELS='label ship'"
+CANCCU_ACTOR=leader ship 5; rc=$?
+ok "a leader's canccu-ship without leader in ACCEPT_CHANNELS → refused" eq "$rc $(cat "$E/out")" "1 canccu-ship: refused: ACCEPT_CHANNELS does not list leader"
+chan_env chan-leader-all
+CANCCU_ACTOR=leader ship 5
+ok "ACCEPT_CHANNELS=all: the leader's canccu-ship → the record names the leader" eq "$(cut -f2- "$CANCCU_HOME/accepts.log")" "5	50	$HA	leader"
+ok "… merged at that head" has gh.log "pr merge 50 -R example-org/web --auto --match-head-commit $HA"
+ok "accept_channel: all lists every channel, a list only its own" \
+  eq "$(for v in all 'label ship' ship ''; do for c in label ship reply leader; do lib eval "ACCEPT_CHANNELS='$v'; accept_channel $c" && echo -n y || echo -n n; done; echo -n ' '; done)" "yyyy yynn nynn nnnn "
+# chan_armed <name> <record head> [config line...]: PR 50 in accept, without a label, auto-merge armed on HA
+chan_armed() {
+  local h=$2; env_new "$1" "${@:3}"
+  { issue 5 in-progress,awaiting-accept; } | issues
+  pr 50 5 $HA | jq '.autoMergeRequest = {"enabledAt": "x"}' | prs
+  state 5 phase=accept pr=50 accept_sha=$HA rounds=0 "accept_at=$((NOW - 3600))"
+  [ -n "$h" ] && printf '%s\t5\t50\t%s\tpo\n' "$((NOW - 60))" "$h" > "$CANCCU_HOME/accepts.log"
+  return 0
+}
+chan_armed chan-armed-record $HA ACCEPT_CHANNELS=ship
+dispatch --once
+ok "auto-merge armed on the head with an accept record for it → the ship accept: merging" eq "$(st 5 phase) $(st 5 how) $(st 5 merge_sha)" "merging accepted $HA"
+chan_armed chan-armed-old $HB ACCEPT_CHANNELS=ship
+dispatch --once
+ok "… a record for another head → still waits for the accept" eq "$(st 5 phase)" accept
+chan_armed chan-armed-none "" ACCEPT_CHANNELS=ship
+dispatch --once
+ok "… no record → still waits" eq "$(st 5 phase)" accept
+chan_armed chan-armed-off $HA ACCEPT_CHANNELS=label
+dispatch --once
+ok "… ship not in ACCEPT_CHANNELS → the record does not count" eq "$(st 5 phase)" accept
+
 echo "canccu-merge tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
