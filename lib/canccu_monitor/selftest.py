@@ -4,7 +4,8 @@
 The mockup (tests/fixtures/monitor/inbox/: the project tools with the project web beside it, an
 invented evening at Wed 06 Nov 2030 22:01 UTC) at 120×55, 140×65, 100×40, 80×30 and 60×30, then
 every height from 65 down to 12 for the drop order; 8 needs-you items; an empty state; a folded
-repeat; CI with no checks; NO_COLOR; the roadmap tables at 130 and 80 columns. Then every fixture
+repeat; CI with no checks; NO_COLOR; the roadmap tables at 130 and 80 columns; a step with many
+blocked issues and done packages (blocked-many.json) fitted at 120×55 and 80×30. Then every fixture
 in tests/fixtures/monitor/ at 60, 100 and 160 columns, and a few redraws through Display. Prints
 one FAIL line per failed check."""
 import copy
@@ -329,13 +330,13 @@ def roadmap_checks(mock, check):
 
 def cell_heights(part, col):
     """[(the row's first line, the lines its col cell takes)] of the first table in part with a
-    header; a row starts where Work has text."""
+    header; a row starts where Issues has text."""
     lines = part.split("\n")
     head = next((x for x in lines if "│ Status" in x), None)
     if head is None:
         return []
     names = [c.strip() for c in head.split("│")]
-    ks, kc, out = names.index("Work"), names.index(col), []
+    ks, kc, out = names.index("Issues"), names.index(col), []
     for x in lines[lines.index(head) + 2:]:
         cells = x.split("│")
         if x.startswith("└") or len(cells) != len(names):
@@ -348,14 +349,14 @@ def cell_heights(part, col):
 
 
 def blocked_checks(fx, check):
-    """A step with 23 blocked issues over 17 blocker sets (blocked-many.json), another project
-    beside it: the package table survives at 120x55 (the done packages folded first), the phone
-    at 80x30 keeps the running, ready and needs-you packages, no blocked cell takes more than two
-    lines."""
+    """A step with 20 merged packages and 23 blocked issues over 17 blocker sets (blocked-many.json):
+    the package table survives at 120x55 (the done packages folded into one row), the phone at
+    80x30 keeps the running, ready and needs-you packages; no blocked cell takes more than two
+    lines, also with another project beside it."""
     snap = load(os.path.join(fx, "blocked-many.json"))[0]
     for w, h in ((120, 55), (80, 30)):
         what = "blocked-many at %dx%d" % (w, h)
-        plain = frame(snap, None, w, h, (("tools", TOOLS),))[0]
+        plain = frame(snap, None, w, h)[0]
         part = roadmap_part(plain)
         part = part[part.find("ROADMAP  web"):part.find("ROADMAP  tools")]
         words = words_of(part)
@@ -364,17 +365,20 @@ def blocked_checks(fx, check):
               what + ": the running, ready and needs-you packages are not in the table")
         if w > PHONE_UPTO:
             check("│ Step" in part, what + ": no package table")
-            check("12 merged" in words and "merged-0" not in words, what + ": the done packages are not one row")
+            check("20 merged" in words and "merged-0" not in words, what + ": the done packages are not one row")
     for w in (160, 120, 100, 80, 60):
         what = "blocked-many at %d" % w
         part = roadmap_part(frame(snap, None, w, None, (("tools", TOOLS),))[0])
         rows = cell_heights(part[part.find("ROADMAP  web"):], "Waiting on")
-        blocked = [r for r in rows if "– blocked" in r[0] and "(no package)" in r[0]]
+        blocked = [r for r in rows if "– blocked" in r[0]]
         check(blocked and all(n <= 2 for _, n in blocked), what + ": a blocked cell is longer than two lines %r"
               % [n for _, n in rows])
-        check(any("23 issues: behind #306 ×8, #109 ×4" in x for x in part.split("\n")) or w > 140,
-              what + ": the blocked cell does not name the top blockers first")
-        check(re.search(r"\+\d+ more", part) is not None or w > 140, what + ": no +N more")
+        cell = words_of(" ".join(x.split("│")[-2] for x in part.split("\n") if x.count("│") > 5))
+        tops = re.findall(r"#\d+×\d+", cell)
+        named = "behind #306×8" in cell and re.search(r"\+\d+ more", cell) \
+            and tops[:2] in (["#306×8"], ["#306×8", "#109×4"])
+        check(w > 140 or named or w <= 60 and "16 blockers" in cell,
+              what + ": the blocked cell is not the top blockers, then +N more: %r" % cell)
 
 
 def has_pipe(plain):
