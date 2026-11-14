@@ -25,7 +25,9 @@
 # the project's guidance for the planner of a step's work packages, e.g. "aim for 2-4 issues per package"
 # PLANNER_EXTRA=''
 # above 1: the planner aims for at least this many issues per package, where they fit together
-# PACKAGE_MIN_ISSUES=1
+# PACKAGE_MIN_ISSUES=3
+# 1: the planner may leave a lone small leftover (under about 300 lines) out of a wave while other issues of its area run or wait, so it joins a later package of its area
+# PACKAGE_HOLD_SMALL=0
 # extra reviewer checks: "Check every acceptance criterion, <this>, and …"
 # REVIEW_EXTRA=''
 # extra worker prompt text
