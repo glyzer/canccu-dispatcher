@@ -66,6 +66,13 @@ log line of the start names the effort and the model, and `canccu-status` shows 
 running review: `review PR #50 (medium · claude-opus-5-5)` (the effort alone when no model is
 set).
 
+**Light reviewer.** With `REVIEW_MODEL_LIGHT` set, a full review of a PR whose every changed path
+(a rename's old path too) is docs (`docs/`, `*.md`, `EFFORT_DOCS_PATHS`), a test (`TEST_PATHS`)
+or a `LIGHT_REVIEW_PATHS` match runs on that model at medium effort (under `REVIEW_EFFORT_MAX`),
+and the log says `PR #<pr>: light review (<model>): docs, tests or light paths only`. Only the
+paths decide, never the PR body. A gated path or agent configuration is never light; a fix-check
+keeps `FIXCHECK_MODEL`; a retry of the review file keeps the model the review started on.
+
 ## Fix-check
 
 After the worker fixed a full review's findings and CI is green, the fix-check runs: the same

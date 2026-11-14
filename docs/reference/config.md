@@ -110,6 +110,7 @@ is stopped and its issue goes to `needs-you`.
 | `PACKAGE_MIN_ISSUES` | `1` | Above 1, the planner aims for at least this many issues per package, where they fit together |
 | `PLAN_MODEL` | empty | The planner's model; empty: `MODEL` |
 | `REVIEW_MODEL` | empty | The full reviewer's model; empty: `MODEL` ([`reviews.md`](reviews.md), "Model by kind") |
+| `REVIEW_MODEL_LIGHT` | empty | The full reviewer's model for a light PR: every path docs, a test (`TEST_PATHS`) or a `LIGHT_REVIEW_PATHS` match, none gated; empty: `REVIEW_MODEL` ([`reviews.md`](reviews.md), "Model by kind") |
 | `FIXCHECK_MODEL` | empty | The fix-check's model, for example a cheaper one (`claude-sonnet-5-5`); empty: `MODEL` |
 | `FIXCHECK_FULL_LINES` | `100` | A push after a passed review that changes more of the PR's own lines than this since the last full review gets a full review, not a fix-check |
 | `REVIEW_EFFORT_MAX` | empty | The highest effort of a full review and a fix-check on this machine: `low`, `medium` or `high`. It lowers, never raises, and has no exceptions: gated paths and agent configuration are capped too. `reviews/<pr>.effort` then says `(capped)`. Another value is said once in the log and ignored ([`reviews.md`](reviews.md), "Effort by risk") |

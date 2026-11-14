@@ -45,6 +45,7 @@ PACKAGE_LINES	int:100:100000	project	open
 PACKAGE_MIN_ISSUES	int:1:20	rules	open
 PLAN_MODEL	name	project	open
 REVIEW_MODEL	name	project	open
+REVIEW_MODEL_LIGHT	name	project	open
 FIXCHECK_MODEL	name	project	open
 FIXCHECK_FULL_LINES	int:0:100000	project	locked
 HEALTH_MODEL	name	project	open
@@ -62,6 +63,7 @@ FIXCHECK_RISKY	regex	rules	locked
 GATED_PATHS	regex	rules	locked
 USER_VISIBLE_PATHS	regex	rules	locked
 TEST_PATHS	regex	rules	open
+LIGHT_REVIEW_PATHS	regex	rules	locked
 SECURITY_REVIEW_WHEN	text	rules	locked
 PLANNER_EXTRA	text	rules	open
 REVIEW_EXTRA	text	rules	locked

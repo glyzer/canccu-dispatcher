@@ -143,13 +143,13 @@ env_new light-pure
 lp() { lib eval "$1; review_light_pure \"\$(printf '%s\\n' $2)\" && echo light || echo full"; }
 ok "light: docs only" eq "$(lp : 'docs/a.md README.md')" light
 ok "light: a test file only (TEST_PATHS)" eq "$(lp : 'tests/a.sh src/a.test.ts')" light
-ok "light: a LIGHT_REVIEW_PATHS match" eq "$(lp "LIGHT_REVIEW_PATHS='^contracts/'" 'contracts/a.yaml docs/x.md')" light
+ok "light: a LIGHT_REVIEW_PATHS match" eq "$(lp "LIGHT_REVIEW_PATHS='^schemas/'" 'schemas/a.yaml docs/x.md')" light
 ok "light: an EFFORT_DOCS_PATHS match counts as docs" eq "$(lp "EFFORT_DOCS_PATHS='^specs/'" 'specs/a.yaml')" light
-ok "not light: one code path" eq "$(lp "LIGHT_REVIEW_PATHS='^contracts/'" 'docs/a.md src/a.ts')" full
+ok "not light: one code path" eq "$(lp "LIGHT_REVIEW_PATHS='^schemas/'" 'docs/a.md src/a.ts')" full
 ok "not light: a gated path, even when LIGHT_REVIEW_PATHS names it" eq "$(lp "LIGHT_REVIEW_PATHS='^\\.github/'" '.github/workflows/ci.yml')" full
 ok "not light: agent configuration, though it is *.md" eq "$(lp : 'docs/a.md CLAUDE.md')" full
 ok "not light: no paths" eq "$(lib eval "review_light_pure '' && echo light || echo full")" full
-ok "not light: a bad LIGHT_REVIEW_PATHS matches nothing" eq "$(lp "LIGHT_REVIEW_PATHS='('" 'contracts/a.yaml')" full
+ok "not light: a bad LIGHT_REVIEW_PATHS matches nothing" eq "$(lp "LIGHT_REVIEW_PATHS='('" 'schemas/a.yaml')" full
 ok "… and leaves the other kinds light" eq "$(lp "LIGHT_REVIEW_PATHS='('" 'docs/a.md tests/a.sh')" light
 ok "REVIEW_MODEL_LIGHT and LIGHT_REVIEW_PATHS default to empty" \
   eq "$( . "$root/lib/canccu-config.default"; echo "[$REVIEW_MODEL_LIGHT][$LIGHT_REVIEW_PATHS]")" "[][]"

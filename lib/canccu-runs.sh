@@ -375,9 +375,39 @@ review_effort() {
   review_effort_pure "$stats" "$body" "${risk%% *}"
 }
 
-# review_model <review|fixcheck|postpass>: REVIEW_MODEL or FIXCHECK_MODEL; MODEL when that one is empty
+# review_light_pure <paths, one per line>: 0 when the PR is light for the reviewer's model: at
+# least one path, none gated (agent configuration included), each docs (docs/, *.md,
+# EFFORT_DOCS_PATHS), a test (TEST_PATHS) or a LIGHT_REVIEW_PATHS match. Only the paths decide,
+# never the body: the worker writes the body.
+review_light_pure() {
+  local paths re rest rc
+  paths=$(grep . <<<"$1") || return 1
+  # grep 2 (a bad gated regex) must not read as "nothing gated"
+  grep -qE "$(gated_re)" <<<"$paths" && return 1; (( $? == 1 )) || return 1
+  # one grep per regex: a bad one matches nothing and does not void the others
+  for re in '^docs/|\.md$' "$EFFORT_DOCS_PATHS" "$TEST_PATHS" "$LIGHT_REVIEW_PATHS"; do
+    [ -n "$re" ] || continue
+    rest=$(grep -vE "$re" <<<"$paths" 2>/dev/null) && rc=0 || rc=$?
+    case $rc in 0) paths=$rest ;; 1) return 0 ;; esac
+  done
+  return 1
+}
+# review_light <pr> <mode>: 0 when the review runs on REVIEW_MODEL_LIGHT: a full review (never a
+# fix-check), the setting set, and the PR's paths (a rename's old path too) light. No gh call
+# when the setting is empty; a gh error → not light.
+review_light() {
+  local paths
+  [ -n "$REVIEW_MODEL_LIGHT" ] && ! is_fixcheck_mode "$2" || return 1
+  paths=$(ghj api --paginate "repos/$REPO/pulls/$1/files" -q '.[] | .filename, (.previous_filename // empty)') || return 1
+  review_light_pure "$paths"
+}
+
+# review_model <review|fixcheck|postpass> [light 0|1]: FIXCHECK_MODEL for a fix-check; for a review
+# REVIEW_MODEL_LIGHT when light (review_light) and set, else REVIEW_MODEL; MODEL when that one is empty
 review_model() {
-  if is_fixcheck_mode "$1"; then echo "${FIXCHECK_MODEL:-$MODEL}"; else echo "${REVIEW_MODEL:-$MODEL}"; fi
+  if is_fixcheck_mode "$1"; then echo "${FIXCHECK_MODEL:-$MODEL}"
+  elif [ "${2:-0}" = 1 ] && [ -n "$REVIEW_MODEL_LIGHT" ]; then echo "$REVIEW_MODEL_LIGHT"
+  else echo "${REVIEW_MODEL:-$MODEL}"; fi
 }
 
 # fixcheck_effort_pure <git diff --numstat lines> → low | medium (through effort_cap). medium when the fix diff is
@@ -443,7 +473,7 @@ reviewer_refused() {
 }
 
 start_reviewer() {
-  local pr=$1 n=$2 sha=$3 mode=$4 rsha=${5:-} wt turns cost mins prompt f effort capped model name what
+  local pr=$1 n=$2 sha=$3 mode=$4 rsha=${5:-} wt turns cost mins prompt f effort capped model name what light=0
   reviewer_refused && return 1
   wt=$(review_wt "$pr") f=$(review_file "$pr" "$sha")
   if is_fixcheck_mode "$mode"; then read -r turns cost mins <<<"$BUDGET_FIXCHECK"; name="fixcheck#$pr" what=fix-check
@@ -455,10 +485,14 @@ start_reviewer() {
   # a file left from before this review never counts; the sha the reviewer works on is recorded
   if is_fixcheck_mode "$mode"; then read -r effort capped <<<"$(fixcheck_effort "$rsha" "$sha")"
     prompt=$(fixcheck_prompt "$pr" "$n" "$rsha" "$sha" "$f" "$effort" "$(cat "$(findings_file "$pr" "$rsha")" 2>/dev/null)" "$mode")
-  else read -r effort capped <<<"$(review_effort "$pr" "$n")"
+  else
+    # the light model's review is a medium one, whatever the size: its paths are light by choice
+    if review_light "$pr" "$mode"; then light=1; read -r effort capped <<<"$(effort_cap medium)"
+    else read -r effort capped <<<"$(review_effort "$pr" "$n")"; fi
     prompt=$(review_prompt "$pr" "$n" "$sha" "$f" "$effort"); fi
   (( CANCCU_DRY )) || { mkdir -p "${f%/*}" && rm -f "$f"; } || { log "PR #$pr: cannot prepare $f"; return 1; }
-  model=$(review_model "$mode")
+  model=$(review_model "$mode" "$light")
+  (( light )) && log "PR #$pr: light review ($model): docs, tests or light paths only"
   MODEL=$model RUN_TYPE=$(is_fixcheck_mode "$mode" && echo fix-check || echo review) RUN_EFFORT_NOTE=$effort \
     extra_dirs=${f%/*} engine "$what $name" "review-$pr" --key "review-$pr" --dir "$wt" --name "$name" \
     --untrusted "$REPO_NAME" "$prompt" "turns=$turns" "cost=$cost" "min=$mins" || return 1
@@ -490,7 +524,7 @@ retry_review_file() {
   mode=$(st_get "$n" review_mode)
   is_fixcheck_mode "$mode" && name="fixcheck#$pr" what=fix-check
   f=$(review_file "$pr" "$sha")
-  MODEL=$(review_model "$mode") RUN_TYPE=review extra_dirs=${f%/*} engine "$what $name" "review-$pr" \
+  MODEL=$(cat "$CANCCU_HOME/reviews/$pr.model" 2>/dev/null || review_model "$mode") RUN_TYPE=review extra_dirs=${f%/*} engine "$what $name" "review-$pr" \
     --key "review-$pr" --dir "$(review_wt "$pr")" --name "$name" --untrusted --keep-session "$REPO_NAME" \
     "Your review of PR #$pr ended without the review file. Write it now to $f, from the review you already did: the findings as the task told you, and as its last line \`Review verdict: pass $sha\` or \`Review verdict: changes $sha\`. Do not review again and run nothing else. Then stop." \
     turns=10 cost=2 min=10 || return 1
