@@ -474,12 +474,14 @@ review_env pass-manual 'Review verdict: pass' review
 json issue5.json '{"labels": [{"name": "manual-accept"}], "comments": []}'
 dispatch --once
 ok "pass + manual → awaiting-accept" has gh.log "issue edit 5 -R example-org/web --add-label awaiting-accept"
-ok "pass + manual → PR comment with reason" has gh.log "pr comment 50 -R example-org/web --body Review passed; this PR waits for your accept: the issue has manual-accept."
+ok "pass + manual → the ask block in the PR body, with the reason" has gh.log "pr edit 50 -R example-org/web --body-file <!-- canccu:ask --> For the product owner: PR #50 waits for your accept"
+ok "… with the reason" has gh.log "Why you: the issue has manual-accept "
+ok "… and no PR comment of its own" hasnt gh.log "pr comment 50 -R example-org/web --body Review passed"
 ok "pass + manual → no merge" hasnt gh.log "pr merge"
 review_env maintainer-accept $'Maintainer accept: destructive migration (drops a column)\nReview verdict: pass' review
 dispatch --once
 ok "pass + Maintainer accept → awaiting-accept" eq "$(st 5 phase)" accept
-ok "… with the reason" has gh.log "waits for your accept: maintainer accept: destructive migration (drops a column)."
+ok "… with the reason" has gh.log "Why you: maintainer accept: destructive migration (drops a column)"
 ok "… and no merge" hasnt gh.log "pr merge"
 review_env accept-stale-label 'Review verdict: pass' review
 p=$(pr 50 5 $HA green accepted); printf '%s\n' "$p" | prs
@@ -1132,6 +1134,42 @@ sed -i 's/^CAP=0$/CAP=3/' "$CANCCU_HOME/config"
 CANCCU_NOW=$((NOW + 600)) dispatch --once
 ok "… the next pass, 600 s later with a slot, leaves ci_wait at 420" \
   eq "$(cut -f15 "$WORKERS_DIR/spend.log")" "pr=50,ci=green,ci_wait=420"
+
+# the ask block at the top of the PR body (#181)
+env_new accept-block
+{ issue 5 in-progress; } | issues
+pr 50 5 $HA green "" false "The worker's body." | prs
+state 5 phase=check pr=50 pass_sha=$HA
+toacc() { lib eval "PRS=\$(cat '$FAKE/prs.json'); ISSUES=\$(cat '$FAKE/issues.json'); to_accept 5 50 'manual: plan tier' $1"; }
+toacc $HA
+ok "to_accept: the form between the markers at the top of the PR body, the rest kept" eq "$(cat "$FAKE/prbody-50")" "<!-- canccu:ask -->
+For the product owner: PR #50 waits for your accept: label it \`accepted\`, or \`canccu-ship 5\`.
+Why you: plan tier
+Change (reviewer's summary):
+  - (the reviewer gave no summary)
+  - (the reviewer gave no summary)
+  - (the reviewer gave no summary)
+Review: pass on ${HA:0:7} · CI: green
+Recommended: accept, review passed and CI is green
+If you accept: it merges at ${HA:0:7} once CI is green
+Accept: add the label \`accepted\` to this PR, or \`canccu-ship 5\`.
+Reject: comment here and label issue #5 \`needs-work\`.
+No answer: this waits.
+https://github.com/example-org/web/pull/50 · head ${HA:0:7}
+<!-- /canccu:ask -->
+
+The worker's body."
+ok "… and no PR comment" hasnt gh.log "pr comment 50"
+pr 50 5 $HB green "" false "$(cat "$FAKE/prbody-50")" | prs
+state 5 phase=check pr=50 pass_sha=$HB
+toacc $HB
+ok "… a new head replaces the block, the rest kept" \
+  eq "$(grep -c 'canccu:ask' "$FAKE/prbody-50") $(grep -c "head ${HB:0:7}" "$FAKE/prbody-50") $(grep -c "${HA:0:7}" "$FAKE/prbody-50") $(tail -1 "$FAKE/prbody-50")" \
+  "2 1 0 The worker's body."
+echo 'fail:pr edit' >> "$FAKE/routes"
+toacc $HB
+ok "… a gh error is logged and the accept goes on" \
+  eq "$(grep -c '#5 PR #50: gh error writing the ask block; tried again next pass' "$CANCCU_HOME/dispatch.log") $(st 5 phase)" "1 accept"
 
 echo "canccu-dispatch tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

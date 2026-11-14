@@ -66,7 +66,7 @@ ok "a verdict in backticks is posted and acted on" grep -q 'web 5 Rules for this
 
 postenv post-maintainer $'1. drops screens.legacy\nMaintainer accept: destructive migration (drops screens.legacy)\nReview verdict: pass '"$HA"
 dispatch --once
-ok "Maintainer accept in the file → posted, then awaiting accept" has gh.log "waits for your accept: maintainer accept: destructive migration (drops screens.legacy)."
+ok "Maintainer accept in the file → posted, then awaiting accept" has gh.log "Why you: maintainer accept: destructive migration (drops screens.legacy)"
 ok "… no merge" hasnt gh.log "pr merge"
 
 postenv post-wrong-sha $'Review verdict: pass '"$HB"
@@ -610,7 +610,7 @@ fxenv fx-maccept $'1. fixed\n\nReview verdict: pass '"$HB"
 echo "review_maccept=breaking contract (renames screen.title)" >> "$CANCCU_HOME/state/5"
 dispatch --once
 ok "a Maintainer accept of the full review still holds after the fix-check passes" \
-  has gh.log "waits for your accept: maintainer accept: breaking contract (renames screen.title)."
+  has gh.log "Why you: maintainer accept: breaking contract (renames screen.title)"
 ok "… no merge" hasnt gh.log "pr merge"
 
 review_env maccept-kept $'Maintainer accept: breaking contract (renames screen.title)\nReview verdict: changes' review
@@ -794,7 +794,7 @@ ok "… outcome void" grep -q "review of ${HA:0:7}: void" "$CANCCU_HOME/dispatch
 # 3: a breaking change the fix itself adds makes the PR manual
 fxenv fx-own-maccept $'1. fixed\nMaintainer accept: destructive migration (the fix drops screens.legacy)\n\nReview verdict: pass '"$HB"
 dispatch --once
-ok "a fix-check's own Maintainer accept → awaiting accept" has gh.log "waits for your accept: maintainer accept: destructive migration (the fix drops screens.legacy)."
+ok "a fix-check's own Maintainer accept → awaiting accept" has gh.log "Why you: maintainer accept: destructive migration (the fix drops screens.legacy)"
 ok "… no merge" hasnt gh.log "pr merge"
 for p in db/migrations/0004_drop.sql src/migration_1.ts contracts/screen.yaml packages/x/contract/a.yaml src/q.sql src/schema.prisma; do
   ok "fix-check effort: touches $p → medium" eq "$(fe "1	1	src/a.ts"$'\n'"1	0	$p")" medium

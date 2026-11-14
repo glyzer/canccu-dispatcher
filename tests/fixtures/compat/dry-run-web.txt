@@ -11,7 +11,7 @@ usage: usage unknown
 open PRs:
   PR #70 (closes #7) · draft false · CI green · manual: changes setup/ (setup/x.sh)
 one pass would:
-  would: ping #7 as review-bot: @octo PR #70 waits for your accept: label it `accepted`, or `canccu-ship 7`.
+  would: ping #7 as review-bot: @octo For the product owner: PR #70 waits for your accept: label it `accepted`, or `canccu-ship 7`.
   would: start worker #3
   would: gh issue edit 3 -R example-org/web --add-label in-progress --remove-label ready --add-assignee octo
 2030-11-05T12:00:00Z #3 started: Issue 3
