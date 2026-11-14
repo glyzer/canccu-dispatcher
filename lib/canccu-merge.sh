@@ -171,10 +171,9 @@ accept_step() {
 }
 
 # conflict_merge <n> <pr> <head> [disarm|queue]: GitHub says the PR conflicts with main (DIRTY; queue: the merge queue said so): merge
-# main in by script (main_merge), once per head, so a merge that leaves it conflicting never loops.
-# Its push is a new head: a merge of main only needs no new review (postpass_step); its CI waits start now (check_at), and
-# the old head's red is not its own (main_merged, as in ci_red). A real conflict gets one worker merge run; that run pushed
-# nothing (still this head) → needs-you. disarm: auto-merge off first, so the push requeues cleanly. BEHIND: the queue's. 1: nothing done.
+# main in by script (main_merge), once per head, so a merge that leaves it conflicting never loops. Its push is a new head:
+# no new review (postpass_step), CI waits start now (check_at), the old head's red is not its own (main_merged, as in ci_red).
+# A real conflict: one worker merge run; it pushed nothing (same head) → needs-you. disarm: auto-merge off first. BEHIND: the queue's. 1: nothing done.
 conflict_merge() {
   local n=$1 pr=$2 head=$3
   [ "${4:-}" = queue ] || [ "$(pr_get "$pr" '.mergeStateStatus // ""')" = DIRTY ] || return 1
