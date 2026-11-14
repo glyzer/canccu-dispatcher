@@ -104,7 +104,8 @@ unit_of_branch() {
 # owner_of <K> <kind>: who a waiting item of the unit (or a step's issue) is for, po or leader, by
 # the owner rule of docs/plan/contracts.md §1; kind: a snap_need or ping kind. It reads only the
 # dispatcher's own state and settings, never a label the leader sets (manual-accept is the
-# product owner's). Rule 7 (the hand-over) needs the leader's acknowledgement: not built yet.
+# product owner's). Rule 7 (the hand-over of an item the leader left unacknowledged) is
+# feed_handover's: it rewrites the stored owner, which need_owner reads.
 owner_of() {
   local k=$1 kind=$2 r m
   [ "${LEADER:-off}" = on ] || { echo po; return 0; }
