@@ -1052,6 +1052,24 @@ ok "both prompts have the one skill rule, which forbids subagents (#88)" eq "$(g
 ok "… the package prompt no longer allows them" not grep -q 'You may use the superpowers skills subagent' <<<"$(lib eval 'fetch; unit_prompt pkg-12-a')"
 
 # #107: an empty key names the state directory, not a file: nothing, and no read error
+# ---------------------------------------------------------------- stale run temp dirs (#155)
+
+# at start: a temp dir whose run is gone and that is over an hour old goes; a live run's stays,
+# and so does a young one (a run that is just starting)
+env_new tmp-sweep
+sleep 30 & sp=$!
+mkdir -p "$WORKERS_DIR/tmp/web-5.999999/ro/d" "$WORKERS_DIR/tmp/web-6.$sp" "$WORKERS_DIR/tmp/web-7.999998" "$WORKERS_DIR/tmp/web-8.999997"
+chmod 555 "$WORKERS_DIR/tmp/web-5.999999/ro/d"   # a read-only dir (a Go module cache) goes too
+printf 'repo=web\nkey=6\nkind=worker\npid=%s\npstart=%s\nwindow=\n' "$sp" "$(lib proc_start "$sp")" > "$WORKERS_DIR/web-6.lock"
+printf 'repo=web\nkey=8\nkind=worker\npid=1\nwindow=\n' > "$WORKERS_DIR/web-8.lock"   # another run's pid: not this dir's
+touch -d '2 hours ago' "$WORKERS_DIR/tmp/web-5.999999" "$WORKERS_DIR/tmp/web-6.$sp" "$WORKERS_DIR/tmp/web-8.999997"
+dispatch --once
+ok "tmp sweep: a stale dir with no live run is removed at start" eq "$(ls "$WORKERS_DIR/tmp" | tr '\n' ' ')" "web-6.$sp web-7.999998 "
+ok "… logged once with the count" eq "$(grep -c 'removed 2 stale run temp dirs' "$CANCCU_HOME/dispatch.log")" 1
+dispatch --once
+ok "… nothing left to remove: no line" eq "$(grep -c 'stale run temp dirs' "$CANCCU_HOME/dispatch.log")" 1
+kill "$sp"; wait "$sp" 2>/dev/null
+
 env_new st-get-empty
 ok "st_get with an empty key prints nothing and returns 0" eq "$( ( PATH="$fb:$PATH"; . "$root/lib/canccu-common.sh"; set -u; st_get "" phase; echo "rc=$?" ) 2>&1)" "rc=0"
 

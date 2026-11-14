@@ -34,6 +34,9 @@ printf 'repo=web\nkey=5\nkind=worker\npid=%s\nwindow=\nstarted=1\n' "$$" > "$C/p
 jq -n --argjson at "$(date +%s)" '{schema: 2, version: "9.9.0", pass: {at: $at, ok: true}}' > "$C/projects/web/status.json"
 doctor
 ok "… a live run and a fresh snapshot are no problem" eq "$rc $(cat "$E/out")" "0 no problems found"
+mkdir -p "$C/projects/web/workers/tmp/web-5.$$"; truncate -s 4G "$C/projects/web/workers/tmp/web-5.$$/big"   # sparse: no disk used
+doctor
+ok "… run temp dirs under 5 GB are no problem" eq "$rc $(cat "$E/out")" "0 no problems found"
 # Claude's own path forms, not shell paths: ~ is Claude's to expand
 # shellcheck disable=SC2088
 for pat in '~/.canccu/**' '/'"$H"'/.canccu/reviewer-token' '~/.canccu/*-token'; do
@@ -86,6 +89,7 @@ printf 'REPO=example-org/shop\n' > "$C/projects/shop/config"
 mkdir -p "$C/projects/web/workers"
 printf 'repo=web\nkey=6\nkind=worker\npid=999999999\nwindow=\nstarted=1\n' > "$C/projects/web/workers/web-6.lock"
 jq -n '{schema: 2, pass: {at: 1000, ok: false, error: "gh error"}}' > "$C/projects/web/status.json"
+mkdir -p "$C/projects/web/workers/tmp/web-6.999999999"; truncate -s 6G "$C/projects/web/workers/tmp/web-6.999999999/big"
 holder "$C/projects/web/.dispatch.lock" "$E/stray"
 doctor
 ok "a dirty host: exit 1" eq "$rc" 1
@@ -104,6 +108,7 @@ ok "… a dispatcher lock held by no dispatcher" eq "$(line 'project web: its di
 ok "… an old snapshot while the lock is held" eq "$(line 'project web: the status snapshot is ')" 1
 ok "… a failed last pass" eq "$(line 'project web: the last pass failed: gh error')" 1
 ok "… a stale run lock" eq "$(line 'project web: stale run lock ~/.canccu/projects/web/workers/web-6.lock')" 1
+ok "… run temp dirs over 5 GB" eq "$(line 'project web: run temp dirs use 6.0G; a run may leak, check ~/.canccu/projects/web/workers/tmp$')" 1
 ok "… one line per problem, nothing else" eq "$(grep -cvE '^(claude|release|canccu-|HOST_PROFILE|project |reviewer token|~)' "$E/out")" 0
 ok "… the token never shows" notoken "$E/out"
 doctor --project tools
