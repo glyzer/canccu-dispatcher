@@ -14,6 +14,57 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
   `dispatch.log`. `docs/security.md` states that the reviewer token's deny rule covers the
   session's own Read and Edit tools only (#173).
 
+## [0.1.4] — 2026-11-14
+
+**Upgrade:** the host profiles now set the run models. With `HOST_PROFILE=max`, the work and plan
+runs and the full review use `claude-opus-5-5`; the light review and the fix-check use
+`claude-sonnet-5-5`. With `HOST_PROFILE=pro`, work, fix and health runs use `claude-sonnet-5-5`,
+plan runs and the full review `claude-opus-5-5`. A host that wants other models sets them in
+`~/.canccu/config` (or the project's config), which overrides the profile (#170).
+
+- Every waiting item (an accept, a `needs-you`) has an owner, the product owner or the leader,
+  set from `LEADER` (default `off`: every item is the product owner's), `LEADER_ACCEPTS` and
+  `LEADER_ACCEPTS_HIGH_RISK`; status, monitor and pings split by it. The state format is now `2`
+  and is upgraded at start (#70).
+- The event feed: one line per event a person must act on, a heartbeat, and one `idle` line for a
+  unit nothing moved for `IDLE_ALARM_MIN` (default 60) minutes with nothing running.
+  `canccu-dispatcher wait [--owner po|leader] [--ack <id>]` blocks until the next line (#83).
+- `USER_VISIBLE_PATHS` (rules, locked, empty = off): a PR that changes one of these paths waits
+  for the product owner (`manual: users see it: <path>`). `TEST_PATHS` (rules, open; default
+  `tests/`, `__tests__/`, `spec/`, `*.test.*`, `*.spec.*`) names the test files, never user-visible
+  (#78).
+- A merged PR whose named issue GitHub leaves open: after `MERGE_CLOSE_MIN` (default 2) minutes
+  the dispatcher closes it and removes its dispatcher labels; a close that keeps failing still
+  gets `needs-you` after `MERGE_WAIT_MIN` (#139).
+- A PR that conflicts with main gets main merged in by script in every phase, not only at the
+  accept and merge steps: `MERGE_MAIN_ANY_PHASE` (default `1`; `0`: as before). A no-checks
+  `needs-you` names the conflict, and a contract-first unit's resume merges main first (#149).
+- The fix-check counts only the PR's own lines, not main's merged into it:
+  `FIXCHECK_COUNT_MAIN` (locked, default `0`; `1`: main's lines count too). A conflicting merge
+  falls back to the old count (#150).
+- A lighter reviewer model for a PR that changes only docs, tests or `LIGHT_REVIEW_PATHS` (rules,
+  locked, default empty): `REVIEW_MODEL_LIGHT` (default empty: `REVIEW_MODEL`), at effort
+  `medium` at most. Gated paths and agent configuration are never light (#151).
+- `needs-work` on a PR is honoured: the dispatcher moves it to the unit's issue and the fix run
+  starts on the same pass (#154).
+- Each run gets its own temp dir under the workers dir (`TMPDIR`, `TMP`, `TEMP`), removed when
+  the run ends; the dirs of dead runs are swept at start and `doctor` warns over 5 GB:
+  `RUN_TMPDIR` (default `disk`; `system`: the inherited `TMPDIR`) (#155).
+- One more automatic fix round, past `FIX_ATTEMPTS`, when the last verdict has fewer blocking
+  findings than the one before and at least one: `FIX_EXTRA_IF_FEWER` (default `1`; `0`: stop as
+  before) (#156).
+- The spend log's column 16 is the run's wall seconds (`-` when no run started), and every `ci=`
+  note carries `ci_wait=<seconds>`; logs without them read as before (#157).
+- Rolling waves: `WAVE_ROLLING` (locked, default `0`) plans the next wave while one runs, once
+  nothing waits to start and a slot is free. A plan whose new package overlaps a running one's
+  areas without depending on it is invalid, whatever the setting (#166).
+- `HOST_PROFILE=pro` takes the max profile's budgets (every `BUDGET_*` and `STEP_BUDGET`) and
+  runs one worker at a time (`CAP=1`, `TOTAL_CAP=1`) (#168).
+- Tests and plans: the engine-stall test outlasts a slow watchdog and `tests/run` shows a failing
+  check's value (#147); a single PR with an additive contract change flows normally (#152);
+  `docs/reference/config.md`'s "Where the values come from" moved to `config-files.md`; the plan
+  for package Q1 and the T1 and L1 changes (#125).
+
 ## [0.1.3] — 2026-11-13
 
 - Log times are UTC with a `Z` (`2026-11-12T19:35:14Z`) wherever a time is written for people

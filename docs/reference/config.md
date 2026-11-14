@@ -77,7 +77,8 @@ is stopped and its issue goes to `needs-you`.
 | `BUDGET_HEALTH` | `250 60 150` | The health pass at the end of a step |
 | `BUDGET_PACKAGE_MAX` | `600 200 360` | A package's work, resume and review budgets are the issue's times its issue count, each part capped by this |
 | `PACKAGE_LINES` | `1500` | The planner's size guide: changed lines per package |
-| `PACKAGE_MIN_ISSUES` | `1` | Above 1, the planner aims for at least this many issues per package, where they fit together |
+| `PACKAGE_MIN_ISSUES` | `3` | Above 1, the planner aims for at least this many issues per package, where they fit together (never unrelated ones); `1`: no nudge |
+| `PACKAGE_HOLD_SMALL` | `0` | `1`: the planner may leave a lone small leftover (under about 300 changed lines) out of a wave while an earlier package of its area runs or other issues of its area wait, so it joins a later wave's package of its area ([`packages.md`](packages.md#the-planner)) |
 | `PLAN_MODEL` | empty | The planner's model; empty: `MODEL` |
 | `WAVE_ROLLING` | `0` | `1`: the next wave is planned while this one runs, once no package of it waits to start and a run slot is free (`CAP`); `0`: the planner waits for the wave to be over ([`packages.md`](packages.md#waves)). Locked |
 | `REVIEW_MODEL` | empty | The full reviewer's model; empty: `MODEL` ([`reviews.md`](reviews.md), "Model by kind") |

@@ -47,6 +47,7 @@ BUDGET_HEALTH	budget	project	open
 BUDGET_PACKAGE_MAX	budget	project	open
 PACKAGE_LINES	int:100:100000	project	open
 PACKAGE_MIN_ISSUES	int:1:20	rules	open
+PACKAGE_HOLD_SMALL	enum:0|1	rules	open
 PLAN_MODEL	name	project	open
 WAVE_ROLLING	enum:0|1	project	locked
 REVIEW_MODEL	name	project	open
