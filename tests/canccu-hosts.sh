@@ -81,13 +81,24 @@ ok "… MODEL in ~/.canccu/config overrides it" eq "$(load '$MODEL|$REVIEW_MODEL
 tname=pro
 ok "hosts/pro.conf ships" test -f "$root/hosts/pro.conf"
 ok "… and sets no HOST_PROFILE" not grep -qE '^[[:space:]]*HOST_PROFILE=' "$root/hosts/pro.conf"
+# the product owner decided that a Pro host's limit is parallelism, not run length
+pk=$(grep -oE '^(BUDGET_[A-Z_]+|STEP_BUDGET)=' "$root/hosts/max.conf" | tr -d = | sort -u)
+ok "… it sets the budget keys max sets" eq "$(grep -oE '^(BUDGET_[A-Z_]+|STEP_BUDGET)=' "$root/hosts/pro.conf" | tr -d = | sort -u)" "$pk"
+diff=""
+for k in $pk; do
+  a=$( (CANCCU_ROOT=/nonexistent; . "$root/hosts/max.conf"; echo "${!k}") )
+  b=$( (CANCCU_ROOT=/nonexistent; . "$root/hosts/pro.conf"; echo "${!k}") )
+  [ "$a" = "$b" ] || diff+=" $k"
+done
+ok "… each to max's value" eq "${diff# }" ""
+ok "… and one run at a time" eq "$( (CANCCU_ROOT=/nonexistent; . "$root/hosts/pro.conf"; echo "$CAP|$TOTAL_CAP") )" "1|1"
 env_new pro-load
 # the harness's project config sets CAP, which wins over any profile
 sed -i '/^CAP=/d' "$CANCCU_HOME/config"
-ok "HOST_PROFILE=pro: one run at a time, small budgets, a medium review effort" \
-  eq "$(CANCCU_HOST_PROFILE=pro load '$HOST_PROFILE|$CAP|$TOTAL_CAP|$BUDGET_REVIEW|$REVIEW_EFFORT_MAX')" "pro|1|1|30 6 30|medium"
+ok "HOST_PROFILE=pro: one run at a time, max's budgets, a medium review effort" \
+  eq "$(CANCCU_HOST_PROFILE=pro load '$HOST_PROFILE|$CAP|$TOTAL_CAP|$BUDGET_REVIEW|$REVIEW_EFFORT_MAX')" "pro|1|1|60 15 40|medium"
 printf 'HOST_PROFILE=pro\nTOTAL_CAP=2\nREVIEW_EFFORT_MAX=high\n' > "$CANCCU_ROOT/config"
-ok "… a value in ~/.canccu/config overrides it" eq "$(load '$TOTAL_CAP|$REVIEW_EFFORT_MAX|$BUDGET_REVIEW')" "2|high|30 6 30"
+ok "… a value in ~/.canccu/config overrides it" eq "$(load '$TOTAL_CAP|$REVIEW_EFFORT_MAX|$BUDGET_REVIEW')" "2|high|60 15 40"
 printf 'HOST_PROFILE=pro\n' > "$CANCCU_ROOT/config"
 ok "HOST_PROFILE=pro: Sonnet runs, fixes, light reviews, fix-checks and health; Opus plans and reviews" \
   eq "$(load "$models")" \

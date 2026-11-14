@@ -10,7 +10,8 @@ A host profile pins the values that depend on the Claude plan and the host, so a
 the defaults does not move a running host. `hosts/max.conf` (a Claude Max plan) sets today's
 defaults of `CAP`, `TOTAL_CAP`, every `BUDGET_*` key, `STEP_BUDGET`, `USAGE_SLOW`, `USAGE_STOP`
 and `USAGE_WEEKLY_DRAIN`. `hosts/pro.conf` (a Claude Pro plan) sets the same keys for one run
-at a time with small budgets, and `REVIEW_EFFORT_MAX=medium`. `~/.canccu/config` overrides any
+at a time with the same budgets as max (the Pro limit is parallelism, not run length), its own
+usage throttle, and `REVIEW_EFFORT_MAX=medium`. `~/.canccu/config` overrides any
 of them. `install.sh --host-profile <name>` adds `HOST_PROFILE=<name>` to a config without that
 key.
 

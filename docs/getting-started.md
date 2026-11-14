@@ -81,7 +81,7 @@ REVIEWER_LOGIN=review-bot
 HOST_PROFILE=pro
 ```
 
-It runs one thing at a time with small budgets; the values are in
+It runs one thing at a time with the same budgets as Max; the values are in
 [`hosts/pro.conf`](../hosts/pro.conf) ([`reference/config.md`](reference/config.md), "Host
 profiles"), and `~/.canccu/config` overrides any of them. It also sets the run models (Sonnet
 for the workers, Opus for the planner and the reviews); a model line in `~/.canccu/config`
