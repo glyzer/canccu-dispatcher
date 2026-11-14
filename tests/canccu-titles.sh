@@ -26,7 +26,7 @@ ms 12 "3 Events $BAD" | jq -s . > "$FAKE/ms.json"
 { issue 3 ready | evil; issue 4 | evil; issue 5 needs-you | evil; issue 90 epic "" "3 Events $BAD"; issue 91 "" "" "3 Events $BAD" | evil; } | issues
 dispatch --once
 ok "titles: the issue starts" started 3
-ok "… the log line has the clean title" grep -qxF "#3 started: $CLEAN" <(cut -d' ' -f3- "$CANCCU_HOME/dispatch.log")
+ok "… the log line has the clean title" grep -qxF "#3 started: $CLEAN" <(cut -d' ' -f2- "$CANCCU_HOME/dispatch.log")
 ok "… no log line has a control character" clean_lines "$CANCCU_HOME/dispatch.log"
 ok "… the milestone's title in the log is clean too" grep -qF "step 3 Events $CLEAN" "$CANCCU_HOME/dispatch.log"
 ok "… the snapshot's titles are clean (the monitor reads them)" \

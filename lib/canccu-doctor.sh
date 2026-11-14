@@ -83,7 +83,10 @@ _doc_project() {
   [ -n "$REVIEWER_LOGIN" ] || echo "REVIEWER_LOGIN is not set (the reviewer bot's login, in $(login_where)): no reviews"
   git -C "$CLONE" rev-parse --git-dir >/dev/null 2>&1 ||
     echo "the clone $(canccu_tilde "$CLONE") is not a git checkout (git clone https://github.com/$REPO $(canccu_tilde "$CLONE"))"
-  gh_credential_problem 2>/dev/null
+  l=$(gh_credential_problem 2>/dev/null)
+  if [ "$l" = "$GH_NO_LOGIN" ]; then
+    echo "no gh login of its own (GH_CONFIG_DIR) and ALLOW_DEFAULT_GH_LOGIN=0: it starts no run; to set one up, $(gh_login_steps)"
+  elif [ -n "$l" ]; then echo "$l"; fi
   l=$CANCCU_HOME/.dispatch.lock
   [ -e "$l" ] && ! flock -n "$l" true 2>/dev/null && held=1
   (( held )) && ! dispatcher_running &&

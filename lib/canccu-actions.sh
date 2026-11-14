@@ -105,7 +105,7 @@ issue_prompt() {
   local n=$1 title=${2:-} p=${3:-$(st_get "$1" plan_ok)} br=${4:-$(st_get "$1" branch)} prompt
   if [ -z "$br" ]; then
     [ -n "$title" ] || title=$(title_of "$n")
-    [ -n "$title" ] || title=$(ghj issue view "$n" -R "$REPO" --json title | jqr .title)
+    [ -n "$title" ] || title=$(safe_title "$(ghj issue view "$n" -R "$REPO" --json title | jqr .title)")
     br=$(issue_branch "$n" "$title")
   fi
   # shellcheck disable=SC2059
@@ -127,7 +127,7 @@ unit_prompt() {
 start_issue() {
   local n=$1 title prompt c=0 p="" pl=() br
   title=$(title_of "$n")
-  [ -n "$title" ] || title=$(ghj issue view "$n" -R "$REPO" --json title | jqr .title)
+  [ -n "$title" ] || title=$(safe_title "$(ghj issue view "$n" -R "$REPO" --json title | jqr .title)")
   # plan-ok on an issue nobody manages: its plan PR merged (plan_back); the build executes it
   has_label "$n" plan-ok && { p=1 pl=(--remove-label plan-ok); }
   # kept in the state: is_contract_pr knows the issue's contract PR by it

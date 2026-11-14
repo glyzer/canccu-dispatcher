@@ -107,7 +107,7 @@ unit_cleanup() {
 # unit_merged <K> <pr> <PR title> <closed member...>: the record and cleanup of a merged unit
 # (finish_unit, merged_left); the closed members unblock what they blocked and close their epics
 unit_merged() {
-  local n=$1 pr=$2 title=$3 how m; shift 3
+  local n=$1 pr=$2 title how m; title=$(safe_title "$3"); shift 3
   how=$(st_get "$n" how)
   (( CANCCU_DRY )) || printf '%s\t%s\t%s\t%s\t%s\n' "$(now)" "$n" "$pr" "${how:-by hand}" "$title" >> "$CANCCU_HOME/merged.log"
   log "#$n merged (PR #$pr, ${how:-by hand})"

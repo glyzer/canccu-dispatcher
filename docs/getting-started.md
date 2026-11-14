@@ -114,7 +114,9 @@ of the GitHub part of step 4 (not the snippets) plus two steps of its own:
 - clone the repo to `~/code/web` (`git clone https://github.com/example-org/web ~/code/web`), and
   read `~/.canccu/projects/web/rules` ([`reference/rules.md`](reference/rules.md));
 - create the project's narrow token and log its `gh` dir in with it
-  ([`reference/projects.md`](reference/projects.md#a-narrow-token-per-project)).
+  ([`reference/projects.md`](reference/projects.md#a-narrow-token-per-project)). Without it the
+  project starts no run: the default `gh` login is refused unless its config sets
+  `ALLOW_DEFAULT_GH_LOGIN=1`.
 
 **A safe start on a real repo.** Until you trust it, make every PR wait for your accept: in
 `~/.canccu/projects/web/rules`, set `AUTO_MERGE_UNTIL` to today's date or any earlier one

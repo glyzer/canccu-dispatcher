@@ -145,9 +145,13 @@ snapshot.
 and writes the snapshot with `ok: false`; `canccu-status` and the monitor show it. Other
 projects keep running.
 
-A project without a config dir runs on the default `gh` login, and `canccu-status` warns: `no gh
-config dir for project <name>`. Once no project warns, you can `gh auth logout` the default login
-and revoke a classic token.
+A project without a config dir starts no run: the default `gh` login reaches every repo of the
+host's user, so running on it is a choice, not an accident. The pass logs once, and the snapshot
+and `canccu-status` say, `this project has no gh login of its own (GH_CONFIG_DIR); set one up
+(canccu-dispatcher doctor shows how) or set ALLOW_DEFAULT_GH_LOGIN=1`; `canccu-dispatcher doctor`
+names each such project with the steps above. With `ALLOW_DEFAULT_GH_LOGIN=1` in its config it
+runs on the default login, and `canccu-status` warns: `no gh config dir for project <name>`. Once
+no project runs on it, you can `gh auth logout` the default login and revoke a classic token.
 
 **The lead's session** uses the same dir: `canccu-up` starts every pane with the project's
 `GH_CONFIG_DIR` and git config, so the lead's `gh` and `git push` use the project's token. A
