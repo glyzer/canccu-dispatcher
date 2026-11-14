@@ -157,6 +157,15 @@ ho_unit 59
 dispatch --once
 ok "hand-over: 59 min → no change" eq "$(st 5 owner) $(lines)" "leader 1"
 
+env_new feed-handover-rekind LEADER=on LEADER_ACCEPTS=technical PING_KINDS=all
+ho_unit 120
+printf 'ev_at=%s\n' "$((NOW - 59 * 60))" >> "$CANCCU_HOME/state/5"
+dispatch --once
+ok "hand-over: a phase 2 h old, its item's line 59 min → no change" eq "$(st 5 owner) $(lines)" "leader 1"
+printf 'ev_at=%s\n' "$((NOW - 61 * 60))" >> "$CANCCU_HOME/state/5"
+dispatch --once
+ok "… its line 61 min → owner po" eq "$(st 5 owner)" po
+
 env_new feed-handover-off LEADER=off PING_KINDS=all
 ho_unit 61
 dispatch --once

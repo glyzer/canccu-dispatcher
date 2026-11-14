@@ -75,8 +75,8 @@ and stores it as the unit's `owner` when the unit enters `accept` or `needs-you`
 `leader has it:`; the monitor's NEEDS YOU box and the pings show only yours
 ([`monitor.md`](monitor.md), [`pings.md`](pings.md)).
 
-An item of the leader's that the leader has not acknowledged within 60 minutes of its unit
-entering the phase passes to you (contracts §1, rule 7): its owner becomes `po`, one feed line of
+An item of the leader's that the leader has not acknowledged within 60 minutes of its feed line
+being written passes to you (contracts §1, rule 7): its owner becomes `po`, one feed line of
 kind `handover` says `#<n> passed to the product owner: the leader did not acknowledge it in 60
 min`, the log says the same, and the next pass pings it like any of yours. The leader acknowledges
 an item with `canccu-dispatcher wait --owner leader --ack <id>`, `<id>` at or above the item's

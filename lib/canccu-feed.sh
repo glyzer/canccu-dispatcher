@@ -73,7 +73,7 @@ feed_unit_moved() {
   [ -n "$kind" ] || return 0
   pr=$(st_get "$k" pr); r=$(st_get "$k" reason)
   id=$(feed "$(st_get "$k" owner)" ask "$kind" "$k" "$pr" "$(feed_url "$k" "$pr")" "#$k $kind: ${r#manual: }")
-  [ -z "$id" ] || _st_put "$k" ev_id="$id"
+  [ -z "$id" ] || _st_put "$k" ev_id="$id" ev_at="$(now)"
 }
 
 # ---------------------------------------------------------------- the pass's part
@@ -101,7 +101,7 @@ feed_tick() {
 
 # feed_handover: rule 7 of docs/plan/contracts.md §1: a unit's item stored for the leader whose
 # line the leader has not acknowledged (leader_ack, from `wait --owner leader --ack`) passes to the
-# product owner once its phase is 60 minutes old. One way only: nothing hands it back, and leaving
+# product owner once its line is 60 minutes old. One way only: nothing hands it back, and leaving
 # the phase clears the owner. An item with no line id (state from before the feed) has nothing the
 # leader could have acked, so it stays.
 feed_handover() {
@@ -110,12 +110,12 @@ feed_handover() {
   for k in $(managed); do
     [ "$(st_get "$k" owner)" = leader ] || continue
     id=$(st_get "$k" ev_id); [[ $id =~ ^[0-9]+$ ]] && (( id > ack )) || continue
-    at=$(st_get "$k" phase_at); [[ $at =~ ^[0-9]+$ ]] && (( $(now) - at >= 3600 )) || continue
+    at=$(st_get "$k" ev_at); [ -n "$at" ] || at=$(st_get "$k" phase_at); [[ $at =~ ^[0-9]+$ ]] && (( $(now) - at >= 3600 )) || continue
     pr=$(st_get "$k" pr)
     t="#$k passed to the product owner: the leader did not acknowledge it in 60 min"
     _st_put "$k" owner=po
     id=$(feed po ask handover "$k" "$pr" "$(feed_url "$k" "$pr")" "$t")
-    [ -z "$id" ] || _st_put "$k" ev_id="$id"
+    [ -z "$id" ] || _st_put "$k" ev_id="$id" ev_at="$(now)"
     log "$t"
   done
 }
