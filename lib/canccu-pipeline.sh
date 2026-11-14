@@ -359,7 +359,7 @@ extra_round() {
 resume_step() {
   local n=$1 phase pr c since
   run_alive "$n" && return 0
-  phase=$(st_get "$n" phase); pr=$(st_get "$n" pr)
+  phase=$(st_get "$n" phase); pr=$(st_get "$n" pr); needs_work_from_pr "$n" "$pr" || return 0
   if has_label "$n" plan-ok; then
     room "$n" || return 0
     # the lead's answers to the plan's questions ("split; build package 1 only") shape what gets

@@ -804,6 +804,34 @@ dispatch --once
 ok "paused: no new issue" not started 6
 ok "paused: a limited worker resumes after the back-off" grep -q 'web 5 Rules for this run: .* The usage limit has reset' "$FAKE/worker.log"
 
+# needs-work on the PR of a unit in accept moves to the lead issue, where the issue's path handles it (#154)
+nw_pr_env() {   # nw_pr_env <name> <issue labels> <pr labels>
+  env_new "$1"
+  { issue 5 "$2"; } | issues
+  pr 50 5 $HA green "$3" | prs
+  state 5 phase=accept pr=50 "accept_sha=$HA" rounds=0 "accept_at=$((NOW - 3600))"
+  json issue5.json '{"comments": []}'; route 'issue view 5 *' issue5.json
+  json pr50.json '{"comments": []}'; route 'pr view 50 *' pr50.json
+}
+nw_pr_env needs-work-on-pr in-progress,awaiting-accept needs-work
+dispatch --once
+ok "needs-work on the PR → added to the lead issue" has gh.log "issue edit 5 -R example-org/web --add-label needs-work"
+ok "… removed from the PR" has gh.log "pr edit 50 -R example-org/web --remove-label needs-work"
+ok "… logged" grep -qF '#5 PR #50: `needs-work` was on the PR; moved to issue #5' "$CANCCU_HOME/dispatch.log"
+ok "… and the fix run starts on the same pass" grep -q 'web 5 Rules for this run: .* The user rejected PR #50' "$FAKE/worker.log"
+ok "… then needs-work leaves the issue" has gh.log "issue edit 5 -R example-org/web --remove-label needs-work"
+nw_pr_env needs-work-on-pr-gh-error in-progress,awaiting-accept needs-work
+echo 'fail:issue edit' >> "$FAKE/routes"
+dispatch --once
+ok "needs-work on the PR, gh error on the move → the PR keeps it" hasnt gh.log "pr edit 50 -R example-org/web --remove-label needs-work"
+ok "… logged as a retry" grep -qF '#5 PR #50: gh error moving `needs-work`; retrying next pass' "$CANCCU_HOME/dispatch.log"
+ok "… no run starts" not grep -q 'The user rejected PR #50' "$FAKE/worker.log"
+nw_pr_env needs-work-on-issue in-progress,awaiting-accept,needs-work ""
+dispatch --once
+ok "needs-work on the issue → the fix run starts as before" grep -q 'web 5 Rules for this run: .* The user rejected PR #50' "$FAKE/worker.log"
+ok "… nothing moved" eq "$(grep -c 'add-label needs-work\|pr edit 50 .*--remove-label needs-work' "$FAKE/gh.log")" 0
+ok "… needs-work leaves the issue" has gh.log "issue edit 5 -R example-org/web --remove-label needs-work"
+
 # ---------------------------------------------------------------- after merge
 
 env_new after-merge

@@ -122,7 +122,9 @@ Every `INTERVAL` seconds, under the project's lock:
    round with a fix-check after it, unless a line of your comment is just `full review`; every
    other `needs-work` (a refused accept, a stopped merge) starts a new cycle: the next review is
    a full one. A `gh` error reading the comments decides nothing: `needs-work` stays for the
-   next pass. A `needs-you` issue whose issue or PR got a new comment
+   next pass. `needs-work` may be put on the unit's PR too: the pass first moves it to the lead
+   issue (added there, then removed from the PR; logged), then handles it as above in the same
+   pass; a `gh` error on the move leaves it on the PR for the next pass. A `needs-you` issue whose issue or PR got a new comment
    from `USER_LOGIN` → that comment. `limited` after the back-off → a fresh session from its handoff ([`usage.md`](usage.md#after-the-reset)). `waiting` whose
    `blocked` is gone → "check its blockers again, then do the work". An issue labelled `blocked`
    is never started or resumed, and gets no answerer. A run that finished with no PR is not
