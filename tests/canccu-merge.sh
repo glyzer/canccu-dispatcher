@@ -547,6 +547,10 @@ dispatch --once
 ok "ci, the PR conflicts with main → main merged in by script, pushed" eq "$(grep -c 'merge --no-edit origin/main' "$FAKE/git.log") $(grep -c 'push origin HEAD:refs/heads/5-thing' "$FAKE/git.log")" "1 1"
 ok "… logged" grep -qF '#5 PR #50: conflicts with main; merged main into the branch by script (no AI run)' "$CANCCU_HOME/dispatch.log"
 ok "… no needs-you, no AI run" eq "$(grep -c needs-you "$FAKE/gh.log") $(wc -l < "$FAKE/worker.log")" "0 0"
+ok "… the new head noted, its CI wait timed from now" eq "$(st 5 main_merged) $(st 5 check_at)" "$FAKE_MERGED $NOW"
+pr 50 5 "$FAKE_MERGED" none | prs
+dispatch --once
+ok "… next pass, the new head has no checks yet → no needs-you" eq "$(grep -c needs-you "$FAKE/gh.log")" 0
 
 dirtyenv dirty-ci-conflict ci DIRTY; printf 'src/a.ts\n' > "$FAKE/merge-conflict"
 dispatch --once
