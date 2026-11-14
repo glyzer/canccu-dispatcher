@@ -219,6 +219,11 @@ wave_over() {
 }
 # wave_can_start <m>: a package of the current plan could start now (pending)
 wave_can_start() { plan_states "$1" | cut -f2 | grep -qx pending; }
+# wave_rolls <m>: WAVE_ROLLING=1, nothing of the wave waits to start and a run slot is free (the
+# count CAP uses): the next wave is planned now. Its plan carries the running packages, and a
+# blocked one behind them (carried_packages); a new package overlapping one waits for it
+# (plan_validate's running areas)
+wave_rolls() { [ "${WAVE_ROLLING:-0}" = 1 ] && ! wave_can_start "$1" && (( $(running_count) < CAP )); }
 # plan_states <m>: "<name>\t<status>\t<live 1|0>\t<issues>\t<unit key>" per package of the current plan, one
 # package_status each. Live: unfinished and able to run still: running (an accept or needs-you
 # included), pending, or blocked while every dependency not merged is live too. A package behind
@@ -483,7 +488,9 @@ step_tick() {
   ph=$(step_get "$m" phase)
   case $ph in
     needs-you) plan_retry "$m" ;;
-    running) wave_over "$m" && { step_set "$m" phase=idle; log "step $(step_title "$m"): wave $(step_get "$m" wave) is over"; } ;;
+    running)
+      if wave_over "$m"; then step_set "$m" phase=idle; log "step $(step_title "$m"): wave $(step_get "$m" wave) is over"
+      elif wave_rolls "$m"; then step_set "$m" phase=idle; log "step $(step_title "$m"): wave $(step_get "$m" wave) rolls on; planning the next one"; fi ;;
     # an accept that came after the wave was over lets a dependant start: the wave goes on
     idle) wave_can_start "$m" && { step_set "$m" phase=running; log "step $(step_title "$m"): wave $(step_get "$m" wave) goes on"; } ;;
     health|checkpoint) checkpoint_tick "$m" ;;

@@ -54,6 +54,7 @@ BUDGET_PACKAGE_MAX="600 200 360"   # cap on a package's budget (work, resume, re
 PACKAGE_LINES=1500          # the planner's size guide: changed lines per package
 PACKAGE_MIN_ISSUES=1        # above 1: the planner aims for at least this many issues per package (where they fit together)
 PLAN_MODEL=                 # the planner's model; empty: MODEL
+WAVE_ROLLING=0              # 1: plan the next wave while this one runs, once nothing waits to start and a slot is free; 0: wait for the wave to be over
 REVIEW_MODEL=               # the full reviewer's model; empty: MODEL
 REVIEW_MODEL_LIGHT=         # the full reviewer's model for a light PR (docs, tests, LIGHT_REVIEW_PATHS only); empty: REVIEW_MODEL
 FIXCHECK_MODEL=             # the fix-check's model (e.g. a cheaper one); empty: MODEL
