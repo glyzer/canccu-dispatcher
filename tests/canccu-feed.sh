@@ -118,7 +118,7 @@ ok "… saying so" eq "$out" "heartbeat stale: 11 min; the dispatcher may be dow
 
 env_new actions-cmds
 { issue 5 in-progress; } | issues
-cmd() { PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/$@" > "$E/out" 2>&1; }
+cmd() { PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/$1" "${@:2}" > "$E/out" 2>&1; }
 cmd canccu-pause; cmd canccu-resume --usage; cmd canccu-stop 5; cmd canccu-run x
 ok "canccu-pause, -resume, -stop and -run each write one line: actor, command, unit, result" eq "$(cut -f2- "$CANCCU_HOME/actions.log")" "po	canccu-pause	-	ok
 po	canccu-resume --usage	-	ok

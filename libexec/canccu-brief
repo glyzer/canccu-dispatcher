@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# canccu-brief [--project <name>] — `canccu-dispatcher leader brief`: everything a fresh leader
+# session needs, read only (lib/canccu-brief.sh). Run by bin/canccu-dispatcher, which reads no
+# project config itself.
+set -uo pipefail
+self=$(realpath "$0")
+# shellcheck source=../lib/canccu-common.sh
+. "$(dirname "$self")/../lib/canccu-common.sh"
+# shellcheck source=../lib/canccu-snapshot-steps.sh
+. "$(dirname "$self")/../lib/canccu-snapshot-steps.sh"
+# shellcheck source=../lib/canccu-brief.sh
+. "$(dirname "$self")/../lib/canccu-brief.sh"
+[ $# -eq 0 ] || { echo "usage: canccu-dispatcher leader brief [--project <name>]" >&2; exit 2; }
+brief
+exit 0

@@ -1,16 +1,34 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # canccu-ship [--project <name>] <n> — the user's accept: `gh pr merge <pr> --auto <method> --match-head-commit <head>` for the open
-# PR of ours that closes issue n (by USER_LOGIN, not from a fork).
+# PR of ours that closes issue n (by USER_LOGIN, not from a fork). With CANCCU_ACTOR=leader only a unit
+# in accept whose stored owner is leader, under LEADER_ACCEPTS=technical; a run never ships. Every
+# call writes one actions.log line (lib/canccu-actionslog.sh).
 set -uo pipefail
 self=$(realpath "$0")
 # shellcheck source=../lib/canccu-common.sh
 . "$(dirname "$self")/../lib/canccu-common.sh"
+act_track canccu-ship
 
 n=${1:-}; [[ $n =~ ^[0-9]+$ ]] || { echo "usage: canccu-ship [--project <name>] <n>" >&2; exit 2; }
 p=$(login_problem); [ -z "$p" ] || die "refused: $p"
 fetch || die "gh error reading $REPO"
 n=$(unit_of_issue "$n")   # an issue of a work package ships the package's PR
+# shellcheck disable=SC2034  # read at exit by _act_exit (lib/canccu-actionslog.sh)
+ACT_UNIT=$n
+# the leader accepts only what the owner rule gave it when the unit entered accept (the stored
+# owner, not today's owner_of): a later LEADER_ACCEPTS=none still takes it back
+case $(cfg_actor) in
+  run) die "refused: a run never accepts" ;;
+  leader)
+    [ "${LEADER_ACCEPTS:-none}" = technical ] || die "refused: LEADER_ACCEPTS is none"
+    ph=$(st_get "$n" phase)
+    if ! is_managed "$n" || [ "$ph" != accept ] || [ "$(st_get "$n" owner)" != leader ]; then
+      r=$(st_get "$n" reason); r=${r#manual: }
+      [ "$ph" = accept ] || r="phase ${ph:-none}, not accept"
+      die "refused: #$n is the product owner's (${r:-no reason stored})"
+    fi ;;
+esac
 pr=$(st_get "$n" pr)
 { [ -n "$pr" ] && pr_is_open "$pr"; } || pr=$(pr_for "$n")
 [ -n "$pr" ] || die "no open PR closes #$n"

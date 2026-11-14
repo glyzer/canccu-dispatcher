@@ -9,6 +9,7 @@ for a in "$@"; do [ "$a" = --usage ] && usage=1 || args+=("$a"); done
 set -- "${args[@]}"
 # shellcheck source=../lib/canccu-common.sh
 . "$(dirname "$self")/../lib/canccu-common.sh"
+act_track "canccu-resume$( ((usage)) && echo " --usage")"
 
 rm -f "$CANCCU_HOME/paused" && log "resumed (canccu-resume)"
 # one account serves every project on the host, so the back-off and each project's reading go;

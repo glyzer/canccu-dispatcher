@@ -16,7 +16,9 @@ export PATH
 [ -n "${WORKERS_DIR:-}" ] && mkdir -p "$WORKERS_DIR"
 
 TAB=$'\t'
-die() { echo "$(basename "$0"): $*" >&2; exit 1; }
+# ACT_WHY: the actions log's result when the command tracks itself (act_track)
+# shellcheck disable=SC2034
+die() { ACT_WHY="$*"; echo "$(basename "$0"): $*" >&2; exit 1; }
 
 # guard <duration> <cmd...>: every gh, jq and python3 call goes through this. A wall-clock
 # limit plus a virtual-memory cap, so a runaway kills itself, not the container.

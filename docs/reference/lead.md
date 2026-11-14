@@ -11,6 +11,21 @@ does not start, wake or watch it: it is your own session, used to turn ideas int
 pipeline can run and to clear what waits for you. Nothing the lead does bypasses the pipeline:
 its PRs, if any, are reviewed and gated like a worker's.
 
+## The leader's brief
+
+A fresh leader session starts with `canccu-dispatcher leader brief` ([`commands.md`](commands.md)):
+the `canccu-status` header (version, model, usage, project, runs), the open feed lines for the
+leader and for the product owner under their own headings, the current step and the next 5
+runnable issues, and the last 10 lines of `actions.log` (what a person or a leader did last,
+[`state.md`](state.md#a-projects-dir)). It is built from the same functions as `canccu-status`
+and is read only: it starts and changes nothing. The leader then follows the feed with
+`canccu-dispatcher wait --owner leader` ([below](#the-feed)).
+
+The leader ships with `canccu-ship <n>` only what the owner rule gave it: a unit in `accept`
+whose stored `owner` is `leader`, while `LEADER_ACCEPTS=technical`. Anything else is refused and
+the refusal is logged. The `CANCCU_ACTOR` marker that tells the leader apart is not a security
+boundary.
+
 ## Writing issues
 
 An issue is the worker's spec and the reviewer's checklist, so write it for both:

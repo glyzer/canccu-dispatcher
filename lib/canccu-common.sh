@@ -110,6 +110,8 @@ fi
 TMUX_SESSION=$(canccu_session "$CANCCU_PROJECT")
 export CANCCU_HOME WORKERS_DIR="$CANCCU_HOME/workers" TMUX_SESSION CODE_ROOT
 CODE_ROOT=$(dirname "$CLONE")
+# shellcheck source=canccu-actionslog.sh
+. "$_canccu_lib/canccu-actionslog.sh"
 # shellcheck source=canccu-engine.sh
 . "$_canccu_lib/canccu-engine.sh"
 

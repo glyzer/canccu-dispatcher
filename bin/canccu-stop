@@ -12,9 +12,12 @@ self=$(realpath "$0")
 . "$(dirname "$self")/../lib/canccu-common.sh"
 
 forget=0; [ "${1:-}" = --forget ] && { forget=1; shift; }
+act_track "canccu-stop$( ((forget)) && echo " --forget")"
 n=${1:-}; [[ $n =~ ^[0-9]+$ ]] || { echo "usage: canccu-stop [--project <name>] [--forget] <n>" >&2; exit 2; }
 issue=$n
 n=$(unit_of_issue "$n")   # an issue of a work package stops the package
+# shellcheck disable=SC2034  # read at exit by _act_exit (lib/canccu-actionslog.sh)
+ACT_UNIT=$n
 if (( forget )) && [ ! -e "$(st_file "$n")" ]; then echo "nothing to forget for #$issue"; exit 0; fi
 keys=()
 for key in "$n" "review-$(st_get "$n" pr)" "answer-$n"; do

@@ -5,5 +5,6 @@ set -uo pipefail
 self=$(realpath "$0")
 # shellcheck source=../lib/canccu-common.sh
 . "$(dirname "$self")/../lib/canccu-common.sh"
+act_track canccu-pause
 
 mkdir -p "$CANCCU_HOME" && touch "$CANCCU_HOME/paused" && log "paused (canccu-pause, project $CANCCU_PROJECT)"

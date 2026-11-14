@@ -45,6 +45,7 @@ In `~/.canccu/projects/<name>/`:
 | `state.format` | The format of `state/` and `steps/`: one number (below) |
 | `dispatch.log` | One line per action, each starting with its UTC time (`2030-11-05T12:00:00Z`; lines written by an earlier release have the host's local time, `2030-11-05 12:00:00`, and readers accept both), plus the raw output of the commands (prefixed `  │ `) |
 | `events`, `heartbeat` | The feed, one line per event a person must act on, and the file every pass touches ([`lead.md`](lead.md#the-feed)) |
+| `actions.log` | One line per command a person or the leader ran (contracts §7), tab-separated: `<time> <actor> <command> <unit or -> <result>`. The actor is `po`, `leader` or `run` (the `CANCCU_ACTOR` marker; not a boundary); the command is `canccu-ship`, `canccu-pause`, `canccu-resume [--usage]`, `canccu-stop [--forget]`, `canccu-run`, or `config set <KEY>` / `config unset <KEY>` (the key, never the value); the result is `ok` or the refusal's first line. Append only; `canccu-dispatcher leader brief` shows the last 10 ([`commands.md`](commands.md#commands)) |
 | `feed.open` | `<key>=<id>` of the open feed items no unit's state holds (holds, checkpoints, PRs labelled `needs-you`) |
 | `.running` | Present while the dispatcher loops; one left at its start means a stop it did not plan |
 | `dispatch.pid`, `.dispatch.lock` | The running dispatcher and its lock |

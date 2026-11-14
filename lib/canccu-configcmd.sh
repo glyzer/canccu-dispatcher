@@ -4,6 +4,8 @@
 # holds. Sourced by bin/canccu-dispatcher after lib/canccu-projects.sh, never run.
 # docs/reference/commands.md, "config show".
 _cfg_lib=$(dirname "${BASH_SOURCE[0]}")
+# shellcheck source=canccu-actionslog.sh
+. "$_cfg_lib/canccu-actionslog.sh"
 
 _cfg_rows() { grep -v '^#' "$_cfg_lib/canccu-settings.tsv" | grep .; }
 # cfg_keys: the keys, in the table's order
@@ -162,9 +164,6 @@ cfg_check() {
 # _cfg_list <a|b|…>: "a, b, …", an empty alternative as "empty"
 _cfg_list() { awk -F'|' '{ for (i = 1; i <= NF; i++) printf "%s%s", (i > 1 ? ", " : ""), ($i == "" ? "empty" : $i) }' <<<"$1"; }
 
-# cfg_actor: who called: leader or run by the CANCCU_ACTOR marker (libexec/canccu-worker exports
-# run), the product owner (po) otherwise. Not a security boundary: a process can unset it.
-cfg_actor() { case ${CANCCU_ACTOR-} in leader|run) echo "$CANCCU_ACTOR" ;; *) echo po ;; esac; }
 
 # _cfg_held <file> <KEY> <project>: the value the file sets for the key; status 1 when it has no
 # line for it. Sourced, as the dispatcher reads it, so quotes and escapes come out as it sees them.
@@ -202,10 +201,15 @@ cfg_set() {
   done
   [ "$n" = 1 ] && { [ "$glob" = 0 ] || [ -z "$proj" ]; } || usage
   if [ "$op" = set ]; then [[ $arg == *=* ]] || usage; k=${arg%%=*} v=${arg#*=}; else k=$arg; fi
-  if [ "$glob" = 0 ]; then proj=$(_cfg_project "$proj") || exit; nowp=$proj
+  # the key, never the value, goes to the actions log: a value may be a path or a name
+  # shellcheck disable=SC2034  # read at exit by _act_exit (lib/canccu-actionslog.sh)
+  ACT_CMD="config $op $k"
+  if [ "$glob" = 0 ]; then proj=$(_cfg_project "$proj") || exit; nowp=$proj; ACT_HOMES=("$CANCCU_ROOT/projects/$proj")
   else
     # the "now:" line of a --global write: the only project's value, as config show gives it
     [ "$(canccu_profiles | grep -c .)" != 1 ] || nowp=$(canccu_profiles)
+    # a global write changes every project: each one's log, so each leader's brief, has it
+    ACT_HOMES=(); while read -r w; do [ -n "$w" ] && ACT_HOMES+=("$CANCCU_ROOT/projects/$w"); done < <(canccu_profiles)
   fi
   f=$(cfg_field "$k" 3) || _cmd_die "unknown setting $k" 2
   [ "$f" != fixed ] || _cmd_die "$k is not changed with this command: edit the config file by hand and restart the dispatcher" 2
