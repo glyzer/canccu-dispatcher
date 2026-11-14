@@ -196,7 +196,7 @@ check_pr() {
     return
   fi
   [ -z "$c" ] || st_set "$n" contract_merged=
-  # ci_wait: how long the PR waited for CI to settle, for the spend log (from check_at, the check's start)
+  # for the spend log: ci_wait, seconds CI took to settle since check_at; ci=rerun-green, a rerun of failed jobs turned the head green (a flaky check)
   ciw=$(st_get "$n" check_at); ciw=$(( $(now) - ${ciw:-$(now)} ))
   case $(ci_state "$pr") in
     red) spend_note "$n" "$(st_get "$n" started)" ci=red "ci_wait=$ciw"; ci_red "$n" "$pr"; return ;;
@@ -212,9 +212,7 @@ check_pr() {
         st_set "$n" ny_wait=ci
       return ;;
   esac
-  # a rerun of failed jobs that turned the head green: a flaky check, for the spend log
-  if [ "$(st_get "$n" ci_rerun)" = "$(pr_get "$pr" .headRefOid)" ]; then spend_note "$n" "$(st_get "$n" started)" ci=rerun-green "ci_wait=$ciw"
-  else spend_note "$n" "$(st_get "$n" started)" ci=green "ci_wait=$ciw"; fi
+  spend_note "$n" "$(st_get "$n" started)" "ci=$([ "$(st_get "$n" ci_rerun)" = "$(pr_get "$pr" .headRefOid)" ] && printf rerun-)green" "ci_wait=$ciw"
   j=$(pr_detail "$pr") || { log "#$n PR #$pr: gh error; retrying next pass"; return; }
   contract_closes "$n" "$pr" "$j" && return
   head=$(jqr .headRefOid <<<"$j")
