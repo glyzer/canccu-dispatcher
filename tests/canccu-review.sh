@@ -102,6 +102,13 @@ dispatch --once
 ok "the retry writes a valid file → posted and acted on in that pass" \
   eq "$(grep -c '^pr comment 50 -R example-org/web --body-file -$' "$FAKE/gh.log") $(grep -c '^pr merge 50' "$FAKE/gh.log")" "1 1"
 
+postenv retry-file-model -
+mkdir -p "$CANCCU_HOME/reviews"; echo claude-light-x > "$CANCCU_HOME/reviews/50.model"
+echo REVIEW_MODEL=claude-review-x >> "$CANCCU_HOME/config"
+dispatch --once
+ok "the retry runs on the model the review recorded (a light one), not REVIEW_MODEL (#151)" \
+  grep -q -- '^--quiet --model claude-light-x .*--keep-session .*Your review of PR #50 ended without the review file' "$FAKE/worker.log"
+
 postenv retry-file-again -
 dispatch --once
 rm -f "$WORKERS_DIR/web-review-50.lock"; last review-50 done "nothing"

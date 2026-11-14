@@ -53,8 +53,10 @@ PACKAGE_LINES=1500          # the planner's size guide: changed lines per packag
 PACKAGE_MIN_ISSUES=1        # above 1: the planner aims for at least this many issues per package (where they fit together)
 PLAN_MODEL=                 # the planner's model; empty: MODEL
 REVIEW_MODEL=               # the full reviewer's model; empty: MODEL
+REVIEW_MODEL_LIGHT=         # the full reviewer's model for a light PR (docs, tests, LIGHT_REVIEW_PATHS only); empty: REVIEW_MODEL
 FIXCHECK_MODEL=             # the fix-check's model (e.g. a cheaper one); empty: MODEL
 FIXCHECK_FULL_LINES=100     # a push after a passed review changing more lines than this gets a full review, not a fix-check
+FIXCHECK_COUNT_MAIN=0       # 0: a fix's size counts only the PR's own change; 1: main's lines merged into the PR's files count too
 HEALTH_MODEL=               # the health pass's model (e.g. a cheaper one); empty: MODEL
 HEALTH_EFFORT=              # the health pass's --effort (low, medium, high, xhigh, max); empty: none, the account default
 # the usage throttle (shares of the Claude account's limits, from the rate-limit reports in the runs' output)
@@ -83,6 +85,9 @@ GATED_PATHS='^\.github/'
 # wording, step briefs); a path TEST_PATHS matches never counts
 USER_VISIBLE_PATHS=''
 TEST_PATHS='(^|/)(tests?|__tests__|spec)/|\.(test|spec)\.[a-z]+$'   # grep -E: test files, never user-visible
+# grep -E on the PR's paths: a PR whose every path is docs, a test (TEST_PATHS) or matches this is
+# reviewed with REVIEW_MODEL_LIGHT; never a gated path or agent configuration
+LIGHT_REVIEW_PATHS=''
 SECURITY_REVIEW_WHEN='sign-in, rights, sessions, secrets, tenancy/RLS or deploy/'   # the reviewer also runs security-review when the diff touches these
 PLANNER_EXTRA=''            # the project's guidance for the planner, e.g. "aim for 2-4 issues per package"
 REVIEW_EXTRA=''             # more for the reviewer to check: "Check every acceptance criterion, <this>, and …"

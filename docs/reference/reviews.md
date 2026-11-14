@@ -66,6 +66,13 @@ log line of the start names the effort and the model, and `canccu-status` shows 
 running review: `review PR #50 (medium · claude-opus-5-5)` (the effort alone when no model is
 set).
 
+**Light reviewer.** With `REVIEW_MODEL_LIGHT` set, a full review of a PR whose every changed path
+(a rename's old path too) is docs (`docs/`, `*.md`, `EFFORT_DOCS_PATHS`), a test (`TEST_PATHS`)
+or a `LIGHT_REVIEW_PATHS` match runs on that model at medium effort (under `REVIEW_EFFORT_MAX`),
+and the log says `PR #<pr>: light review (<model>): docs, tests or light paths only`. Only the
+paths decide, never the PR body. A gated path or agent configuration is never light; a fix-check
+keeps `FIXCHECK_MODEL`; a retry of the review file keeps the model the review started on.
+
 ## Fix-check
 
 After the worker fixed a full review's findings and CI is green, the fix-check runs: the same
@@ -99,7 +106,11 @@ full review>..<head>` runs (window `fixcheck#<pr>`), told to read only the hand-
 hunks of what came from main and to catch a correctness or security bug in the rest. A full
 review runs instead when the PR's own files changed more than `FIXCHECK_FULL_LINES` lines (100)
 since that review, when they touch a gated or `RISKY_PATHS`/`FIXCHECK_RISKY` path, or when the
-diff cannot be read. A pass of that fix-check counts like a review's pass.
+diff cannot be read. The count leaves out what a merge of main brought in: it starts from the
+merge git itself makes of that review's head with main, so only the PR's own lines are left
+(`FIXCHECK_COUNT_MAIN=1`: main's lines in the PR's files count too). When that merge conflicts,
+the worker resolved it by hand and the whole change since that review counts. A pass of that
+fix-check counts like a review's pass.
 
 ## The verdict line
 

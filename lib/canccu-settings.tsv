@@ -46,8 +46,10 @@ PACKAGE_LINES	int:100:100000	project	open
 PACKAGE_MIN_ISSUES	int:1:20	rules	open
 PLAN_MODEL	name	project	open
 REVIEW_MODEL	name	project	open
+REVIEW_MODEL_LIGHT	name	project	open
 FIXCHECK_MODEL	name	project	open
 FIXCHECK_FULL_LINES	int:0:100000	project	locked
+FIXCHECK_COUNT_MAIN	enum:0|1	project	locked
 HEALTH_MODEL	name	project	open
 HEALTH_EFFORT	enum:low|medium|high|xhigh|max|	project	open
 USAGE_SLOW	int:1:100	project	open
@@ -63,6 +65,7 @@ FIXCHECK_RISKY	regex	rules	locked
 GATED_PATHS	regex	rules	locked
 USER_VISIBLE_PATHS	regex	rules	locked
 TEST_PATHS	regex	rules	open
+LIGHT_REVIEW_PATHS	regex	rules	locked
 SECURITY_REVIEW_WHEN	text	rules	locked
 PLANNER_EXTRA	text	rules	open
 REVIEW_EXTRA	text	rules	locked
