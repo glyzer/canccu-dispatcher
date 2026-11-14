@@ -124,6 +124,8 @@ A package adds its setting with the name and default below (rule 5 of the plan a
 | `PREVIEW_CMD` | empty | per repo: the command that writes the before and after captures | N1 | no |
 | `NOTIFY_CONTENT` | full | `full` or `link` | N1 | yes |
 | `ALLOW_DEFAULT_GH_LOGIN` | 0 | 1 lets a project run on the broad default gh login | S1 | yes |
+| `RUN_USER` | empty | the Unix user every Claude session runs as (the hardened level, [`s2-hardened.md`](s2-hardened.md)); empty: the simple level. `~/.canccu/config` only | S2 | yes |
+| `RUN_LOGIN` | empty | the GitHub login the run user's token belongs to; empty: `USER_LOGIN`'s (label and reply then stay weak accepts) | S2 | yes |
 | `ACCEPT_CHANNELS` | all | which accept channels count: `label`, `ship`, `reply`, `leader`, or `all` | S2 | yes |
 | `LEADER_ACCEPTS` | none | `technical` or `none`; read by the owner rule from F1, acted on from L1 | F1 | yes |
 | `LEADER_ACCEPTS_HIGH_RISK` | 0 | 1 lets the leader accept high-risk technical PRs (hardened level only) | F1 | yes |
@@ -141,7 +143,7 @@ Existing settings that are locked in the same way: `USER_LOGIN`, `REVIEWER_LOGIN
 `RISKY_PATHS`, `FIXCHECK_RISKY`, `HIGH_RISK_PATHS`, `HIGH_RISK_TEXT`, `SECURITY_REVIEW_WHEN`,
 `REVIEW_CHECKS`, `REVIEW_EXTRA`, `AUTO_MERGE_UNTIL`, `PING`, `PING_KINDS`.
 
-`REVIEWER_TOKEN_FILE` and `GH_CONFIG_DIR` are not settable through `config set`.
+`REVIEWER_TOKEN_FILE`, `GH_CONFIG_DIR` and `RUN_USER` are not settable through `config set`.
 
 ## 6. New state fields
 
@@ -152,6 +154,7 @@ Existing settings that are locked in the same way: `USER_LOGIN`, `REVIEWER_LOGIN
 | `body_fix` | `check_pr` | the contract PR whose body the worker was asked to correct once | P1 |
 | `owner` | the owner rule | `po` or `leader` while the unit waits; empty otherwise | F1 |
 | `ev_id` | the feed | the id of the unit's open feed line, for `closed` | F1 |
+| `run_as` | `harden migrate`, the engine's first run of a unit at the hardened level | the Unix user the unit's runs execute as and whose run area holds its worktree; empty: the dispatcher's user, worktree under `~/.canccu` | S2 |
 | `body_lines` | `check_pr` | the PR whose body the worker was asked once to complete with `Testing:` and `Revert:` | Q1 |
 
 R1 adds a state format version and a migration step at start; every package after R1 that adds a

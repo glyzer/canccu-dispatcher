@@ -9,6 +9,7 @@ workers and the reviewer read it; an issue that disagrees with it is wrong until
 | this file | the goal, the rules, the roles, the decisions, the releases in outline |
 | [`0.2.md`](0.2.md) | release 0.2, package by package, in order |
 | [`contracts.md`](contracts.md) | the formats several packages share: owners, classes, the feed line, the ask form, new settings, new state fields, the actions log, review findings and the brake |
+| [`s2-hardened.md`](s2-hardened.md) | package S2's hardened level: the run user, the sudo rules, the gate, doctor's checks, the accept, the upgrade and the build issues |
 | [`issue-template.md`](issue-template.md) | the sections every work issue has |
 
 ## How the plan is used
