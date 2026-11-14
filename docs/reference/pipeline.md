@@ -61,6 +61,12 @@ Every `INTERVAL` seconds, under the project's lock:
        log tail, at most `FIX_ATTEMPTS` automatic fix runs per PR (review fix rounds included),
        then `needs-you`. Checks in `REVIEW_CHECKS` are ignored here. A `needs-you`
        that only waited on CI goes back to `check` by itself once CI is green or red;
+     - CI green, `PREVIEW_CMD` set, the PR classified `users see it` (the accept's own
+       classification) and its body without a `## What you will see` line → no review yet: the
+       worker is resumed once to make the captures and add the section (`preview_fix`; not a fix
+       round of `FIX_ATTEMPTS`), logged `#<n> PR #<pr>: no "What you will see" section; the
+       worker adds it`. Still missing on the next pass → `needs-you` ([`rules.md`](rules.md),
+       "Previews");
      - CI green and no verdict for this head → the review (or, after a fix round, the
        fix-check) starts.
    - A reviewer that finished: its review file, if valid for the reviewed head, is posted as

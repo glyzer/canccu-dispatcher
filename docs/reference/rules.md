@@ -27,6 +27,7 @@ old path too).
 | `GATED_PATHS` | `^\.github/` | `grep -E`: a PR touching one waits for your accept ([`merging.md`](merging.md)). Agent configuration (`.claude/`, `.mcp.json`, `CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md`, at any depth) is always gated on top |
 | `USER_VISIBLE_PATHS` | empty | `grep -E`: a PR touching one always waits for the product owner, with the reason `users see it: <path>` (below, "User-visible paths"). Locked |
 | `TEST_PATHS` | `(^\|/)(tests?\|__tests__\|spec)/\|\.(test\|spec)\.[a-z]+$` | `grep -E`: test files. A path it matches never counts as user-visible |
+| `PREVIEW_CMD` | empty | The repo's preview command: run in the repo root as `$PREVIEW_CMD <dir>`, it writes text captures `*.txt` (a terminal screen) and image captures `*.png` (a page) into `<dir>` and exits 0. Set, a user-visible PR shows them in a `## What you will see` section (below, "Previews"); empty: no captures |
 | `LIGHT_REVIEW_PATHS` | empty | `grep -E` on the PR's paths: a PR whose every path is docs, a test (`TEST_PATHS`) or matches this is reviewed with `REVIEW_MODEL_LIGHT` (for example `'^docs/contracts/'`). Never a gated path or agent configuration; a bad regex matches nothing. Locked |
 | `SECURITY_REVIEW_WHEN` | sign-in, rights, sessions, secrets, tenancy/RLS or `deploy/` | Words in the reviewer's prompt: it also runs the security-review skill when the diff touches these |
 | `PLANNER_EXTRA` | empty | The project's guidance for the planner, for example "aim for 2-4 issues per package" |
@@ -59,6 +60,21 @@ USER_VISIBLE_PATHS='^docs/briefs/'
 ```
 
 `USER_VISIBLE_PATHS` is locked: the leader and the runs cannot change it. `TEST_PATHS` is open.
+
+## Previews
+
+With `PREVIEW_CMD` set, a user-visible PR shows the product owner what changes on screen, so the
+accept is a look rather than a code read. The worker and package prompts tell the worker: if the
+PR changes what users see, run `$PREVIEW_CMD <dir>` on `origin/main` and on its head, push the
+images to the orphan branch `canccu-previews` (never merged) under `<branch>/before` and
+`<branch>/after`, and add a `## What you will see` section to the PR body: each text capture in
+a fenced block, each image linked from that branch, before and after.
+
+The dispatcher runs no repo code: it only checks the body. A PR the accept classifies
+`users see it` whose body has no `## What you will see` line goes back to its worker once before
+any review ([`pipeline.md`](pipeline.md)); still missing, it waits for you. The reviewer of a PR
+with the section checks that the captures match the diff: a capture that shows something the
+diff does not do is a blocking finding. `PREVIEW_CMD` is open.
 
 ## Writing good rules
 

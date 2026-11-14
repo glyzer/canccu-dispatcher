@@ -214,6 +214,7 @@ check_pr() {
   ci_note "$n" "$at" "ci=$c"
   j=$(pr_detail "$pr") || { log "#$n PR #$pr: gh error; retrying next pass"; return; }
   contract_closes "$n" "$pr" "$j" && return
+  preview_missing "$n" "$pr" "$j" && return
   head=$(jqr .headRefOid <<<"$j")
   if [ -n "$(verdict_of "$j" "$(st_get "$n" verdict_at)")" ]; then act_verdict "$n" "$pr" "$j"; return; fi
   # a reviewer started earlier (canccu-review) is still running: wait for it, on the head it reviews

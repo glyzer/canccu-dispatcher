@@ -89,6 +89,10 @@ GATED_PATHS='^\.github/'
 # wording, step briefs); a path TEST_PATHS matches never counts
 USER_VISIBLE_PATHS=''
 TEST_PATHS='(^|/)(tests?|__tests__|spec)/|\.(test|spec)\.[a-z]+$'   # grep -E: test files, never user-visible
+# the repo's preview command: the worker runs `$PREVIEW_CMD <dir>` in the repo root on main and on
+# its head; it writes *.txt (a terminal screen) and *.png (a page) captures into <dir> and exits 0.
+# Set, a user-visible PR needs a "## What you will see" section; empty: no captures
+PREVIEW_CMD=''
 # grep -E on the PR's paths: a PR whose every path is docs, a test (TEST_PATHS) or matches this is
 # reviewed with REVIEW_MODEL_LIGHT; never a gated path or agent configuration
 LIGHT_REVIEW_PATHS=''

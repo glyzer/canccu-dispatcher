@@ -31,21 +31,24 @@ dispatch --once; base_out=$(grep -v 'state format' "$E/out" | cut -c22-); base_g
 base_st=$(for n in 5 6 7; do cat "$CANCCU_HOME/state/$n"; done)
 fmt_env fmt-upgrade
 dispatch --once
-ok "state format: a project without state.format is migrated to 2" eq "$(cat "$CANCCU_HOME/state.format")" 2
+ok "state format: a project without state.format is migrated to 3" eq "$(cat "$CANCCU_HOME/state.format")" 3
 ok "… the migration is logged" grep -qE '^[0-9TZ:-]{20} state format 0 → 1: ' "$CANCCU_HOME/dispatch.log"
 ok "… step by step (1 → 2: the owner of the waiting units)" \
   grep -qE '^[0-9TZ:-]{20} state format 1 → 2: the owner of 1 waiting unit\(s\) set' "$CANCCU_HOME/dispatch.log"
 ok "… the needs-you unit in flight gets its owner (#70)" eq "$(st 6 owner)" po
+ok "… 2 → 3: preview_fix starts empty (#182)" \
+  grep -qE '^[0-9TZ:-]{20} state format 2 → 3: no field changes \(preview_fix starts empty\)' "$CANCCU_HOME/dispatch.log"
+ok "… the units in flight upgrade with preview_fix empty" eq "$(st 5 preview_fix)$(st 6 preview_fix)$(st 7 preview_fix)" ""
 ok "… the pass then handles the work, needs-you and merging units as before (state)" \
   eq "$(for n in 5 6 7; do cat "$CANCCU_HOME/state/$n"; done)" "$base_st"
 ok "… (GitHub calls)" eq "$(cat "$FAKE/gh.log")" "$base_gh"
 ok "… (pane lines)" eq "$(grep -v 'state format' "$E/out" | cut -c22-)" "$base_out"
 dispatch --once
-ok "… the next start migrates nothing (one line per step, 0 → 1 → 2)" eq "$(grep -c 'state format' "$CANCCU_HOME/dispatch.log")" 2
+ok "… the next start migrates nothing (one line per step, 0 → 1 → 2 → 3)" eq "$(grep -c 'state format' "$CANCCU_HOME/dispatch.log")" 3
 echo 9 > "$CANCCU_HOME/state.format"; : > "$FAKE/gh.log"
 dispatch --once; rc=$?
 ok "state format 9: the start stops" eq "$rc" 1
-ok "… with the message" grep -qF 'state format 9 is newer than this release knows (2); install a newer release' "$E/out"
+ok "… with the message" grep -qF 'state format 9 is newer than this release knows (3); install a newer release' "$E/out"
 ok "… before any pass (no GitHub call)" eq "$(wc -l < "$FAKE/gh.log")" 0
 ok "… and the file is left as it was" eq "$(cat "$CANCCU_HOME/state.format")" 9
 ok "--dry-run with state format 9 stops too" \

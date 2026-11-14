@@ -69,6 +69,7 @@ FIXCHECK_RISKY	regex	rules	locked
 GATED_PATHS	regex	rules	locked
 USER_VISIBLE_PATHS	regex	rules	locked
 TEST_PATHS	regex	rules	open
+PREVIEW_CMD	text	rules	open
 LIGHT_REVIEW_PATHS	regex	rules	locked
 SECURITY_REVIEW_WHEN	text	rules	locked
 PLANNER_EXTRA	text	rules	open

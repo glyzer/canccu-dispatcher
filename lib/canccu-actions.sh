@@ -110,7 +110,7 @@ issue_prompt() {
   fi
   # shellcheck disable=SC2059
   printf -v prompt "$WORKER_PROMPT" "$REPO" "$n" "$n" "$n" "$br" "${WORKER_EXTRA:+ $WORKER_EXTRA}"
-  prompt+=" $(contract_rule "$br")"
+  prompt+=" $(contract_rule "$br")$(preview_rule "$br")"
   [ "$p" = 1 ] && prompt+=" $(plan_merged_text "docs/plans/issue-$n.md")"
   printf '%s' "$prompt"
 }
@@ -267,7 +267,7 @@ Reject: comment here and label issue #$(lead_of "$n") \`needs-work\`."
 }
 
 # new_cycle <n>: a new start, an adoption, plan-ok or needs-work: the next review is a full one
-new_cycle() { st_set "$1" stage= reviewed_sha= review_maccept= review_risk= open_sha= full_sha= pass_sha= extra_fix=; }
+new_cycle() { st_set "$1" stage= reviewed_sha= review_maccept= review_risk= open_sha= full_sha= pass_sha= extra_fix= preview_fix=; }
 
 # after_pass <n> <pr> <head> <how>: that head passed (a review, a fix-check, or a merge of main only
 # after a pass): classify, then merge it or wait for the accept. 1 when nothing was done (classify

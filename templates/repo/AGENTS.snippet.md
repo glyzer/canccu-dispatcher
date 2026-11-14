@@ -47,4 +47,7 @@ In this order:
   the stack, error handling, test shape), one per line; the reviewer checks them;
 - `Next action: <what comes next>`;
 - `Verification run: <the checks run, with their result>`;
-- any `Follow-up: <work outside the issue>` and `Roadmap note: <a change to the plan>` lines.
+- any `Follow-up: <work outside the issue>` and `Roadmap note: <a change to the plan>` lines;
+- when the repo makes previews (the dispatcher's `PREVIEW_CMD`) and the PR changes what users
+  see: a section `## What you will see` with each text capture in a fenced block and each image
+  linked from the `canccu-previews` branch, before and after.

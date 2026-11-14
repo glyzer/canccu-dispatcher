@@ -2,7 +2,8 @@
 # Config
 
 Part of the reference; the index is [`README.md`](README.md). The rules keys (gating, review
-and prompt text) are in [`rules.md`](rules.md); where the values come from and when a change
+and prompt text, the preview command `PREVIEW_CMD` and its contract:
+[`rules.md`](rules.md#previews)) are in [`rules.md`](rules.md); where the values come from and when a change
 applies, in [`config-files.md`](config-files.md).
 
 ## Changing a setting
