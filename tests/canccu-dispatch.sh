@@ -1118,5 +1118,20 @@ dispatch --once
 ok "CI green: the worker's line notes ci=green and ci_wait, the seconds since check_at" \
   eq "$(cut -f15,16 "$WORKERS_DIR/spend.log")" "pr=50,ci=green,ci_wait=420	480"
 
+# a pass with no review slot leaves the unit in check: the next pass keeps the ci_wait CI settled at
+env_new ci-wait-no-slot CAP=0
+{ issue 5 in-progress; } | issues
+p=$(pr 50 5 $HA green); printf '%s\n' "$p" | prs
+json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z)"; route 'pr view 50 *' pr50.json
+state 5 phase=check pr=50 "check_at=$((NOW - 420))" "started=$((NOW - 900))"
+printf '%s\tweb\t5\t2.00\tbuild\t-\t-\tfresh\t-\t-\t-\t-\t-\t-\tpr=50\t480\n' "$((NOW - 430))" > "$WORKERS_DIR/spend.log"
+dispatch --once
+ok "no slot: the first pass notes ci_wait=420 and the unit stays in check" \
+  eq "$(cut -f15 "$WORKERS_DIR/spend.log") $(lib st_get 5 phase)" "pr=50,ci=green,ci_wait=420 check"
+sed -i 's/^CAP=0$/CAP=3/' "$CANCCU_HOME/config"
+CANCCU_NOW=$((NOW + 600)) dispatch --once
+ok "… the next pass, 600 s later with a slot, leaves ci_wait at 420" \
+  eq "$(cut -f15 "$WORKERS_DIR/spend.log")" "pr=50,ci=green,ci_wait=420"
+
 echo "canccu-dispatch tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

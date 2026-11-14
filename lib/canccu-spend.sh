@@ -43,6 +43,14 @@ spend_note() {
   ) 6>>"$WORKERS_DIR/.spend.lock"
 }
 
+# ci_note <n> <check_at> <ci=…>: the CI outcome and ci_wait (seconds since check_at) on the worker's
+# line, once per check_at (ci_noted): later passes that wait for a review slot must not grow it; a
+# rerun resets check_at, so its note replaces the red one
+ci_note() {
+  [ "$(st_get "$1" ci_noted)" = "$2" ] && return 0
+  spend_note "$1" "$(st_get "$1" started)" "$3" "ci_wait=$(( $(now) - $2 ))"; st_set "$1" ci_noted="$2"
+}
+
 # fix_rounds <K>: the fix runs of the unit in spend.log so far (the review's findings, a needs-work)
 fix_rounds() {
   awk -F '\t' -v r="$REPO_NAME" -v k="$1" '$2 == r && $3 == k && $5 == "fix" { n++ } END { print n + 0 }' \

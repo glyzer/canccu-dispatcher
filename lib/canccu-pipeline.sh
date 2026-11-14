@@ -172,7 +172,7 @@ reap_answer() {
 
 # check_pr <n>: the worker is done; the PR and its CI decide what happens next
 check_pr() {
-  local n=$1 pr j head at rsha fix c ciw
+  local n=$1 pr j head at rsha fix c
   pr=$(pr_for "$n")
   if [ -z "$pr" ]; then
     # the health pass's PR left the open list (closed or merged): health_pr_closed or finish_unit
@@ -196,23 +196,22 @@ check_pr() {
   [ -z "$c" ] || st_set "$n" contract_merged=
   # a conflicting PR gets no CI at all: main merged in now, not a no-checks needs-you later (fix-check waits on it too)
   [ "${MERGE_MAIN_ANY_PHASE:-1}" = 1 ] && conflict_merge "$n" "$pr" "$(pr_get "$pr" .headRefOid)" && return 0
-  # for the spend log: ci_wait, seconds CI took to settle since check_at; ci=rerun-green, a rerun of failed jobs turned the head green (a flaky check)
-  ciw=$(st_get "$n" check_at); ciw=$(( $(now) - ${ciw:-$(now)} ))
+  at=$(st_get "$n" check_at); at=${at:-$(now)}
   case $(ci_state "$pr") in
-    red) spend_note "$n" "$(st_get "$n" started)" ci=red "ci_wait=$ciw"; ci_red "$n" "$pr"; return ;;
+    red) ci_note "$n" "$at" ci=red; ci_red "$n" "$pr"; return ;;
     pending)
-      at=$(st_get "$n" check_at); at=${at:-$(now)}
       (( $(now) - at > CI_WAIT_MIN * 60 )) && needs_you "$n" "CI on PR #$pr is still pending after $CI_WAIT_MIN min" "" "" ci &&
         st_set "$n" ny_wait=ci
       return ;;
     none)
-      at=$(st_get "$n" check_at); at=${at:-$(now)}
       (( $(now) - at > ${NO_CHECKS_MIN:-10} * 60 )) &&
         needs_you "$n" "no CI checks on PR #$pr: $(no_checks_why "$pr")" "" "" no-checks &&
         st_set "$n" ny_wait=ci
       return ;;
   esac
-  spend_note "$n" "$(st_get "$n" started)" "ci=$([ "$(st_get "$n" ci_rerun)" = "$(pr_get "$pr" .headRefOid)" ] && printf rerun-)green" "ci_wait=$ciw"
+  # ci=rerun-green: a rerun of failed jobs turned the head green (a flaky check)
+  c=green; [ "$(st_get "$n" ci_rerun)" = "$(pr_get "$pr" .headRefOid)" ] && c=rerun-green
+  ci_note "$n" "$at" "ci=$c"
   j=$(pr_detail "$pr") || { log "#$n PR #$pr: gh error; retrying next pass"; return; }
   contract_closes "$n" "$pr" "$j" && return
   head=$(jqr .headRefOid <<<"$j")
