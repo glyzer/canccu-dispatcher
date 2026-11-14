@@ -186,7 +186,7 @@ check_pr() {
   c=$(st_get "$n" contract_merged)
   if [ "$(pr_get "$pr" .isDraft)" = true ]; then
     if [ -n "$c" ]; then
-      contract_back "$n" "$pr" "$c" || return 0
+      contract_resume "$n" "$pr" "$c" || return 0
       st_set "$n" contract_merged=
     elif is_plan_pr "$n" "$pr"; then
       needs_you "$n" "plan ready for OK: $(pr_get "$pr" .url) — label this issue \`plan-ok\` to approve, or comment" "" plan work

@@ -105,10 +105,10 @@ main_merge() {
   MERGED=merged
 }
 
-# contract_back <n> <pr> <c>: the draft waited for its contract PR #c, which is on main now. With
+# contract_resume <n> <pr> <c>: the draft waited for its contract PR #c, which is on main now. With
 # MERGE_MAIN_ANY_PHASE=1 main is merged in by script first, so the run only finishes the work; a
 # merge that could not run (a conflict among them) leaves it to the run. 1: no run started.
-contract_back() {
+contract_resume() {
   local n=$1 pr=$2 c=$3 t
   may_start "$n" || return 1
   t="The contract PR #$c merged into main. Run git merge origin/main in your branch, finish the package's work in PR #$pr and mark it ready."
