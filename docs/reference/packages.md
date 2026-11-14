@@ -23,11 +23,12 @@ its session kept for a follow-up that `RESUME_ON` resumes; a package of one runs
 
 ### The planner
 
-It starts when the step has issues to plan and no plan, when a wave is over, or when new ready
-issues joined an idle step. **The dispatcher alone decides which issues are eligible**: open, in
+It starts when the step has issues to plan and no plan, when a wave is over (or rolls on:
+`WAVE_ROLLING`, below), or when new ready issues joined an idle step. **The dispatcher alone decides which issues are eligible**: open, in
 the step's milestone, `ready`, not `epic`, `checkpoint`, `fast`, `in-progress` or `needs-you`,
 not managed, in no package, with no open blocker. It hands the planner exactly those numbers,
-with the earlier waves' packages and the lead's comments on the epic.
+with the earlier waves' packages (the running ones with their `areas`) and the lead's comments on
+the epic.
 
 The planner is a fresh session (window `plan#<m>`, `--untrusted`, `PLAN_MODEL`, `BUDGET_PLAN`)
 in a fresh worktree at `origin/main`. It gets no directory the dispatcher reads: its plan is its
@@ -49,7 +50,8 @@ package (and at least `PACKAGE_MIN_ISSUES` issues where they fit); never split o
 issues; the rules' `PLANNER_EXTRA`. The check: valid JSON and schema, the right step and wave,
 names `[a-z0-9-]` of at most 30 characters, unique, not `health`, not used earlier in the step;
 every issue at most once and only handed issues that are still eligible; a risk class with a
-reason; known dependencies, none on itself, no cycle. Issues the plan leaves out join the next
+reason; known dependencies, none on itself, no cycle; a new package whose `areas` overlap a
+running package's depends on it (below). Issues the plan leaves out join the next
 wave. An invalid plan, or none: the step goes to `needs-you` (its epic is labelled with the
 reason); removing the label plans again. The plan is shown in one comment on the epic, edited
 in place each wave, and in the snapshot and `canccu-status`.
@@ -89,3 +91,15 @@ planner gets them. The next wave's plan **carries** the last wave's live package
 its dependants start then. A package blocked behind a closed, refused or unknown one is not live:
 its issues go back to the next planner. The health pass and the checkpoint still wait for every
 package.
+
+**Rolling waves** (`WAVE_ROLLING=1`; off by default): the next wave is planned while this one's
+packages still run, as soon as none of them waits to start (a blocked one is fine) and a run slot
+is free under `CAP`. The log says `step <title>: wave <w> rolls on; planning the next one`, and
+the planner starts as for a wave that is over; its plan carries the running packages as above.
+
+**The overlap rule**: a new package (one the plan does not carry) whose `areas` entry equals a
+running package's (running, waiting for an accept or `needs-you`), or is a path prefix of it or
+the other way round (`lib/a` holds `lib/a/b.sh`, not `lib/ab`), must name that package in
+`depends_on`. The planner is told so, and the dispatcher checks it itself: a plan that breaks it
+is invalid (`<name> overlaps running <name> in <path>`), like any other. Areas are compared as
+paths only, never by the files a change touches.

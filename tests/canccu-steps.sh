@@ -75,10 +75,11 @@ ok "plan: a name an earlier package used (review #45, finding 6)" \
 
 # #166: a new package whose areas overlap a running package's must depend on it
 # pvo <plan json> [running json]: the errors of a plan of wave 2 whose input carries package r
+# (running r in lib/a/b.sh, unless given)
+RUN_R='[{"name":"r","areas":["lib/a/b.sh"]}]'
 pvo() {
   printf '%s\n' "$1" > "$T/ov.json"
-  lib plan_validate "$T/ov.json" "$(jq -c '.carried = [{name: "r"}]' "$root/tests/fixtures/plans/input.json")" 12 2 \
-    "${2:-[{\"name\":\"r\",\"areas\":[\"lib/a/b.sh\"]}]}" | jq -c .errors
+  lib plan_validate "$T/ov.json" "$(jq -c '.carried = [{name: "r"}]' "$root/tests/fixtures/plans/input.json")" 12 2 "${2:-$RUN_R}" | jq -c .errors
 }
 ovp() { jq -nc --argjson a "$1" --argjson d "$2" --argjson x "${3:-{\}}" \
   '{schema: 1, step: 12, wave: 2, packages: [{name: "n", issues: [101], risk: "low", risk_reason: "x", areas: $a, depends_on: $d} + $x]}'; }
@@ -288,8 +289,10 @@ ok "… the planner gets the running package's areas" \
 ok "… and the overlap rule" grep -qF "A new package whose files overlap a running package's areas must name it in depends_on." "$FAKE/worker.log"
 planned 2 '{"schema":1,"step":12,"wave":2,"packages":[{"name":"c","issues":[105],"risk":"low","risk_reason":"z","areas":["lib/a"],"depends_on":["a"]}]}'
 dispatch --once
-ok "… its plan (depending on the running package it overlaps) is taken: wave 2 runs" \
-  eq "$(sed -n 's/^phase=//p;s/^wave=//p' "$CANCCU_HOME/steps/12" | tr '\n' ' ')" "running 2 "
+ok "… its plan (depending on the running package it overlaps) is taken: wave 2" \
+  eq "$(sed -n 's/^wave=//p;s/^plan=.*\///p' "$CANCCU_HOME/steps/12" | tr '\n' ' ')" "2 12.plan-2.json "
+ok "… which rolls on at once: nothing of it can start (c waits for a), nothing is left to plan" \
+  eq "$(sed -n 's/^phase=//p' "$CANCCU_HOME/steps/12") $(plans12) $(grep -c 'step 3 Events: wave 2 rolls on' "$CANCCU_HOME/dispatch.log")" "idle 1 1"
 ok "… the running package is in the new plan with carried_from" \
   eq "$(jq -c '[.packages[] | "\(.name):\(.carried_from // "-")"]' "$CANCCU_HOME/steps/12.plan-2.json")" '["c:-","a:1","b:1"]'
 ok "… it is still running, not started again" eq "$(grep -c -- '--name #101 ' "$FAKE/worker.log") $(st 101 phase)" "0 work"
