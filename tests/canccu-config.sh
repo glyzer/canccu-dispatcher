@@ -194,6 +194,8 @@ ok "FIXCHECK_FULL_LINES is in the table, locked (#91)" grep -qxP 'FIXCHECK_FULL_
 ok "… default 100" grep -qE '^FIXCHECK_FULL_LINES=100( |$)' "$root/lib/canccu-config.default"
 ok "KEEP_ACCEPT_ON_MAIN_MERGE is in the table, locked (#92)" grep -qxP 'KEEP_ACCEPT_ON_MAIN_MERGE\tenum:0\|1\tproject\tlocked' "$TSV"
 ok "… default 0" grep -qE '^KEEP_ACCEPT_ON_MAIN_MERGE=0( |$)' "$root/lib/canccu-config.default"
+ok "MERGE_MAIN_ANY_PHASE is in the table, open (#149)" grep -qxP 'MERGE_MAIN_ANY_PHASE\tenum:0\|1\tproject\topen' "$TSV"
+ok "… default 1" grep -qE '^MERGE_MAIN_ANY_PHASE=1( |$)' "$root/lib/canccu-config.default"
 ok "USER_VISIBLE_PATHS is in the table, a locked rules regex (#78)" grep -qxP 'USER_VISIBLE_PATHS\tregex\trules\tlocked' "$TSV"
 ok "… default empty" grep -qE "^USER_VISIBLE_PATHS=''( |$)" "$root/lib/canccu-config.default"
 ok "TEST_PATHS is in the table, an open rules regex (#78)" grep -qxP 'TEST_PATHS\tregex\trules\topen' "$TSV"

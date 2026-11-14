@@ -491,13 +491,15 @@ done
 
 # ---------------------------------------------------------------- a conflict with main (#89)
 
-# dirtyenv <name> <phase> <mergeStateStatus>: PR 50 (branch 5-thing, worktree of issue 5) waits in
-# accept, or in merging with auto-merge armed, at HA; main is 2 commits ahead
+# dirtyenv <name> <phase> <mergeStateStatus> [config line...]: PR 50 (branch 5-thing, worktree of
+# issue 5) waits in accept, in merging with auto-merge armed, or (ci) in check with no CI checks
+# for longer than NO_CHECKS_MIN (GitHub runs none on a conflicting PR), at HA; main is 2 commits ahead
 dirtyenv() {
-  env_new "$1"
+  env_new "$1" "${@:4}"
   { issue 5 in-progress,awaiting-accept; } | issues
-  pr 50 5 $HA | jq --arg m "$3" '.mergeStateStatus = $m' | prs
+  pr 50 5 $HA "$([ "$2" = ci ] && echo none || echo green)" | jq --arg m "$3" '.mergeStateStatus = $m' | prs
   if [ "$2" = accept ]; then state 5 phase=accept pr=50 accept_sha=$HA pass_sha=$HA rounds=0 "accept_at=$((NOW - 3600))"
+  elif [ "$2" = ci ]; then state 5 phase=check pr=50 "check_at=$((NOW - 3600))"
   else state 5 phase=merging pr=50 merge_sha=$HA pass_sha=$HA how=auto "merge_at=$((NOW - 60))"; fi
   mkdir -p "$WORKERS_DIR/worktrees/web/issue-5" && touch "$WORKERS_DIR/worktrees/web/issue-5/.git"
   echo 5-thing > "$FAKE/branch"; echo 2 > "$FAKE/behind"
@@ -536,6 +538,28 @@ dirtyenv dirty-current accept DIRTY; echo 0 > "$FAKE/behind"
 dispatch --once
 ok "DIRTY but main is in already (GitHub's state is stale) → logged only" grep -qF '#5 PR #50: conflicts with main; the merge by script did not run (main is in already)' "$CANCCU_HOME/dispatch.log"
 ok "… no needs-you, no push" eq "$(grep -c needs-you "$FAKE/gh.log") $(grep -c push "$FAKE/git.log")" "0 0"
+
+# #149: in phase ci too, a conflicting PR gets main merged in by script, not a no-checks needs-you
+dirtyenv dirty-ci ci DIRTY
+dispatch --once
+ok "ci, the PR conflicts with main → main merged in by script, pushed" eq "$(grep -c 'merge --no-edit origin/main' "$FAKE/git.log") $(grep -c 'push origin HEAD:refs/heads/5-thing' "$FAKE/git.log")" "1 1"
+ok "… logged" grep -qF '#5 PR #50: conflicts with main; merged main into the branch by script (no AI run)' "$CANCCU_HOME/dispatch.log"
+ok "… no needs-you, no AI run" eq "$(grep -c needs-you "$FAKE/gh.log") $(wc -l < "$FAKE/worker.log")" "0 0"
+
+dirtyenv dirty-ci-conflict ci DIRTY; printf 'src/a.ts\n' > "$FAKE/merge-conflict"
+dispatch --once
+ok "ci, the merge of main conflicts → one worker merge run" grep -q 'Merging origin/main into the branch of PR #50 conflicts in: src/a.ts' "$FAKE/worker.log"
+rm -f "$WORKERS_DIR/web-5.lock"; last 5 done "could not resolve the conflict"
+dispatch --once; dispatch --once
+ok "… the same head on later passes → no second merge run, needs-you" \
+  eq "$(grep -c 'Merging origin/main into the branch' "$FAKE/worker.log") $(grep -c 'merge --no-edit origin/main' "$FAKE/git.log")" "1 1"
+ok "… saying the run pushed no resolution" has gh.log "PR #50 conflicts with main in: src/a.ts, and the worker's merge run pushed no resolution"
+
+dirtyenv dirty-ci-off ci DIRTY MERGE_MAIN_ANY_PHASE=0
+dispatch --once
+ok "ci, MERGE_MAIN_ANY_PHASE=0 → no merge of main in phase ci" not grep -qs 'merge --no-edit' "$FAKE/git.log"
+ok "… no AI run" eq "$(wc -l < "$FAKE/worker.log")" 0
+ok "… the no-checks needs-you names the conflict" has gh.log "no CI checks on PR #50: it conflicts with main, so GitHub runs no checks; merge main into it or say how"
 
 for ph in accept merging; do
   dirtyenv "behind-$ph" "$ph" BEHIND
