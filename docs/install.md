@@ -152,6 +152,6 @@ release current first (install one, or roll back), then install it again; `docto
   `~/.claude/settings.json` (it is never read);
 - for each project: its config, rules, clone, gh credential and dispatcher lock;
 - the snapshot's age (while the dispatcher runs) and `ok`;
-- stale run locks.
+- stale run locks, and run temp dirs (`workers/tmp`) over 5 GB.
 
 It prints one line per problem and exits 0 when clean.

@@ -38,6 +38,15 @@ canccu-worker --kill <repo> <key>
   them. A run whose log is silent for `STALL_MIN` minutes, while no process its tools started
   (the tree below `claude`) is new or spends CPU, is killed as stalled: a long test run with
   short output is not a stall, a hung command waiting idle is. Claude's own CPU does not count.
+- **Temp dir**: with `RUN_TMPDIR=disk` (the default) a run's `TMPDIR`, `TMP` and `TEMP` are a
+  dir of its own, `workers/tmp/<repo>-<key>.<pid>` (mode 700), on disk and outside the worktree,
+  so venvs, builds and compiler caches never fill a RAM `/tmp` nor show as untracked files. The
+  run removes it when it ends, also when it is stopped or killed (read-only dirs, such as a Go
+  module cache, included). At its start `canccu-dispatch` removes the dirs whose run is gone
+  (its lock does not name that pid alive) and that are over an hour old, and logs `removed <n>
+  stale run temp dirs`; `canccu-dispatcher doctor` warns when `workers/tmp` holds over 5 GB.
+  `RUN_TMPDIR=system`: the run keeps the inherited `TMPDIR`. Caches a tool keeps in the home
+  directory are not cleaned.
 - **Background work**: a headless run exits when its turn ends, so a command or subagent it
   left running in the background is lost. The stream reader counts each one started with
   `run_in_background` until a later event names its id as done; a run that ends with one still

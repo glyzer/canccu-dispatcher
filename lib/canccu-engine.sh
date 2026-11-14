@@ -73,6 +73,30 @@ kill_tree() {
   return 0
 }
 
+# rm_tree <dir>: a run's temp dir, whole. A Go module cache leaves its dirs read-only, which
+# rm -rf alone cannot empty; --one-file-system keeps a mount a tool made inside it out of reach.
+rm_tree() {
+  [ -e "$1" ] || return 0
+  chmod -R u+w "$1" 2>/dev/null
+  rm -rf --one-file-system "$1"
+}
+
+# run_tmp_sweep: remove the temp dirs workers/tmp/<repo>-<key>.<pid> that their run left behind
+# (killed before its EXIT trap finished); prints how many went. A dir stays while the lock
+# <repo>-<key>.lock names its pid and that pid lives, and while it is younger than an hour: the
+# run makes its dir right after it writes its pid to the lock, never before.
+run_tmp_sweep() {
+  local d name l n=0
+  for d in "$WORKERS_DIR"/tmp/*; do
+    [ -d "$d" ] || continue
+    [ -n "$(find "$d" -maxdepth 0 -mmin +60 2>/dev/null)" ] || continue
+    name=${d##*/} l=$WORKERS_DIR/${name%.*}.lock
+    [ -e "$l" ] && [ "$(lock_get "$l" pid)" = "${name##*.}" ] && lock_pid_alive "$l" && continue
+    rm_tree "$d" && n=$((n + 1))
+  done
+  echo "$n"
+}
+
 # Every repo under CODE_ROOT (a folder with .git, depth 1 or 2, symlinked folders included),
 # relative to it. A repo reached twice is listed once, real folders before symlinks; the fixed
 # depth means a symlink cycle cannot loop.

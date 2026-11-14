@@ -214,6 +214,7 @@ exec 8>"$CANCCU_HOME/.dispatch.lock"
 flock -n 8 || die "another canccu-dispatch is running for project $CANCCU_PROJECT (lock $CANCCU_HOME/.dispatch.lock)"
 echo $$ > "$CANCCU_HOME/dispatch.pid"   # for canccu-status and canccu-up; they never touch the lock
 state_migrate
+n=$(run_tmp_sweep); (( n > 0 )) && log "removed $n stale run temp dirs"
 # the pane shows the dispatcher's own lines only: the output of every write goes to the log (mut),
 # and so does the stderr of every command of a pass, each line prefixed "  │ "
 export CANCCU_MUT_TO_LOG=1

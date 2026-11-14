@@ -6,7 +6,7 @@ Start with the two checks that cover most problems:
 - `canccu-dispatcher doctor [--project <name>]` prints one line per problem of the host, the
   install and each project (dependencies, links, `PATH`, the host profile, the logins, the
   reviewer token and its deny rule, the clone, the `gh` credential, the dispatcher lock, the
-  snapshot's age, stale run locks) and `no problems found` when clean.
+  snapshot's age, stale run locks, run temp dirs over 5 GB) and `no problems found` when clean.
 - `canccu-status [--project <name>]` says what the dispatcher is doing and why something waits.
 
 The project's `dispatch.log` (`~/.canccu/projects/<name>/dispatch.log`) has one line per action
@@ -70,6 +70,7 @@ are in `workers/` ([`reference/engine.md`](reference/engine.md)).
 | `stopped: turn budget …`, `cost budget`, `time budget` | The run reached its budget | Comment to resume (a resume has its own budget), or raise `BUDGET_*` |
 | `blocked` | Claude Code's permission checks refused a command | Run it yourself or widen the allow list, then comment to resume |
 | `stale run lock … (no process or window of it)` | A run died without cleaning up | Harmless: the next start of that run clears it. Or remove the file `doctor` names |
+| `run temp dirs use … ; a run may leak` | Runs left over 5 GB in `workers/tmp` (killed before they removed their temp dir), or a running one fills its own | The dispatcher's next start removes those of finished runs over an hour old; or remove the dirs of runs no longer running |
 | A worker's question keeps coming back | `ANSWER_MAX` rounds were used | Answer it yourself in a comment |
 
 ## The install
