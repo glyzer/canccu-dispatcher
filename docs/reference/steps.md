@@ -55,7 +55,10 @@ in the next wave like any other issue of the step. Without `ready` it waits for 
 
 `Follow-up:` and `Roadmap note:` lines of the step's package PRs are kept once per text in
 `steps/<m>.notes`, and listed in the digest, the checkpoint summary, the snapshot and
-`canccu-status`. The dispatcher never creates issues from them: the lead does, with you.
+`canccu-status`. The dispatcher never creates issues from them: the lead does, with you. Put
+follow-ups and review leftovers in the step's milestone, not the fast lane: the planner then
+bundles them with the step's other issues of their area, where each one alone would pay a
+package's review, CI, accept and merge.
 
 ## Step budget
 
