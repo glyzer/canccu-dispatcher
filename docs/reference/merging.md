@@ -41,6 +41,8 @@ A contract-first PR (on the unit's branch plus `-contract`) closes none of the u
 and is classified like the unit's own PR otherwise ([`pipeline.md`](pipeline.md)). The rule
 holds for a single issue as for a package: the issue's branch is `<n>-<slug>`, kept in its
 state, so its contract PR is on `<n>-<slug>-contract`.
+A contract change in the unit's own PR needs no contract PR (the repo's rules say which applies):
+that PR flows like any other, and only a `Maintainer accept:` line in its review waits for you.
 
 A contract PR that GitHub links as closing an issue (`closingIssuesReferences`: a closing keyword
 anywhere in its body, prose too) would close the issue with only the contract done. `check_pr`
