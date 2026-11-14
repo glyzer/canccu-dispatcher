@@ -16,7 +16,7 @@ import time
 
 from rich.console import Console
 
-from .data import load
+from .data import load, safe_title
 from .draw import render
 from .parts import PHONE_UPTO, fold_events
 from .roadmap import fast_rows, later_line, step_sections
@@ -94,6 +94,7 @@ def self_test():
     screen_checks(fx, check)
     version_checks(mock, check)
     owner_checks(mock, check)
+    title_checks(mock, check)
     for f in fails:
         print("FAIL " + f)
     print("canccu-monitor self-test: %d checks failed" % len(fails) if fails else "canccu-monitor self-test: ok")
@@ -102,6 +103,21 @@ def self_test():
 
 def mock_frame(mock, w, h, no_color=False, own=None):
     return frame(own or mock["tools"], None, w, h, [("web", mock["web"])], no_color, MOCK_NOW, "tools")
+
+
+def title_checks(mock, check):
+    """A title with an OSC title change, a clear screen, a tab and a C1 CSI renders without them."""
+    bad = "Evil \x1b]0;x\x07 title \x1b[2J with\ttab and \x9b C1 \u00e9"
+    own = copy.deepcopy(mock["tools"])
+    for k in ("running", "needs_you"):
+        for it in own.get(k, []):
+            it["title"] = bad
+    check(safe_title(bad) == "Evil ]0;x title [2J with tab and  C1 \u00e9", "titles: safe_title")
+    for w, h in ((120, 60), (100, 50)):
+        plain, raw = mock_frame(mock, w, h, own=own)
+        what = "titles %dx%d" % (w, h)
+        check("Evil ]0;x title" in plain, what + ": the clean title is not shown")
+        check(not any(s in raw for s in ("\x1b]0;", "\x1b[2J", "\x07", "\x9b", "\t")), what + ": a control sequence of the title")
 
 
 def version_checks(mock, check):
