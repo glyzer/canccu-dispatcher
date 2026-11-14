@@ -39,6 +39,7 @@ In `~/.canccu/projects/<name>/`:
 | `digest/<date>.md` | The daily digest |
 | `merged.log` | One line per merged PR of a managed issue: time, issue, PR, how (`auto`, `accepted`, or `by hand` when the dispatcher did not arm it), title |
 | `workers/spend.log` | One tab-separated line per run, written when it ends (below) |
+| `accepts.log` | One tab-separated line per `canccu-ship` accept, written before it merges: the epoch, the unit (`<n>` or `pkg-<m>-<name>`), the PR, the head sha it accepts, the actor (`po`, or `leader` with `CANCCU_ACTOR=leader`) ([`merging.md`](merging.md#the-accept-channels)) |
 | `answers.log` | One line per question an answerer answered, with the link to its comment |
 | `want` | The project's wait for a shared slot, rewritten by every pass: `n` (the runs it could not start for want of a slot of `TOTAL_CAP`; 0: none), `cap` (its `CAP`), `until` (the epoch the wait holds to); removed when the dispatcher exits ([`projects.md`](projects.md#fair-share-of-total_cap)) |
 | `last_start` | When the project's engine last started a run (ns since the epoch): the fair share's tie rule |

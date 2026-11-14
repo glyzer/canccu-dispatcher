@@ -92,6 +92,12 @@ rule keeps personal paths out of this repo (`tests/leak-check.sh`).
   the strong accept, but only where the repo allows auto-merge: in a repo without it the label is
   the only accept, and this limit applies in full. Running the reviewer as its own OS user would
   close this.
+- **A comment during a run is not your answer.** A comment by `USER_LOGIN` posted while a run of
+  that unit was alive no longer counts as your answer: the run could have written it. One posted
+  while no run of the unit runs still looks like yours to the dispatcher, whoever wrote it.
+- **Narrow the accepts with `ACCEPT_CHANNELS`.** `ACCEPT_CHANNELS=ship` makes `canccu-ship`, with
+  its record on the host, the only accept; the label any session can add no longer counts
+  ([`reference/merging.md`](reference/merging.md#the-accept-channels)).
 - **A merge of main can carry an accept.** With `KEEP_ACCEPT_ON_MAIN_MERGE=1` your accept holds
   over a push that is a clean merge of main only; a run can push such a merge as easily as it
   adds the label, so keep the setting `0` until package S2.
