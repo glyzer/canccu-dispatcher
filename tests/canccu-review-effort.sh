@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # tests/canccu-review-effort.sh — the full review's effort by a package's risk class and by
-# EFFORT_DOCS_PATHS, and the reviewer's model by kind (REVIEW_MODEL, FIXCHECK_MODEL). Kept apart
-# from tests/canccu-review.sh so each file stays well under CI's per-file time limit (the harness:
-# tests/lib/harness.sh).
+# EFFORT_DOCS_PATHS, and the reviewer's model by kind (REVIEW_MODEL, FIXCHECK_MODEL,
+# REVIEW_MODEL_LIGHT). Kept apart from tests/canccu-review.sh so each file stays well under CI's
+# per-file time limit (the harness: tests/lib/harness.sh).
 # shellcheck source=lib/harness.sh
 . "$(dirname "$0")/lib/harness.sh"
 
@@ -136,6 +136,49 @@ ok "no model set: the review gets no --model" not grep -q -- '--model' "$FAKE/wo
 ok "… logged as the account default" grep -qF "#5 PR #50: reviewer started at ${HA:0:7} (medium effort, the account default)" "$CANCCU_HOME/dispatch.log"
 PATH="$fb:$PATH" "$root/bin/canccu-status" > "$E/status" 2>&1
 ok "… canccu-status shows the effort alone" grep -q '^  review PR #50 (medium) ' "$E/status"
+
+# ---------------------------------------------------------------- the light reviewer (#151)
+
+env_new light-pure
+lp() { lib eval "$1; review_light_pure \"\$(printf '%s\\n' $2)\" && echo light || echo full"; }
+ok "light: docs only" eq "$(lp : 'docs/a.md README.md')" light
+ok "light: a test file only (TEST_PATHS)" eq "$(lp : 'tests/a.sh src/a.test.ts')" light
+ok "light: a LIGHT_REVIEW_PATHS match" eq "$(lp "LIGHT_REVIEW_PATHS='^contracts/'" 'contracts/a.yaml docs/x.md')" light
+ok "light: an EFFORT_DOCS_PATHS match counts as docs" eq "$(lp "EFFORT_DOCS_PATHS='^specs/'" 'specs/a.yaml')" light
+ok "not light: one code path" eq "$(lp "LIGHT_REVIEW_PATHS='^contracts/'" 'docs/a.md src/a.ts')" full
+ok "not light: a gated path, even when LIGHT_REVIEW_PATHS names it" eq "$(lp "LIGHT_REVIEW_PATHS='^\\.github/'" '.github/workflows/ci.yml')" full
+ok "not light: agent configuration, though it is *.md" eq "$(lp : 'docs/a.md CLAUDE.md')" full
+ok "not light: no paths" eq "$(lib eval "review_light_pure '' && echo light || echo full")" full
+ok "not light: a bad LIGHT_REVIEW_PATHS matches nothing" eq "$(lp "LIGHT_REVIEW_PATHS='('" 'contracts/a.yaml')" full
+ok "… and leaves the other kinds light" eq "$(lp "LIGHT_REVIEW_PATHS='('" 'docs/a.md tests/a.sh')" light
+ok "REVIEW_MODEL_LIGHT and LIGHT_REVIEW_PATHS default to empty" \
+  eq "$( . "$root/lib/canccu-config.default"; echo "[$REVIEW_MODEL_LIGHT][$LIGHT_REVIEW_PATHS]")" "[][]"
+ok "review_model: a light review gets REVIEW_MODEL_LIGHT, a fix-check never" \
+  eq "$(lib eval 'MODEL=m0 REVIEW_MODEL=m1 FIXCHECK_MODEL=m2 REVIEW_MODEL_LIGHT=m3; echo "$(review_model review 1) $(review_model review 0) $(review_model fixcheck 1)"')" "m3 m1 m2"
+
+effenv light-docs '[{"filename": "docs/a.md", "changes": 400}, {"filename": "tests/a.sh", "changes": 300}]' 'Tier: feature'
+printf '%s\n' REVIEW_MODEL=claude-review-x REVIEW_MODEL_LIGHT=claude-light-x >> "$CANCCU_HOME/config"
+dispatch --once
+ok "REVIEW_MODEL_LIGHT: a docs and tests PR runs on it" grep -q -- '^--quiet --model claude-light-x .*--name review#50 ' "$FAKE/worker.log"
+ok "… recorded" eq "$(cat "$CANCCU_HOME/reviews/50.model" 2>/dev/null)" claude-light-x
+ok "… at medium effort, though a feature over 100 lines" eq "$(cat "$CANCCU_HOME/reviews/50.effort" 2>/dev/null)" medium
+ok "… logged once" eq "$(grep -cF "PR #50: light review (claude-light-x): docs, tests or light paths only" "$CANCCU_HOME/dispatch.log")" 1
+
+effenv light-code '[{"filename": "docs/a.md", "changes": 4}, {"filename": "src/a.ts", "changes": 3}]' 'Tier: fix'
+printf '%s\n' REVIEW_MODEL=claude-review-x REVIEW_MODEL_LIGHT=claude-light-x >> "$CANCCU_HOME/config"
+dispatch --once
+ok "REVIEW_MODEL_LIGHT: a code PR records REVIEW_MODEL" eq "$(cat "$CANCCU_HOME/reviews/50.model" 2>/dev/null)" claude-review-x
+ok "… with no light line" not grep -q 'light review' "$CANCCU_HOME/dispatch.log"
+
+effenv light-unset '[{"filename": "docs/a.md", "changes": 4}]' 'Tier: fix'
+echo REVIEW_MODEL=claude-review-x >> "$CANCCU_HOME/config"
+dispatch --once
+ok "no REVIEW_MODEL_LIGHT: a docs PR records REVIEW_MODEL, as before" eq "$(cat "$CANCCU_HOME/reviews/50.model" 2>/dev/null)" claude-review-x
+
+effenv light-unset-code '[{"filename": "src/a.ts", "changes": 4}]' 'Tier: fix'
+echo REVIEW_MODEL=claude-review-x >> "$CANCCU_HOME/config"
+dispatch --once
+ok "… and a code PR too" eq "$(cat "$CANCCU_HOME/reviews/50.model" 2>/dev/null)" claude-review-x
 
 # fxstart <name> [config...]: the worker fixed the findings of the review of HA; CI is green on HB
 fxstart() {
