@@ -44,10 +44,14 @@ The plan:
                "risk_reason": "sign-in", "areas": ["src/auth/"], "depends_on": []}]}
 ```
 
-Its rules: issues that touch the same files go in one package; high-risk content
-(`HIGH_RISK_TEXT`) gets a package of its own; about `PACKAGE_LINES` changed lines at most per
-package (and at least `PACKAGE_MIN_ISSUES` issues where they fit); never split or create
-issues; the rules' `PLANNER_EXTRA`. The check: valid JSON and schema, the right step and wave,
+Its rules: issues that touch the same files go in one package; high-risk issues
+(`HIGH_RISK_TEXT`) are kept apart from normal and low ones, and the high-risk issues of one area
+go together in one package (not one package per issue: every package pays a review, CI, an
+accept and a merge); about `PACKAGE_LINES` changed lines at most per package (and at least
+`PACKAGE_MIN_ISSUES` issues where they fit, three by default); with `PACKAGE_HOLD_SMALL=1`, a
+lone small leftover (under about 300 lines) that fits no package of the wave is left out while an
+earlier package of its area runs or other issues of its area wait, so it joins a later package;
+never split or create issues; the rules' `PLANNER_EXTRA`. The check: valid JSON and schema, the right step and wave,
 names `[a-z0-9-]` of at most 30 characters, unique, not `health`, not used earlier in the step;
 every issue at most once and only handed issues that are still eligible; a risk class with a
 reason; known dependencies, none on itself, no cycle; a new package whose `areas` overlap a

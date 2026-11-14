@@ -25,7 +25,9 @@
 # the project's guidance for the planner of a step's work packages, e.g. "aim for 2-4 issues per package"
 # PLANNER_EXTRA=''
 # above 1: the planner aims for at least this many issues per package, where they fit together
-# PACKAGE_MIN_ISSUES=1
+# PACKAGE_MIN_ISSUES=3
+# 1: the planner may leave a lone small leftover (under about 300 lines) out of a wave while other issues of its area run or wait, so it joins a later package of its area
+# PACKAGE_HOLD_SMALL=0
 # extra reviewer checks: "Check every acceptance criterion, <this>, and …"
 # REVIEW_EXTRA=''
 # extra worker prompt text
@@ -44,8 +46,9 @@
 # the review-gate checks (they wait for the review verdict themselves)
 # REVIEW_CHECKS="review-gate"
 # high risk. HIGH_RISK_PATHS: a health pass touching one is high risk (manual accept).
-# HIGH_RISK_TEXT: the planner gives such content its own, high-risk package (manual accept); the
-# reviewer raises a package's Risk: line for it
+# HIGH_RISK_TEXT: the planner keeps such content apart from normal and low work, the high-risk
+# issues of one area in one high-risk package (manual accept); the reviewer raises a package's
+# Risk: line for it
 # HIGH_RISK_PATHS='^(\.github|deploy)/|migration|sign-?in|login|auth|rights|permission|session|secret|tenan|rls'
 # HIGH_RISK_TEXT='migrations, sign-in or auth, rights, sessions, secrets, tenancy/RLS, deploy/ or CI configuration'
 # which states ping USER_LOGIN (PING=on): all, or some of accept checkpoint plan question

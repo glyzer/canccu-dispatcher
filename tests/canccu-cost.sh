@@ -206,17 +206,39 @@ ok "the engine's system prompt: no background work" grep -qF 'Never run a comman
 
 tname=planner-guidance
 pp() { lib eval "$1"'; planner_prompt 12 1 "101 102"'; }
-ok "PACKAGE_MIN_ISSUES defaults to 1, PLANNER_EXTRA to empty" eq "$(lib eval 'echo "$PACKAGE_MIN_ISSUES [$PLANNER_EXTRA]"')" "1 []"
-ok "PACKAGE_MIN_ISSUES 1: no bundling nudge" not grep -q 'issues per package' <<<"$(pp :)"
-ok "PACKAGE_MIN_ISSUES 3: the planner is nudged to bundle" \
-  grep -qF 'aim for at least 3 issues per package where they fit together (never bundle unrelated issues just to reach it)' <<<"$(pp PACKAGE_MIN_ISSUES=3)"
+# #79: packages bundle three issues by default; high risk is kept apart from normal work, not one per issue
+ok "PACKAGE_MIN_ISSUES defaults to 3, PACKAGE_HOLD_SMALL to 0, PLANNER_EXTRA to empty" \
+  eq "$(lib eval 'echo "$PACKAGE_MIN_ISSUES $PACKAGE_HOLD_SMALL [$PLANNER_EXTRA]"')" "3 0 []"
+ok "PACKAGE_MIN_ISSUES 1: no bundling nudge" not grep -q 'issues per package' <<<"$(pp PACKAGE_MIN_ISSUES=1)"
+ok "the default: the planner is nudged to bundle three" \
+  grep -qF 'aim for at least 3 issues per package where they fit together (never bundle unrelated issues just to reach it)' <<<"$(pp :)"
+HR='keep high-risk issues apart from normal and low ones, and put the high-risk issues of one area together in one package'
+ok "high risk: kept apart from normal work, bundled by area" grep -qF "$HR" <<<"$(pp :)"
+ok "… never \"its own package\", which planners read as one package per issue" not grep -q 'own package' <<<"$(pp :)"
+# the acceptance fixture: six small issues in two areas, two of them high risk. No model runs in a
+# test: the prompt they get must push to two or three packages (bundle by area, three at least,
+# the two high-risk ones together), and such a plan must pass the check
+six=$(lib eval 'planner_prompt 12 1 "101 102 103 104 105 106"')
+ok "six issues: all six are handed over, with the bundling and high-risk rules" \
+  eq "$(grep -cF 'The issues to plan are exactly: #101, #102, #103, #104, #105, #106.' <<<"$six") $(grep -cF "$HR" <<<"$six") $(grep -cF 'at least 3 issues per package' <<<"$six")" "1 1 1"
+six_plan='{"schema":1,"step":12,"wave":1,"packages":[
+  {"name":"auth-risk","issues":[101,102],"risk":"high","risk_reason":"session handling","areas":["src/auth/"],"depends_on":[]},
+  {"name":"auth-copy","issues":[103],"risk":"low","risk_reason":"texts only","areas":["src/auth/texts/"],"depends_on":["auth-risk"]},
+  {"name":"web-list","issues":[104,105,106],"risk":"normal","risk_reason":"list views","areas":["src/web/"],"depends_on":[]}]}'
+printf '%s\n' "$six_plan" > "$T/six.json"
+ok "… and their plan of three packages passes the check" eq "$(lib plan_validate "$T/six.json" \
+  '{"issues":[{"number":101},{"number":102},{"number":103},{"number":104},{"number":105},{"number":106}],"earlier":[],"carried":[],"merged":[]}' 12 1 | jq -c .errors)" '[]'
+HOLD='leave out of the plan a lone small issue (under about 300 changed lines) that fits no package of this wave while an earlier package of its area is running or other issues of its area wait'
+ok "PACKAGE_HOLD_SMALL 0: no lone small issue is held back" not grep -qF "$HOLD" <<<"$(pp :)"
+ok "PACKAGE_HOLD_SMALL 1: the planner holds back a lone small leftover for a later wave" \
+  grep -qF "$HOLD: it joins a later wave's package of its area (never leave out every issue);" <<<"$(pp PACKAGE_HOLD_SMALL=1)"
 ok "PLANNER_EXTRA: the project's guidance reaches the planner" \
   grep -qF "The project's guidance: aim for 2-4 issues per package." <<<"$(pp 'PLANNER_EXTRA="aim for 2-4 issues per package"')"
 ok "… and is no part of the prompt when empty" not grep -q "project's guidance" <<<"$(pp :)"
 # #106: a number at the start of the step's title is no step number
 ok "the prompt says which number is the plan's step" grep -qF 'In the plan, "step" is 4 and "wave" is 1: "step" is the milestone'"'"'s number, and a number at the start of the step'"'"'s title is only part of its name.' \
   <<<"$(lib eval 'MILESTONES='"'"'[{"number":4,"title":"3 Release 0.2"}]'"'"'; planner_prompt 4 1 "101"')"
-ok "both are documented in the rules template" eq "$(grep -cE "^# (PLANNER_EXTRA=''|PACKAGE_MIN_ISSUES=1)$" "$root/profiles/default/rules")" 2
+ok "all three are documented in the rules template" eq "$(grep -cE "^# (PLANNER_EXTRA=''|PACKAGE_MIN_ISSUES=3|PACKAGE_HOLD_SMALL=0)$" "$root/profiles/default/rules")" 3
 
 echo "canccu-cost tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

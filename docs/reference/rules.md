@@ -41,7 +41,7 @@ old path too).
 | `ADD_DIRS` | empty | Extra read-only dirs for workers (`--add-dir`), space-separated |
 | `REVIEW_CHECKS` | `review-gate` | Checks that wait for the review verdict themselves: left out of "CI green" before the review. The merge queue and the ruleset still require them |
 | `HIGH_RISK_PATHS` | the same as `RISKY_PATHS` | `grep -iE` on the health pass's diff: it is high risk (manual accept) when it touches one |
-| `HIGH_RISK_TEXT` | migrations, sign-in or auth, rights, sessions, secrets, tenancy/RLS, `deploy/` or CI configuration | High-risk content in words: the planner gives it a package of its own, the reviewer raises a package's `Risk:` line for it |
+| `HIGH_RISK_TEXT` | migrations, sign-in or auth, rights, sessions, secrets, tenancy/RLS, `deploy/` or CI configuration | High-risk content in words: the planner keeps it apart from normal and low work, the high-risk issues of one area in one high-risk package; the reviewer raises a package's `Risk:` line for it |
 | `PING_KINDS` | `all` | Which states ping `USER_LOGIN` ([`pings.md`](pings.md)): `all`, or some of `accept checkpoint plan question needs-you pr-needs-you`; empty: none. An unknown word pings nothing and is logged once |
 
 ## User-visible paths
