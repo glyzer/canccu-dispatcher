@@ -24,6 +24,21 @@ pr_url() { echo "https://github.com/$REPO/pull/$1"; }
 its_url() { [ -n "${1:-}" ] && printf ' · %s' "$1"; return 0; }
 comment_pr() { mut gh pr comment "$1" -R "$REPO" --body "$(home_tilde "$2")"$'\n\n'"$CANCCU_MARK"; }
 edit_issue() { local n; n=$(lead_of "$1"); shift; [ -n "$n" ] || return 0; mut gh issue edit "$n" -R "$REPO" "$@"; }
+# needs_work_from_pr <K> <pr>: a `needs-work` the user put on the unit's PR moves to its lead
+# issue, so every later check (run reservation, comments since, removal) reads one label. This
+# pass's ISSUES and PRS follow, so resume_step handles it now. 1 on a gh error (the PR keeps it).
+needs_work_from_pr() {
+  local n=$1 pr=$2 l
+  [ -n "$pr" ] && pr_has_label "$pr" needs-work || return 0
+  l=$(lead_of "$n")
+  # added before removed: an error between the two leaves the label on both, never on neither
+  if ! { mut gh issue edit "$l" -R "$REPO" --add-label needs-work && mut gh pr edit "$pr" -R "$REPO" --remove-label needs-work; }; then
+    log "#$n PR #$pr: gh error moving \`needs-work\`; retrying next pass"; return 1
+  fi
+  ISSUES=$(jq -c --argjson n "$l" 'map(if .number == $n then .labels += [{name: "needs-work"}] else . end)' <<<"$ISSUES")
+  PRS=$(jq -c --argjson p "$pr" 'map(if .number == $p then .labels |= map(select(.name != "needs-work")) else . end)' <<<"$PRS")
+  log "#$n PR #$pr: \`needs-work\` was on the PR; moved to issue #$l"
+}
 # edit_members <K> <gh issue edit args...>: the same on every issue of the unit
 edit_members() { local k=$1 m; shift; for m in $(members_of "$k"); do mut gh issue edit "$m" -R "$REPO" "$@"; done; }
 
