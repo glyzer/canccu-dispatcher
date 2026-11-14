@@ -90,6 +90,16 @@ as `reviews/<pr>/<head>.open.md`, the head kept as `open_sha`; its own `Maintain
 `Risk:` lines are kept with the full review's, so a later pass that does not copy them still
 waits for you.
 
+**One more round when the findings fell** (`FIX_EXTRA_IF_FEWER`, default `1`): the dispatcher
+keeps each verdict's blocking count (`blocking_last`, the one before `blocking_prev`). When the
+fix-check's `changes` (or a full review's with no fix run left) has fewer blocking findings than
+the verdict before it, and at least one, it skips the `needs-you` once per cycle: one more
+automatic fix round with those findings, then a fix-check of `<that head>..<new head>`, logged
+`blocking findings fell from <prev> to <last>; one more automatic fix round`. So the flow is one
+review, one fix, one fix-check, and, while fixes work, one extra fix and fix-check; that
+fix-check's `changes` is the `needs-you` above. The round is a fix run past `FIX_ATTEMPTS`;
+`extra_fix` marks it until the next cycle.
+
 **Your `needs-work` on those open items** (still in the fix round, not after a stopped merge) is
 one more fix round: the worker follows up (a fresh session unless `RESUME_ON` names `needs-work`) with the open items and your comments, the findings file
 `reviews/<pr>/<open_sha>.findings.md` is rebuilt from both (never appended to; a pointer to the

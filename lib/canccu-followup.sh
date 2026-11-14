@@ -16,6 +16,46 @@ fix_kind() { case $1 in fix|ci|needs-work) return 0 ;; esac; return 1; }
 fixes_used() { [ "$(st_get "$1" fixes_pr)" = "$2" ] && echo "$(( $(st_get "$1" fixes) + 0 ))" || echo 0; }
 fix_left() { (( $(fixes_used "$1" "$2") < $(fix_max) )); }
 fix_count() { st_set "$1" fixes=$(( $(fixes_used "$1" "$2") + 1 )) fixes_pr="$2"; }
+# blocking_note <K> <verdict body> <verdict at>: the verdict's blocking count (findings_count, the
+# estimate spend.log has) becomes blocking_last, the one before it blocking_prev. Once per verdict
+# (blocking_at): a verdict acted on again next pass, after a step that failed, never shifts twice.
+blocking_note() {
+  local b nb
+  [ "$(st_get "$1" blocking_at)" = "$3" ] && return 0
+  read -r b nb <<<"$(findings_count <(printf '%s\n' "$2"))"
+  st_set "$1" blocking_prev="$(st_get "$1" blocking_last)" blocking_last="${b:-0}" blocking_at="$3"
+}
+# extra_fix_due <K>: FIX_EXTRA_IF_FEWER is 1, the cycle had no extra round yet (extra_fix, cleared by
+# new_cycle: a fix that keeps improving still meets a person after one), and the last verdict has
+# fewer blocking findings than the one before but at least one (none left is a parse miss, not progress)
+extra_fix_due() {
+  local p l
+  [ "${FIX_EXTRA_IF_FEWER:-1}" = 1 ] && [ -z "$(st_get "$1" extra_fix)" ] || return 1
+  p=$(st_get "$1" blocking_prev) l=$(st_get "$1" blocking_last)
+  [[ $p =~ ^[0-9]+$ && $l =~ ^[0-9]+$ ]] && (( l >= 1 && l < p ))
+}
+# findings_inline <blocking findings> <their file>: as a fix prompt has them; long ones are cut and
+# read in the file (the prompt has a limit)
+findings_inline() {
+  if (( ${#1} > 3000 )); then printf '%s' "${1:0:3000} The findings are cut here; read all of them in $2."
+  else printf '%s' "$1 (also in $2)"; fi
+}
+# extra_fix_round <K> <pr> <head> <verdict body> <review|fix-check>: a `changes` that would stop for
+# the user gets one more automatic fix round when extra_fix_due, like a needs-work's (extra_round)
+# without the user's comments; then a fix-check of head..new head against its blocking findings.
+# It ignores FIX_ATTEMPTS: it is the one round past the cap the setting allows. 0: started; 1: not
+# due, ask as today; 2: due but not started (back-off, no slot, the run failed): again next pass.
+extra_fix_round() {
+  local k=$1 pr=$2 head=$3 b ff
+  extra_fix_due "$k" || return 1
+  may_start "$k" || return 2
+  b=$(blocking_of "$4") ff=$(findings_file "$pr" "$head")
+  save_findings "$k" "$pr" "$ff" "$b"
+  resume "$k" "The $5 of PR #$pr still finds blocking items, fewer than the verdict before it: this is one more automatic fix round, the last one. Fix every blocking finding below, rerun the checks, push once and stop: the dispatcher watches CI. Leave its non-blocking findings alone: they went to a follow-up issue. A narrow fix-check of this fix diff follows, then the merge or the product owner. The blocking findings: $(findings_inline "$b" "$ff")" fix || return 2
+  fix_count "$k" "$pr"
+  st_set "$k" extra_fix=1 stage=fixing reviewed_sha="$head"
+  log "#$k PR #$pr: blocking findings fell from $(st_get "$k" blocking_prev) to $(st_get "$k" blocking_last); one more automatic fix round"
+}
 # may_start <K>: a follow-up run of the unit can start now: no back-off, and a slot. Checked before
 # its state changes, so a refused start leaves the work for the next pass (the engine would refuse
 # it anyway, and log that every pass)
