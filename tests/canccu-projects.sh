@@ -420,7 +420,26 @@ ok "… shop's run has shop's config dir, never a's" \
 ok "… tools's log has the line, shop's does not" \
   eq "$(grep -c 'TOKEN CANNOT REACH example-user/tools' "$CANCCU_ROOT/projects/tools/dispatch.log") $(grep -c TOKEN "$CANCCU_ROOT/projects/shop/dispatch.log")" "1 0"
 
-# no config dir: today's behaviour, with a warning
+# no config dir and ALLOW_DEFAULT_GH_LOGIN=0 (the default): no run starts, one log line
+NOLOGIN="this project has no gh login of its own (GH_CONFIG_DIR); set one up (canccu-dispatcher doctor shows how) or set ALLOW_DEFAULT_GH_LOGIN=1"
+env_new token-refused ALLOW_DEFAULT_GH_LOGIN=0
+issue 3 ready | issues
+dispatch --once; dispatch --once
+ok "default login refused: nothing starts" eq "$(wc -l < "$FAKE/worker.log")" 0
+ok "… no gh call reads the repo" eq "$(grep -vcE '^(auth token|label list)' "$FAKE/gh.log")" 0
+ok "… one log line over two passes" eq "$(grep -cF "$NOLOGIN: project web does nothing until it works" "$CANCCU_HOME/dispatch.log")" 1
+ok "… the snapshot says so" eq "$(jq -r '"\(.pass.ok) \(.pass.error)"' "$CANCCU_HOME/status.json")" "false $NOLOGIN"
+ok "… canccu-status says so, without the default-login warning" \
+  eq "$(gstatus | grep -cF "$NOLOGIN: the dispatcher does nothing for this project until it works") $(gstatus | grep -c '^warning: no gh config dir')" "1 0"
+dispatch --dry-run; rc=$?
+ok "… --dry-run stops and says why" eq "$rc $(grep -cF "canccu-dispatch: $NOLOGIN" "$E/out")" "1 1"
+sed -i '/^ALLOW_DEFAULT_GH_LOGIN=/d' "$CANCCU_HOME/config"; dispatch --once
+ok "… 0 is the default" eq "$(wc -l < "$FAKE/worker.log")" 0
+ghlogin "$CANCCU_HOME/gh"; dispatch --once
+ok "… with a project login, the next pass runs" started 3
+ok "… and the warning resets" test ! -e "$CANCCU_HOME/.warned-credential"
+
+# no config dir with ALLOW_DEFAULT_GH_LOGIN=1 (the harness sets it): today's behaviour, with a warning
 env_new token-none
 issue 3 ready | issues
 dispatch --once
