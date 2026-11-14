@@ -77,7 +77,7 @@ _doc_token() {
 # _doc_project: the project loaded by canccu-common.sh (in a subshell). Prints its problems, and
 # "@token <file>" for the token check that runs once per file.
 _doc_project() {
-  local l held=0 f at age
+  local l held=0 f at age sz
   echo "@token ${REVIEWER_TOKEN_FILE:-}"
   login_problem
   [ -n "$REVIEWER_LOGIN" ] || echo "REVIEWER_LOGIN is not set (the reviewer bot's login, in $(login_where)): no reviews"
@@ -97,6 +97,12 @@ _doc_project() {
     else echo "no status snapshot while its dispatcher runs ($(canccu_tilde "$f"))"; fi
   fi
   [ "$(jq -r '.pass.ok' "$f" 2>/dev/null)" = false ] && echo "the last pass failed: $(jq -r '.pass.error // "unknown error"' "$f")"
+  # a run removes its temp dir and the dispatcher's start the ones left: this much means a run
+  # leaks, or one fills it now (apparent size: what the runs wrote, sparse files included)
+  f=$WORKERS_DIR/tmp
+  sz=$( { du -s --apparent-size -B1 "$f" | cut -f1; } 2>/dev/null)
+  (( ${sz:-0} > 5 * 1024 ** 3 )) &&
+    echo "run temp dirs use $(numfmt --to=iec --round=nearest --format=%.1f "$sz"); a run may leak, check $(canccu_tilde "$f")"
   for l in "$WORKERS_DIR"/*.lock; do
     [ -e "$l" ] && ! lock_alive "$l" &&
       echo "stale run lock $(canccu_tilde "$l") (no process or window of it; canccu-worker --unlock $(lock_get "$l" repo) $(lock_get "$l" key), or remove it)"

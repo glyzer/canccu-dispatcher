@@ -31,6 +31,7 @@ BUDGET_FIXCHECK="30 6 20"   # the fix-check after the worker fixed the review's 
 BUDGET_ANSWER="40 10 20"    # the answerer of a worker's question
 ANSWER_MAX=3                # answerer rounds per issue, then needs-you
 STALL_MIN=10                # kill a run whose log and tools are silent this long
+RUN_TMPDIR=disk             # disk: each run gets its own temp dir under the workers dir, removed when it ends; system: the inherited TMPDIR
 DIGEST_HOUR_UTC=6
 DIGEST_ISSUE=               # the pinned "Daily digest" issue; empty: the digest is written, never posted
 PING=on                     # on|off: @mention USER_LOGIN in a comment as REVIEWER_LOGIN when something needs them
