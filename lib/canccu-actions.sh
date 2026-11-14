@@ -267,7 +267,7 @@ Reject: comment here and label issue #$(lead_of "$n") \`needs-work\`."
 }
 
 # new_cycle <n>: a new start, an adoption, plan-ok or needs-work: the next review is a full one
-new_cycle() { st_set "$1" stage= reviewed_sha= review_maccept= review_risk= open_sha= full_sha= pass_sha=; }
+new_cycle() { st_set "$1" stage= reviewed_sha= review_maccept= review_risk= open_sha= full_sha= pass_sha= extra_fix=; }
 
 # after_pass <n> <pr> <head> <how>: that head passed (a review, a fix-check, or a merge of main only
 # after a pass): classify, then merge it or wait for the accept. 1 when nothing was done (classify
@@ -296,18 +296,19 @@ save_findings() {
 # resumes the worker once with the findings (stage fixing; the next review is the fix-check of
 # reviewed_sha..head). A `changes` once the findings were given (from the fix-check, or a full
 # review started by hand meanwhile) → needs-you with the open items, kept (open_sha and its open
-# file) for the lead's needs-work: one more fix round and a fix-check of those (resume_step). The
+# file) for the lead's needs-work: one more fix round and a fix-check of those (resume_step). That
+# stop, and a full review's with no fix run left, first try extra_fix_round (FIX_EXTRA_IF_FEWER). The
 # verdict counts as acted on (verdict_at) only once the merge, the accept request or the resume has
 # happened: a failed step sees it again next pass.
 act_verdict() {
-  local n=$1 pr=$2 j=$3 v head at stage what body="" b ff bi ma mo mode
+  local n=$1 pr=$2 j=$3 v head at stage what body="" b ff ma mo mode rc
   v=$(verdict_of "$j" "$(st_get "$n" verdict_at)"); head=$(jqr .headRefOid <<<"$j"); at=$(verdict_at "$j")
   stage=$(st_get "$n" stage) mode=$(st_get "$n" review_mode)
   what=review; is_fixcheck_mode "$mode" && what=fix-check
   # a push after a pass is checked against these (postpass_step)
   case $v in pass|changes) is_fixcheck_mode "$mode" || st_set "$n" full_sha="$head" ;; esac
   # non-blocking findings never reach the worker: they go to the wave's follow-up issue
-  case $v in pass|changes) body=$(verdict_body "$j"); collect_nonblocking "$n" "$pr" "$head" "$body" "$at" ;; esac
+  case $v in pass|changes) body=$(verdict_body "$j"); collect_nonblocking "$n" "$pr" "$head" "$body" "$at"; blocking_note "$n" "$body" "$at" ;; esac
   case $v in
     pass)
       # a post-pass check that passed leaves the fix-check stage: the next push is again
@@ -319,6 +320,8 @@ act_verdict() {
       case $stage in
         fixing|fixcheck)
           save_findings "$n" "$pr" "$(open_file "$pr" "$head")" "$body"
+          extra_fix_round "$n" "$pr" "$head" "$body" "$what"; rc=$?
+          (( rc == 2 )) && return 0
           # its own Maintainer accept and Risk lines are kept like the full review's: the fix-check
           # after a needs-work may not copy them, and its pass must still wait for the product owner
           ma=$(oneline 200 "$(maintainer_accept_of "$j")") mo=$(st_get "$n" review_maccept)
@@ -326,10 +329,17 @@ act_verdict() {
             st_set "$n" review_maccept="$(oneline 200 "${mo:+$mo; }$ma")"
           fi
           st_set "$n" review_risk="$(risk_max "$(review_risk_of "$j")" "$(st_get "$n" review_risk)")"
+          (( rc == 0 )) && { st_set "$n" verdict_at="$at"; return 0; }
           needs_you "$n" "the $what of PR #$pr still finds open items after the fix (one review, one fix, one fix-check: no further loop). \`needs-work\` gives one more fix round and a fix-check of these items; with \`needs-work\`, a line \`full review\` in your comment asks for a new full review instead" "$body"
           st_set "$n" verdict_at="$at" open_sha="$head" ;;
         *)
           if ! fix_left "$n" "$pr"; then
+            extra_fix_round "$n" "$pr" "$head" "$body" "$what"; rc=$?
+            (( rc == 2 )) && return 0
+            if (( rc == 0 )); then
+              st_set "$n" verdict_at="$at" review_maccept="$(oneline 200 "$(maintainer_accept_of "$j")")" review_risk="$(review_risk_of "$j")"
+              return 0
+            fi
             needs_you "$n" "the review of PR #$pr asks for changes and no automatic fix run is left ($(fix_max) per PR, FIX_ATTEMPTS): comment the way on and the worker follows up" "$body"
             st_set "$n" verdict_at="$at"; return 0
           fi
@@ -337,12 +347,10 @@ act_verdict() {
           # does the whole case again
           may_start "$n" || return 0
           # only the blocking findings: the fix run fixes them and the fix-check checks them
-          # saved before the run, which reads the whole of long ones there (the prompt has a limit)
+          # saved before the run, which reads the whole of long ones there (findings_inline)
           b=$(blocking_of "$body") ff=$(findings_file "$pr" "$head")
           save_findings "$n" "$pr" "$ff" "$b"
-          if (( ${#b} > 3000 )); then bi="${b:0:3000} The findings are cut here; read all of them in $ff."
-          else bi="$b (also in $ff)"; fi
-          resume "$n" "The independent reviewer asked for changes on PR #$pr (full comment: gh pr view $pr -R $REPO --comments). This is your one fix round: fix every blocking finding below, rerun the checks, push once and stop: the dispatcher watches CI. Leave its non-blocking findings alone: they went to a follow-up issue. A narrow fix-check of your fix diff follows, then the merge or the product owner. The blocking findings: $bi" fix || return 0
+          resume "$n" "The independent reviewer asked for changes on PR #$pr (full comment: gh pr view $pr -R $REPO --comments). This is your one fix round: fix every blocking finding below, rerun the checks, push once and stop: the dispatcher watches CI. Leave its non-blocking findings alone: they went to a follow-up issue. A narrow fix-check of your fix diff follows, then the merge or the product owner. The blocking findings: $(findings_inline "$b" "$ff")" fix || return 0
           fix_count "$n" "$pr"
           st_set "$n" stage=fixing reviewed_sha="$head" verdict_at="$at" review_maccept="$(oneline 200 "$(maintainer_accept_of "$j")")" \
             review_risk="$(review_risk_of "$j")"
