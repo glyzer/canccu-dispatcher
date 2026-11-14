@@ -91,6 +91,7 @@ def self_test():
     review_checks(mock, check)
     fixture_checks(fx, check)
     roadmap_checks(mock, check)
+    blocked_checks(fx, check)
     screen_checks(fx, check)
     version_checks(mock, check)
     owner_checks(mock, check)
@@ -324,6 +325,56 @@ def roadmap_checks(mock, check):
             check("│ Step" not in part and any(x.startswith(step2 + " NOW · 9 of 26 done · $23.85 of $300")
                                              for x in lines), what + ": the step is not a heading line")
             check(any(x.startswith("Later ") and "4 Filters (5)" in x for x in lines), what + ": the later steps' line")
+
+
+def cell_heights(part, col):
+    """[(the row's first line, the lines its col cell takes)] of the first table in part with a
+    header; a row starts where Work has text."""
+    lines = part.split("\n")
+    head = next((x for x in lines if "│ Status" in x), None)
+    if head is None:
+        return []
+    names = [c.strip() for c in head.split("│")]
+    ks, kc, out = names.index("Work"), names.index(col), []
+    for x in lines[lines.index(head) + 2:]:
+        cells = x.split("│")
+        if x.startswith("└") or len(cells) != len(names):
+            break
+        if cells[ks].strip():
+            out.append([x, 0])
+        if out and cells[kc].strip():
+            out[-1][1] += 1
+    return out
+
+
+def blocked_checks(fx, check):
+    """A step with 23 blocked issues over 17 blocker sets (blocked-many.json), another project
+    beside it: the package table survives at 120x55 (the done packages folded first), the phone
+    at 80x30 keeps the running, ready and needs-you packages, no blocked cell takes more than two
+    lines."""
+    snap = load(os.path.join(fx, "blocked-many.json"))[0]
+    for w, h in ((120, 55), (80, 30)):
+        what = "blocked-many at %dx%d" % (w, h)
+        plain = frame(snap, None, w, h, (("tools", TOOLS),))[0]
+        part = roadmap_part(plain)
+        part = part[part.find("ROADMAP  web"):part.find("ROADMAP  tools")]
+        words = words_of(part)
+        check(len(plain.rstrip("\n").split("\n")) <= h, what + ": more lines than the terminal")
+        check(all(x in words for x in ("exporter", "● working", "importer", "○ ready", "sharing", "✖ accept")),
+              what + ": the running, ready and needs-you packages are not in the table")
+        if w > PHONE_UPTO:
+            check("│ Step" in part, what + ": no package table")
+            check("12 merged" in words and "merged-0" not in words, what + ": the done packages are not one row")
+    for w in (160, 120, 100, 80, 60):
+        what = "blocked-many at %d" % w
+        part = roadmap_part(frame(snap, None, w, None, (("tools", TOOLS),))[0])
+        rows = cell_heights(part[part.find("ROADMAP  web"):], "Waiting on")
+        blocked = [r for r in rows if "– blocked" in r[0] and "(no package)" in r[0]]
+        check(blocked and all(n <= 2 for _, n in blocked), what + ": a blocked cell is longer than two lines %r"
+              % [n for _, n in rows])
+        check(any("23 issues: behind #306 ×8, #109 ×4" in x for x in part.split("\n")) or w > 140,
+              what + ": the blocked cell does not name the top blockers first")
+        check(re.search(r"\+\d+ more", part) is not None or w > 140, what + ": no +N more")
 
 
 def has_pipe(plain):
