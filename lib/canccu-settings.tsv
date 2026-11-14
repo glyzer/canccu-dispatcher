@@ -36,6 +36,7 @@ MERGE_WAIT_MIN	int:1:10080	project	open
 MERGE_CLOSE_MIN	int:0:1440	project	open
 MERGE_RETRY	int:0:20	project	open
 KEEP_ACCEPT_ON_MAIN_MERGE	enum:0|1	project	locked
+MERGE_MAIN_ANY_PHASE	enum:0|1	project	open
 POST_WAIT	int:10:86400	project	open
 STEP_BUDGET	int:1:100000	project	open
 BUDGET_PLAN	budget	project	open

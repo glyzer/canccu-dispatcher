@@ -105,6 +105,27 @@ main_merge() {
   MERGED=merged
 }
 
+# contract_back <n> <pr> <c>: the draft waited for its contract PR #c, which is on main now. With
+# MERGE_MAIN_ANY_PHASE=1 main is merged in by script first, so the run only finishes the work; a
+# merge that could not run (a conflict among them) leaves it to the run. 1: no run started.
+contract_back() {
+  local n=$1 pr=$2 c=$3 t
+  may_start "$n" || return 1
+  t="The contract PR #$c merged into main. Run git merge origin/main in your branch, finish the package's work in PR #$pr and mark it ready."
+  if [ "${MERGE_MAIN_ANY_PHASE:-1}" = 1 ]; then
+    main_merge "$n" "$pr"
+    case $MERGED in merged|current) t="The contract PR #$c merged into main, and main is merged into your branch already. Finish the package's work in PR #$pr and mark it ready." ;; esac
+  fi
+  resume "$n" "$t" merge
+}
+
+# no_checks_why <pr>: the no-checks needs-you's question. GitHub runs no pull_request checks on a
+# PR that conflicts with main, so asking whether CI is set up would send the user the wrong way.
+no_checks_why() {
+  if [ "$(pr_get "$1" '.mergeStateStatus // ""')" = DIRTY ]; then echo "it conflicts with main, so GitHub runs no checks; merge main into it or say how"
+  else echo "is CI set up for this repo, or did a path filter skip it?"; fi
+}
+
 # conflict_task <pr> <paths>: the task of a worker's merge run (kind merge: no fix attempt), for a
 # merge of main that conflicts, whether red CI (ci_red) or GitHub's merge state (conflict_merge) found it
 conflict_task() {

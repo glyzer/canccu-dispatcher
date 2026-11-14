@@ -523,6 +523,8 @@ ok "… the worker resolves it, a merge run, told the files" grep -q -- '--fresh
 ok "… logged" grep -qF '#5 PR #50: conflicts with main in: src/a.ts src/b.ts; the worker resolves them' "$CANCCU_HOME/dispatch.log"
 ok "… conflict_sha is the head; not a fix attempt" eq "$(st 5 conflict_sha) $(st 5 fixes)" "$HA "
 rm -f "$WORKERS_DIR/web-5.lock"; last 5 done "could not resolve the conflict"
+# GitHub has not recomputed the merge state yet: postpass_step, not conflict_merge, finds the head unchanged
+pr 50 5 $HA | prs
 dispatch --once
 ok "… its run ends, reaped to check" eq "$(st 5 phase)" check
 json pr50.json "$(detail "$(pr 50 5 $HA)" 2030-11-05T10:00:00Z)"; route 'pr view 50 *' pr50.json
