@@ -291,6 +291,40 @@ ok "no checks for 11 min → needs-you" has gh.log "issue edit 5 -R example-org/
 ok "… with the reason" has gh.log "no CI checks on PR #50: is CI set up for this repo, or did a path filter skip it?"
 ok "… still no review" not grep -q -- '--key review-50' "$FAKE/worker.log"
 
+# #149: a PR with no checks that conflicts with main (DIRTY) gets none from GitHub: the needs-you says so
+env_new ci-none-dirty MERGE_MAIN_ANY_PHASE=0
+{ issue 5 in-progress; } | issues
+pr 50 5 $HA none | jq '.mergeStateStatus = "DIRTY"' | prs
+state 5 phase=check "check_at=$((NOW - 11 * 60))" pr=50
+dispatch --once
+ok "no checks for 11 min on a DIRTY PR → needs-you naming the conflict" \
+  has gh.log "no CI checks on PR #50: it conflicts with main, so GitHub runs no checks; merge main into it or say how"
+ok "… not the is-CI-set-up text" hasnt gh.log "is CI set up for this repo"
+
+# #149: after its contract PR merged, the draft gets main merged in by script before the resume
+# contractenv <name> [config line...]: the unit in check on draft PR 50 (branch 5-thing, worktree
+# of issue 5, main 2 commits ahead) whose contract PR 51 merged
+contractenv() {
+  env_new "$@"
+  { issue 5 in-progress; } | issues
+  pr 50 5 "$HA" green "" true | prs
+  state 5 phase=check pr=50 contract_merged=51 "check_at=$NOW"
+  mkdir -p "$WORKERS_DIR/worktrees/web/issue-5" && touch "$WORKERS_DIR/worktrees/web/issue-5/.git"
+  echo 5-thing > "$FAKE/branch"; echo 2 > "$FAKE/behind"
+}
+contractenv contract-merge-main
+dispatch --once
+ok "contract PR merged → main merged into the draft's branch by script, pushed" \
+  eq "$(grep -c 'merge --no-edit origin/main' "$FAKE/git.log") $(grep -c 'push origin HEAD:refs/heads/5-thing' "$FAKE/git.log")" "1 1"
+ok "… the resume says main is in already" grep -qF "The contract PR #51 merged into main, and main is merged into your branch already. Finish the package's work in PR #50 and mark it ready." "$FAKE/worker.log"
+contractenv contract-merge-conflict; echo src/a.ts > "$FAKE/merge-conflict"
+dispatch --once
+ok "… the merge by script conflicts → today's resume text" grep -qF "The contract PR #51 merged into main. Run git merge origin/main in your branch, finish the package's work in PR #50 and mark it ready." "$FAKE/worker.log"
+contractenv contract-merge-off MERGE_MAIN_ANY_PHASE=0
+dispatch --once
+ok "… MERGE_MAIN_ANY_PHASE=0 → no merge by script" not grep -qs 'merge --no-edit' "$FAKE/git.log"
+ok "… today's resume text" grep -qF 'The contract PR #51 merged into main. Run git merge origin/main' "$FAKE/worker.log"
+
 env_new ci-none-min NO_CHECKS_MIN=30
 { issue 5 in-progress; } | issues
 pr 50 5 $HA none | prs

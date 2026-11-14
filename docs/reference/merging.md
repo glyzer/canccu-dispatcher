@@ -112,14 +112,20 @@ requests a review from you and never relies on approvals.
 
 ### A PR that conflicts with main
 
-A PR that waits for your accept, or sits in auto-merge or a direct merge, and that GitHub marks as
-conflicting with main (`mergeStateStatus` `DIRTY`) gets main merged into its branch by script, in
+A PR that GitHub marks as conflicting with main (`mergeStateStatus` `DIRTY`), in any phase
+(waiting for CI or a fix round's push, waiting for your accept, in auto-merge or a direct merge;
+with `MERGE_MAIN_ANY_PHASE=0` only the last three), gets main merged into its branch by script, in
 the unit's worktree, without an AI run (auto-merge is disabled first). It is tried once per head,
 so a merge that leaves the PR still conflicting never loops. The push is a new head: a merge of
 main only needs no new review ([`reviews.md`](reviews.md)). Where git cannot merge it, the worker
 gets one merge run (not a fix round of `FIX_ATTEMPTS`) with the conflicting paths; a run that
 pushed nothing (its PR is still the passed head when the run ends: no second review), or a merge by script that could not run (no worktree, uncommitted changes, a
 failed push), is `needs-you`. A PR only behind main (`BEHIND`) is left to the merge queue.
+GitHub runs no `pull_request` checks on a conflicting PR: one still without checks after
+`NO_CHECKS_MIN` gets the `needs-you` `no CI checks on PR #<pr>: it conflicts with main, so GitHub
+runs no checks; merge main into it or say how`. A draft whose contract PR merged gets main merged
+in by script before the worker is resumed (`MERGE_MAIN_ANY_PHASE=1`); the resume then says main is
+in already, and only a merge that could not run leaves the merge to the worker.
 
 ## Guards
 

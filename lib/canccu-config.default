@@ -44,6 +44,7 @@ MERGE_WAIT_MIN=240          # auto-merge armed this long without a merge → dis
 MERGE_CLOSE_MIN=2           # a merged PR's named issue still open this long → the dispatcher closes it
 MERGE_RETRY=3               # a merge that fails on a GitHub server error is tried again on this many passes, then needs-you
 KEEP_ACCEPT_ON_MAIN_MERGE=0 # 1: an accept carries over a push that is a clean merge of main only; keep 0 until package S2
+MERGE_MAIN_ANY_PHASE=1      # 1: a PR that conflicts with main gets main merged in by script in every phase; 0: only at the accept and merge steps
 POST_WAIT=600               # seconds a posted review may take to show up on GitHub
 # work packages per step (docs/canccu-dispatch.md, "Work packages per step")
 STEP_BUDGET=400             # USD per step: its planner, package, review, fix-check, answer and health runs
