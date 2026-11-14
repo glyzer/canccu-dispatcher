@@ -155,6 +155,7 @@ accept_step() {
     return 0
   fi
   conflict_merge "$n" "$pr" "$head" && return 0
+  [ "$(st_get "$n" ask_sha)" = "$head" ] || ask_block "$n" "$pr" "$(accept_lines "$n")"
   # the label on an issue of the unit is tolerated too, under the same checks as on the PR
   if pr_has_label "$pr" accepted; then on=$pr
   else for i in $(members_of "$n"); do has_label "$i" accepted && { on=$i; break; }; done; fi

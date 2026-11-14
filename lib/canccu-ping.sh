@@ -123,35 +123,22 @@ ping_pr_issue() {
   return 0
 }
 
-# ping_line <issue> <kind> <pr|step>: the comment's one line. Fixed words, the numbers, the user's
-# login and the checkpoint summary's link only: never a reason, a title, a question or a run's output.
-ping_line() {
-  local u="@$USER_LOGIN" url=''
-  case $2 in
-    checkpoint)
-      [ "$3" = - ] || url=$(step_get "$3" checkpoint_url)
-      if [ -n "$url" ]; then url="($url)"; else url=above; fi
-      echo "$u this checkpoint waits for your \`checkpoint-ok\`: read the summary $url, then label this issue \`checkpoint-ok\`, or close it." ;;
-    plan) echo "$u the plan here waits for your OK: label this issue \`plan-ok\`, or comment." ;;
-    question) echo "$u the worker's question here needs the product owner: answer it in a comment." ;;
-    accept) echo "$u PR #$3 waits for your accept: label it \`accepted\`, or \`canccu-ship $1\`." ;;
-    pr-needs-you) echo "$u PR #$3 needs you (\`needs-you\`): its latest comments say why." ;;
-    *) echo "$u this issue needs you (\`needs-you\`): the latest comments say why." ;;
-  esac
-}
-
-# ping_tick: ping every new state, forget every cleared one. PING=off: nothing, and the records
-# go (a state pinged before must ping again once pings are back on). A state of a kind PING_KINDS
-# leaves out is skipped as if not listed: no ping, and its record goes too (it is the lead's; it
-# stays in needs-you, the status and the monitor). A missing bot token or a
-# failed post is logged (once, until it changes: no issue number in it) and nothing is recorded,
-# so the ping goes out on a later pass once the token works; after one failed post the pass
-# tries no other (the same token fails for them too). A post that timed out may have landed: it
-# is recorded, so it is never posted twice (the next state change pings again). Records are
-# dropped only when ping_states listed everything (its END line). The pass goes on either way.
+# ping_tick: ping every new state, forget every cleared one. The comment is @USER_LOGIN and the ask
+# form (ask_form); pings/<issue> holds "<kind> <comment id>". A changed kind edits that comment
+# (PATCH) instead of posting a new one; a settled item marks it closed (ping_close). A record
+# without an id (an old one-word record, or gh printed no link) posts a new comment; so does an
+# edit that failed for another reason than a time-out (the comment is gone). PING=off: nothing,
+# and the records go (a state pinged before must ping again once pings are back on). A state of a
+# kind PING_KINDS leaves out is skipped as if not listed: no ping, and its record goes too (it is
+# the lead's; it stays in needs-you, the status and the monitor), its comment left as it is. A
+# missing bot token or a failed post is logged (once, until it changes: no issue number in it) and
+# nothing is recorded, so the ping goes out on a later pass once the token works; after one failed
+# post the pass tries no other (the same token fails for them too). A post that timed out may have
+# landed: it is recorded, so it is never posted twice (the next state change pings again). Records
+# are dropped only when ping_states listed everything (its END line). The pass goes on either way.
 ping_tick() {
-  local d="$CANCCU_HOME/pings" n kind pr line out rc f prob='' checked='' stop='' complete=''
-  local -A cur=()
+  local d="$CANCCU_HOME/pings" n kind pr form line text out rc f rk rid id prob='' checked='' stop='' complete=''
+  local -A cur=() seen=()
   case ${PING:-on} in
     on) ;;
     off) (( CANCCU_DRY )) || rm -rf "$d"; return 0 ;;
@@ -160,22 +147,32 @@ ping_tick() {
   ping_kinds_check
   while read -r n kind pr; do
     [ "$n" = END ] && { complete=1; continue; }
+    [ -n "$n" ] && seen[$n]=1
     ping_kind_on "$kind" || continue
     [ -n "$n" ] && [ -z "${cur[$n]+x}" ] || continue
     cur[$n]=$kind
-    [ "$(cat "$d/$n" 2>/dev/null)" = "$kind" ] && continue
-    line=$(ping_line "$n" "$kind" "$pr")
+    rk='' rid=''; [ -f "$d/$n" ] && read -r rk rid < "$d/$n"
+    [ "$rk" = "$kind" ] && continue
+    if [ "$kind" = checkpoint ]; then form=$(ask_form "$(unit_of_issue "$n")" checkpoint - "$pr")
+    else form=$(ask_form "$(unit_of_issue "$n")" "$kind" "$pr"); fi
+    line="@$USER_LOGIN ${form%%$'\n'*}"
     if (( CANCCU_DRY )); then echo "  would: ping #$n as $REVIEWER_LOGIN: $line"; continue; fi
     [ -z "$stop" ] || continue
     [ -n "$checked" ] || { prob=$(reviewer_token_problem); checked=1; }
     if [ -n "$prob" ]; then warn_once ping "ping: $prob; @$USER_LOGIN is pinged once the token works"; continue; fi
-    out=$(as_reviewer gh issue comment "$n" -R "$REPO" --body "$(home_tilde "$line")"$'\n\n'"$CANCCU_MARK" 2>&1); rc=$?
+    text="@$USER_LOGIN"$'\n'"$(home_tilde "$form")"$'\n\n'"$CANCCU_MARK"
+    rc=1 id=$rid
+    [ -n "$rid" ] && { out=$(as_reviewer gh api "repos/$REPO/issues/comments/$rid" -X PATCH -f "body=$text" 2>&1); rc=$?; }
+    if [ -z "$rid" ] || { (( rc != 0 && rc != 124 && rc != 137 )); }; then
+      out=$(as_reviewer gh issue comment "$n" -R "$REPO" --body "$text" 2>&1); rc=$? id=''
+      [[ $out =~ issuecomment-([0-9]+) ]] && id=${BASH_REMATCH[1]}
+    fi
     case $rc in
-      0) rm -f "$CANCCU_HOME/.warned-ping"; log "#$n pinged @$USER_LOGIN as $REVIEWER_LOGIN: $kind" ;;
+      0) rm -f "$CANCCU_HOME/.warned-ping"; log "#$n pinged @$USER_LOGIN as $REVIEWER_LOGIN: $kind${rk:+ (was $rk)}" ;;
       124|137) stop=1; log "#$n ping as $REVIEWER_LOGIN timed out; it may have landed, so it is not posted again for this state" ;;
       *) stop=1; warn_once ping "ping as $REVIEWER_LOGIN failed (gh: $(oneline 200 "${out:-no output}")); tried again next pass"; continue ;;
     esac
-    mkdir -p "$d" && printf '%s\n' "$kind" > "$d/$n"
+    mkdir -p "$d" && printf '%s\n' "$kind${id:+ $id}" > "$d/$n"
   done < <(ping_states)
   (( CANCCU_DRY )) && return 0
   if [ -z "$complete" ]; then
@@ -185,7 +182,22 @@ ping_tick() {
   rm -f "$CANCCU_HOME/.warned-ping-states"
   for f in "$d"/*; do
     [ -f "$f" ] || continue
-    [ -n "${cur[${f##*/}]+x}" ] || rm -f "$f"
+    n=${f##*/}
+    [ -n "${cur[$n]+x}" ] && continue
+    rk='' rid=''; read -r rk rid < "$f"
+    [ -n "$rid" ] && [ -z "${seen[$n]+x}" ] && [ -z "$stop" ] && [ -z "$prob" ] && ping_close "$n" "$rid"
+    rm -f "$f"
   done
   return 0
+}
+
+# ping_close <issue> <comment id>: the item settled: its comment's first line of the form becomes
+# "Closed: <that line>" (an edit, so nobody is notified). A failure is logged; the record goes anyway.
+ping_close() {
+  local b
+  b=$(as_reviewer gh api "repos/$REPO/issues/comments/$2" -q .body 2>/dev/null) &&
+    b=$(awk '!d && /^For the product owner: / { $0 = "Closed: " $0; d = 1 } 1' <<<"$b") &&
+    as_reviewer gh api "repos/$REPO/issues/comments/$2" -X PATCH -f "body=$b" >/dev/null 2>&1 &&
+    { log "#$1 ping closed"; return 0; }
+  log "#$1 ping: could not mark comment $2 closed"
 }

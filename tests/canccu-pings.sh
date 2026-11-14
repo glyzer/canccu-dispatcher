@@ -282,7 +282,7 @@ If you accept: it merges at $SA once CI is green
 No answer: this waits.
 https://github.com/example-org/web/pull/50 · head $SA"
 
-env_new ask-needs-you
+env_new ask-needs-you PING_KINDS=all
 { issue 7 in-progress,needs-you; } | issues
 pr 70 7 $HB red | prs
 state 7 phase=needs-you pr=70 "ny_at=$NOW" "reason=the worker stopped: SECRET-WORKER-OUTPUT" stage=fixcheck reviewed_sha=$HB
@@ -326,7 +326,7 @@ https://github.com/example-org/web/issues/12 · head -"
 LONG=$(printf 'a%.0s' {1..200})
 review 50 $HA '- Adds `NOTIFY_CONTENT`, see https://example.com/x?y=1 and ask @someone-else about it.' "- $LONG" '- Keeps *the* old _record_ #format <b>.'
 ok "ask form: the change lines are stripped of links, mentions and markup, and cut at 160" \
-  eq "$(lib eval "PRS=\$(cat '$FAKE/prs.json'); ISSUES='[]'; ask_form 12 checkpoint 50 3" | sed -n '4,6p')" "  - Adds NOTIFY_CONTENT, see and ask about it.
+  eq "$(lib eval "PRS=\$(cat '$FAKE/prs.json'); ISSUES='[]'; ask_form 12 checkpoint 50 3" | sed -n '4,6p')" "  - Adds NOTIFYCONTENT, see and ask about it.
   - ${LONG:0:160}
   - Keeps the old record format b."
 review 50 $HA
@@ -356,8 +356,8 @@ ok "… as the reviewer bot" grep -qxP '^api repos/example-org/web/issues/commen
 ok "… recorded with the same comment id" eq "$(cat "$CANCCU_HOME/pings/5")" "plan 5"
 cp "$FAKE/patched-5" "$FAKE/body5"; jq -Rs '{body: .}' "$FAKE/body5" > "$FAKE/comment5.json"
 route 'api repos/example-org/web/issues/comments/5*' comment5.json
-{ issue 5 in-progress; } | issues
-state 5 phase=work
+issue 5 "" | issues
+rm "$CANCCU_HOME/state/5"
 dispatch --once
 ok "… a settled item marks its comment closed" eq "$(sed -n 2p "$FAKE/patched-5")" 'Closed: For the product owner: the plan here waits for your OK: label this issue `plan-ok`, or comment.'
 ok "… keeps the rest of it" eq "$(sed -n '3,$p' "$FAKE/patched-5")" "$(sed -n '3,$p' "$FAKE/body5")"

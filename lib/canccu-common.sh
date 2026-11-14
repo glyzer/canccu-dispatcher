@@ -362,6 +362,8 @@ run_progress() {
 . "$_canccu_lib/canccu-followup.sh"
 # shellcheck source=canccu-findings.sh
 . "$_canccu_lib/canccu-findings.sh"
+# shellcheck source=canccu-ask.sh
+. "$_canccu_lib/canccu-ask.sh"
 # shellcheck source=canccu-ping.sh
 . "$_canccu_lib/canccu-ping.sh"
 # shellcheck source=canccu-steps.sh

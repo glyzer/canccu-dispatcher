@@ -106,7 +106,7 @@ unit_of_branch() {
 # dispatcher's own state and settings, never a label the leader sets (manual-accept is the
 # product owner's). Rule 7 (the hand-over) needs the leader's acknowledgement: not built yet.
 owner_of() {
-  local k=$1 kind=$2 r m
+  local k=$1 kind=$2 r
   [ "${LEADER:-off}" = on ] || { echo po; return 0; }
   case $kind in checkpoint|budget|plan-invalid|dispatcher) echo po; return 0 ;; esac
   r=$(st_get "$k" reason 2>/dev/null); r=${r#manual: }
@@ -126,13 +126,17 @@ owner_of() {
     [ "${LEADER_ACCEPTS:-none}" = technical ] || { echo po; return 0; }
   fi
   # rule 5: a plan (its needs-you, or the accept of its plan PR) of a unit marked manual-accept
-  if [ "$kind" = plan ] || [ "$r" = "plan tier" ]; then
-    for m in $(members_of "$k"); do
-      jqr --argjson n "$m" 'any(.[]; .number == $n and any(.labels[]?; .name == "manual-accept"))' <<<"${ISSUES:-[]}" 2>/dev/null |
-        grep -qx true && { echo po; return 0; }
-    done
-  fi
+  if [ "$kind" = plan ] || [ "$r" = "plan tier" ]; then unit_manual_accept "$k" && { echo po; return 0; }; fi
   echo leader
+}
+# unit_manual_accept <K>: an issue of the unit is labelled manual-accept (the pass's issue list)
+unit_manual_accept() {
+  local m
+  for m in $(members_of "$1"); do
+    jqr --argjson n "$m" 'any(.[]; .number == $n and any(.labels[]?; .name == "manual-accept"))' <<<"${ISSUES:-[]}" 2>/dev/null |
+      grep -qx true && return 0
+  done
+  return 1
 }
 # need_owner <K> <kind>: the owner of a waiting item as shown and pinged: the one stored when the
 # unit entered accept or needs-you, else owner_of. LEADER=off wins over a stored leader (the

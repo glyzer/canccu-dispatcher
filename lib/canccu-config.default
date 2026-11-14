@@ -106,6 +106,7 @@ REVIEW_CHECKS="review-gate" # checks that wait for the review verdict: not requi
 HIGH_RISK_PATHS='^(\.github|deploy)/|migration|sign-?in|login|auth|rights|permission|session|secret|tenan|rls'   # grep -iE: a health pass touching one is high risk
 HIGH_RISK_TEXT='migrations, sign-in or auth, rights, sessions, secrets, tenancy/RLS, deploy/ or CI configuration'   # high-risk content, in words, for the planner and the reviewer
 PING_KINDS=all              # the ping kinds (PING=on): all, or some of accept checkpoint plan question needs-you pr-needs-you; empty: none
+NOTIFY_CONTENT=full         # full|link: what an ask carries (the ping, the PR body block); link: its first line and the link only
 # the leader (an optional AI session that watches the project): which waiting items are its, and
 # not the product owner's (docs/reference/lead.md). LEADER=off: every item is the product owner's
 LEADER=off                  # on or off
