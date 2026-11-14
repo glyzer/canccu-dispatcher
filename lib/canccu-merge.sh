@@ -347,21 +347,22 @@ main_merge_only() {
 }
 
 # postpass_full <base> <head>: why the change base..head needs a full review, not a fix-check; nothing
-# when it does not. The change counts only the files of the PR's own diff at head, so main's edits
-# elsewhere do not; main's edits to those files do, which can only cause a full review.
+# when it does not. Only the files of the PR's own diff at head count (all, when that list cannot be
+# read). With FIXCHECK_COUNT_MAIN=0 and main merged in since base, the count starts from git's own
+# merge of base with main, so main's edits drop out; on a conflict the worker's resolution is the
+# PR's own change: base..head counts.
 postpass_full() {
-  local base=$1 head=$2 mb stats total p re max=${FIXCHECK_FULL_LINES:-100} files=()
+  local base=$1 head=$2 from=$1 mb t stats total p re max=${FIXCHECK_FULL_LINES:-100} files=()
   [[ $max =~ ^[0-9]+$ ]] || max=100
   mb=$(guard 20 git -C "$CLONE" merge-base origin/main "$head" 2>/dev/null)
-  # no file list read: the whole diff counts
   [ -n "$mb" ] && mapfile -t files < <(guard 20 git -C "$CLONE" diff --name-only "$mb" "$head" 2>/dev/null)
-  stats=$(guard 30 git -C "$CLONE" diff --numstat "$base" "$head" -- "${files[@]}" 2>/dev/null) || { echo "the change cannot be read"; return; }
+  if [ "${FIXCHECK_COUNT_MAIN:-0}" != 1 ] && [ -n "$mb" ] && ! guard 20 git -C "$CLONE" merge-base --is-ancestor "$mb" "$base" 2>/dev/null &&
+    t=$(guard 60 git -C "$CLONE" merge-tree --write-tree "$base" "$mb" 2>/dev/null) && [ -n "$t" ]; then from=${t%%$'\n'*}; fi
+  stats=$(guard 30 git -C "$CLONE" diff --numstat "$from" "$head" -- "${files[@]}" 2>/dev/null) || { echo "the change cannot be read"; return; }
   total=$(awk -F '\t' '{ for (i = 1; i <= 2; i++) if ($i ~ /^[0-9]+$/) t += $i } END { print t + 0 }' <<<"$stats")
   (( total > max )) && { echo "$total changed lines, over FIXCHECK_FULL_LINES=$max"; return; }
   p=$(cut -f3- <<<"$stats" | grep -m1 -E "$(gated_re)") && { echo "gated path $p"; return; }
-  for re in "$RISKY_PATHS" "$FIXCHECK_RISKY"; do
-    [ -n "$re" ] && p=$(cut -f3- <<<"$stats" | grep -m1 -iE "$re") && { echo "risky path $p"; return; }
-  done
+  for re in "$RISKY_PATHS" "$FIXCHECK_RISKY"; do [ -n "$re" ] && p=$(cut -f3- <<<"$stats" | grep -m1 -iE "$re") && { echo "risky path $p"; return; }; done
   return 0
 }
 

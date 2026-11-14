@@ -461,8 +461,8 @@ ok "main_merge_only: a git error (an unknown head) → false" eq "$(mmo "$MB_B" 
 
 # ---------------------------------------------------------------- the fix-check counts the PR's own lines (#150)
 
-# fcrepo: a real repo in CLONE. The PR (FC_B) changed f.txt's last line; main then added 150 lines
-# at f.txt's top (and changed c.txt's line 2). FC_F: FC_B merged main cleanly, plus 10 own lines. PO:
+# fcrepo: a real repo in CLONE. The PR (FC_B) added a line to f.txt; main then added 150 lines
+# at f.txt's top (and changed c.txt's line 2). FC_F: FC_B merged main cleanly, plus 10 own lines. FC_O:
 # FC_B plus 150 own lines. FC_C: FC_C0 (FC_B plus an edit of c.txt's line 2) with main merged in by hand (a
 # conflict, resolved to the PR's side).
 fcrepo() {
