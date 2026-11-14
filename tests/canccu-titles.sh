@@ -17,10 +17,10 @@ clean_lines() {
   ! LC_ALL=C grep -aqP '[\x00-\x1f\x7f]|\xc2[\x80-\x9f]' <<<"$l" || { echo "    a control character in: $l"; return 1; }
 }
 
+env_new titles
 ok "safe_title strips C0 and C1, a tab becomes a space" eq "$(lib safe_title "$BAD")" "$CLEAN"
 ok "… and keeps every other character" eq "$(lib safe_title $'caf\xc3\xa9 \xc2\xa0 \xe6\x97\xa5 #12: a/b')" $'caf\xc3\xa9 \xc2\xa0 \xe6\x97\xa5 #12: a/b'
 
-env_new titles
 ms() { jq -nc --argjson n "$1" --arg t "$2" '{number: $n, title: $t, open_issues: 0, closed_issues: 0, due_on: null}'; }
 ms 12 "3 Events $BAD" | jq -s . > "$FAKE/ms.json"
 { issue 3 ready | evil; issue 4 | evil; issue 5 needs-you | evil; issue 90 epic "" "3 Events $BAD"; issue 91 "" "" "3 Events $BAD" | evil; } | issues
