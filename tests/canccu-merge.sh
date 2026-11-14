@@ -459,6 +459,37 @@ ok "main_merge_only: a plain commit → false" eq "$(mmo "$MB_B" "$MB_PC")" no
 ok "main_merge_only: a base the walk never reaches → false" eq "$(mmo "$MB_PC" "$MB_MM1")" no
 ok "main_merge_only: a git error (an unknown head) → false" eq "$(mmo "$MB_B" "$HA")" no
 
+# ---------------------------------------------------------------- the fix-check counts the PR's own lines (#150)
+
+# fcrepo: a real repo in CLONE. The PR (FC_B) changed f.txt's last line; main then added 150 lines
+# at f.txt's top (and changed c.txt's line 2). FC_F: FC_B merged main cleanly, plus 10 own lines. PO:
+# FC_B plus 150 own lines. FC_C: FC_C0 (FC_B plus an edit of c.txt's line 2) with main merged in by hand (a
+# conflict, resolved to the PR's side).
+fcrepo() {
+  local d=$E/code/web i
+  _fg() { GIT_AUTHOR_DATE=2030-11-05T10:00:00Z GIT_COMMITTER_DATE=2030-11-05T10:00:00Z \
+          "$FAKE_REAL_GIT" -C "$d" -c user.name=octo -c user.email=octo@example.com -c init.defaultBranch=main "$@" >/dev/null 2>&1; }
+  rm -rf "$d"; mkdir -p "$d"; _fg init
+  printf 'f1\nf2\nf3\n' > "$d/f.txt"; printf 'c1\nc2\nc3\n' > "$d/c.txt"; _fg add .; _fg commit -m root
+  _fg checkout -b pr; echo p1 >> "$d/f.txt"; _fg commit -am "the PR"; FC_B=$("$FAKE_REAL_GIT" -C "$d" rev-parse HEAD)
+  _fg checkout main; { for ((i = 1; i <= 150; i++)); do echo "m$i"; done; cat "$d/f.txt"; } > "$d/x"; mv "$d/x" "$d/f.txt"
+  sed -i 's/^c2$/c2 main/' "$d/c.txt"; _fg commit -am "main's 150 lines"; _fg update-ref refs/remotes/origin/main main
+  _fg checkout -b fix pr; _fg merge --no-edit main; for ((i = 1; i <= 10; i++)); do echo "q$i"; done >> "$d/f.txt"
+  _fg commit -am "a 10-line fix"; FC_F=$("$FAKE_REAL_GIT" -C "$d" rev-parse HEAD)
+  _fg checkout -b own pr; for ((i = 1; i <= 150; i++)); do echo "o$i"; done >> "$d/f.txt"
+  _fg commit -am "150 own lines"; FC_O=$("$FAKE_REAL_GIT" -C "$d" rev-parse HEAD)
+  _fg checkout -b cfl pr; sed -i 's/^c2$/c2 pr/' "$d/c.txt"; _fg commit -am "the PR's c2"; FC_C0=$("$FAKE_REAL_GIT" -C "$d" rev-parse HEAD)
+  _fg merge --no-edit main; sed -i '/^[<=>|]\{7\}/d; /^c2 main$/d' "$d/c.txt"; _fg commit -am "merge main, c2 resolved"
+  FC_C=$("$FAKE_REAL_GIT" -C "$d" rev-parse HEAD)
+  _fg checkout main; touch "$FAKE/realgit"
+}
+env_new fixcheck-count; fcrepo
+ppf() { lib eval ". '$root/lib/canccu-merge.sh'; FIXCHECK_COUNT_MAIN=$1; postpass_full $2 $3"; }
+ok "postpass_full: main's 150 lines merged in, plus a 10-line fix → no full review" eq "$(ppf 0 "$FC_B" "$FC_F")" ""
+ok "… with FIXCHECK_COUNT_MAIN=1: full review, as before" eq "$(ppf 1 "$FC_B" "$FC_F")" "160 changed lines, over FIXCHECK_FULL_LINES=100"
+ok "… 150 own lines: full review" eq "$(ppf 0 "$FC_B" "$FC_O")" "150 changed lines, over FIXCHECK_FULL_LINES=100"
+ok "… a merge of main resolved by hand: counted from base, as before" eq "$(ppf 0 "$FC_C0" "$FC_C")" "150 changed lines, over FIXCHECK_FULL_LINES=100"
+
 # ---------------------------------------------------------------- the accept kept on a merge of main (#92)
 
 # keepenv <name> <phase> <setting> <new head>: PR 50, accepted by the user on MB_B (in accept, or
