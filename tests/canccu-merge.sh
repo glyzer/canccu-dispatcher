@@ -739,5 +739,35 @@ munpark merge-unpark-comment $HA "" "$(comment 2030-11-05T11:58:00Z 'Merged it b
 dispatch --once
 ok "… a comment since → not unparked (resume_step's path)" eq "$(dlog 'needs-you lifted at the merge')" 0
 
+# ---------------------------------------------------------------- canccu-ship by the leader (#186)
+
+AL() { cut -f2- "$CANCCU_HOME/actions.log" 2>/dev/null; }
+lship() {   # lship <name> <owner> [config lines...]: PR 50 of issue 5 in accept, stored owner <owner>
+  env_new "$1" LEADER=on "${@:3}"
+  { issue 5 in-progress,awaiting-accept; } | issues
+  pr 50 5 $HA | prs
+  state 5 phase=accept pr=50 accept_sha=$HA owner="$2" "reason=users see it: web/index.html"
+}
+lship ship-leader-po po LEADER_ACCEPTS=technical
+out=$(CANCCU_ACTOR=leader PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-ship" 5 2>&1); rc=$?
+ok "CANCCU_ACTOR=leader canccu-ship on a po-owned accept: refused, the owner and its reason" \
+  eq "$rc $out" "1 canccu-ship: refused: #5 is the product owner's (users see it: web/index.html)"
+ok "… nothing merged, still in accept" eq "$(grep -c '^pr merge' "$FAKE/gh.log") $(st 5 phase)" "0 accept"
+ok "… the refusal in actions.log" eq "$(AL)" "leader	canccu-ship	5	refused: #5 is the product owner's (users see it: web/index.html)"
+lship ship-leader-none leader
+out=$(CANCCU_ACTOR=leader PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-ship" 5 2>&1); rc=$?
+ok "CANCCU_ACTOR=leader canccu-ship, LEADER_ACCEPTS=none: refused" eq "$rc $out $(grep -c '^pr merge' "$FAKE/gh.log")" "1 canccu-ship: refused: LEADER_ACCEPTS is none 0"
+lship ship-leader-own leader LEADER_ACCEPTS=technical
+CANCCU_ACTOR=leader PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-ship" 5 > "$E/out" 2>&1; rc=$?
+ok "CANCCU_ACTOR=leader canccu-ship on a leader-owned accept, LEADER_ACCEPTS=technical: ships" \
+  eq "$rc $(st 5 phase) $(grep -c "^pr merge 50 -R example-org/web --auto" "$FAKE/gh.log")" "0 merging 1"
+ok "… and logs ok" eq "$(AL)" "leader	canccu-ship	5	ok"
+lship ship-po-own po
+PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-ship" 5 > "$E/out" 2>&1; rc=$?
+ok "the product owner ships a po-owned accept as before, logged as po" eq "$rc $(st 5 phase) $(AL)" "0 merging po	canccu-ship	5	ok"
+lship ship-run leader LEADER_ACCEPTS=technical
+out=$(CANCCU_ACTOR=run PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-ship" 5 2>&1); rc=$?
+ok "CANCCU_ACTOR=run canccu-ship: refused" eq "$rc $out $(grep -c '^pr merge' "$FAKE/gh.log")" "1 canccu-ship: refused: a run never accepts 0"
+
 echo "canccu-merge tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

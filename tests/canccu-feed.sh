@@ -114,5 +114,43 @@ out=$(waitcmd --ack 3); rc=$?
 ok "wait: a heartbeat 11 minutes old → exit 3" eq "$rc" 3
 ok "… saying so" eq "$out" "heartbeat stale: 11 min; the dispatcher may be down"
 
+# ---------------------------------------------------------------- the actions log's other writers (#186)
+
+env_new actions-cmds
+{ issue 5 in-progress; } | issues
+cmd() { PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/$@" > "$E/out" 2>&1; }
+cmd canccu-pause; cmd canccu-resume --usage; cmd canccu-stop 5; cmd canccu-run x
+ok "canccu-pause, -resume, -stop and -run each write one line: actor, command, unit, result" eq "$(cut -f2- "$CANCCU_HOME/actions.log")" "po	canccu-pause	-	ok
+po	canccu-resume --usage	-	ok
+po	canccu-stop	5	ok
+po	canccu-run	-	exit 2"
+ok "… the time as the feed has it" eq "$(cut -f1 "$CANCCU_HOME/actions.log" | sort -u)" "$(date -u -d "@$NOW" +%Y-%m-%dT%H:%M:%SZ)"
+rm -f "$CANCCU_HOME/actions.log"; mkdir "$CANCCU_HOME/actions.log"
+cmd canccu-pause; rc=$?
+ok "a failed actions-log write never fails the command" eq "$rc $(test -e "$CANCCU_HOME/paused" && echo paused)" "0 paused"
+
+# ---------------------------------------------------------------- leader brief (#186)
+
+env_new feed-brief LEADER=on
+lib feed leader ask accept 5 50 https://example.invalid/50 "#5 accept: lead line" >/dev/null
+lib feed po ask needs-you 6 - - "#6 needs-you: po line" >/dev/null
+lib feed leader ask idle 7 - - "#7 sits in work" >/dev/null
+lib feed_closed 3 work 7
+for i in $(seq 12); do printf '2030-11-05T11:%02d:00Z\tpo\tcanccu-pause\t-\tok%s\n' "$i" "$i"; done > "$CANCCU_HOME/actions.log"
+cp "$(EV)" "$E/ev.before"
+out=$(PATH="$fb:$PATH" "$root/bin/canccu-dispatcher" leader brief --project web 2>&1); rc=$?
+ok "leader brief: exit 0, the status header first" eq "$rc $(head -1 <<<"$out" | cut -d' ' -f1)" "0 canccu-dispatcher"
+ok "… the leader's open line under its heading" eq "$(sed -n '/^open for the leader:/,/^open for the product owner:/p' <<<"$out" | sed '1d;$d')" \
+  "  1 · accept · 5 · PR 50 · #5 accept: lead line"
+ok "… the product owner's under its own" eq "$(sed -n '/^open for the product owner:/,/^next:/p' <<<"$out" | sed '1d;$d')" \
+  "  2 · needs-you · 6 · no PR · #6 needs-you: po line"
+ok "… next: the queue as canccu-status lists it" grep -q '^  queue (fast lane, next 5 runnable): ' <<<"$out"
+ok "… the last 10 actions-log lines, the newest last" eq "$(sed -n '/^actions (last 10):/,$p' <<<"$out" | sed '1d' | awk -F '\t' '{ print $5 }' | tr '\n' ' ')" \
+  "ok3 ok4 ok5 ok6 ok7 ok8 ok9 ok10 ok11 ok12 "
+ok "… and changes nothing: the feed as it was, no actions-log line" eq "$(cmp -s "$(EV)" "$E/ev.before"; echo $?) $(wc -l < "$CANCCU_HOME/actions.log")" "0 12"
+env_new feed-brief-empty
+out=$(PATH="$fb:$PATH" "$root/bin/canccu-dispatcher" leader brief 2>&1); rc=$?
+ok "leader brief with no feed and no actions log: none under each heading" eq "$rc $(grep -c '^  none$' <<<"$out")" "0 3"
+
 echo "canccu-feed tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
