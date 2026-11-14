@@ -129,6 +129,23 @@ newest_of() { printf '%s\n' "$@" | grep -E '^[0-9]+$' | sort -n | tail -1; }
 # --slurpfile x <(printf '%s' "$v") or stdin, never --argjson: Linux caps one argument at 128 KiB
 # (MAX_ARG_STRLEN). --slurpfile binds [value]: read $x[0], not $x.
 jqr() { guard 20 jq -r "$@"; }
+# safe_title <text>: a GitHub title fit for a terminal, a tmux title or a log line. Its C0 and C1
+# control characters go (a tab becomes a space): a title could otherwise retitle a window, clear
+# the screen or forge a log line. C1 is matched in its UTF-8 form only: a lone byte 0x80-0x9f is
+# part of another character, and gh's JSON never holds invalid UTF-8 (jq turns it into U+FFFD).
+safe_title() {
+  local LC_ALL=C s=${1//$'\t'/ }
+  s=${s//[$'\x01'-$'\x1f'$'\x7f']/}
+  printf '%s\n' "${s//$'\xc2'[$'\x80'-$'\x9f']/}"
+}
+# safe_titles: a gh read (issues, PRs, milestones) on stdin with safe_title applied to each title
+# and milestone title, so that every reader of the pass's lists sees the same clean titles (a
+# step's title is matched against its issues' milestone titles)
+safe_titles() {
+  guard 20 jq -c 'def safe: if type == "string" then explode | map(if . == 9 then 32 else . end
+                     | select(. >= 32 and (. < 127 or . > 159))) | implode else . end;
+                  map(.title |= safe | if (.milestone | type) == "object" then .milestone.title |= safe else . end)'
+}
 # ghj: a gh read. Its stderr passes through, and a failed read that names a rate limit holds the
 # passes (gh_limit_seen).
 ghj() {

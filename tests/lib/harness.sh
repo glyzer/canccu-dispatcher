@@ -214,6 +214,8 @@ env_new() {
     echo "REPO=example-org/web"; echo "CLONE=$E/code/web"; echo "CAP=3"; echo "USER_LOGIN=octo"; echo 'ADD_DIRS=""'; echo "REVIEWER_LOGIN=review-bot"
     echo "DIGEST_HOUR_UTC=24"; echo "DIGEST_ISSUE=42"; echo "AUTO_MERGE_UNTIL=2031-03-01"
     echo "REVIEWER_TOKEN_FILE=$E/reviewer-token"
+    # the suite runs on the fake gh's default login; tests/canccu-projects.sh tests the refusal
+    echo "ALLOW_DEFAULT_GH_LOGIN=1"
     printf '%s\n' "$@"
   } > "$CANCCU_HOME/config"
   printf '%s\n' "$FAKE_TOKEN" > "$E/reviewer-token"; chmod 600 "$E/reviewer-token"
@@ -309,7 +311,7 @@ penv() {
   for p; do
     mkdir -p "$CANCCU_ROOT/projects/$p/state" "$CANCCU_ROOT/projects/$p/workers" "$E/code/$p"
     { echo "REPO=$(prepo "$p")"; echo "CLONE=$E/code/$p"; echo "USER_LOGIN=octo"; echo "REVIEWER_LOGIN=review-bot"; echo "DIGEST_HOUR_UTC=24"
-      echo "REVIEWER_TOKEN_FILE=$E/reviewer-token"; } > "$CANCCU_ROOT/projects/$p/config"
+      echo "REVIEWER_TOKEN_FILE=$E/reviewer-token"; echo "ALLOW_DEFAULT_GH_LOGIN=1"; } > "$CANCCU_ROOT/projects/$p/config"
     sed "s/@NAME@/$p/g" "$root/profiles/default/rules" > "$CANCCU_ROOT/projects/$p/rules"
     echo '[]' > "$FAKE/issues-$p.json"; echo '[]' > "$FAKE/prs-$p.json"
     printf '%s\t%s\n' "issue list -R $(prepo "$p") *" "issues-$p.json" "pr list -R $(prepo "$p") -s open*" "prs-$p.json" \

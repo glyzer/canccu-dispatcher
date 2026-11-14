@@ -11,8 +11,9 @@ MILESTONES='[]' CHECKPOINTS='[]' CURRENT_STEPS='[]' STEPS_OK=0
 # or closed), then the current steps. A failed read: STEPS_OK=0 and no step acts this pass.
 fetch_steps() {
   STEPS_OK=0 CURRENT_STEPS='[]'
-  MILESTONES=$(ghj api "repos/$REPO/milestones?state=open&per_page=100") &&
-    CHECKPOINTS=$(ghj issue list -R "$REPO" -s all -l checkpoint -L 200 --json number,title,state,milestone,labels) ||
+  MILESTONES=$(ghj api "repos/$REPO/milestones?state=open&per_page=100") && MILESTONES=$(safe_titles <<<"$MILESTONES") &&
+    CHECKPOINTS=$(ghj issue list -R "$REPO" -s all -l checkpoint -L 200 --json number,title,state,milestone,labels) &&
+    CHECKPOINTS=$(safe_titles <<<"$CHECKPOINTS") ||
     { MILESTONES='[]' CHECKPOINTS='[]'; return 1; }
   CURRENT_STEPS=$(current_steps_pure "$MILESTONES" "$CHECKPOINTS" "$ISSUES" "$(step_phases)") || { CURRENT_STEPS='[]'; return 1; }
   STEPS_OK=1
@@ -75,7 +76,7 @@ step_of_issue() {
   return 0
 }
 # step_title <m>
-step_title() { local t; t=$(jqr --argjson m "$1" '.[] | select(.number == $m) | .title' <<<"$MILESTONES"); echo "${t:-$(step_get "$1" title)}"; }
+step_title() { local t; t=$(jqr --argjson m "$1" '.[] | select(.number == $m) | .title' <<<"$MILESTONES"); safe_title "${t:-$(step_get "$1" title)}"; }
 step_track() { cur "$1" .track; }
 # step_order <m>: the milestone's place in the order (MILESTONE_KEY_JQ)
 step_order() { jqr --argjson m "$1" "$MILESTONE_KEY_JQ"'.[] | select(.number == $m) | .title | milestone_key' <<<"$MILESTONES"; }

@@ -13,6 +13,7 @@ USER_LOGIN	name	project	locked
 REVIEWER_LOGIN	name	project	locked
 REVIEWER_TOKEN_FILE	text	fixed	locked
 GH_CONFIG_DIR	text	fixed	locked
+ALLOW_DEFAULT_GH_LOGIN	enum:0|1	project	locked
 BUDGET_WORK	budget	project	open
 BUDGET_RESUME	budget	project	open
 RESUME_ON	words:answer|plan|fix|ci|needs-work|merge|limited|blocked|crash|user|all	project	open

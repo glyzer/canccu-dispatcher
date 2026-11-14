@@ -5,6 +5,15 @@ The snapshot's schema is in docs/canccu-dispatch.md, "Status snapshot". Every ge
 default for a missing or mistyped field, so odd data never raises."""
 import json
 import os
+import re
+
+# C0, DEL and C1: a title from GitHub could otherwise retitle the terminal or clear the screen
+_CONTROL = re.compile("[\x00-\x1f\x7f-\x9f]")
+
+
+def safe_title(s):
+    """The text without control characters, a tab as a space (as safe_title in canccu-common.sh)."""
+    return _CONTROL.sub("", s.replace("\t", " "))
 
 
 def canccu_root():
@@ -93,8 +102,9 @@ def num(d, key):
 
 
 def txt(d, key, default=""):
+    """A text field through safe_title: every title the monitor shows is read here."""
     v = d.get(key) if isinstance(d, dict) else None
-    return v if isinstance(v, str) else default
+    return safe_title(v) if isinstance(v, str) else default
 
 
 def nums(d, key):
