@@ -83,10 +83,10 @@ run11() { printf 'repo=web\nkey=11\nkind=worker\npid=\nwindow=\n' > "$WORKERS_DI
           (cd "$E/wd" && PATH="$E/cb:$fb:$PATH" CODE_ROOT="$E/code" "$@" "$root/libexec/canccu-worker" __run web 11 5 1 2 claude-x "a prompt" "$E/wd" "" >/dev/null 2>&1); }
 run11 env WORKER_RUN_TYPE=build WORKER_EFFORT=low
 ok "engine: the old columns first, then type, model, effort, session, the tokens; no window, no outcome yet" \
-  grep -qP '^[0-9]+\tweb\t11\t0.42\tbuild\tclaude-x\tlow\tfresh\t100\t20\t300\t40\t-\t-\t-$' "$WORKERS_DIR/spend.log"
+  grep -qP '^[0-9]+\tweb\t11\t0.42\tbuild\tclaude-x\tlow\tfresh\t100\t20\t300\t40\t-\t-\t-\t[0-9]+$' "$WORKERS_DIR/spend.log"
 run11 env WORKER_RUN_TYPE=review WORKER_EFFORT_NOTE=medium WORKER_WINDOW_DELTA=1 WORKER_WINDOW_BEFORE=40
 ok "engine: a resumed session; the effort note without an effort; the window before and after (USAGE_WINDOW_DELTA=1)" \
-  grep -qP '^[0-9]+\tweb\t11\t0.42\treview\tclaude-x\tmedium\tresumed\t100\t20\t300\t40\t40\t45\t-$' "$WORKERS_DIR/spend.log"
+  grep -qP '^[0-9]+\tweb\t11\t0.42\treview\tclaude-x\tmedium\tresumed\t100\t20\t300\t40\t40\t45\t-\t[0-9]+$' "$WORKERS_DIR/spend.log"
 sed -i '/rate_limit_event/d' "$E/cb/claude"; rm -f "$WORKERS_DIR/usage.json"
 run11 env WORKER_WINDOW_DELTA=1 WORKER_WINDOW_BEFORE=40
 ok "engine: no reading from this run → the window after is unknown" eq "$(tail -1 "$WORKERS_DIR/spend.log" | cut -f5,13,14)" "-	40	-"
@@ -96,7 +96,12 @@ for i in 1 2 3 4 5 6 7 8 9; do printf '{"type":"assistant","message":{"id":"m%s"
 EOF2
 run11 env WORKER_RUN_TYPE=build
 ok "engine: a run with no result has no cost and no tokens" eq "$(tail -1 "$WORKERS_DIR/spend.log" | cut -f4,5,9-12)" "?	build	-	-	-	-"
-ok "engine: every line has 15 columns" eq "$(awk -F '\t' 'NF != 15' "$WORKERS_DIR/spend.log")" ""
+printf '#!/bin/bash\nsleep 2\n' > "$E/cb/claude"
+t0=$(date +%s); run11 env WORKER_RUN_TYPE=build; t1=$(date +%s)
+secs=$(tail -1 "$WORKERS_DIR/spend.log" | cut -f16)
+ok "engine: column 16 is the run's wall seconds, a whole number" \
+  test "$(grep -cE '^[0-9]+$' <<<"$secs")" = 1 -a "${secs:-0}" -ge 2 -a "${secs:-0}" -le "$((t1 - t0))"
+ok "engine: every line has 16 columns" eq "$(awk -F '\t' 'NF != 16' "$WORKERS_DIR/spend.log")" ""
 
 # the dispatcher names each run's type, and the window before when USAGE_WINDOW_DELTA=1
 env_new spend-types USAGE_WINDOW_DELTA=1
@@ -169,7 +174,8 @@ dispatch --once
 ok "reap: the worker's line names its PR and the fix rounds so far" eq "$(cut -f15 "$WORKERS_DIR/spend.log")" "pr=50,rounds=0"
 pr 50 5 $HA red | prs
 dispatch --once
-ok "check: CI red on its PR is noted on the worker's line" eq "$(cut -f15 "$WORKERS_DIR/spend.log")" "pr=50,rounds=0,ci=red"
+ok "check: CI red on its PR is noted on the worker's line, with the wait since the check began" \
+  eq "$(cut -f15 "$WORKERS_DIR/spend.log")" "pr=50,rounds=0,ci=red,ci_wait=0"
 
 # ---------------------------------------------------------------- the cost per merged PR (canccu-status --spend)
 
@@ -191,6 +197,11 @@ ok "… grouped by model and run type" grep -qE '^  claude-opus-5-5 +fix +2 runs
 ok "… the review by its own model" grep -qE '^  claude-sonnet-5-5 +review +1 run +\$ +1\.00$' <<<"$rep"
 ok "… a line from before the new columns as model and type -" grep -qE '^  \(default\) +- +1 run +\$ +1\.00$' <<<"$rep"
 ok "… and the total over all merged PRs" grep -qF 'all 1 merged PR · $4.75 · 6 runs (1 lost, so at least)' <<<"$rep"
+# #157: a run's seconds as column 16 on some lines; old 15-column lines alongside give the same totals
+awk -F '\t' -v OFS='\t' 'NR % 2 == 0 { $0 = $0 OFS 120 } { print }' "$WORKERS_DIR/spend.log" > "$E/mixed"
+mv "$E/mixed" "$WORKERS_DIR/spend.log"
+ok "report: a log of 15- and 16-column lines gives the same report" \
+  eq "$(PATH="$fb:$PATH" "$root/bin/canccu-status" --spend 2>&1)" "$rep"
 rm "$CANCCU_HOME/merged.log"
 ok "report: nothing merged yet → said" grep -q 'no merged PR yet' <<<"$(PATH="$fb:$PATH" "$root/bin/canccu-status" --spend 2>&1)"
 

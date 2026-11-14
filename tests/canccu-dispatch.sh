@@ -1055,5 +1055,16 @@ ok "… the package prompt no longer allows them" not grep -q 'You may use the s
 env_new st-get-empty
 ok "st_get with an empty key prints nothing and returns 0" eq "$( ( PATH="$fb:$PATH"; . "$root/lib/canccu-common.sh"; set -u; st_get "" phase; echo "rc=$?" ) 2>&1)" "rc=0"
 
+# #157: CI going green notes how long the PR waited for it, from check_at, on the worker's line
+env_new ci-wait-green
+{ issue 5 in-progress; } | issues
+p=$(pr 50 5 $HA green); printf '%s\n' "$p" | prs
+json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z)"; route 'pr view 50 *' pr50.json
+state 5 phase=check pr=50 "check_at=$((NOW - 420))" "started=$((NOW - 900))"
+printf '%s\tweb\t5\t2.00\tbuild\t-\t-\tfresh\t-\t-\t-\t-\t-\t-\tpr=50\t480\n' "$((NOW - 430))" > "$WORKERS_DIR/spend.log"
+dispatch --once
+ok "CI green: the worker's line notes ci=green and ci_wait, the seconds since check_at" \
+  eq "$(cut -f15,16 "$WORKERS_DIR/spend.log")" "pr=50,ci=green,ci_wait=420	480"
+
 echo "canccu-dispatch tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
