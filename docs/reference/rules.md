@@ -27,6 +27,7 @@ old path too).
 | `GATED_PATHS` | `^\.github/` | `grep -E`: a PR touching one waits for your accept ([`merging.md`](merging.md)). Agent configuration (`.claude/`, `.mcp.json`, `CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md`, at any depth) is always gated on top |
 | `USER_VISIBLE_PATHS` | empty | `grep -E`: a PR touching one always waits for the product owner, with the reason `users see it: <path>` (below, "User-visible paths"). Locked |
 | `TEST_PATHS` | `(^\|/)(tests?\|__tests__\|spec)/\|\.(test\|spec)\.[a-z]+$` | `grep -E`: test files. A path it matches never counts as user-visible |
+| `LIGHT_REVIEW_PATHS` | empty | `grep -E` on the PR's paths: a PR whose every path is docs, a test (`TEST_PATHS`) or matches this is reviewed with `REVIEW_MODEL_LIGHT` (for example `'^docs/contracts/'`). Never a gated path or agent configuration; a bad regex matches nothing. Locked |
 | `SECURITY_REVIEW_WHEN` | sign-in, rights, sessions, secrets, tenancy/RLS or `deploy/` | Words in the reviewer's prompt: it also runs the security-review skill when the diff touches these |
 | `PLANNER_EXTRA` | empty | The project's guidance for the planner, for example "aim for 2-4 issues per package" |
 | `REVIEW_EXTRA` | empty | More for the reviewer to check: "Check every acceptance criterion, <this>, and …" |
