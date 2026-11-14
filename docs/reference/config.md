@@ -98,11 +98,12 @@ is stopped and its issue goes to `needs-you`.
 | `INTERVAL` | `60` | Seconds between passes |
 | `IDLE_ALARM_MIN` | `60` | A managed unit with no run, not waiting for a person, whose phase has not changed for this many minutes writes one `idle` line in the feed ([`lead.md`](lead.md#the-feed)) |
 | `CI_WAIT_MIN` | `90` | A finished worker's PR whose CI is still pending after this many minutes goes to `needs-you` |
-| `NO_CHECKS_MIN` | `10` | A finished worker's PR with no CI check reported at all after this many minutes goes to `needs-you` ("is CI set up for this repo, or did a path filter skip it?") |
+| `NO_CHECKS_MIN` | `10` | A finished worker's PR with no CI check reported at all after this many minutes goes to `needs-you` ("is CI set up for this repo, or did a path filter skip it?"; for a PR that conflicts with main, which GitHub runs no checks on: "it conflicts with main, so GitHub runs no checks; merge main into it or say how") |
 | `MERGE_WAIT_MIN` | `240` | Auto-merge armed this long without a merge is disarmed, and the PR goes to `needs-you` |
 | `MERGE_CLOSE_MIN` | `2` | An issue a merged PR names as closing that GitHub left open this many minutes is closed by the dispatcher |
 | `MERGE_RETRY` | `3` | A merge that fails on an error that looks transient (a GitHub 5xx, a timeout, a dropped connection) is tried again on this many later passes before it goes to `needs-you`; `0`: never ([`merging.md`](merging.md#a-github-error-on-the-merge)) |
 | `KEEP_ACCEPT_ON_MAIN_MERGE` | `0` | `1`: your `accepted` on the PR carries over a push that is only a clean merge of main, and the PR merges without a new accept; one more changed line drops it. Until the hardened setup (package S2) a run can forge it as easily as the label: keep it `0` |
+| `MERGE_MAIN_ANY_PHASE` | `1` | `1`: a PR that conflicts with main gets main merged in by script in every phase (CI, a fix round, after its contract PR merged), not only at the accept and merge steps ([`merging.md`](merging.md#a-pr-that-conflicts-with-main)); `0`: only at the accept and merge steps |
 | `POST_WAIT` | `600` | Seconds a posted review may take to show up on GitHub before it counts as missing |
 | `STEP_BUDGET` | `400` | USD per step: its planner, package, review, fix-check, answerer and health runs ([`steps.md`](steps.md)) |
 | `BUDGET_PLAN` | `60 10 30` | The planner of a step's wave |

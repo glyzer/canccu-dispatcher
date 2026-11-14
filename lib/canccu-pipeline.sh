@@ -186,9 +186,7 @@ check_pr() {
   c=$(st_get "$n" contract_merged)
   if [ "$(pr_get "$pr" .isDraft)" = true ]; then
     if [ -n "$c" ]; then
-      # contract_back: the draft waited for its contract PR, which is on main now
-      may_start "$n" || return 0
-      resume "$n" "The contract PR #$c merged into main. Run git merge origin/main in your branch, finish the package's work in PR #$pr and mark it ready." merge || return 0
+      contract_resume "$n" "$pr" "$c" || return 0
       st_set "$n" contract_merged=
     elif is_plan_pr "$n" "$pr"; then
       needs_you "$n" "plan ready for OK: $(pr_get "$pr" .url) — label this issue \`plan-ok\` to approve, or comment" "" plan work
@@ -196,6 +194,8 @@ check_pr() {
     return
   fi
   [ -z "$c" ] || st_set "$n" contract_merged=
+  # a conflicting PR gets no CI at all: main merged in now, not a no-checks needs-you later (fix-check waits on it too)
+  [ "${MERGE_MAIN_ANY_PHASE:-1}" = 1 ] && conflict_merge "$n" "$pr" "$(pr_get "$pr" .headRefOid)" && return 0
   case $(ci_state "$pr") in
     red) spend_note "$n" "$(st_get "$n" started)" ci=red; ci_red "$n" "$pr"; return ;;
     pending)
@@ -206,7 +206,7 @@ check_pr() {
     none)
       at=$(st_get "$n" check_at); at=${at:-$(now)}
       (( $(now) - at > ${NO_CHECKS_MIN:-10} * 60 )) &&
-        needs_you "$n" "no CI checks on PR #$pr: is CI set up for this repo, or did a path filter skip it?" "" "" no-checks &&
+        needs_you "$n" "no CI checks on PR #$pr: $(no_checks_why "$pr")" "" "" no-checks &&
         st_set "$n" ny_wait=ci
       return ;;
   esac
