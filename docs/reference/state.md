@@ -60,8 +60,8 @@ In `~/.canccu/projects/<name>/`:
 `state.format` holds one number: the format of the project's `state/` and `steps/` files (a
 missing file is format `0`, a release before the file). `canccu-dispatch` runs `state_migrate` at
 start, under its lock and before the first pass: each migration from the file's number up to the
-release's `STATE_FORMAT` (`2`), in order, writing the new number after each and logging
-`state format <a> → <b>: <what it did>`. Migration 0 → 1 changes no field; 1 → 2 sets `owner` on each unit in `accept` or `needs-you` (`phase_at`, `ev_id` and `idle_ev` start empty). A number above
+release's `STATE_FORMAT` (`3`), in order, writing the new number after each and logging
+`state format <a> → <b>: <what it did>`. Migration 0 → 1 changes no field; 1 → 2 sets `owner` on each unit in `accept` or `needs-you` (`phase_at`, `ev_id` and `idle_ev` start empty); 2 → 3 changes no field (`preview_fix` starts empty). A number above
 `STATE_FORMAT` (an older release after a newer one ran) stops the start with
 `state format <n> is newer than this release knows (<STATE_FORMAT>); install a newer release`.
 `--dry-run` only says which migrations it would run.
@@ -87,6 +87,7 @@ asked once to write its missing review file, [`reviews.md`](reviews.md)),
 parked), `ny_wait` (`ci`: it only waited on CI), `phase_at` (when the phase last changed: the idle alarm's clock), `ev_id` (the feed line of the accept or needs-you it waits in), `idle_ev` (its `idle` feed line), `owner` (who an `accept` or `needs-you` waits for, `po` or `leader`, set when the unit enters the phase and cleared when it leaves; [`lead.md`](lead.md#the-owner-of-a-waiting-item)), `exclusive` (of the one-at-a-time kind),
 `nb_at` (the verdict whose non-blocking findings were filed), `finish_tried` (its finish session after a run that left work but no PR was had), `no_pr` (its last run finished with no PR: the next resume starts a fresh session), `fixes` and `fixes_pr` (the automatic fix runs on that PR, against `FIX_ATTEMPTS`), `blocking_last`, `blocking_prev` and `blocking_at` (the blocking findings of the last verdict acted on, of the one before, and the last one's time), `extra_fix` (the cycle had its extra fix round, `FIX_EXTRA_IF_FEWER`; cleared by a new cycle), `main_merged` (the head a scripted merge of main pushed), `conflict_sha` (the head a conflict run started on), `conflict_paths` (that run's conflicting paths), `conflict_merge` (the head GitHub's conflict with main was last merged on by script), `ci_rerun` and `ci_rerun_at` (the red head whose failed jobs were rerun, and when the rerun started), `mm_err` (scripted merges failed in a row), `crash_tries` (the fresh runs a crash was given, against `CRASH_RETRY`; cleared when a run finishes), `retry_status` (the status of the run that crashed), `prev_phase` (the phase a unit in `starting` had, put back if the start fails), `started` (when its run started), `plan_ok`,
 `body_fix` (the contract PR whose body the worker was resumed once to correct; [`merging.md`](merging.md)),
+`preview_fix` (the PR whose worker was resumed once to add its `## What you will see` section; cleared by a new cycle; [`rules.md`](rules.md#previews)),
 `merge_tries` (the merges that failed on a transient GitHub error in a row, against `MERGE_RETRY`; cleared by a merge that goes through and by lifting a needs-you at the merge; [`merging.md`](merging.md#a-github-error-on-the-merge)),
 `gone_at` (when its merged PR was first seen with an issue it closes still open; [`merging.md`](merging.md#a-merged-pr-that-leaves-its-issue-open)),
 `accept_sha`, `merge_sha` and timestamps. `branch` is the
