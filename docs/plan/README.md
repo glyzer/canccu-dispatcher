@@ -8,7 +8,7 @@ workers and the reviewer read it; an issue that disagrees with it is wrong until
 |---|---|
 | this file | the goal, the rules, the roles, the decisions, the releases in outline |
 | [`0.2.md`](0.2.md) | release 0.2, package by package, in order |
-| [`contracts.md`](contracts.md) | the formats several packages share: owners, classes, the feed line, the ask form, new settings, new state fields |
+| [`contracts.md`](contracts.md) | the formats several packages share: owners, classes, the feed line, the ask form, new settings, new state fields, the actions log, review findings and the brake |
 | [`issue-template.md`](issue-template.md) | the sections every work issue has |
 
 ## How the plan is used
@@ -101,10 +101,14 @@ product owner touches per merged issue. Added by this plan:
   Baseline in 0.2; 1.0 must be no worse while cost falls.
 - **Stalls found by a person:** a unit that sat past `IDLE_ALARM_MIN` with no feed line. Target: 0.
 - **Messages to the product owner per merged issue.** Baseline in 0.2; it must fall in 0.3.
+- **Review rounds per merged issue** (full reviews and fix-checks, from the review log of
+  contracts §8). Baseline before Q1; it must fall after Q1 while escaped defects stay no worse
+  and the reviewer's test set (T1) finds every planted defect the baseline found. When it does
+  not, the brake (L1) takes Q1's relaxations back without a person.
 
 ## Release 0.2: stop the waste, close the holes
 
-Twelve packages, in this order: P1, E1, C1, M1, R1, F1, N1, S1, S2, L1, P2, T1. See [`0.2.md`](0.2.md).
+Thirteen packages, in this order: P1, E1, C1, M1, Q1, R1, F1, N1, S1, S2, L1, P2, T1. See [`0.2.md`](0.2.md).
 
 ## Release 0.3: the product layout (outline)
 
