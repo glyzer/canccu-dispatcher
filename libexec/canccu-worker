@@ -82,13 +82,17 @@ window_now() {
 # spend_line <repo> <key> <cost or ?> [tokens "in out cache-read cache-write"]: the run's one
 # spend.log line. The first four columns are the old format, which every reader still parses;
 # the rest: run type, model, effort, session (fresh|resumed), the tokens, the 5-hour window before
-# and after (USAGE_WINDOW_DELTA=1), and the outcome the dispatcher fills in later (spend_note), "-"
-# for each unknown. Under .spend.lock, which spend_note's rewrite of the file holds too.
+# and after (USAGE_WINDOW_DELTA=1), the outcome the dispatcher fills in later (spend_note), and the
+# run's wall seconds, "-" for each unknown. The seconds come last, after the outcome, so a reader
+# of the first 15 columns reads old and new lines alike. Under .spend.lock, which spend_note's
+# rewrite of the file holds too.
 spend_line() {
-  local tok=${4:-- - - -} before=- after=- t
+  local tok=${4:-- - - -} before=- after=- secs=- t end
   if [ "${WORKER_WINDOW_DELTA:-0}" = 1 ]; then before=${WORKER_WINDOW_BEFORE:--} after=$(window_now); fi
-  t=$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' "$(date +%s)" "$1" "$2" "$3" "${WORKER_RUN_TYPE:--}" \
-        "${run_model:--}" "${WORKER_EFFORT:-${WORKER_EFFORT_NOTE:--}}" "${run_session:--}" "${tok// /$'\t'}" "$before" "$after" -)
+  end=$(date +%s)
+  (( run_t0 > 0 )) && secs=$(( end - run_t0 ))
+  t=$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' "$end" "$1" "$2" "$3" "${WORKER_RUN_TYPE:--}" \
+        "${run_model:--}" "${WORKER_EFFORT:-${WORKER_EFFORT_NOTE:--}}" "${run_session:--}" "${tok// /$'\t'}" "$before" "$after" - "$secs")
   # a lock that stays busy must not cost the line (an append alone is still whole), nor outlast
   # the 3 s kill_tree leaves the TERM trap
   { flock -w 2 6; printf '%s\n' "$t" >> "$WORKERS_DIR/spend.log"; } 6>>"$WORKERS_DIR/.spend.lock"

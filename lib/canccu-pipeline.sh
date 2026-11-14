@@ -172,7 +172,7 @@ reap_answer() {
 
 # check_pr <n>: the worker is done; the PR and its CI decide what happens next
 check_pr() {
-  local n=$1 pr j head at rsha fix c
+  local n=$1 pr j head at rsha fix c ciw
   pr=$(pr_for "$n")
   if [ -z "$pr" ]; then
     # the health pass's PR left the open list (closed or merged): health_pr_closed or finish_unit
@@ -196,8 +196,10 @@ check_pr() {
     return
   fi
   [ -z "$c" ] || st_set "$n" contract_merged=
+  # ci_wait: how long the PR waited for CI to settle, for the spend log (from check_at, the check's start)
+  ciw=$(st_get "$n" check_at); ciw=$(( $(now) - ${ciw:-$(now)} ))
   case $(ci_state "$pr") in
-    red) spend_note "$n" "$(st_get "$n" started)" ci=red; ci_red "$n" "$pr"; return ;;
+    red) spend_note "$n" "$(st_get "$n" started)" ci=red "ci_wait=$ciw"; ci_red "$n" "$pr"; return ;;
     pending)
       at=$(st_get "$n" check_at); at=${at:-$(now)}
       (( $(now) - at > CI_WAIT_MIN * 60 )) && needs_you "$n" "CI on PR #$pr is still pending after $CI_WAIT_MIN min" "" "" ci &&
@@ -211,8 +213,8 @@ check_pr() {
       return ;;
   esac
   # a rerun of failed jobs that turned the head green: a flaky check, for the spend log
-  if [ "$(st_get "$n" ci_rerun)" = "$(pr_get "$pr" .headRefOid)" ]; then spend_note "$n" "$(st_get "$n" started)" ci=rerun-green
-  else spend_note "$n" "$(st_get "$n" started)" ci=green; fi
+  if [ "$(st_get "$n" ci_rerun)" = "$(pr_get "$pr" .headRefOid)" ]; then spend_note "$n" "$(st_get "$n" started)" ci=rerun-green "ci_wait=$ciw"
+  else spend_note "$n" "$(st_get "$n" started)" ci=green "ci_wait=$ciw"; fi
   j=$(pr_detail "$pr") || { log "#$n PR #$pr: gh error; retrying next pass"; return; }
   contract_closes "$n" "$pr" "$j" && return
   head=$(jqr .headRefOid <<<"$j")
