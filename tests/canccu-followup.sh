@@ -237,6 +237,63 @@ ok "a FIX_ATTEMPTS that is no number counts as 2: the fix round runs" eq "$(grep
 ok "… a bad FIX_EFFORT is left out (the engine would refuse it on every pass), and said" \
   eq "$(grep -c '^WORKER_EFFORT=.' "$FAKE/worker.envdump") $(grep -q 'FIX_EFFORT is not an effort level' "$CANCCU_HOME/dispatch.log" && echo said)" "0 said"
 
+# ---------------------------------------------------------------- one more round when fewer (#156)
+
+F4=$'1. src/a.ts:1 one\n2. src/a.ts:2 two\n3. src/a.ts:3 three\n4. src/a.ts:4 four'
+F1='1. src/a.ts:4 four, still'
+F2=$'1. src/a.ts:1 one\n2. src/a.ts:2 two'
+setst() {   # setst <key=value...>: unit 5's state fields replaced, as the steps between would set them
+  local a; for a; do sed -i "/^${a%%=*}=/d" "$CANCCU_HOME/state/5"; printf '%s\n' "$a" >> "$CANCCU_HOME/state/5"; done
+}
+# fixcheck <head> <findings> [comments...]: the fix-check of head posted changes after the earlier comments
+fixcheck() {
+  local h=$1 f=$2; shift 2
+  rm -f "$WORKERS_DIR/web-5.lock"
+  p=$(pr 50 5 "$h"); printf '%s\n' "$p" | prs
+  CS+=("$(vcomment "2030-11-05T1$(( ${#CS[@]} + 1 )):30:00Z" "$f"$'\n\nReview verdict: changes '"$h")")
+  json pr50.json "$(detail "$p" 2030-11-05T11:20:00Z "${CS[@]}")"
+  setst phase=review "review_sha=$h" stage=fixcheck review_mode=fixcheck
+}
+# fewenv <name> <review findings> [config...]: the full review of HA asks for changes; its fix round starts
+fewenv() {
+  review_env "$1" 'Review verdict: changes' review "${@:3}"
+  p=$(pr 50 5 $HA); CS=("$(vcomment 2030-11-05T11:00:00Z "$2"$'\n\nReview verdict: changes '"$HA")")
+  json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z "${CS[@]}")"
+  dispatch --once
+}
+xfix() { grep -c 'one more automatic fix round' "$FAKE/worker.log"; }
+
+fewenv fewer-extra "$F4"
+ok "a full review with 4 blocking findings: the fix round, its count kept" eq "$(grep -c 'This is your one fix round' "$FAKE/worker.log") $(st 5 blocking_last)" "1 4"
+fixcheck "$HB" "$F1"; dispatch --once
+ok "its fix-check finds 1 → one more automatic fix round, no needs-you" eq "$(xfix) $(grep -c 'still finds open items' "$FAKE/gh.log")" "1 0"
+ok "… logged" grep -qF '#5 PR #50: blocking findings fell from 4 to 1; one more automatic fix round' "$CANCCU_HOME/dispatch.log"
+ok "… the round has the fix-check's items" grep -q 'one more automatic fix round.*src/a.ts:4 four, still' "$FAKE/worker.log"
+ok "… marked, and its fix-check checks HB..head" eq "$(st 5 extra_fix) $(st 5 stage) $(st 5 reviewed_sha) $(st 5 blocking_prev)" "1 fixing $HB 4"
+ok "… the findings file the fix-check reads" grep -qF 'src/a.ts:4 four, still' "$CANCCU_HOME/reviews/50/$HB.findings.md"
+fixcheck "$HC" "$F1"; dispatch --once
+ok "that fix-check still finds 1 → needs-you as today, no third round" eq "$(xfix) $(grep -c 'still finds open items' "$FAKE/gh.log")" "1 1"
+ok "… the open items kept for a needs-work" eq "$(st 5 phase) $(st 5 open_sha)" "needs-you $HC"
+
+fewenv fewer-same "$F2"
+fixcheck "$HB" "$F2"; dispatch --once
+ok "review 2, fix-check 2 → needs-you as today" eq "$(xfix) $(grep -c 'still finds open items' "$FAKE/gh.log") $(st 5 extra_fix)" "0 1 "
+
+fewenv fewer-off "$F4" FIX_EXTRA_IF_FEWER=0
+fixcheck "$HB" "$F1"; dispatch --once
+ok "FIX_EXTRA_IF_FEWER=0: review 4, fix-check 1 → needs-you as today" eq "$(xfix) $(grep -c 'still finds open items' "$FAKE/gh.log")" "0 1"
+
+fewenv fewer-cap "$F4" FIX_ATTEMPTS=1
+fixcheck "$HB" "$F1"; dispatch --once
+ok "fewer, with no fix run left by FIX_ATTEMPTS: still the one extra round" eq "$(xfix) $(st 5 fixes)" "1 2"
+
+fewenv fewer-twice "$F4"
+fixcheck "$HB" "$F1"; dispatch --once; dispatch --once
+ok "a verdict acted on twice is counted once" eq "$(st 5 blocking_prev) $(st 5 blocking_last)" "4 1"
+
+lib eval 'n=5; st_set 5 extra_fix=1; new_cycle 5; echo "[$(st_get 5 extra_fix)]"' > "$E/nc" 2>&1
+ok "new_cycle clears extra_fix" eq "$(cat "$E/nc")" "[]"
+
 # ---------------------------------------------------------------- the finish run (#26)
 
 # a run whose turn ended while work ran in the background (or before its push): one fresh finish run
