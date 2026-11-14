@@ -114,6 +114,8 @@ A package adds its setting with the name and default below (rule 5 of the plan a
 | `REVIEW_EFFORT_MAX` | empty | caps the review effort on this machine, gated paths and agent config included | E1 | no |
 | `FIXCHECK_FULL_LINES` | 100 | a change after a pass above this many changed lines gets a full review; checked first, `FIXCHECK_BIG` still picks the fix-check's effort | M1 | yes |
 | `KEEP_ACCEPT_ON_MAIN_MERGE` | 0 | 1 keeps the accept when the only change is a merge of main | M1 | yes |
+| `FINDINGS_RECUR` | 3 | merged PRs with findings of the same key (§8) before the dispatcher files one recurring-finding issue; 0: never | Q1 | no |
+| `FINDINGS_RECUR_DAYS` | 30 | the window, in days, `FINDINGS_RECUR` counts over | Q1 | no |
 | `CRASH_RETRY` | 1 | fresh retries with a handoff after a crash or a killed window | R1 | no |
 | `DISK_MIN_MB` | 200 | below this free space a pass starts nothing and says so | R1 | no |
 | `IDLE_ALARM_MIN` | 60 | minutes a unit may fit none of the three states of rule 1 before it writes a feed line (not `STALL_MIN`, which kills a silent run) | F1 | no |
@@ -125,6 +127,8 @@ A package adds its setting with the name and default below (rule 5 of the plan a
 | `ACCEPT_CHANNELS` | all | which accept channels count: `label`, `ship`, `reply`, `leader`, or `all` | S2 | yes |
 | `LEADER_ACCEPTS` | none | `technical` or `none`; read by the owner rule from F1, acted on from L1 | F1 | yes |
 | `LEADER_ACCEPTS_HIGH_RISK` | 0 | 1 lets the leader accept high-risk technical PRs (hardened level only) | F1 | yes |
+| `REVIEW_BRAKE` | auto | `auto`: the brake (§8) engages on its triggers; `off`: never | L1 | yes |
+| `BRAKE_WINDOW` | 20 | merged PRs the review measurement and the brake's escaped-defect trigger count over | L1 | yes |
 | `WORKER_WATCHES_CI` | 1 | 0: workers stop at "PR ready" and the dispatcher watches CI | P2 | no |
 | `NOTIFY` | github | `github`, `telegram`, both, or `off` | 0.3 | yes |
 | `NOTIFY_BATCH_MIN` | 30 | asks are collected this long into one message; 0 sends each at once | 0.3 | no |
@@ -148,6 +152,7 @@ Existing settings that are locked in the same way: `USER_LOGIN`, `REVIEWER_LOGIN
 | `body_fix` | `check_pr` | the contract PR whose body the worker was asked to correct once | P1 |
 | `owner` | the owner rule | `po` or `leader` while the unit waits; empty otherwise | F1 |
 | `ev_id` | the feed | the id of the unit's open feed line, for `closed` | F1 |
+| `body_lines` | `check_pr` | the PR whose body the worker was asked once to complete with `Testing:` and `Revert:` | Q1 |
 
 R1 adds a state format version and a migration step at start; every package after R1 that adds a
 field adds its migration and a test that upgrades with units in flight.
@@ -157,3 +162,53 @@ field adds its migration and a test that upgrades with units in flight.
 From L1: `actions.log` in the project's home, one line per command a person or the leader ran,
 tab-separated: `<time>	<actor>	<command>	<unit or ->	<result>`. The actor is `po`,
 `leader` or `dispatcher`.
+
+## 8. Review findings, the review log and the brake
+
+From Q1, every review and fix-check file has this shape, in this order. The dispatcher's shell
+code checks it; the reviewer's prose around it is free.
+
+```
+Blocking:
+1. [<class>] <file>:<line> — <what is wrong, one line>
+   Evidence: <the input or state and the wrong result, or the rule broken and the quoted line>
+   Fix: <the concrete change>
+Non-blocking:
+- [<class>] <file>:<line> — <what>
+Pre-existing:
+- [<class>] <file>:<line> — <what>
+Maintainer accept: <what>            (only for a breaking contract or a destructive migration)
+Risk: <low|normal|high> — <why>      (packages)
+Findings: <b> blocking, <n> non-blocking, <p> pre-existing
+Review verdict: <pass|changes> <sha>
+```
+
+- **Classes.** Blocking: `correctness`, `security`, `criterion` (an acceptance criterion not met),
+  `contract` (a name, default, text or format of this file not used as written), `data-loss`,
+  `test` (a behaviour change without a test that failed before it). Never blocking: `style`,
+  `docs`, `simplify`, `test-gap` (a test that could be better), `other`. A finding under
+  `Blocking:` with a never-blocking class, no class, or no `Evidence:` line counts as
+  non-blocking; the verdict is `changes` only when at least one blocking finding is left.
+- **Pre-existing:** the cited line is not in the diff's changed lines and the diff did not make its
+  bug reachable. A `security` finding of that kind is still listed there; it goes to the
+  follow-up issue with the label `security` and never blocks the PR.
+- **Count line:** the three numbers count the items as written under each heading, before any
+  demotion. A file whose numbers do not match is a review file with no valid verdict.
+- **Key:** a finding's key is its class and its file path. Recurring findings (Q1) and the
+  no-repeat rule use it; no-repeat also needs the cited lines to overlap.
+- **`REVIEW.md`** (optional, repo root, read from `origin/main`): the repo's own review rules
+  under the headings `Also check`, `Never blocks` and `Known false positives`. It can add checks
+  and name things that never block; it cannot make a blocking class of this section non-blocking,
+  change the verdict line, or ask the reviewer to edit, push, comment or label.
+- **Review log:** `reviews.log` in the project's home, one line per posted verdict, tab-separated:
+  `<time>	<pr>	<sha>	<full|fixcheck>	<pass|changes>	<b>	<n>	<p>	<demoted>	<classes>`.
+  `<demoted>` counts the findings the dispatcher moved out of `Blocking:`; `<classes>` lists the
+  blocking classes left, comma-separated, or `-`. Append only, UTC times as in §3.
+- **The brake** (from L1; `REVIEW_BRAKE`): engaged when the escaped defects (`Regression of:`) of
+  the last `BRAKE_WINDOW` merged PRs are above the 0.2 baseline, or, from T1, when a run of the
+  reviewer's test set misses a planted defect the baseline found. While engaged: pre-existing,
+  unclassed and evidence-less findings under `Blocking:` block again, the no-repeat rule is off,
+  and the full review's effort is one step higher (still under `REVIEW_EFFORT_MAX`). It is stored
+  as `brake` (the time and the trigger) in the project's home, shown by `canccu-status` and the
+  monitor, and released only by `canccu-dispatcher brake release`, which the leader and runs
+  cannot call (as locked settings) and which writes an actions-log line (§7).

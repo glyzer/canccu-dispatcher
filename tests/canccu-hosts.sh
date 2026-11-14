@@ -13,8 +13,12 @@ printf '# shellcheck shell=bash\nBUDGET_WORK="1 2 3"\nCAP=7\nTOTAL_CAP=9\nPING=o
 # load <expr>: the expression after the lib has loaded the config, or the lib's error
 load() { ( . "$S/lib/canccu-common.sh"; eval "echo \"$1\"" ) 2>&1; }
 
+# every run model key, in one expression for load
+models='$MODEL|$FIX_MODEL|$PLAN_MODEL|$REVIEW_MODEL|$REVIEW_MODEL_LIGHT|$FIXCHECK_MODEL|$HEALTH_MODEL'
+
 env_new no-profile
 ok "no HOST_PROFILE: the defaults" eq "$(load '$HOST_PROFILE|$BUDGET_WORK|$TOTAL_CAP')" "|250 80 150|3"
+ok "… and every model key empty (the account default)" eq "$(load "$models")" "||||||"
 
 env_new from-config
 echo 'HOST_PROFILE=lab' > "$CANCCU_ROOT/config"
@@ -54,7 +58,8 @@ ok "a name that is a path is no profile" grep -q "no host profile '../lib/canccu
 tname=max
 ok "hosts/max.conf ships" test -f "$root/hosts/max.conf"
 ok "… and sets no HOST_PROFILE" not grep -qE '^[[:space:]]*HOST_PROFILE=' "$root/hosts/max.conf"
-keys=$(grep -oE '^[A-Z_]+=' "$root/hosts/max.conf" | tr -d = | sort -u)
+# the plan-limit keys only: the run models and REVIEW_EFFORT_MAX are the profile's own choice
+keys=$(grep -oE '^[A-Z_]+=' "$root/hosts/max.conf" | tr -d = | grep -vE 'MODEL|^REVIEW_EFFORT_MAX$' | sort -u)
 ok "… it pins some keys" test -n "$keys"
 diff=""
 for k in $keys; do
@@ -65,14 +70,17 @@ done
 ok "… each to today's default" eq "${diff# }" ""
 env_new max-load
 ok "HOST_PROFILE=max loads" eq "$(CANCCU_HOST_PROFILE=max load '$HOST_PROFILE|$BUDGET_WORK')" "max|250 80 150"
+ok "HOST_PROFILE=max: Opus runs and reviews, Sonnet the light reviews and fix-checks" \
+  eq "$(CANCCU_HOST_PROFILE=max load "$models|\$REVIEW_EFFORT_MAX")" \
+  "claude-opus-5-5||claude-opus-5-5|claude-opus-5-5|claude-sonnet-5-5|claude-sonnet-5-5||medium"
+printf 'HOST_PROFILE=max\nMODEL=x\n' > "$CANCCU_ROOT/config"
+ok "… MODEL in ~/.canccu/config overrides it" eq "$(load '$MODEL|$REVIEW_MODEL')" "x|claude-opus-5-5"
 
 # ---------------------------------------------------------------- hosts/pro.conf
 
 tname=pro
 ok "hosts/pro.conf ships" test -f "$root/hosts/pro.conf"
 ok "… and sets no HOST_PROFILE" not grep -qE '^[[:space:]]*HOST_PROFILE=' "$root/hosts/pro.conf"
-# the issue fixed that a host's model stays its own choice
-ok "… and no model" not grep -qE '^[[:space:]]*[A-Z_]*MODEL[A-Z_]*=' "$root/hosts/pro.conf"
 # the product owner decided that a Pro host's limit is parallelism, not run length
 pk=$(grep -oE '^(BUDGET_[A-Z_]+|STEP_BUDGET)=' "$root/hosts/max.conf" | tr -d = | sort -u)
 ok "… it sets the budget keys max sets" eq "$(grep -oE '^(BUDGET_[A-Z_]+|STEP_BUDGET)=' "$root/hosts/pro.conf" | tr -d = | sort -u)" "$pk"
@@ -91,6 +99,12 @@ ok "HOST_PROFILE=pro: one run at a time, max's budgets, a medium review effort" 
   eq "$(CANCCU_HOST_PROFILE=pro load '$HOST_PROFILE|$CAP|$TOTAL_CAP|$BUDGET_REVIEW|$REVIEW_EFFORT_MAX')" "pro|1|1|60 15 40|medium"
 printf 'HOST_PROFILE=pro\nTOTAL_CAP=2\nREVIEW_EFFORT_MAX=high\n' > "$CANCCU_ROOT/config"
 ok "… a value in ~/.canccu/config overrides it" eq "$(load '$TOTAL_CAP|$REVIEW_EFFORT_MAX|$BUDGET_REVIEW')" "2|high|60 15 40"
+printf 'HOST_PROFILE=pro\n' > "$CANCCU_ROOT/config"
+ok "HOST_PROFILE=pro: Sonnet runs, fixes, light reviews, fix-checks and health; Opus plans and reviews" \
+  eq "$(load "$models")" \
+  "claude-sonnet-5-5|claude-sonnet-5-5|claude-opus-5-5|claude-opus-5-5|claude-sonnet-5-5|claude-sonnet-5-5|claude-sonnet-5-5"
+printf 'HOST_PROFILE=pro\nMODEL=x\n' > "$CANCCU_ROOT/config"
+ok "… MODEL in ~/.canccu/config overrides it" eq "$(load '$MODEL|$REVIEW_MODEL')" "x|claude-opus-5-5"
 
 echo "canccu-hosts tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

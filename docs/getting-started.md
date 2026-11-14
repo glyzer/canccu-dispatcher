@@ -83,7 +83,9 @@ HOST_PROFILE=pro
 
 It runs one thing at a time with the same budgets as Max; the values are in
 [`hosts/pro.conf`](../hosts/pro.conf) ([`reference/config.md`](reference/config.md), "Host
-profiles"), and `~/.canccu/config` overrides any of them. It sets no model: `MODEL` stays yours.
+profiles"), and `~/.canccu/config` overrides any of them. It also sets the run models (Sonnet
+for the workers, Opus for the planner and the reviews); a model line in `~/.canccu/config`
+overrides them ([`reference/hosts.md`](reference/hosts.md)).
 
 **Known limits.** Keep a test repo's full suite well under 10 minutes for now (#26), and never
 run two dispatchers on one repo (#15).

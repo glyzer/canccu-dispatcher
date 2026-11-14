@@ -80,7 +80,7 @@ The installer never creates, moves or migrates a project: `canccu-init` adds one
 ## Host profiles
 
 A host profile holds the values that suit the Claude plan and the host: caps, budgets and the
-usage throttle. `hosts/max.conf` pins today's defaults. The profile's name comes from
+usage throttle, and the run models. `hosts/max.conf` pins today's defaults of the limits. The profile's name comes from
 `CANCCU_HOST_PROFILE`, else from `HOST_PROFILE` in `~/.canccu/config`. The tools read that file
 in a subshell for this, so nothing else in it applies before the profile. An unknown profile is
 refused with the list.
