@@ -402,7 +402,8 @@ state 5 phase=check pr=50 "check_at=$NOW" ci_rerun=$HA "started=$((NOW - 600))"
 pr 50 5 $HA green | prs
 printf '%s\tweb\t5\t2.00\tbuild\t-\t-\tfresh\t-\t-\t-\t-\t-\t-\t-\n' "$((NOW - 10))" > "$WORKERS_DIR/spend.log"
 dispatch --once
-ok "the rerun head turned green → rerun-green on the worker's spend line" eq "$(cut -f15 "$WORKERS_DIR/spend.log")" "ci=rerun-green"
+ok "the rerun head turned green → rerun-green and its ci_wait on the worker's spend line" \
+  eq "$(cut -f15 "$WORKERS_DIR/spend.log" | sed 's/ci_wait=[0-9][0-9]*$/ci_wait=N/')" "ci=rerun-green,ci_wait=N"
 
 echo "canccu-followup tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
