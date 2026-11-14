@@ -73,8 +73,16 @@ The dispatcher works it out from its own state and settings, never from a label 
 and stores it as the unit's `owner` when the unit enters `accept` or `needs-you`
 ([`state.md`](state.md#a-units-state)). `canccu-status` lists the leader's items under
 `leader has it:`; the monitor's NEEDS YOU box and the pings show only yours
-([`monitor.md`](monitor.md), [`pings.md`](pings.md)). The hand-over of a leader's item after 60
-minutes waits for the leader's acknowledgement, which is not built yet.
+([`monitor.md`](monitor.md), [`pings.md`](pings.md)).
+
+An item of the leader's that the leader has not acknowledged within 60 minutes of its unit
+entering the phase passes to you (contracts §1, rule 7): its owner becomes `po`, one feed line of
+kind `handover` says `#<n> passed to the product owner: the leader did not acknowledge it in 60
+min`, the log says the same, and the next pass pings it like any of yours. The leader acknowledges
+an item with `canccu-dispatcher wait --owner leader --ack <id>`, `<id>` at or above the item's
+feed line: the wait loop below does it for every line it has read. The hand-over goes one way
+only; the owner is set again when the unit next enters `accept` or `needs-you`. The 60 minutes are
+fixed, not a setting.
 
 ## The feed
 
@@ -87,7 +95,8 @@ Runs starting, reviews starting, a worker done, the usage slow mode and planned 
 none. Every pass touches `heartbeat` beside it.
 
 `canccu-dispatcher wait --owner leader` blocks until the next line for that owner and prints it
-([`commands.md`](commands.md)); `--ack <id>` resumes after the last line handled. Exit 3 says the
+([`commands.md`](commands.md)); `--ack <id>` resumes after the last line handled and, with
+`--owner leader`, records the acknowledgement the hand-over reads. Exit 3 says the
 heartbeat is 10 minutes old: the dispatcher may be down. A loop for the leader:
 
 ```
@@ -106,6 +115,7 @@ ack=0; while l=$(canccu-dispatcher wait --owner leader --ack "$ack"); do ack=$(c
 | `hold` | Nothing new starts: low disk or `STEP_BUDGET` (class `ask`), the usage back-off or a GitHub rate limit (class `info`, the end time in the text) | Free disk, raise `STEP_BUDGET`; a timer ends the others |
 | `dispatcher` | The dispatcher started after a stop it did not plan (killed, a crash, a reboot) | The log's last lines before the start |
 | `step-done` | A step is done (class `info`) | Nothing |
+| `handover` | A leader's item went unacknowledged for 60 minutes and is now the product owner's | The product owner clears it as the item it replaces |
 | `closed` | An item no longer waits (class `info`) | Nothing: drop the item it closes |
 
 `Follow-up:` and `Roadmap note:` lines from the step's PRs land in the digest and the checkpoint

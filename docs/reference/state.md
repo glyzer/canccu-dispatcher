@@ -45,7 +45,7 @@ In `~/.canccu/projects/<name>/`:
 | `state.format` | The format of `state/` and `steps/`: one number (below) |
 | `dispatch.log` | One line per action, each starting with its UTC time (`2030-11-05T12:00:00Z`; lines written by an earlier release have the host's local time, `2030-11-05 12:00:00`, and readers accept both), plus the raw output of the commands (prefixed `  │ `) |
 | `events`, `heartbeat` | The feed, one line per event a person must act on, and the file every pass touches ([`lead.md`](lead.md#the-feed)) |
-| `feed.open` | `<key>=<id>` of the open feed items no unit's state holds (holds, checkpoints, PRs labelled `needs-you`) |
+| `feed.open` | `<key>=<id>` of the open feed items no unit's state holds (holds, checkpoints, PRs labelled `needs-you`), and `leader_ack=<id>`: the highest line the leader acknowledged |
 | `.running` | Present while the dispatcher loops; one left at its start means a stop it did not plan |
 | `dispatch.pid`, `.dispatch.lock` | The running dispatcher and its lock |
 | `paused` | Present while paused (`canccu-pause`) |

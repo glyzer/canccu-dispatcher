@@ -34,6 +34,8 @@ CANCCU_USER_PATH=$PATH
 . "$here/lib/canccu-doctor.sh"
 # shellcheck source=../lib/canccu-configcmd.sh
 . "$here/lib/canccu-configcmd.sh"
+# shellcheck source=../lib/canccu-kv.sh
+. "$here/lib/canccu-kv.sh"
 # shellcheck source=../lib/canccu-feed.sh
 . "$here/lib/canccu-feed.sh"
 

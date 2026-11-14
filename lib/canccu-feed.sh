@@ -95,7 +95,29 @@ feed_tick() {
     feed_open "pr-$pr" "$(need_owner "$k" pr-needs-you)" ask pr-needs-you "$k" "$pr" "$(pr_url "$pr")" "PR #$pr needs-you"
   done
   [ -e "$(feed_open_file)" ] && for k in $(feed_open_keys pr-); do [[ $open == *" $k "* ]] || feed_settle "$k" "no needs-you"; done
+  [ "${LEADER:-off}" != on ] || feed_handover
   feed_idle "$@"
+}
+
+# feed_handover: rule 7 of docs/plan/contracts.md §1: a unit's item stored for the leader whose
+# line the leader has not acknowledged (leader_ack, from `wait --owner leader --ack`) passes to the
+# product owner once its phase is 60 minutes old. One way only: nothing hands it back, and leaving
+# the phase clears the owner. An item with no line id (state from before the feed) has nothing the
+# leader could have acked, so it stays.
+feed_handover() {
+  local k id ack at pr t
+  ack=$(kv_get "$(feed_open_file)" feed leader_ack); [[ $ack =~ ^[0-9]+$ ]] || ack=0
+  for k in $(managed); do
+    [ "$(st_get "$k" owner)" = leader ] || continue
+    id=$(st_get "$k" ev_id); [[ $id =~ ^[0-9]+$ ]] && (( id > ack )) || continue
+    at=$(st_get "$k" phase_at); [[ $at =~ ^[0-9]+$ ]] && (( $(now) - at >= 3600 )) || continue
+    pr=$(st_get "$k" pr)
+    t="#$k passed to the product owner: the leader did not acknowledge it in 60 min"
+    _st_put "$k" owner=po
+    id=$(feed po ask handover "$k" "$pr" "$(feed_url "$k" "$pr")" "$t")
+    [ -z "$id" ] || _st_put "$k" ev_id="$id"
+    log "$t"
+  done
 }
 
 # feed_idle <open unit...>: a unit no rule moved for IDLE_ALARM_MIN writes one idle line until its
@@ -124,10 +146,15 @@ feed_idle() {
 
 # feed_wait <owner or empty> <ack or empty>: blocks until a line with an id above ack (default: the
 # last id now) for that owner (lines of owner - only without one), prints it, returns 0; returns
-# 3 when the heartbeat is older than 10 minutes. It polls: no inotify dependency.
+# 3 when the heartbeat is older than 10 minutes. It polls: no inotify dependency. The leader's
+# --ack is recorded first (leader_ack, never lowered): feed_handover reads it.
 feed_wait() {
-  local owner=$1 ack=$2 f hb age l
+  local owner=$1 ack=$2 f hb age l old
   f=$(feed_file); hb=$CANCCU_HOME/heartbeat
+  if [ "$owner" = leader ] && [ -n "$ack" ]; then
+    old=$(kv_get "$(feed_open_file)" feed leader_ack); [[ $old =~ ^[0-9]+$ ]] || old=0
+    (( ack <= old )) || kv_set "$(feed_open_file)" feed "leader_ack=$ack"
+  fi
   [ -n "$ack" ] || { ack=$(tail -n 1 "$f" 2>/dev/null | cut -f2); [[ $ack =~ ^[0-9]+$ ]] || ack=0; }
   while :; do
     l=$(awk -F '\t' -v a="$ack" -v o="$owner" '$2 + 0 > a + 0 && (o == "" || $3 == o) { print; exit }' "$f" 2>/dev/null)
