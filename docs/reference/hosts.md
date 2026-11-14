@@ -11,9 +11,27 @@ the defaults does not move a running host. `hosts/max.conf` (a Claude Max plan) 
 defaults of `CAP`, `TOTAL_CAP`, every `BUDGET_*` key, `STEP_BUDGET`, `USAGE_SLOW`, `USAGE_STOP`
 and `USAGE_WEEKLY_DRAIN`. `hosts/pro.conf` (a Claude Pro plan) sets the same keys for one run
 at a time with the same budgets as max (the Pro limit is parallelism, not run length), its own
-usage throttle, and `REVIEW_EFFORT_MAX=medium`. Neither sets a model.
-`~/.canccu/config` overrides any of them. `install.sh --host-profile
-<name>` adds `HOST_PROFILE=<name>` to a config without that key.
+usage throttle, and `REVIEW_EFFORT_MAX=medium`. `~/.canccu/config` overrides any
+of them. `install.sh --host-profile <name>` adds `HOST_PROFILE=<name>` to a config without that
+key.
+
+Both profiles also set the run models, so a host gets a sensible split from its plan alone:
+
+| Key | `max` | `pro` |
+| --- | --- | --- |
+| `MODEL` (workers) | `claude-opus-5-5` | `claude-sonnet-5-5` |
+| `FIX_MODEL` | empty: `MODEL` | `claude-sonnet-5-5` |
+| `PLAN_MODEL` | `claude-opus-5-5` | `claude-opus-5-5` |
+| `REVIEW_MODEL` | `claude-opus-5-5` | `claude-opus-5-5` |
+| `REVIEW_MODEL_LIGHT` | `claude-sonnet-5-5` | `claude-sonnet-5-5` |
+| `FIXCHECK_MODEL` | `claude-sonnet-5-5` | `claude-sonnet-5-5` |
+| `HEALTH_MODEL` | empty: `MODEL` | `claude-sonnet-5-5` |
+| `REVIEW_EFFORT_MAX` | `medium` | `medium` |
+
+To use another model, set its key in `~/.canccu/config` (every project of the host) or in a
+project's `config` (that project only); either wins over the profile, for example
+`MODEL=claude-opus-5-5` on a Pro host. Without a profile every model key stays empty: the
+account's default model.
 
 The tools read `HOST_PROFILE` from `~/.canccu/config` in a subshell, so nothing else in that
 file applies before the profile. A tmux server keeps the environment it started with: a
