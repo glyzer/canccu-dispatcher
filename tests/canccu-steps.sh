@@ -91,8 +91,8 @@ ok "plan (#166): the other way round (running lib/a/, new lib/a/b.sh) → the ov
 ok "plan (#166): the same path → the overlap error" eq "$(pvo "$(ovp '["lib/a/b.sh"]' '[]')")" '["n overlaps running r in lib/a/b.sh"]'
 ok "plan (#166): a sibling with a common name start (lib/a vs lib/ab) is no overlap" \
   eq "$(pvo "$(ovp '["lib/ab"]' '[]')" '[{"name":"r","areas":["lib/a"]}]')" '[]'
-ok "plan (#166): a carried package is not checked against the running ones (itself)" \
-  eq "$(pvo "$(ovp '["lib/a/b.sh"]' '[]' '{"name": "r", "carried_from": 1}')" | jq -c 'map(select(test("overlaps")))')" '[]'
+ok "plan (#166): a planner's package with carried_from is still checked against the running ones" \
+  eq "$(pvo "$(ovp '["lib/a"]' '[]' '{"carried_from": 1}')")" '["n overlaps running r in lib/a/b.sh"]'
 ok "plan (#166): no running packages given → no overlap check" \
   eq "$(printf '%s\n' "$(ovp '["lib/a"]' '[]')" > "$T/ov.json"; lib plan_validate "$T/ov.json" "$(cat "$root/tests/fixtures/plans/input.json")" 12 2 | jq -c .errors)" '[]'
 
@@ -295,6 +295,8 @@ ok "… which rolls on at once: nothing of it can start (c waits for a), nothing
   eq "$(sed -n 's/^phase=//p' "$CANCCU_HOME/steps/12") $(plans12) $(grep -c 'step 3 Events: wave 2 rolls on' "$CANCCU_HOME/dispatch.log")" "idle 1 1"
 ok "… the running package is in the new plan with carried_from" \
   eq "$(jq -c '[.packages[] | "\(.name):\(.carried_from // "-")"]' "$CANCCU_HOME/steps/12.plan-2.json")" '["c:-","a:1","b:1"]'
+ok "… and not flagged as overlapping itself (the check runs before the carry)" \
+  eq "$(cat "$CANCCU_HOME/dispatch.log" "$FAKE/gh.log" | grep -c 'overlaps running')" 0
 ok "… it is still running, not started again" eq "$(grep -c -- '--name #101 ' "$FAKE/worker.log") $(st 101 phase)" "0 work"
 
 rollenv rolling-overlap WAVE_ROLLING=1
