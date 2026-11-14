@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # tests/canccu-dispatch2.sh — offline tests for canccu-dispatch, continued: log times, the state
-# format, the holds of a pass, run exits and crashes (the harness: tests/lib/harness.sh).
+# format, the holds of a pass, run exits and crashes, one PR with its contract change (the
+# harness: tests/lib/harness.sh).
 # shellcheck source=lib/harness.sh
 . "$(dirname "$0")/lib/harness.sh"
 
@@ -232,6 +233,37 @@ env_new start-ok
 { issue 3 ready; } | issues
 dispatch --once
 ok "a start: phase work, prev_phase cleared" eq "$(st 3 phase)|$(st 3 prev_phase)" "work|"
+
+# ---------------------------------------------------------------- one PR with its contract change (#152)
+
+# The repo's rules decide whether a contract change needs a contract PR first; with one PR per
+# package, the unit's own PR (not on <branch>-contract) carries the contract file and its
+# consumers and flows like any other: no draft wait, only a Maintainer accept line asks the user.
+CFILES='[{"filename": "docs/contracts/a.md"}, {"filename": "src/a.ts"}]'
+env_new contract-one-pr
+{ issue 5 in-progress; } | issues
+p=$(PR_BRANCH=5-add-screen pr 50 5 $HA); printf '%s\n' "$p" | prs
+json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z)"; route 'pr view 50 *' pr50.json
+json files50.json "$CFILES"; route 'api --paginate repos/example-org/web/pulls/50/files*' files50.json
+state 5 phase=work "started=$NOW" branch=5-add-screen; last 5 done 'PR opened.'
+dispatch --once; dispatch --once
+ok "contract change in the unit's own PR: from work to review" grep -q -- '--key review-50' "$FAKE/worker.log"
+ok "… no draft wait, no contract wait, no needs-you" \
+  eq "$(st 5 phase) $(st 5 contract_merged)|$(grep -c needs-you "$FAKE/gh.log")" "review |0"
+# cenv <name> <verdict line>: the same PR's posted verdict on HA
+cenv() {
+  PR_BRANCH=5-add-screen review_env "$1" "$2" review
+  json files50.json "$CFILES"; echo branch=5-add-screen >> "$CANCCU_HOME/state/5"
+}
+cenv contract-one-pr-pass 'Review verdict: pass'
+dispatch --once
+ok "… its passing review classifies by today's rules: auto before AUTO_MERGE_UNTIL" \
+  has gh.log "pr merge 50 -R example-org/web --auto --match-head-commit $HA"
+cenv contract-one-pr-maccept $'Maintainer accept: breaks the contract\nReview verdict: pass'
+dispatch --once
+ok "… with Maintainer accept: breaks the contract → waits for the product owner" \
+  eq "$(st 5 phase)|$(grep -c 'pr merge' "$FAKE/gh.log")" "accept|0"
+ok "… with the reason" has gh.log "waits for your accept: maintainer accept: breaks the contract."
 
 echo "canccu-dispatch2 tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
