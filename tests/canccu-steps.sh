@@ -73,6 +73,28 @@ ok "plan: a name an earlier package used (review #45, finding 6)" \
   eq "$(lib plan_validate "$root/tests/fixtures/plans/valid.json" "$(jq -c '.earlier = [{name: "auth-flow"}]' "$root/tests/fixtures/plans/input.json")" 12 2 | jq -r '.errors[0]')" \
   "package name auth-flow was used by an earlier package"
 
+# #166: a new package whose areas overlap a running package's must depend on it
+# pvo <plan json> [running json]: the errors of a plan of wave 2 whose input carries package r
+pvo() {
+  printf '%s\n' "$1" > "$T/ov.json"
+  lib plan_validate "$T/ov.json" "$(jq -c '.carried = [{name: "r"}]' "$root/tests/fixtures/plans/input.json")" 12 2 \
+    "${2:-[{\"name\":\"r\",\"areas\":[\"lib/a/b.sh\"]}]}" | jq -c .errors
+}
+ovp() { jq -nc --argjson a "$1" --argjson d "$2" --argjson x "${3:-{\}}" \
+  '{schema: 1, step: 12, wave: 2, packages: [{name: "n", issues: [101], risk: "low", risk_reason: "x", areas: $a, depends_on: $d} + $x]}'; }
+ok "plan (#166): a new package in lib/a, running r in lib/a/b.sh, no dependency → the overlap error" \
+  eq "$(pvo "$(ovp '["lib/a"]' '[]')")" '["n overlaps running r in lib/a/b.sh"]'
+ok "plan (#166): … with the dependency on r → valid" eq "$(pvo "$(ovp '["lib/a"]' '["r"]')")" '[]'
+ok "plan (#166): the other way round (running lib/a/, new lib/a/b.sh) → the overlap error" \
+  eq "$(pvo "$(ovp '["lib/a/b.sh"]' '[]')" '[{"name":"r","areas":["lib/a/"]}]')" '["n overlaps running r in lib/a/b.sh"]'
+ok "plan (#166): the same path → the overlap error" eq "$(pvo "$(ovp '["lib/a/b.sh"]' '[]')")" '["n overlaps running r in lib/a/b.sh"]'
+ok "plan (#166): a sibling with a common name start (lib/a vs lib/ab) is no overlap" \
+  eq "$(pvo "$(ovp '["lib/ab"]' '[]')" '[{"name":"r","areas":["lib/a"]}]')" '[]'
+ok "plan (#166): a carried package is not checked against the running ones (itself)" \
+  eq "$(pvo "$(ovp '["lib/a/b.sh"]' '[]' '{"name": "r", "carried_from": 1}')" | jq -c 'map(select(test("overlaps")))')" '[]'
+ok "plan (#166): no running packages given → no overlap check" \
+  eq "$(printf '%s\n' "$(ovp '["lib/a"]' '[]')" > "$T/ov.json"; lib plan_validate "$T/ov.json" "$(cat "$root/tests/fixtures/plans/input.json")" 12 2 | jq -c .errors)" '[]'
+
 # #54: values over 256 KiB (Linux takes at most 128 KiB per argument) still reach jq
 BIGIS=$(jq -nc '[range(1; 301) | {number: (1000 + .), title: "Issue \(.)", labels: [{name: "ready"}], body: ("b" * 1024),
                  milestone: {title: "2 Contracts"}}]')
@@ -239,6 +261,58 @@ ok "planner (review 3, finding 1): the plan of a stopped step starts nothing" \
 dispatch --once
 ok "… once the stop is resolved the wave runs and the label goes" \
   eq "$(grep -c -- '--name pkg#auth-flow' "$FAKE/worker.log") $(grep -c '^issue edit 90 -R example-org/web --remove-label needs-you' "$FAKE/gh.log")" "1 1"
+
+# #166: rolling waves (WAVE_ROLLING=1): the next wave is planned once nothing of this one waits
+# to start and a slot is free, while its packages still run
+PR1='{"schema":1,"step":12,"wave":1,"packages":[
+  {"name":"a","issues":[101],"risk":"normal","risk_reason":"x","areas":["lib/a/b.sh"],"depends_on":[]},
+  {"name":"b","issues":[104],"risk":"low","risk_reason":"y","areas":[],"depends_on":["a"]}]}'
+# rollenv <name> [config...]: wave 1 of PR1 runs: package a (101) in work, b blocked behind it, 105 ready to plan
+rollenv() {
+  stepenv "$@"
+  { issue 90 epic "" "3 Events"; issue 101 in-progress "" "3 Events"; issue 104 ready "" "3 Events"; issue 105 ready "" "3 Events"; } | issues
+  mkdir -p "$CANCCU_HOME/steps"; printf '%s\n' "$PR1" > "$CANCCU_HOME/steps/12.plan-1.json"
+  printf 'phase=running\nwave=1\nplan=%s\nstarted_at=%s\ntitle=3 Events\nepic=90\ncheckpoint=95\n' "$CANCCU_HOME/steps/12.plan-1.json" "$((NOW - 3600))" > "$CANCCU_HOME/steps/12"
+  state 101 pkg=a step=12 wave=1 members=101 branch=101-x phase=work; live_lock 101
+}
+rolls() { grep -c 'step 3 Events: wave 1 rolls on; planning the next one' "$CANCCU_HOME/dispatch.log"; }
+plans12() { grep -c -- '--key plan-12' "$FAKE/worker.log"; }
+
+rollenv rolling WAVE_ROLLING=1
+dispatch --once
+ok "rolling (#166): a package in work, none pending, a slot free → the next wave is planned" \
+  eq "$(rolls) $(plans12) $(sed -n 's/^planner_wave=//p' "$CANCCU_HOME/steps/12")" "1 1 2"
+ok "… with the issue left to plan, not the blocked dependant's" eq "$(pissues)" "#105"
+ok "… the planner gets the running package's areas" \
+  grep -qF '"name":"a","issues":[101],"outcome":"running","pr":null,"areas":["lib/a/b.sh"]' <<<"$(grep -- '--key plan-12' "$FAKE/worker.log" | tail -1)"
+ok "… and the overlap rule" grep -qF "A new package whose files overlap a running package's areas must name it in depends_on." "$FAKE/worker.log"
+planned 2 '{"schema":1,"step":12,"wave":2,"packages":[{"name":"c","issues":[105],"risk":"low","risk_reason":"z","areas":["lib/a"],"depends_on":["a"]}]}'
+dispatch --once
+ok "… its plan (depending on the running package it overlaps) is taken: wave 2 runs" \
+  eq "$(sed -n 's/^phase=//p;s/^wave=//p' "$CANCCU_HOME/steps/12" | tr '\n' ' ')" "running 2 "
+ok "… the running package is in the new plan with carried_from" \
+  eq "$(jq -c '[.packages[] | "\(.name):\(.carried_from // "-")"]' "$CANCCU_HOME/steps/12.plan-2.json")" '["c:-","a:1","b:1"]'
+ok "… it is still running, not started again" eq "$(grep -c -- '--name #101 ' "$FAKE/worker.log") $(st 101 phase)" "0 work"
+
+rollenv rolling-overlap WAVE_ROLLING=1
+dispatch --once
+planned 2 '{"schema":1,"step":12,"wave":2,"packages":[{"name":"c","issues":[105],"risk":"low","risk_reason":"z","areas":["lib/a"],"depends_on":[]}]}'
+dispatch --once
+ok "rolling (#166): a new package overlapping the running one without depending on it → the plan is invalid" \
+  grep -q '^issue comment 90 .*the plan of wave 2 is invalid: c overlaps running a in lib/a/b.sh' "$FAKE/gh.log"
+
+rollenv rolling-pending WAVE_ROLLING=1
+printf '%s\n' "$(jq -c '.packages[1].depends_on = []' <<<"$PR1")" > "$CANCCU_HOME/steps/12.plan-1.json"
+dispatch --once
+ok "rolling (#166): a package pending → no early plan" eq "$(rolls) $(plans12)" "0 0"
+
+rollenv rolling-noslot WAVE_ROLLING=1 CAP=1
+dispatch --once
+ok "rolling (#166): no slot free → no early plan" eq "$(rolls) $(plans12) $(sed -n 's/^phase=//p' "$CANCCU_HOME/steps/12")" "0 0 running"
+
+rollenv rolling-off
+dispatch --once
+ok "rolling (#166): WAVE_ROLLING=0 → the wave waits (today's barrier)" eq "$(rolls) $(plans12) $(sed -n 's/^phase=//p' "$CANCCU_HOME/steps/12")" "0 0 running"
 
 # #86: a finished package's issue open again is ordinary step work, never a stop
 stepenv reopened-merged
