@@ -203,6 +203,9 @@ ok "… default empty" grep -qE "^USER_VISIBLE_PATHS=''( |$)" "$root/lib/canccu-
 ok "TEST_PATHS is in the table, an open rules regex (#78)" grep -qxP 'TEST_PATHS\tregex\trules\topen' "$TSV"
 ok "… its default" grep -qF "TEST_PATHS='(^|/)(tests?|__tests__|spec)/|\.(test|spec)\.[a-z]+\$'" "$root/lib/canccu-config.default"
 ok "… both in the rules template, commented out" eq "$(grep -cE '^# (USER_VISIBLE_PATHS|TEST_PATHS)=' "$root/profiles/default/rules")" 2
+ok "PREVIEW_CMD is in the table, an open rules text (#182)" grep -qxP 'PREVIEW_CMD\ttext\trules\topen' "$TSV"
+ok "… default empty" grep -qE "^PREVIEW_CMD=''( |$)" "$root/lib/canccu-config.default"
+ok "… in the rules template, commented out" grep -qE "^# PREVIEW_CMD=''$" "$root/profiles/default/rules"
 
 # ---------------------------------------------------------------- config show
 

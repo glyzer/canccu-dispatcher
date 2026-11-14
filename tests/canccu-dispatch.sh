@@ -1086,6 +1086,67 @@ ok "both prompts have the one skill rule, which forbids subagents (#88)" eq "$(g
 ok "… the package prompt no longer allows them" not grep -q 'You may use the superpowers skills subagent' <<<"$(lib eval 'fetch; unit_prompt pkg-12-a')"
 
 # #107: an empty key names the state directory, not a file: nothing, and no read error
+# ---------------------------------------------------------------- "What you will see" captures (#182)
+
+# pvenv <name> <file> <pr body> [config...]: PR 50 of managed issue 5 (green, ready) changes
+# <file>; web/ is user-visible and the repo makes previews unless a config line says otherwise
+pvenv() {
+  env_new "$1" "USER_VISIBLE_PATHS='^web/'" "PREVIEW_CMD='tools/preview'" "${@:4}"
+  { issue 5 in-progress; } | issues
+  p=$(pr 50 5 $HA green "" false "$3"); printf '%s\n' "$p" | prs
+  json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z)"; route 'pr view 50 *' pr50.json
+  json files50.json "[{\"filename\": \"$2\"}]"; route 'api --paginate repos/example-org/web/pulls/50/files*' files50.json
+  json issue5.json '{"labels": [{"name": "in-progress"}], "comments": []}'; route 'issue view 5 *' issue5.json
+  state 5 phase=check "check_at=$NOW" pr=50 branch=5-issue-5
+  echo sid > "$WORKERS_DIR/web-5.id"
+}
+PVFIX='PR #50 changes what users see (web/a.tsx) but its body has no "## What you will see" section. Make the captures as the rules say, add the section, push nothing else. Then stop.'
+pvenv preview-missing web/a.tsx $'Closes #5\n\nTier: fix'
+dispatch --once
+ok "previews: a user-visible PR without the section → its worker is resumed once with the text" \
+  eq "$(grep -cF -- "$PVFIX" "$FAKE/worker.log")" 1
+ok "… preview_fix is set" eq "$(st 5 preview_fix)" 50
+ok "… no reviewer starts, no needs-you" eq "$(grep -c -- '--key review-' "$FAKE/worker.log") $(grep -c 'needs-you' "$FAKE/gh.log")" "0 0"
+ok "… logged" grep -qF '#5 PR #50: no "What you will see" section; the worker adds it' "$CANCCU_HOME/dispatch.log"
+ok "… not a fix round" eq "$(st 5 stage)" ""
+: > "$FAKE/worker.log"; sed -i '/^phase=/d' "$CANCCU_HOME/state/5"; echo phase=check >> "$CANCCU_HOME/state/5"
+rm -f "$WORKERS_DIR"/web-5.lock
+dispatch --once
+ok "previews: still missing on the next pass → needs-you, no worker run" \
+  eq "$(st 5 phase) $(grep -c . "$FAKE/worker.log")" "needs-you 0"
+ok "… with the text" grep -qF 'PR #50 changes what users see but still has no "## What you will see" section' "$FAKE/gh.log"
+pvenv preview-there web/a.tsx $'Closes #5\n\n## What you will see\n\nbefore / after'
+dispatch --once
+ok "previews: with the section → the review starts as today" \
+  eq "$(grep -c -- '--key review-50 ' "$FAKE/worker.log") $(grep -cF -- "$PVFIX" "$FAKE/worker.log") $(st 5 preview_fix)" "1 0 "
+ok "… and the reviewer checks the captures against the diff" \
+  grep -qF 'Check that the "What you will see" captures match the diff: a capture that shows something the diff does not do is a blocking correctness finding.' "$FAKE/worker.log"
+pvenv preview-off web/a.tsx 'Closes #5' "PREVIEW_CMD=''"
+dispatch --once
+ok "previews: PREVIEW_CMD empty → the review starts as today" \
+  eq "$(grep -c -- '--key review-50 ' "$FAKE/worker.log") $(st 5 preview_fix)" "1 "
+ok "… and the reviewer is not told about captures" \
+  not grep -qF 'Check that the "What you will see" captures' "$FAKE/worker.log"
+pvenv preview-not-visible src/a.ts 'Closes #5'
+dispatch --once
+ok "previews: a PR that is not user-visible is never sent back" \
+  eq "$(grep -c -- '--key review-50 ' "$FAKE/worker.log") $(grep -c 'What you will see' "$FAKE/worker.log") $(st 5 preview_fix)" "1 0 "
+pvenv preview-test-only web/a.test.tsx 'Closes #5'
+dispatch --once
+ok "… nor one whose only web/ path is a test file (TEST_PATHS)" eq "$(grep -c -- '--key review-50 ' "$FAKE/worker.log")" 1
+
+PVRULE='This repo makes previews: before marking the PR ready, if it changes what users see, run `tools/preview <dir>` on origin/main and on your head, push the images to the branch canccu-previews (create it as an orphan branch; never merge it) under 5-issue-5/before and 5-issue-5/after, and add a section "## What you will see" to the PR body with each text capture in a fenced block and each image linked from that branch, before and after.'
+env_new preview-prompts "PREVIEW_CMD='tools/preview'"
+{ issue 5 ready; issue 101 ready; } | issues
+state 5 phase=work branch=5-issue-5
+state pkg-12-a pkg=a step=12 members=101 branch=pkg-12-a risk=low risk_reason=x
+ok "previews: the single-issue prompt has the preview rule for its branch" grep -qF -- "$PVRULE" <<<"$(lib eval 'fetch; unit_prompt 5')"
+ok "… the package prompt for its own" grep -qF -- 'under pkg-12-a/before and pkg-12-a/after' <<<"$(lib eval 'fetch; unit_prompt pkg-12-a')"
+env_new preview-prompts-off
+{ issue 5 ready; } | issues
+state 5 phase=work branch=5-issue-5
+ok "… PREVIEW_CMD empty: no preview rule" not grep -qF 'This repo makes previews' <<<"$(lib eval 'fetch; unit_prompt 5')"
+
 # ---------------------------------------------------------------- stale run temp dirs (#155)
 
 # at start: a temp dir whose run is gone and that is over an hour old goes; a live run's stays,
