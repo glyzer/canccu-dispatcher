@@ -25,6 +25,7 @@ BUDGET_FIXCHECK	budget	project	open
 BUDGET_ANSWER	budget	project	open
 ANSWER_MAX	int:0:10	project	open
 STALL_MIN	int:1:240	project	open
+RUN_TMPDIR	enum:disk|system	project	open
 DIGEST_HOUR_UTC	int:0:23	project	open
 DIGEST_ISSUE	intopt:1:9999999	project	open
 PING	enum:on|off	project	locked

@@ -32,6 +32,7 @@
 # turns= / cost= / min=  the run's budget, required: turns, USD (claude reports cost in USD), minutes
 # WORKER_ADD_DIRS  space-separated dirs passed as --add-dir
 # WORKER_EFFORT    passed as --effort; empty: none, the account default
+# WORKER_TMPDIR_MODE  disk (default): TMPDIR, TMP and TEMP are the run's own workers/tmp/<repo>-<key>.<pid>, removed when it ends; system: inherited
 # WORKER_RUN_TYPE  the run's type for its spend.log line (build, fix, review, …); empty: -
 # WORKER_EFFORT_NOTE  the effort its spend.log line names when there is no WORKER_EFFORT (a
 #          review's code-review effort); WORKER_WINDOW_DELTA=1 and WORKER_WINDOW_BEFORE (the 5-hour
@@ -59,7 +60,7 @@ WORKER_RULES='Never match your own command line: pgrep -f / pkill -f with text t
 # ---------------------------------------------------------------- inner run (in the tmux window)
 
 # Globals, not locals: the EXIT/TERM traps fire after run() has returned.
-lock="" errf="" sumf="" stallf="" cpid="" wpid="" run_repo="" run_key="" spend_logged=""
+lock="" errf="" sumf="" stallf="" cpid="" wpid="" run_repo="" run_key="" spend_logged="" run_tmp=""
 run_model="" run_session="" run_t0=0
 # spend_unknown: a run killed (canccu-stop, worker --kill) before its report still cost money: its
 # spend.log line has the cost "?" (the TERM trap; once, never after report wrote one)
@@ -113,9 +114,19 @@ run() {
   export CANCCU_ACTOR=run
   sed -i -e "s/^pid=.*/pid=$$/" -e '/^pstart=/d' "$lock"
   echo "pstart=$(proc_start $$)" >> "$lock"
-  trap '[ -n "$wpid" ] && kill "$wpid" 2>/dev/null; rm -f "$lock" "$errf" "$sumf" "$stallf"' EXIT
-  # the spend line first: kill_tree (canccu-stop, worker --kill) sends KILL 3 s after TERM
-  trap 'spend_unknown; [ -n "$cpid" ] && kill_tree "$cpid"; exit 143' TERM HUP INT
+  trap '[ -n "$wpid" ] && kill "$wpid" 2>/dev/null; rm -f "$lock" "$errf" "$sumf" "$stallf"; rm_tree "$run_tmp"' EXIT
+  # the spend line and the temp dir first: kill_tree (canccu-stop, worker --kill) sends KILL 3 s
+  # after TERM. A tool still running may write to the dir again; the EXIT trap, else the
+  # dispatcher's sweep at its start (run_tmp_sweep), removes that.
+  trap 'spend_unknown; rm_tree "$run_tmp"; [ -n "$cpid" ] && kill_tree "$cpid"; exit 143' TERM HUP INT
+  # disk: a temp dir of the run's own on disk, after the pid is in the lock (the sweep keeps a dir
+  # its lock names). A RAM /tmp filled up with the venvs and caches runs left there (#155).
+  if [ "${WORKER_TMPDIR_MODE:-disk}" = disk ]; then
+    run_tmp="$WORKERS_DIR/tmp/$repo-$key.$$"
+    rm_tree "$run_tmp"   # a dead run's of the same pid
+    if mkdir -p "$WORKERS_DIR/tmp" && mkdir -m 700 "$run_tmp"; then export TMPDIR=$run_tmp TMP=$run_tmp TEMP=$run_tmp
+    else echo "could not make the run's temp dir $run_tmp; the run uses the inherited TMPDIR" >> "$base.log"; run_tmp=""; fi
+  fi
   [[ ($key =~ ^[0-9]+$ || $keep == 1) && $fresh != 1 ]] || rm -f "$base.id"
 
   # watchdog <pid>: when the log stops growing for WORKER_STALL_MIN minutes, flag it and kill the

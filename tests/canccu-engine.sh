@@ -93,12 +93,17 @@ env_new model-default
 dispatch --once
 ok "no MODEL: the engine gets no --model" grep -q -- '^--quiet --name #30 web 30 ' "$FAKE/worker.log"
 ok "… for no run" not grep -q -- '--model' "$FAKE/worker.log"
+ok "tmp: the run gets RUN_TMPDIR's default, disk" grep -qx 'WORKER_TMPDIR_MODE=disk' "$FAKE/worker.envdump"
 env_new model-config MODEL=claude-sonnet-5-5
 { issue 30 ready; } | issues
 dispatch --once
 PATH="$fb:$PATH" "$root/bin/canccu-status" > "$E/status" 2>&1
 ok "canccu-status shows a set model" grep -q '^model: claude-sonnet-5-5 · ' "$E/status"
 ok "the model comes from the config" grep -q -- '^--quiet --model claude-sonnet-5-5 --name #30' "$FAKE/worker.log"
+env_new tmp-system RUN_TMPDIR=system
+{ issue 30 ready; } | issues
+dispatch --once
+ok "tmp: RUN_TMPDIR=system reaches the run" grep -qx 'WORKER_TMPDIR_MODE=system' "$FAKE/worker.envdump"
 env_new worker-prompt
 { issue 30 ready; } | issues
 dispatch --once
@@ -216,6 +221,37 @@ ok "… its pid and ticks" grep -qE '^[0-9]+ [0-9]+$' <<<"$tt"
 ok "tools_busy: a new tool process counts" lib tools_busy "$tp" "$T/ticks"
 ok "… an idle one does not, the next time" not lib tools_busy "$tp" "$T/ticks"
 lib kill_tree "$tp"; wait "$tp" 2>/dev/null
+
+# ---------------------------------------------------------------- the run's temp dir (#155)
+
+# disk (the default): TMPDIR, TMP and TEMP name the run's own dir under workers/tmp, mode 700,
+# gone once the run ends, also when it is killed
+env_new engine-tmp
+mkdir -p "$E/code/web/.git"
+printf 'echo "$TMPDIR $TMP $TEMP" > "$FAKE/tmp.seen"; stat -c %%a "$TMPDIR" >> "$FAKE/tmp.seen"; echo x > "$TMPDIR/f" && echo wrote >> "$FAKE/tmp.seen"\n' > "$FAKE/claude.do"
+eng 51 "$E" "" > /dev/null
+read -r td tp te < "$FAKE/tmp.seen"
+ok "tmp: TMPDIR is the run's own dir under workers/tmp" eq "$td" "$WORKERS_DIR/tmp/web-51.${td##*.}"
+ok "… TMP and TEMP the same" eq "$tp $te" "$td $td"
+ok "… mode 700" eq "$(sed -n 2p "$FAKE/tmp.seen")" 700
+ok "… the run wrote there" eq "$(sed -n 3p "$FAKE/tmp.seen")" wrote
+ok "… and the dir is gone after it" eq "$(test -e "$td" && echo left)$(ls "$WORKERS_DIR/tmp")" ""
+# a run killed the way canccu-stop does it (kill_tree), with read-only dirs in its temp dir (a Go
+# module cache)
+printf 'mkdir -p "$TMPDIR/ro/d"; echo x > "$TMPDIR/ro/d/f"; chmod 555 "$TMPDIR/ro/d" "$TMPDIR/ro"; echo "$TMPDIR" > "$FAKE/tmp.seen"; sleep 30\n' > "$FAKE/claude.do"
+printf 'repo=web\nkey=52\nkind=worker\npid=\nwindow=\n' > "$WORKERS_DIR/web-52.lock"
+(PATH="$fb:$PATH" CODE_ROOT="$E/code" exec "$root/libexec/canccu-worker" __run web 52 5 1 2 "" "a prompt" "$E" "" >/dev/null 2>&1) &
+wk=$!
+for _ in $(seq 100); do [ -s "$FAKE/tmp.seen" ] && grep -q web-52 "$FAKE/tmp.seen" && break; sleep 0.1; done
+td=$(cat "$FAKE/tmp.seen")
+{ lib kill_tree "$wk"; wait "$wk"; } 2>/dev/null
+ok "tmp: a killed run's temp dir is gone too" eq "$(test -d "$td" && echo left)|$td" "|$WORKERS_DIR/tmp/web-52.$wk"
+# system: today's behaviour, the inherited TMPDIR
+printf 'echo "${TMPDIR:-<unset>}" > "$FAKE/tmp.seen"\n' > "$FAKE/claude.do"
+eng 53 "$E" "" WORKER_TMPDIR_MODE=system TMPDIR="$E/inherited" > /dev/null
+ok "tmp: RUN_TMPDIR=system leaves TMPDIR as inherited" eq "$(cat "$FAKE/tmp.seen")" "$E/inherited"
+ok "… and makes no dir" eq "$(ls "$WORKERS_DIR/tmp" 2>/dev/null)" ""
+rm -f "$FAKE/claude.do"
 
 # ---------------------------------------------------------------- background work (#26)
 
