@@ -92,6 +92,8 @@ ok "canccu_tilde: only a whole leading \$HOME becomes ~" \
   eq "$(lib eval 'HOME=/home/someone; canccu_tilde /home/someone/x; echo; canccu_tilde /home/someoneelse/x; echo; canccu_tilde /home/someone')" $'~/x\n/home/someoneelse/x\n~'
 ok "the reviewer prompt asks for paths relative to the repo root" grep -qF 'cite every file as a path relative to the repo root' <<<"$(lib review_prompt 50 5 x f high)"
 ok "… the fix-check prompt too" grep -qF 'cite every file as a path relative to the repo root' <<<"$(lib fixcheck_prompt 50 5 a b f low "")"
+ok "the reviewer prompt asks for the Change: summary before Blocking:" grep -qF "first a line 'Change:' followed by exactly three lines starting '- '" <<<"$(lib review_prompt 50 5 x f high)"
+ok "… the fix-check prompt too" grep -qF "first a line 'Change:' followed by exactly three lines starting '- '" <<<"$(lib fixcheck_prompt 50 5 a b f low "")"
 
 # ---------------------------------------------------------------- messages point at this tool
 
