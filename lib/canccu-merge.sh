@@ -135,7 +135,7 @@ accepted_by_user() { label_by_user "$1" accepted "${2:-0}"; }
 # default: until package S2 a run can forge such a merge as easily as the label. 1: today's path.
 keep_accept() {
   local n=$1 pr=$2 old=$3 head=$4
-  [ "${KEEP_ACCEPT_ON_MAIN_MERGE:-0}" = 1 ] && [ -n "$old" ] || return 1
+  [ "${KEEP_ACCEPT_ON_MAIN_MERGE:-0}" = 1 ] && [ -n "$old" ] && accept_channel label || return 1
   pr_has_label "$pr" accepted && accepted_by_user "$pr" "$(st_get "$n" accept_at)" || return 1
   pr_fetch "$pr"
   main_merge_only "$old" "$head" || return 1
@@ -155,10 +155,12 @@ accept_step() {
     return 0
   fi
   conflict_merge "$n" "$pr" "$head" && return 0
+  ship_armed "$n" "$pr" "$head" && return 0
   # the label on an issue of the unit is tolerated too, under the same checks as on the PR
   if pr_has_label "$pr" accepted; then on=$pr
   else for i in $(members_of "$n"); do has_label "$i" accepted && { on=$i; break; }; done; fi
   [ -n "$on" ] || return 0
+  accept_channel label || { warn_once "accept-label-$pr" "#$n PR #$pr: \`accepted\` label ignored: ACCEPT_CHANNELS does not list label"; return 0; }
   if accepted_by_user "$on" "$(st_get "$n" accept_at)"; then
     if [ "$on" != "$pr" ]; then
       # taken off, so it can never count again for a later head
