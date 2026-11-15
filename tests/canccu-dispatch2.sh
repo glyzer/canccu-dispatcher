@@ -79,6 +79,10 @@ ok "… with 500 MB free the next pass starts it" started 3
 ok "… and logs the clear line" grep -q 'disk: 500 MB free again; starts resume$' "$CANCCU_HOME/dispatch.log"
 ok "canccu-status: no disk part once it cleared" not grep -qF 'disk low' <<<"$(status)"
 rm -f "$FAKE/df_mb"
+env_new status-accepts
+ok "canccu-status names the accept channels: all by default" grep -qx 'accepts: all' <<<"$(status)"
+env_new status-accepts-some "ACCEPT_CHANNELS='label ship'"
+ok "… or the ones ACCEPT_CHANNELS lists" grep -qx 'accepts: label ship' <<<"$(status)"
 
 # fake gh in front of the harness's: $FAKE/limit-once makes the next issue list answer with a
 # rate limit (once)

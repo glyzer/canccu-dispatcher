@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # canccu-ship [--project <name>] <n> — the user's accept: `gh pr merge <pr> --auto <method> --match-head-commit <head>` for the open
-# PR of ours that closes issue n (by USER_LOGIN, not from a fork). With CANCCU_ACTOR=leader only a unit
-# in accept whose stored owner is leader, under LEADER_ACCEPTS=technical; a run never ships. Every
-# call writes one actions.log line (lib/canccu-actionslog.sh).
+# PR of ours that closes issue n (by USER_LOGIN, not from a fork), after its accept record in
+# accepts.log. Refused when ACCEPT_CHANNELS does not list ship (leader, for CANCCU_ACTOR=leader).
+# The leader ships only a unit in accept whose stored owner is leader, under LEADER_ACCEPTS=technical;
+# a run never ships. Every call writes one actions.log line (lib/canccu-actionslog.sh).
 set -uo pipefail
 self=$(realpath "$0")
 # shellcheck source=../lib/canccu-common.sh
@@ -11,6 +12,8 @@ self=$(realpath "$0")
 act_track canccu-ship
 
 n=${1:-}; [[ $n =~ ^[0-9]+$ ]] || { echo "usage: canccu-ship [--project <name>] <n>" >&2; exit 2; }
+actor=$(ship_actor); ch=$(actor_channel "$actor")
+accept_channel "$ch" || die "refused: ACCEPT_CHANNELS does not list $ch"
 p=$(login_problem); [ -z "$p" ] || die "refused: $p"
 fetch || die "gh error reading $REPO"
 n=$(unit_of_issue "$n")   # an issue of a work package ships the package's PR
@@ -18,7 +21,7 @@ n=$(unit_of_issue "$n")   # an issue of a work package ships the package's PR
 ACT_UNIT=$n
 # the leader accepts only what the owner rule gave it when the unit entered accept (the stored
 # owner, not today's owner_of): a later LEADER_ACCEPTS=none still takes it back
-case $(cfg_actor) in
+case $actor in
   run) die "refused: a run never accepts" ;;
   leader)
     [ "${LEADER_ACCEPTS:-none}" = technical ] || die "refused: LEADER_ACCEPTS is none"
@@ -35,6 +38,8 @@ pr=$(st_get "$n" pr)
 head=$(pr_get "$pr" .headRefOid)
 # ours as for canccu-status: an in-progress issue's PR counts (the next pass adopts it)
 why=$(pr_not_ours "$(pr_get "$pr" .)" "$n" adoptable); [ -z "$why" ] || die "PR #$pr is not ours: $why"
+# the accept the dispatcher can check later; no label or comment on GitHub can write it
+accept_record "$n" "$pr" "$head" "$actor" || die "refused: the accept record could not be written to $CANCCU_HOME/accepts.log"
 if is_managed "$n"; then
   st_set "$n" pr="$pr" merge_mode=
   merge_auto "$n" "$pr" accepted "$head" || die "PR #$pr was not merged; see the needs-you comment on #$(lead_of "$n")"

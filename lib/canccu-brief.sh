@@ -15,6 +15,7 @@ status_header() {
   echo "canccu-dispatcher $CANCCU_VERSION · $REPO · $state"
   if [ -n "$REVIEWER_LOGIN" ]; then rv="reviews post as $REVIEWER_LOGIN"; else rv="reviews: REVIEWER_LOGIN is not set"; fi
   echo "model: ${MODEL:-the account default} · $rv"
+  echo "accepts: ${ACCEPT_CHANNELS-all}"
   lp=$(login_problem)
   [ -n "$lp" ] && echo "$lp: the dispatcher does nothing for this project until it is set"
   echo "usage: $(usage_text)"
