@@ -38,12 +38,12 @@ cat > "$fb/gh" <<'EOF'
 # "$*" wins. A file named FAIL makes the call fail. Writes always succeed unless a route
 # "fail:<cmd sub>" exists. Every call is appended to gh.log on one line, and the identity it ran
 # as (user: no GH_TOKEN; reviewer: the fake reviewer token; other) to gh.env, never the token.
-# A `--body-file <file>` is logged as the file's text, and kept in $FAKE/prbody-<pr> for a PR.
+# A `pr edit --body-file <file>` is logged as the file's text, and kept in $FAKE/prbody-<pr>.
 a="$*" bf="" args=("$@")
 for ((i = 0; i < ${#args[@]}; i++)); do [ "${args[i]}" = --body-file ] && bf=${args[i+1]}; done
-if [ -n "$bf" ] && [ "$bf" != - ] && [ -f "$bf" ]; then
+if [ "$1 $2" = "pr edit" ] && [ -n "$bf" ] && [ -f "$bf" ]; then
   a=${a/--body-file $bf/--body-file $(< "$bf")}
-  [ "$1 $2" = "pr edit" ] && cp "$bf" "$FAKE/prbody-$3"
+  cp "$bf" "$FAKE/prbody-$3"
 fi
 printf '%s\n' "${a//$'\n'/ }" >> "$FAKE/gh.log"
 { tok=$(< "$FAKE/../reviewer-token"); } 2>/dev/null
