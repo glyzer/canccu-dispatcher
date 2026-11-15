@@ -80,6 +80,7 @@ keeps `FIXCHECK_MODEL`; a retry of the review file keeps the model the review st
 A finding fixed or answered earlier is not raised again, and a full review after a pass blocks on
 nothing the commits since left alone, except a security bug: the history, the prompts and the
 dispatcher's check are in [`findings.md`](findings.md#no-repeats).
+A head that passed is not reviewed again: [`review-depth.md`](review-depth.md).
 
 ## Fix-check
 

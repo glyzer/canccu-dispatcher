@@ -224,6 +224,12 @@ check_pr() {
       review_mode="$(cat "$CANCCU_HOME/reviews/$pr.mode" 2>/dev/null)"
     return
   fi
+  # a head that passed already: its verdict is reused, unless the lead asked for a full review
+  # (review_asked), or the worker's conflict merge run pushed nothing (postpass_step's needs-you)
+  if [ -z "$(st_get "$n" review_asked)" ] && [ "$(st_get "$n" conflict_sha)" != "$head" ] && passed_before "$n" "$pr" "$head"; then
+    log "#$n PR #$pr: head ${head:0:7} passed review already; no new review (verdict reused)"
+    after_pass "$n" "$pr" "$head" "earlier"; return
+  fi
   postpass_step "$n" "$pr" "$head" && return
   # the worker fixed the full review's findings: the fix-check of reviewed_sha..head, never a
   # second full review. A push after a fix-check voids it (its verdict names the old head): a
@@ -366,6 +372,8 @@ resume_step() {
     history_answer "$pr"; edit_issue "$n" --remove-label needs-work
     has_label "$n" awaiting-accept && edit_issue "$n" --remove-label awaiting-accept
     new_cycle "$n"
+    # kept until the review starts: it holds for the next head, even the same one (check_pr)
+    full_review_asked "$c" && st_set "$n" review_asked=1
   elif [ "$phase" = needs-you ]; then
     c=$(user_comments "$n" "$pr" "$(st_get "$n" ny_at)")
     # the answer to a worker's Question: is the one follow-up whose conversation matters

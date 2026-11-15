@@ -83,13 +83,18 @@ file_nonblocking() {
 }
 
 # collect_nonblocking <K> <pr> <sha> <review body> <verdict at>: file the verdict's non-blocking
-# (and demoted and pre-existing) items once (nb_at): a step that fails after it sees the same verdict again next pass
+# (and demoted and pre-existing) items once (nb_at): a step that fails after it sees the same verdict again next pass.
+# Once per head too (nb_sha): a second verdict on a head finds the same items (#214).
 collect_nonblocking() {
   local items label=""
   [ "$(st_get "$1" nb_at)" = "$5" ] && return 0
+  if [ "$(st_get "$1" nb_sha)" = "$2:$3" ]; then
+    log "#$1 PR #$2: non-blocking findings of ${3:0:7} are filed already; not filed again"
+    st_set "$1" nb_at="$5"; return 0
+  fi
   items=$(nonblocking_of "$4")
   preexisting_security "$4" && label=security
-  [ -n "$items" ] && file_nonblocking "$1" "$2" "$3" "$items" "$label"
+  if [ -n "$items" ]; then file_nonblocking "$1" "$2" "$3" "$items" "$label"; st_set "$1" nb_sha="$2:$3"; fi
   st_set "$1" nb_at="$5"
 }
 

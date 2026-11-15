@@ -520,7 +520,7 @@ start_reviewer() {
     # a full review started by hand after the findings were given does not restart the flow
     # postpass too: its `changes` takes the fix-check's path (needs-you with the open items)
     if is_fixcheck_mode "$mode"; then st_set "$n" stage=fixcheck
-    else case $(st_get "$n" stage) in fixing|fixcheck) ;; *) st_set "$n" stage=review ;; esac; fi
+    else st_set "$n" review_asked=; case $(st_get "$n" stage) in fixing|fixcheck) ;; *) st_set "$n" stage=review ;; esac; fi
     claim_color "$n"; paint_window "$name" "$n"
   fi
   log "#$n PR #$pr: $what started at ${sha:0:7}${rsha:+ (fix diff ${rsha:0:7}..${sha:0:7})} ($effort effort, ${model:-the account default})"

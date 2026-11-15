@@ -61,6 +61,14 @@ dispatch --once; state 5 phase=review pr=50 review_sha=$HA stage=review "nb_at=$
 dispatch --once
 ok "a verdict's findings are filed once" eq "$(grep -c 'issue create' "$FAKE/gh.log")" 1
 
+# a second verdict on the same head (#214): its items are filed already
+nbenv pass-nb-same-head pass
+dispatch --once; state 5 phase=review pr=50 review_sha=$HA stage=review "nb_at=$(st 5 nb_at)" "nb_sha=$(st 5 nb_sha)"
+json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z "$(vcomment 2030-11-05T11:30:00Z "$NB"$'\n\nReview verdict: pass '"$HA")")"
+dispatch --once
+ok "a second verdict on a filed head files no follow-up items" eq "$(grep -c 'issue create\|issue comment 900' "$FAKE/gh.log")" 1
+ok "… logged" grep -qF "#5 PR #50: non-blocking findings of ${HA:0:7} are filed already; not filed again" "$CANCCU_HOME/dispatch.log"
+
 nbenv pass-wave pass
 state 5 phase=review pr=50 review_sha=$HA stage=review step=12 wave=2 pkg=one members=5
 dispatch --once
