@@ -8,6 +8,8 @@
 
 is_pkg() { [[ $1 == pkg-* ]]; }
 is_health() { is_pkg "$1" && [ "$(st_get "$1" health)" = 1 ]; }
+# is_step_run <K>: a run of the step's end (the health pass), not a package of its issues
+is_step_run() { is_health "$1"; }
 # _issue_open <n>: the issue is in this pass's open list
 _issue_open() { jqr --argjson n "$1" 'any(.[]; .number == $n)' <<<"$ISSUES" | grep -qx true; }
 

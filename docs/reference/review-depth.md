@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
-# Review depth: a head reviewed once
+# Review depth: a head reviewed once, the light review
 
 Part of the reference; the index is [`README.md`](README.md). How much review a PR head gets:
 the reviewer itself, the fix-check and the verdict line are in [`reviews.md`](reviews.md).
@@ -30,3 +30,30 @@ on) is no reuse: it goes to `needs-you`, as before.
 A head's non-blocking findings go to the follow-up issue once: a second verdict on the same
 head (an explicit re-review) files none, and logs
 `#<n> PR #<pr>: non-blocking findings of <sha7> are filed already; not filed again`.
+
+## The light review
+
+With `REVIEW_LIGHT=1` (rules, locked; [`rules.md`](rules.md)) a full review (never a fix-check)
+is light when the unit is a package (not the health pass or a step's deep review), its class
+(the highest of the plan, the PR's `Risk:` line and earlier reviews) is `low` or `normal`, no
+`full review` was asked for, and no path of the PR (a rename's old path too) is gated or agent
+configuration. A single issue of the fast lane has no class: never light. The light review runs
+at `low` effort (`REVIEW_EFFORT_MAX` still caps it) and logs
+`PR #<pr>: light review (REVIEW_LIGHT=1, <risk> risk, low effort)`.
+
+Its prompt (`light_review_prompt` in `lib/canccu-lightreview.sh`) replaces the code-review skill
+and the acceptance-criteria sentence with a fixed checklist: the change is sensible; each issue
+of the package is done; every new behaviour has a test and none was weakened; obvious bugs in the
+changed lines; code and contracts agree; no TODO, stub, debug code or work outside the package;
+and two tripwires: a secret or a private name is a blocking `security` finding, a new dependency
+or risky code (`HIGH_RISK_TEXT`) makes its `Risk:` line high. The rest is the full review's: the
+security-review skill when the diff touches `SECURITY_REVIEW_WHEN`, `REVIEW_EXTRA`,
+`Decisions made:`, the risk and no-repeat sentences, the file and its block. `reviews.log` keeps
+kind `full` for it (contracts §8 fixes the kinds).
+
+`reviews/<pr>.light` holds the head a light review runs on. A light review that passes with a
+`Risk:` line of `high` is not acted on as a pass: the class decides the depth, so the unit asks
+for one full review of the same head (the one allowed second review of a head) and logs
+`#<n> PR #<pr>: the light review rated it high risk; full review of <sha7>`. Until that review
+can start (a free slot) the PR waits; it never merges on the light pass. The full review's own
+verdict is then acted on as usual.

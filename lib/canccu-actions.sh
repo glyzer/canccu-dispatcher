@@ -314,6 +314,7 @@ act_verdict() {
       history_record "$n" "$pr" "$head" "$body" "$at"; blocking_note "$n" "$body" "$at" "$head" ;; esac
   case $v in
     pass)
+      light_upgrade "$n" "$pr" "$head" "$j" "$at" && return 0
       # a post-pass check that passed leaves the fix-check stage: the next push is again
       # measured against full_sha, not taken for a fix of findings
       st_set "$n" pass_sha="$head"; [ "$mode" = postpass ] && st_set "$n" stage=review

@@ -490,7 +490,7 @@ reviewer_refused() {
 }
 
 start_reviewer() {
-  local pr=$1 n=$2 sha=$3 mode=$4 rsha=${5:-} wt turns cost mins prompt f effort capped model name what light=0
+  local pr=$1 n=$2 sha=$3 mode=$4 rsha=${5:-} wt turns cost mins prompt f effort capped model name what light=0 lrisk=""
   reviewer_refused && return 1
   wt=$(review_wt "$pr") f=$(review_file "$pr" "$sha")
   if is_fixcheck_mode "$mode"; then read -r turns cost mins <<<"$BUDGET_FIXCHECK"; name="fixcheck#$pr" what=fix-check
@@ -506,10 +506,14 @@ start_reviewer() {
     # the light model's review is a medium one, whatever the size: its paths are light by choice
     if review_light "$pr" "$mode"; then light=1; read -r effort capped <<<"$(effort_cap medium)"
     else read -r effort capped <<<"$(review_effort "$pr" "$n")"; fi
-    prompt=$(review_prompt "$pr" "$n" "$sha" "$f" "$effort"); fi
+    if lrisk=$(review_light_class "$pr" "$n"); then
+      read -r effort capped <<<"$(effort_cap low)"; prompt=$(light_review_prompt "$pr" "$n" "$sha" "$f")
+    else prompt=$(review_prompt "$pr" "$n" "$sha" "$f" "$effort"); fi
+  fi
   (( CANCCU_DRY )) || { mkdir -p "${f%/*}" && rm -f "$f"; } || { log "PR #$pr: cannot prepare $f"; return 1; }
   model=$(review_model "$mode" "$light")
   (( light )) && log "PR #$pr: light review ($model): docs, tests or light paths only"
+  [ -n "$lrisk" ] && log "PR #$pr: light review (REVIEW_LIGHT=1, $lrisk risk, low effort)"
   MODEL=$model RUN_TYPE=$(is_fixcheck_mode "$mode" && echo fix-check || echo review) RUN_EFFORT_NOTE=$effort \
     extra_dirs=${f%/*} engine "$what $name" "review-$pr" --key "review-$pr" --dir "$wt" --name "$name" \
     --untrusted "$REPO_NAME" "$prompt" "turns=$turns" "cost=$cost" "min=$mins" || return 1
@@ -517,6 +521,10 @@ start_reviewer() {
   (( CANCCU_DRY )) || { echo "$sha" > "$CANCCU_HOME/reviews/$pr.sha" && echo "$effort${capped:+ (capped)}" > "$CANCCU_HOME/reviews/$pr.effort" &&
                     echo "$model" > "$CANCCU_HOME/reviews/$pr.model" && echo "$mode" > "$CANCCU_HOME/reviews/$pr.mode"; } ||
     log "PR #$pr: cannot record the reviewer's sha, effort, model and mode"
+  # the head a light review runs on: its pass rated high gets a full review (light_upgrade)
+  if (( ! CANCCU_DRY )) && ! is_fixcheck_mode "$mode"; then
+    if [ -n "$lrisk" ]; then echo "$sha" > "$(light_file "$pr")"; else rm -f "$(light_file "$pr")"; fi
+  fi
   (( CANCCU_DRY )) || rm -f "$CANCCU_HOME/.warned-reviewer"
   [ -n "$n" ] && step_charge "$n" "review-$pr"
   if [ -n "$n" ] && is_managed "$n"; then

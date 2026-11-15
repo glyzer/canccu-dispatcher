@@ -109,6 +109,7 @@ ADD_DIRS=''                 # extra read-only dirs for workers (--add-dir), spac
 REVIEW_CHECKS="review-gate" # checks that wait for the review verdict: not required before the review
 HIGH_RISK_PATHS='^(\.github|deploy)/|migration|sign-?in|login|auth|rights|permission|session|secret|tenan|rls'   # grep -iE: a health pass touching one is high risk
 HIGH_RISK_TEXT='migrations, sign-in or auth, rights, sessions, secrets, tenancy/RLS, deploy/ or CI configuration'   # high-risk content, in words, for the planner and the reviewer
+REVIEW_LIGHT=0              # 1: a package of class low or normal gets a light review (a checklist at low effort); locked
 PING_KINDS=all              # the ping kinds (PING=on): all, or some of accept checkpoint plan question needs-you pr-needs-you; empty: none
 # the leader (an optional AI session that watches the project): which waiting items are its, and
 # not the product owner's (docs/reference/lead.md). LEADER=off: every item is the product owner's
