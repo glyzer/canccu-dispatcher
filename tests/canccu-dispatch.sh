@@ -372,6 +372,8 @@ ok "agent config: .claude/" eq "$(c $'src/a.ts\n.claude/settings.json' "" "" "" 
 ok "agent config: .mcp.json" eq "$(c '.mcp.json' "" "" "" example-org/web 0)" "manual: changes agent config (.mcp.json)"
 ok "agent config: a nested CLAUDE.md" eq "$(c 'apps/web/CLAUDE.md' "" "" "" example-org/web 0)" "manual: changes agent config (apps/web/CLAUDE.md)"
 ok "agent config: AGENTS.md" eq "$(c 'AGENTS.md' "" "" "" example-org/web 0)" "manual: changes agent config (AGENTS.md)"
+ok "agent config: the repo's REVIEW.md (#193)" eq "$(c $'src/a.ts\nREVIEW.md' "" "" "" example-org/web 0)" "manual: changes agent config (REVIEW.md)"
+ok "… a REVIEW.md below the root is no agent config: only the root's is read" eq "$(c 'docs/REVIEW.md' "" "" "" example-org/web 0)" auto
 ok "a file merely named like it is not" eq "$(c 'docs/CLAUDE.md.txt' "" "" "" example-org/web 0)" auto
 ok "freeze date not YYYY-MM-DD → manual" eq "$(lib eval 'AUTO_MERGE_UNTIL=2031-3-1; classify_pure src/a.ts "" "" "" example-org/web 0')" "manual: AUTO_MERGE_UNTIL (2031-3-1) is not a YYYY-MM-DD date"
 ok "freeze date that is no date → manual" eq "$(lib eval 'AUTO_MERGE_UNTIL=2031-02-30; classify_pure src/a.ts "" "" "" example-org/web 0')" "manual: AUTO_MERGE_UNTIL (2031-02-30) is not a YYYY-MM-DD date"

@@ -229,9 +229,9 @@ automerge_until_problem() {
 }
 
 # Paths that configure the agents that work on the repo (.claude/, .mcp.json, CLAUDE.md,
-# AGENTS.md): always the user's call, in every project. GATED_PATHS (the rules) adds the
-# project's own (the gates, a privileged host).
-AGENT_PATHS='(^|/)\.claude/|(^|/)\.mcp\.json$|(^|/)(CLAUDE(\.local)?|AGENTS)\.md$'
+# AGENTS.md, the root's REVIEW.md, the only one the reviewer reads): always the user's call, in
+# every project. GATED_PATHS (the rules) adds the project's own (the gates, a privileged host).
+AGENT_PATHS='(^|/)\.claude/|(^|/)\.mcp\.json$|(^|/)(CLAUDE(\.local)?|AGENTS)\.md$|^REVIEW\.md$'
 gated_re() { echo "${GATED_PATHS:+$GATED_PATHS|}$AGENT_PATHS"; }
 
 # classify_pure <files> <pr body> <issue labels> <maintainer accept reason> <repo> <plan approved 0|1> [risk]
