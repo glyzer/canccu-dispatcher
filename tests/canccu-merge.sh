@@ -490,6 +490,45 @@ ok "… with FIXCHECK_COUNT_MAIN=1: full review, as before" eq "$(ppf 1 "$FC_B" 
 ok "… 150 own lines: full review" eq "$(ppf 0 "$FC_B" "$FC_O")" "150 changed lines, over FIXCHECK_FULL_LINES=100"
 ok "… a merge of main resolved by hand: counted from base, as before" eq "$(ppf 0 "$FC_C0" "$FC_C")" "150 changed lines, over FIXCHECK_FULL_LINES=100"
 
+# FIXCHECK_COUNT_RESOLVED (#216 D9). rsrepo <main lines>: a PR (RS_B, the passed head) changes the
+# 10 lines of a.txt, adds a line to b.txt and to auth.ts; main changes the same 10 lines of a.txt,
+# puts <main lines> lines before b.txt's and edits auth.ts' first line; RS_H merges main into the
+# PR, its 10 conflicting lines resolved by hand to the PR's. RS_M: the PR moves .github/w.yml out.
+rsrepo() {
+  local d=$E/code/web i
+  _rg() { GIT_AUTHOR_DATE=2030-11-05T10:00:00Z GIT_COMMITTER_DATE=2030-11-05T10:00:00Z \
+          "$FAKE_REAL_GIT" -C "$d" -c user.name=octo -c user.email=octo@example.com -c init.defaultBranch=main "$@" >/dev/null 2>&1; }
+  rm -rf "$d"; mkdir -p "$d/.github"; _rg init
+  seq -f 'r%g' 10 > "$d/a.txt"; echo b1 > "$d/b.txt"; printf 'x1\nx2\nx3\n' > "$d/auth.ts"; echo w > "$d/.github/w.yml"
+  _rg add .; _rg commit -m root
+  _rg checkout -b pr; seq -f 'p%g' 10 > "$d/a.txt"; echo pb >> "$d/b.txt"; echo pa >> "$d/auth.ts"; _rg commit -am "the PR"
+  RS_B=$("$FAKE_REAL_GIT" -C "$d" rev-parse HEAD)
+  _rg checkout main; seq -f 'm%g' 10 > "$d/a.txt"; { seq -f 'n%g' "$1"; echo b1; } > "$d/b.txt"; sed -i 's/^x1$/x1 main/' "$d/auth.ts"
+  _rg commit -am "main"; _rg update-ref refs/remotes/origin/main main
+  _rg checkout -b fix pr; _rg merge --no-edit main; _rg checkout --ours a.txt; _rg add a.txt; _rg commit --no-edit -m "merge main, resolved"
+  RS_H=$("$FAKE_REAL_GIT" -C "$d" rev-parse HEAD)
+  _rg checkout -b mv pr; mkdir -p "$d/src"; _rg mv .github/w.yml src/w.yml; _rg commit -m "move"
+  RS_M=$("$FAKE_REAL_GIT" -C "$d" rev-parse HEAD)
+  _rg checkout main; touch "$FAKE/realgit"
+}
+pr2() { lib eval ". '$root/lib/canccu-merge.sh'; FIXCHECK_COUNT_RESOLVED=$1; postpass_full $2 $3"; }
+fce() { lib eval "FIXCHECK_COUNT_RESOLVED=$1; fixcheck_effort $2 $3"; }
+env_new count-resolved; rsrepo 500
+ok "a conflicting merge of main (500 main lines, 10 resolved), FIXCHECK_COUNT_RESOLVED=0: today's count" \
+  eq "$(pr2 0 "$RS_B" "$RS_H")" "502 changed lines, over FIXCHECK_FULL_LINES=100"
+ok "… with 1: only the resolved lines count, a fix-check" eq "$(pr2 1 "$RS_B" "$RS_H")" ""
+ok "… fixcheck_effort with 0: today's count (medium)" eq "$(fce 0 "$RS_B" "$RS_H")" medium
+ok "… with 1: low" eq "$(fce 1 "$RS_B" "$RS_H")" low
+env_new count-resolved-risky; rsrepo 0
+ok "a risky path changed only by main: a full review with 0" eq "$(pr2 0 "$RS_B" "$RS_H")" "risky path auth.ts"
+ok "… none with 1" eq "$(pr2 1 "$RS_B" "$RS_H")" ""
+ok "a file moved out of a gated path counts by its old path" eq "$(pr2 0 "$RS_B" "$RS_M")" "gated path .github/w.yml"
+# a git that fails merge-tree: today's count, never a smaller one
+mkdir -p "$E/sbin"; printf '#!/usr/bin/env bash\ncase " $* " in *" merge-tree "*) exit 128 ;; esac\nexec "%s/git" "$@"\n' "$fb" > "$E/sbin/git"; chmod +x "$E/sbin/git"
+env_new count-resolved-gitfail; rsrepo 500
+ok "merge-tree failing → today's count" eq "$( ( PATH="$E/../count-resolved-risky/sbin:$fb:$PATH"; . "$root/lib/canccu-common.sh"; . "$root/lib/canccu-merge.sh"; FIXCHECK_COUNT_RESOLVED=1; postpass_full "$RS_B" "$RS_H" ) 2>/dev/null)" \
+  "502 changed lines, over FIXCHECK_FULL_LINES=100"
+
 # ---------------------------------------------------------------- the accept kept on a merge of main (#92)
 
 # keepenv <name> <phase> <setting> <new head>: PR 50, accepted by the user on MB_B (in accept, or

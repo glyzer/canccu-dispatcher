@@ -440,7 +440,10 @@ fixcheck_effort_pure() {
 }
 # fixcheck_effort <reviewed sha> <head>: the same from the main clone (the PR head is fetched)
 fixcheck_effort() {
-  local stats; stats=$(guard 30 git -C "$CLONE" diff --numstat "$1" "$2" 2>/dev/null) || stats=""
+  local from=$1 stats
+  # FIXCHECK_COUNT_RESOLVED=1: a conflicting merge of main in the fix counts its resolved lines only
+  [ "${FIXCHECK_COUNT_RESOLVED:-0}" = 1 ] && from=$(count_from "$1" "$2")
+  stats=$(change_stats "$from" "$2") || stats=""
   fixcheck_effort_pure "$stats"
 }
 

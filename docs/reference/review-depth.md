@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
-# Review depth: a head reviewed once, the light review
+# Review depth: a head reviewed once, the light review, the count
 
 Part of the reference; the index is [`README.md`](README.md). How much review a PR head gets:
 the reviewer itself, the fix-check and the verdict line are in [`reviews.md`](reviews.md).
@@ -41,7 +41,7 @@ configuration. A single issue of the fast lane has no class: never light. The li
 at `low` effort (`REVIEW_EFFORT_MAX` still caps it) and logs
 `PR #<pr>: light review (REVIEW_LIGHT=1, <risk> risk, low effort)`.
 
-Its prompt (`light_review_prompt` in `lib/canccu-lightreview.sh`) replaces the code-review skill
+Its prompt (`light_review_prompt` in `lib/canccu-depth.sh`) replaces the code-review skill
 and the acceptance-criteria sentence with a fixed checklist: the change is sensible; each issue
 of the package is done; every new behaviour has a test and none was weakened; obvious bugs in the
 changed lines; code and contracts agree; no TODO, stub, debug code or work outside the package;
@@ -57,3 +57,20 @@ for one full review of the same head (the one allowed second review of a head) a
 `#<n> PR #<pr>: the light review rated it high risk; full review of <sha7>`. Until that review
 can start (a free slot) the PR waits; it never merges on the light pass. The full review's own
 verdict is then acted on as usual.
+
+## The count after a merge of main
+
+A push after a pass gets a fix-check, or a full review when it is big or touches a gated or
+risky path ([`reviews.md`](reviews.md#fix-check)). The count starts at `count_from`
+(`lib/canccu-depth.sh`): with main merged in since the pass, from git's own merge of the passed
+head with main, so main's lines drop out. When that merge conflicts, the count starts at the
+passed head today: main's lines in the PR's files count, and a big main change or a risky path
+only main touched makes it a full review.
+
+With `FIXCHECK_COUNT_RESOLVED=1` (project config, locked) the count starts instead from the tree
+`git merge-tree --write-tree` writes for that merge with its conflict markers (git ≥ 2.38). The
+diff from it to the head holds the hand-resolved hunks and the PR's later commits; the size, gated
+and risky checks see only those. The fix-check's effort (`FIXCHECK_BIG`, `FIXCHECK_RISKY`) counts
+the same way with it, and as before without it. Any other git result counts as before: the cost
+is a full review, never a missed one. Both counts diff with `--no-renames`: a file moved out of a
+gated or risky path counts by its old path too.

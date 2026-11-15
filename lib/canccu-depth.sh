@@ -1,9 +1,11 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # shellcheck shell=bash disable=SC2034,SC2154  # globals are shared with the other lib/canccu-*.sh parts
-# Part of lib/canccu-common.sh (sourced by it, never run): the light review (REVIEW_LIGHT). A package
-# of class low or normal gets a short checklist at low effort instead of the code-review skill; the
-# class decides the depth, so a light review that rates the PR high is followed by one full review
-# of the same head. REVIEW_LIGHT is a rules key and locked: it weakens a check.
+# Part of lib/canccu-common.sh (sourced by it, never run): review depth. The light review
+# (REVIEW_LIGHT): a package of class low or normal gets a short checklist at low effort instead of
+# the code-review skill; the class decides the depth, so a light review that rates the PR high is
+# followed by one full review of the same head. REVIEW_LIGHT is a rules key and locked: it weakens
+# a check. And the count of a change after a pass (count_from), which decides fix-check or full
+# review (postpass_full) and the fix-check's effort (fixcheck_effort).
 
 # the checklist of a light review, word for word (issue #216); HIGH_RISK_TEXT goes in at use
 LIGHT_REVIEW_TEXT='This is a light review: do not run the code-review skill. Check exactly this: 1. the change is sensible for its issues; 2. each issue of the package is done (every acceptance criterion of every linked issue); 3. every new behaviour has a test that would fail if it broke, and no test was skipped, emptied or weakened; 4. obvious bugs in the changed lines; 5. code and contracts agree (the names, defaults, texts and formats the issues and the repo'"'"'s docs fix); 6. no TODO, stub or debug code left, and no work outside the package; 7. tripwires: a secret or a private name is a blocking security finding; a new dependency or risky code (@HIGH_RISK_TEXT@) makes your Risk: line high.'
@@ -52,3 +54,22 @@ light_upgrade() {
   st_set "$n" review_asked=1 verdict_at="$5" phase=check check_at="$(now)"
   log "#$n PR #$pr: the light review rated it high risk; full review of ${head:0:7}"
 }
+
+# count_from <base> <head>: where the count of the change base..head starts. With
+# FIXCHECK_COUNT_MAIN=0 and main merged in since base: git's own merge of base with main, so
+# main's edits drop out. A conflicting merge counts from base (the worker's resolution is the PR's
+# own change), unless FIXCHECK_COUNT_RESOLVED=1: then from the tree merge-tree writes with the
+# conflict markers (its first line, also on exit 1; git >= 2.38), so only the hand-resolved hunks
+# and later commits count. Any other git result: base (the cost is a full review, never a missed one).
+count_from() {
+  local base=$1 head=$2 mb t rc
+  [ "${FIXCHECK_COUNT_MAIN:-0}" != 1 ] && mb=$(guard 20 git -C "$CLONE" merge-base origin/main "$head" 2>/dev/null) && [ -n "$mb" ] &&
+    ! guard 20 git -C "$CLONE" merge-base --is-ancestor "$mb" "$base" 2>/dev/null || { echo "$base"; return; }
+  t=$(guard 60 git -C "$CLONE" merge-tree --write-tree "$base" "$mb" 2>/dev/null); rc=$? t=${t%%$'\n'*}
+  if [[ $t =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]] && { (( rc == 0 )) || { (( rc == 1 )) && [ "${FIXCHECK_COUNT_RESOLVED:-0}" = 1 ]; }; }; then
+    echo "$t"
+  else echo "$base"; fi
+}
+# change_stats <from> <head> [paths...]: git diff --numstat of the change. --no-renames: a file moved
+# out of a gated or risky path counts by its old path too
+change_stats() { guard 30 git -C "$CLONE" diff --numstat --no-renames "$1" "$2" -- "${@:3}" 2>/dev/null; }

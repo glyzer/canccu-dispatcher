@@ -130,7 +130,8 @@ since that review, when they touch a gated or `RISKY_PATHS`/`FIXCHECK_RISKY` pat
 diff cannot be read. The count leaves out what a merge of main brought in: it starts from the
 merge git itself makes of that review's head with main, so only the PR's own lines are left
 (`FIXCHECK_COUNT_MAIN=1`: main's lines in the PR's files count too). When that merge conflicts,
-the worker resolved it by hand and the whole change since that review counts. A pass of that
+the worker resolved it by hand and the whole change since that review counts
+(`FIXCHECK_COUNT_RESOLVED=1`: only the resolved hunks, [`review-depth.md`](review-depth.md#the-count-after-a-merge-of-main)). A pass of that
 fix-check counts like a review's pass.
 
 ## The verdict line
