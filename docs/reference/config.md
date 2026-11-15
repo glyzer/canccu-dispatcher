@@ -70,6 +70,7 @@ is stopped and its issue goes to `needs-you`.
 | `MERGE_WAIT_MIN` | `240` | Auto-merge armed this long without a merge is disarmed, and the PR goes to `needs-you` |
 | `MERGE_CLOSE_MIN` | `2` | An issue a merged PR names as closing that GitHub left open this many minutes is closed by the dispatcher |
 | `MERGE_RETRY` | `3` | A merge that fails on an error that looks transient (a GitHub 5xx, a timeout, a dropped connection) is tried again on this many later passes before it goes to `needs-you`; `0`: never ([`merging.md`](merging.md#a-github-error-on-the-merge)) |
+| `ACCEPT_CHANNELS` | `all` | The accepts that count, space-separated: `label` (the `accepted` label), `ship` (`canccu-ship`), `reply` (an answer comment), `leader` (the leader's `canccu-ship`), or `all`. Locked. `canccu-status` shows it ([`merging.md`](merging.md#the-accept-channels)) |
 | `KEEP_ACCEPT_ON_MAIN_MERGE` | `0` | `1`: your `accepted` on the PR carries over a push that is only a clean merge of main, and the PR merges without a new accept; one more changed line drops it. Until the hardened setup (package S2) a run can forge it as easily as the label: keep it `0` |
 | `MERGE_MAIN_ANY_PHASE` | `1` | `1`: a PR that conflicts with main gets main merged in by script in every phase (CI, a fix round, after its contract PR merged), not only at the accept and merge steps ([`merging.md`](merging.md#a-pr-that-conflicts-with-main)); `0`: only at the accept and merge steps |
 | `POST_WAIT` | `600` | Seconds a posted review may take to show up on GitHub before it counts as missing |

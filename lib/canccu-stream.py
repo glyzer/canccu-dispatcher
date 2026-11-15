@@ -1,12 +1,14 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """Consume a `claude -p --output-format stream-json` stream for the run engine (libexec/canccu-worker).
 
-Usage: python3 canccu-stream.py <log file> <summary file> <turn budget> [usage file]  < stream
+Usage: python3 canccu-stream.py <log file> <summary file> <turn budget> [usage file] [test command]  < stream
 Appends readable lines to the log ([tN] assistant text and tool calls, │ tool results),
 counts top-level turns, and writes a flat JSON summary at the end (turns, last_text,
 have_result, bg_pending: the background commands and subagents it started that no later event
 mentions as done, and from the result event: subtype, is_error, num_turns, cost, message, denials, and
-its usage: tokens_in, tokens_out, cache_read, cache_write).
+its usage: tokens_in, tokens_out, cache_read, cache_write), and tests and test_secs: the top-level
+Bash calls whose command starts with the test command (TEST_CMD) and the seconds from each call
+to its result, summed.
 With a usage file, each rate_limit_event (the account's 5-hour and weekly usage shares) is
 written there, atomically, with the time it was seen: canccu-dispatch's usage throttle reads it.
 Exits 3 as soon as turn budget+1 starts (worker then kills claude), 0 at end of stream.
@@ -19,6 +21,7 @@ import time
 
 log_path, summary_path, budget = sys.argv[1], sys.argv[2], int(sys.argv[3])
 usage_path = sys.argv[4] if len(sys.argv) > 4 else ""
+test_cmd = sys.argv[5].strip() if len(sys.argv) > 5 else ""
 turns, last_id, last_text, result, code = 0, None, "", None, 0
 # a headless run ends with its turn: work it left in the background is lost, and the run must not
 # pass for done (#26). launched: tool_use_id → None until its result names the task's ids;
@@ -26,6 +29,9 @@ turns, last_id, last_text, result, code = 0, None, "", None, 0
 # (and does not say it still runs: a poll of its output).
 launched, pending = {}, {}
 RUNNING = re.compile(r"\bstatus\W{0,4}running\b|still running", re.I)
+# the stream arrives live, so the time between a call and its result is the command's own duration
+# (plus the tool's overhead). test_started: tool_use_id → its monotonic start.
+test_started, tests, test_secs = {}, 0, 0.0
 TASK_ID = re.compile(r"\b(?:ID|Id|id|agentId|task_id|shell_id|bash_id)[\"']?\s*[:=]\s*[\"']?([A-Za-z0-9_-]{4,})")
 
 
@@ -35,6 +41,13 @@ def tool_line(block):
         if inp.get(k):
             return f"→ {block.get('name')} {str(inp[k]).splitlines()[0][:200]}"
     return f"→ {block.get('name')}"
+
+
+def is_test(block):
+    # the command's first word(s) must be the test command itself: tests/runner is not tests/run
+    cmd = str((block.get("input") or {}).get("command") or "").lstrip()
+    return (bool(test_cmd) and block.get("name") == "Bash" and cmd.startswith(test_cmd)
+            and (len(cmd) == len(test_cmd) or cmd[len(test_cmd)].isspace()))
 
 
 def result_text(block):
@@ -68,6 +81,8 @@ with open(log_path, "a", encoding="utf-8") as log:
             for b in msg.get("content", []):
                 if b.get("type") == "tool_use" and (b.get("input") or {}).get("run_in_background") is True:
                     launched[b.get("id")] = None
+                elif b.get("type") == "tool_use" and is_test(b):
+                    test_started[b.get("id")] = time.monotonic()
             texts = [b.get("text", "") for b in msg.get("content", []) if b.get("type") == "text"]
             tools = [tool_line(b) for b in msg.get("content", []) if b.get("type") == "tool_use"]
             write(f"[t{turns}] ", "\n".join(texts + tools))
@@ -80,6 +95,8 @@ with open(log_path, "a", encoding="utf-8") as log:
                 if isinstance(block, dict) and block.get("type") == "tool_result":
                     write("        │ ", result_text(block))
                     use = block.get("tool_use_id")
+                    if use in test_started:
+                        tests, test_secs = tests + 1, test_secs + time.monotonic() - test_started.pop(use)
                     if use in launched and launched[use] is None:
                         ids = set(TASK_ID.findall(result_text(block))) or {use}
                         launched[use] = ids
@@ -100,7 +117,7 @@ with open(log_path, "a", encoding="utf-8") as log:
                 pass
 
 summary = {"turns": turns, "last_text": last_text, "have_result": result is not None,
-           "bg_pending": len(set(pending.values()))}
+           "bg_pending": len(set(pending.values())), "tests": tests, "test_secs": round(test_secs)}
 if result is not None:
     denials = []
     for d in result.get("permission_denials") or []:
