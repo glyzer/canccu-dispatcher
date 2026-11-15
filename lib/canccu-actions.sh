@@ -105,7 +105,7 @@ issue_prompt() {
   local n=$1 title=${2:-} p=${3:-$(st_get "$1" plan_ok)} br=${4:-$(st_get "$1" branch)} prompt
   if [ -z "$br" ]; then
     [ -n "$title" ] || title=$(title_of "$n")
-    [ -n "$title" ] || title=$(ghj issue view "$n" -R "$REPO" --json title | jqr .title)
+    [ -n "$title" ] || title=$(safe_title "$(ghj issue view "$n" -R "$REPO" --json title | jqr .title)")
     br=$(issue_branch "$n" "$title")
   fi
   # shellcheck disable=SC2059
@@ -127,7 +127,7 @@ unit_prompt() {
 start_issue() {
   local n=$1 title prompt c=0 p="" pl=() br
   title=$(title_of "$n")
-  [ -n "$title" ] || title=$(ghj issue view "$n" -R "$REPO" --json title | jqr .title)
+  [ -n "$title" ] || title=$(safe_title "$(ghj issue view "$n" -R "$REPO" --json title | jqr .title)")
   # plan-ok on an issue nobody manages: its plan PR merged (plan_back); the build executes it
   has_label "$n" plan-ok && { p=1 pl=(--remove-label plan-ok); }
   # kept in the state: is_contract_pr knows the issue's contract PR by it
@@ -306,14 +306,17 @@ save_findings() {
 # verdict counts as acted on (verdict_at) only once the merge, the accept request or the resume has
 # happened: a failed step sees it again next pass.
 act_verdict() {
-  local n=$1 pr=$2 j=$3 v head at stage what body="" b ff ma mo mode rc
+  local n=$1 pr=$2 j=$3 v head at stage what body="" b ff ma mo mode rc REVIEW_SETTLED REVIEW_PASSRULE REVIEW_CHANGED
   v=$(verdict_of "$j" "$(st_get "$n" verdict_at)"); head=$(jqr .headRefOid <<<"$j"); at=$(verdict_at "$j")
   stage=$(st_get "$n" stage) mode=$(st_get "$n" review_mode)
+  # before pass_sha moves: the posted verdict was decided in the same context (reap_review)
+  review_ctx "$n" "$pr" "$head"
   what=review; is_fixcheck_mode "$mode" && what=fix-check
   # a push after a pass is checked against these (postpass_step)
   case $v in pass|changes) is_fixcheck_mode "$mode" || st_set "$n" full_sha="$head" ;; esac
   # non-blocking findings never reach the worker: they go to the wave's follow-up issue
-  case $v in pass|changes) body=$(verdict_body "$j"); collect_nonblocking "$n" "$pr" "$head" "$body" "$at"; blocking_note "$n" "$body" "$at" "$head" ;; esac
+  case $v in pass|changes) body=$(verdict_body "$j"); collect_nonblocking "$n" "$pr" "$head" "$body" "$at"
+      history_record "$n" "$pr" "$head" "$body" "$at"; blocking_note "$n" "$body" "$at" "$head" ;; esac
   case $v in
     pass)
       # a post-pass check that passed leaves the fix-check stage: the next push is again

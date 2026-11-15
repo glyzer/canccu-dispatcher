@@ -69,8 +69,10 @@ ensure_unit_wt() {
   mut git -C "$CLONE" fetch -q origin || { log "#$1: git fetch failed"; return 1; }
   mut git -C "$CLONE" worktree add -q --detach "$wt" origin/main || { log "#$1: worktree $wt failed"; return 1; }
 }
-# unit_title <K>: the issue's title; "package <name>: <lead's title> (+k)"; "health pass: <step>"
-unit_title() {
+# unit_title <K>: the issue's title; "package <name>: <lead's title> (+k)"; "health pass: <step>".
+# Through safe_title: a step's title in the state may predate it.
+unit_title() { safe_title "$(_unit_title "$1")"; }
+_unit_title() {
   local k=$1 l c
   is_pkg "$k" || { jqr --argjson n "$k" '.[] | select(.number == $n) | .title' <<<"$ISSUES"; return; }
   if is_health "$k"; then echo "health pass: $(step_get "$(st_get "$k" step)" title)"; return; fi
@@ -104,7 +106,8 @@ unit_of_branch() {
 # owner_of <K> <kind>: who a waiting item of the unit (or a step's issue) is for, po or leader, by
 # the owner rule of docs/plan/contracts.md §1; kind: a snap_need or ping kind. It reads only the
 # dispatcher's own state and settings, never a label the leader sets (manual-accept is the
-# product owner's). Rule 7 (the hand-over) needs the leader's acknowledgement: not built yet.
+# product owner's). Rule 7 (the hand-over of an item the leader left unacknowledged) is
+# feed_handover's: it rewrites the stored owner, which need_owner reads.
 owner_of() {
   local k=$1 kind=$2 r
   [ "${LEADER:-off}" = on ] || { echo po; return 0; }

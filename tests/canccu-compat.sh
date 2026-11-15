@@ -20,9 +20,9 @@ printf '# TOTAL_CAP=3\nTOTAL_CAP=4\n' > "$C/config"
 echo web > "$C/default-project"
 printf '%s\n' "$FAKE_TOKEN" > "$C/reviewer-token"; chmod 600 "$C/reviewer-token"
 # as canccu-init wrote them, then edited by hand
-printf 'REPO=example-org/web\nCLONE=$HOME/code/web\nDIGEST_ISSUE=\nUSER_LOGIN=octo\nREVIEWER_LOGIN=review-bot\nCAP=2\n' > "$W/config"
+printf 'REPO=example-org/web\nCLONE=$HOME/code/web\nDIGEST_ISSUE=\nUSER_LOGIN=octo\nREVIEWER_LOGIN=review-bot\nCAP=2\nALLOW_DEFAULT_GH_LOGIN=1\n' > "$W/config"
 cp "$root/tests/fixtures/rules/web" "$W/rules"
-printf 'REPO=example-user/tools\nCLONE=$HOME/code/tools\nDIGEST_ISSUE=\nUSER_LOGIN=octo\nREVIEWER_LOGIN=review-bot\n' > "$C/projects/tools/config"
+printf 'REPO=example-user/tools\nCLONE=$HOME/code/tools\nDIGEST_ISSUE=\nUSER_LOGIN=octo\nREVIEWER_LOGIN=review-bot\nALLOW_DEFAULT_GH_LOGIN=1\n' > "$C/projects/tools/config"
 sed 's/@NAME@/tools/g' "$root/profiles/default/rules" > "$C/projects/tools/rules"
 # unit 5: a worker that runs (its lock is live: this test's own pid)
 printf 'phase=work\nstarted=%s\ncolor=0\nexclusive=0\n' "$((NOW - 1500))" > "$W/state/5"

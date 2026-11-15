@@ -32,9 +32,15 @@ Only a comment by `REVIEWER_LOGIN`, the second GitHub account, carries a verdict
 - The run engine starts with `GH_TOKEN`, `GITHUB_TOKEN` and `REVIEWER_TOKEN_FILE` removed; every
   window gets them as empty values (overriding what the tmux server inherited), and each run
   unsets them again before `claude` starts.
-- A Claude Code deny rule keeps every session from reading the file even by path:
-  `"Read(~/.canccu/reviewer-token)"` (and `"Edit(…)"`) in `permissions.deny` of
-  `~/.claude/settings.json`. `canccu-dispatcher doctor` checks the mode and the rule.
+- A Claude Code deny rule, `"Read(~/.canccu/reviewer-token)"` (and `"Edit(…)"`) in
+  `permissions.deny` of `~/.claude/settings.json`, keeps every session's own Read and Edit tools
+  off the file. That is all it covers: a command the session runs (`cat`, `python`, any
+  subprocess) runs as the same Unix user and could still read it. `canccu-dispatcher doctor`
+  checks the mode and the rule.
+- What protects the token today is therefore the file's mode 600 against other users, and that
+  the token is never in a run's environment, on a command line or in a log, so a session has no
+  copy to find unless it goes and reads the file. The gap closes with the second Unix user
+  (package S2): runs then execute as a user that cannot read the dispatcher's home.
 - The reviewer writes its review to a file and exits. The dispatcher posts it only when the file
   was written after the review started and its last line is exactly `Review verdict: pass|changes
   <full head sha>` for the head that was reviewed. A model cannot post a verdict, and cannot post

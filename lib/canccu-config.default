@@ -19,6 +19,7 @@ USER_LOGIN=                 # your GitHub login: whose PRs are ours, who is ping
 REVIEWER_LOGIN=             # the reviewer bot's login: reviews post as it, only its verdicts count; unset → no reviews
 REVIEWER_TOKEN_FILE=$CANCCU_ROOT/reviewer-token   # its token, mode 600, one for all projects; no file → no reviews
 GH_CONFIG_DIR=               # the project's own gh login (a narrow token): empty → ~/.canccu/projects/<name>/gh when it exists, else the default gh login
+ALLOW_DEFAULT_GH_LOGIN=0    # 1: a project without its own gh login may run on the host's default login; 0: it starts no run
 BUDGET_WORK="250 80 150"    # turns, USD, minutes: a new issue
 BUDGET_RESUME="80 20 45"    # a follow-up run of a worker (review fixes, red CI, plan OK, answers)
 RESUME_ON=answer,plan       # follow-ups that resume the session (answer plan fix ci needs-work merge limited blocked crash user, or all); the rest start fresh with a handoff
