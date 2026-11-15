@@ -51,7 +51,7 @@ postenv() {   # postenv <name> <file content | -> [config...]: the review run of
   RF=$CANCCU_HOME/reviews/50/$HA.md; mkdir -p "${RF%/*}"
   if [ "$2" != - ]; then printf '%s\n' "$2" > "$RF"; touch -d "@$((NOW + 60))" "$RF"; fi
 }
-postenv post-pass $'1. nit: naming\n\nReview verdict: pass '"$HA"
+postenv post-pass $'1. nit: naming\n\n'"$VB0"$'Review verdict: pass '"$HA"
 GH_TOKEN=user-token-from-env dispatch --once
 ok "a valid review file is posted" grep -q '^pr comment 50 -R example-org/web --body-file -$' "$FAKE/gh.log"
 ok "… as the reviewer bot" eq "$(grep -P '^pr comment\t' "$FAKE/gh.env")" "pr comment	reviewer"
@@ -60,11 +60,11 @@ ok "only the posting ever uses the reviewer token in a pass" eq "$(grep -P '\tre
 ok "then the posted verdict is acted on: auto-merge" has gh.log "pr merge 50 -R example-org/web --auto --match-head-commit $HA"
 ok "the token is in no log, output or state" notoken "$FAKE/gh.log" "$FAKE/worker.log" "$E/out" "$CANCCU_HOME/dispatch.log" "$CANCCU_HOME/state"
 
-postenv post-backticks $'Fine.\n`Review verdict: changes '"$HA"'`'
+postenv post-backticks $'Fine.\n'"$VB1"$'`Review verdict: changes '"$HA"'`'
 dispatch --once
 ok "a verdict in backticks is posted and acted on" grep -q 'web 5 Rules for this run: .* The independent reviewer asked for changes' "$FAKE/worker.log"
 
-postenv post-maintainer $'1. drops screens.legacy\nMaintainer accept: destructive migration (drops screens.legacy)\nReview verdict: pass '"$HA"
+postenv post-maintainer "$VB0"$'Maintainer accept: destructive migration (drops screens.legacy)\nReview verdict: pass '"$HA"
 dispatch --once
 ok "Maintainer accept in the file → posted, then awaiting accept" has gh.log "waits for your accept: maintainer accept: destructive migration (drops screens.legacy)."
 ok "… no merge" hasnt gh.log "pr merge"
@@ -97,7 +97,7 @@ ok "… no needs-you; file_retry is the head; still in review at that head" \
 ok "… logged" grep -qF "#5 PR #50: the reviewer left no review file; asked once to write the review file" "$CANCCU_HOME/dispatch.log"
 ok "… the review's own records stay" eq "$(test -e "$CANCCU_HOME/reviews/50.sha" && echo sha)" ""
 rm -f "$WORKERS_DIR/web-review-50.lock"; last review-50 done "wrote it"
-printf '1. nit: naming\n\nReview verdict: pass %s\n' "$HA" > "$RF"; touch -d "@$((NOW + 60))" "$RF"
+printf '%sReview verdict: pass %s\n' "$VB0" "$HA" > "$RF"; touch -d "@$((NOW + 60))" "$RF"
 dispatch --once
 ok "the retry writes a valid file → posted and acted on in that pass" \
   eq "$(grep -c '^pr comment 50 -R example-org/web --body-file -$' "$FAKE/gh.log") $(grep -c '^pr merge 50' "$FAKE/gh.log")" "1 1"
@@ -143,7 +143,7 @@ dispatch --once
 ok "attack: a hook posting a pass with the user's gh login does not count" hasnt gh.log "pr merge"
 ok "… needs-you" has gh.log "left no review ending in"
 
-postenv post-fails $'Review verdict: pass '"$HA"
+postenv post-fails "$VB0"$'Review verdict: pass '"$HA"
 echo 'fail:pr comment' >> "$FAKE/routes"
 dispatch --once
 ok "a failed post: outcome logged" grep -q "#5 PR #50: review of ${HA:0:7}: post failed (try 1" "$CANCCU_HOME/dispatch.log"
@@ -160,7 +160,7 @@ ok "the retry posts it: outcome posted" grep -q "#5 PR #50: review of ${HA:0:7}:
 ok "… needs-you dropped again" has gh.log "issue edit 5 -R example-org/web --remove-label needs-you"
 ok "… and the verdict acted on" has gh.log "pr merge 50 -R example-org/web --auto --match-head-commit $HA"
 
-postenv post-lag $'Review verdict: pass '"$HA"
+postenv post-lag "$VB0"$'Review verdict: pass '"$HA"
 cp "$FAKE/pr50.json" "$FAKE/pr50-static.json"; : > "$FAKE/routes"; route 'pr view 50 *' pr50-static.json
 route 'api --paginate repos/example-org/web/pulls/50/files*' files50.json; route 'issue view 5 *' issue5.json
 dispatch --once
@@ -169,7 +169,7 @@ ok "… recorded as posted" eq "$(st 5 posted)" "$HA"
 : > "$FAKE/gh.log"; dispatch --once
 ok "… never posted twice" hasnt gh.log "pr comment 50"
 
-postenv post-dry $'Review verdict: pass '"$HA"
+postenv post-dry "$VB0"$'Review verdict: pass '"$HA"
 dispatch --dry-run
 ok "dry-run: would post, posts nothing" grep -qF "would: post $RF on PR #50 as $BOT" "$E/out"
 ok "… and uses no token" not grep -q 'reviewer$' "$FAKE/gh.env"
@@ -432,8 +432,8 @@ ok "files gh error → high effort" grep -q 'review#50 .*Run the code-review ski
 # only correctness and security findings block
 effenv economy-blocking '[{"filename": "src/a.ts", "changes": 12}]' 'Tier: fix'
 dispatch --once
-ok "reviewer prompt: only correctness and security findings block" grep -qF 'Only correctness and security findings (an unmet acceptance criterion counts) make the verdict changes.' "$FAKE/worker.log"
-ok "reviewer prompt: nits, style and wording never block; listed as non-blocking" grep -qF 'Nits, style and wording never make the verdict changes: list them under "Non-blocking:".' "$FAKE/worker.log"
+ok "reviewer prompt: only a blocking class with its Evidence: blocks (#190)" grep -qF 'A finding under Blocking: with a never-blocking class, no class, or no Evidence: line counts as non-blocking' "$FAKE/worker.log"
+ok "reviewer prompt: nits, style and wording never block" grep -qF 'Nits, style and wording never block.' "$FAKE/worker.log"
 
 # ---------------------------------------------------------------- skills (superpowers)
 
@@ -486,18 +486,18 @@ ok "needs-work: comments since the newest of the three times" grep -q 'Their com
 ok "… not from the older accept round" hasnt worker.log "earlier accept round"
 
 # 2: a posted review GitHub does not list yet is waited for (bounded), not called missing
-postenv posted-wait $'Review verdict: pass '"$HA"
+postenv posted-wait "$VB0"$'Review verdict: pass '"$HA"
 rm "$RF"; printf 'posted=%s\nposted_at=%s\n' "$HA" "$((NOW - 60))" >> "$CANCCU_HOME/state/5"
 dispatch --once
 ok "posted a minute ago, not listed yet: no needs-you" hasnt gh.log "needs-you"
 ok "… and not posted again" hasnt gh.log "pr comment"
-postenv posted-gone $'Review verdict: pass '"$HA"
+postenv posted-gone "$VB0"$'Review verdict: pass '"$HA"
 rm "$RF"; printf 'posted=%s\nposted_at=%s\n' "$HA" "$((NOW - 900))" >> "$CANCCU_HOME/state/5"
 dispatch --once
 ok "posted 15 min ago and never listed → needs-you" has gh.log "needs-you"
 
 # 3: a post that timed out may have landed: no immediate repost
-postenv post-timeout $'Review verdict: pass '"$HA"
+postenv post-timeout "$VB0"$'Review verdict: pass '"$HA"
 echo 'fail124:pr comment' >> "$FAKE/routes"
 dispatch --once
 ok "a timed-out post is not repeated in the next pass" eq "$(dispatch --once; grep -c '^pr comment' "$FAKE/gh.log")" 1
@@ -559,7 +559,7 @@ runend() {
 }
 
 # the whole flow, pass by pass: review → changes → fix → fix-check pass → merge
-postenv flow "$FINDING"$'\n\nReview verdict: changes '"$HA"
+postenv flow "$VB1"$'Review verdict: changes '"$HA"
 sed -i 's/^rounds=0$/stage=review/' "$CANCCU_HOME/state/5"; echo review_mode=review >> "$CANCCU_HOME/state/5"
 dispatch --once
 ok "flow 1: the review's changes verdict is posted as the bot" grep -q "#5 PR #50: review of ${HA:0:7}: posted as $BOT" "$CANCCU_HOME/dispatch.log"
@@ -577,7 +577,7 @@ ok "flow 2: no second full review" not grep -q 'You are the independent reviewer
 ok "flow 2: the fix-check starts in a fresh session (key review-50, untrusted, never the worker's)" \
   grep -q -- "^--quiet --key review-50 --dir $WORKERS_DIR/worktrees/web/review-50 --name fixcheck#50 --untrusted web You run the FIX-CHECK" <<<"$fc"
 ok "flow 2: the fix-check prompt has the reviewed sha and the fix diff" grep -qF "git diff $HA..$HB" <<<"$fc"
-ok "flow 2: … and the findings" grep -qF "The findings of the review of $HA: 1. src/a.ts:3 off by one; fix: use <=" <<<"$fc"
+ok "flow 2: … and the findings" grep -qF "The findings of the review of $HA: 1. [correctness] src/a.ts:3 off by one; fix: use <=" <<<"$fc"
 ok "flow 2: … per finding: fixed / not fixed / the fix broke something" grep -qF 'fixed / not fixed / the fix broke something' <<<"$fc"
 ok "flow 2: … nothing new except a bug the fix introduced" grep -qF 'Look for nothing new, except a correctness or security bug introduced by that diff' <<<"$fc"
 ok "flow 2: … the verdict line for the new head" grep -qF "'Review verdict: pass $HB' if every blocking finding is fixed and nothing broke, otherwise 'Review verdict: changes $HB'" <<<"$fc"
@@ -588,7 +588,7 @@ ok "flow 2: state: fix-check running on the new head" eq "$(st 5 phase) $(st 5 s
 PATH="$fb:$PATH" "$root/bin/canccu-status" > "$E/status" 2>&1
 ok "flow 2: canccu-status shows the fix-check and its effort" grep -q '^  fix-check PR #50 (low) ' "$E/status"
 # the fix-check found the finding fixed
-runend review-50 "$HB" $'1. src/a.ts:3 off by one — fixed (src/a.ts:3)\n\nReview verdict: pass '"$HB"
+runend review-50 "$HB" $'1. src/a.ts:3 off by one — fixed (src/a.ts:3)\n\n'"$VB0"$'Review verdict: pass '"$HB"
 : > "$FAKE/gh.env"; dispatch --once
 ok "flow 3: the fix-check is posted as the bot, like a review" eq "$(grep -P '^pr comment\t' "$FAKE/gh.env")" "pr comment	reviewer"
 ok "flow 3: outcome logged" grep -q "#5 PR #50: fix-check of ${HB:0:7}: posted as $BOT" "$CANCCU_HOME/dispatch.log"
@@ -621,7 +621,7 @@ ok "the full review's Maintainer accept line is kept for after the fix" eq "$(st
 fxenv fx-push-running -
 live_lock review-50; dispatch --once
 ok "a running fix-check is waited for" eq "$(wc -l < "$FAKE/worker.log")" 0
-sethead "$HC"; runend review-50 "$HB" $'1. fixed\n\nReview verdict: pass '"$HB"
+sethead "$HC"; runend review-50 "$HB" $'1. fixed\n\n'"$VB0"$'Review verdict: pass '"$HB"
 printf '5\t0\tsrc/a.ts\n' > "$FAKE/numstat"
 dispatch --once
 ok "a push during the fix-check: outcome void" grep -q "#5 PR #50: fix-check of ${HB:0:7}: void: the PR changed during the run" "$CANCCU_HOME/dispatch.log"
@@ -737,7 +737,7 @@ ok "plan-ok starts a new cycle" eq "$(st 5 stage)|$(st 5 reviewed_sha)|$(st 5 re
 # ---------------------------------------------------------------- follow-ups
 
 # 1: a time-out, then a hard failure: labelled (the count no longer decides)
-postenv ny-timeout-then-fail $'Review verdict: pass '"$HA"
+postenv ny-timeout-then-fail "$VB0"$'Review verdict: pass '"$HA"
 echo 'fail124:pr comment' >> "$FAKE/routes"
 dispatch --once
 ok "a first time-out: not labelled yet" hasnt gh.log "--add-label needs-you"
@@ -754,7 +754,7 @@ printf 'post_fails=1\npost_to=1\n' >> "$CANCCU_HOME/state/5"
 dispatch --once
 ok "a new run starts with no post count" eq "$(st 5 post_fails)|$(st 5 post_to)|$(st 5 post_ny)" "||"
 rm -f "$WORKERS_DIR/web-review-50.lock"; last review-50 "done" "wrote it"
-printf 'Review verdict: pass %s\n' "$HA" > "$CANCCU_HOME/reviews/50/$HA.md"; touch -d "@$((NOW + 60))" "$CANCCU_HOME/reviews/50/$HA.md"
+printf '%sReview verdict: pass %s\n' "$VB0" "$HA" > "$CANCCU_HOME/reviews/50/$HA.md"; touch -d "@$((NOW + 60))" "$CANCCU_HOME/reviews/50/$HA.md"
 echo 'fail:pr comment' >> "$FAKE/routes"
 dispatch --once
 ok "… so its first hard failure is labelled" has gh.log "issue edit 5 -R example-org/web --add-label needs-you"
@@ -766,7 +766,7 @@ dispatch --once
 ok "a new run drops the label a failed post of the last one left" has gh.log "issue edit 5 -R example-org/web --remove-label needs-you"
 
 # 1, 6: the second time-out in a row labels it and is logged as a time-out
-postenv ny-timeouts $'Review verdict: pass '"$HA"
+postenv ny-timeouts "$VB0"$'Review verdict: pass '"$HA"
 echo 'fail124:pr comment' >> "$FAKE/routes"
 dispatch --once; CANCCU_NOW=$((NOW + 900)) dispatch --once
 ok "two time-outs in a row → needs-you" has gh.log "issue edit 5 -R example-org/web --add-label needs-you"
@@ -783,7 +783,7 @@ ok "… and the failed post's needs-you goes" has gh.log "issue edit 5 -R exampl
 ok "… the flag cleared" eq "$(st 5 post_ny)" ""
 
 # 2: a push after a failed post voids the run and drops its label
-postenv ny-void $'Review verdict: pass '"$HA"
+postenv ny-void "$VB0"$'Review verdict: pass '"$HA"
 { issue 5 in-progress,needs-you; } | issues
 printf 'post_ny=1\npost_fails=1\n' >> "$CANCCU_HOME/state/5"
 sethead "$HB"
@@ -806,7 +806,7 @@ printf '1\t1\tsrc/a.ts\n' > "$FAKE/numstat"
 dispatch --once
 fc=$(grep -- '--name fixcheck#50 ' "$FAKE/worker.log")
 ok "fix-check prompt: a breaking change of the fix's own gets a Maintainer accept line" \
-  grep -qF "If the fix diff itself adds a breaking contract change or a destructive migration, add a line 'Maintainer accept: <breaking contract | destructive migration — what>' just before the verdict line (this does not make the verdict changes)." <<<"$fc"
+  grep -qF "If the fix diff itself adds a breaking contract change or a destructive migration, add a line 'Maintainer accept: <breaking contract | destructive migration — what>' in its place in the block (this does not make the verdict changes)." <<<"$fc"
 ok "fix-check prompt: changes from origin/main are ignored" grep -qF 'Ignore every change in that diff that came from origin/main' <<<"$fc"
 ok "fix-check prompt: the findings inlined, the file only the fallback" grep -qF "only if none are there, the file $CANCCU_HOME/reviews/50/$HA.findings.md" <<<"$fc"
 ok "… and the findings are there once" eq "$(grep -o 'src/a.ts:3 off by one' <<<"$fc" | wc -l)" 1
