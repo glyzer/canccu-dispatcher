@@ -329,6 +329,8 @@ run_progress() {
 . "$_canccu_lib/canccu-runs.sh"
 # shellcheck source=canccu-verdict.sh
 . "$_canccu_lib/canccu-verdict.sh"
+# shellcheck source=canccu-norepeat.sh
+. "$_canccu_lib/canccu-norepeat.sh"
 # shellcheck source=canccu-spend.sh
 . "$_canccu_lib/canccu-spend.sh"
 # shellcheck source=canccu-share.sh

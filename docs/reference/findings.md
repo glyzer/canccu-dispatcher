@@ -49,7 +49,9 @@ Dispatcher: no blocking finding left (<d> moved out of Blocking: never-blocking 
 Review verdict: pass <sha>
 ```
 
-(and, for a `pass` with a blocking item left, `Dispatcher: <b> blocking finding(s) left (a
+With no-repeat demotions ([`reviews.md`](reviews.md#no-repeats)), the reason lists each kind with
+its count: `<p> never-blocking class, no class or no Evidence:`, `<s> already settled`, `<u>
+unchanged since the pass`, separated by `; `. (And, for a `pass` with a blocking item left, `Dispatcher: <b> blocking finding(s) left (a
 blocking class and Evidence:); verdict changes.`). The posted comment then carries the effective
 verdict, so the state and the PR agree. The fix round gets only the blocking items left; the
 demoted, non-blocking and pre-existing items go to the follow-up issue. Each posted verdict adds a
