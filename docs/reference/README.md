@@ -17,6 +17,7 @@ The guides (getting started, install, upgrading, security, …) are in [`../READ
 | [`pipeline.md`](pipeline.md) | One pass of the dispatcher, the phases |
 | [`merging.md`](merging.md) | The merge policy (auto or manual), your accept, the guards |
 | [`reviews.md`](reviews.md) | The reviewer, the fix-check, the verdict line, the answerer, the worker prompt |
+| [`findings.md`](findings.md) | The finding block: classes, Evidence:, Pre-existing:, the count line, what the dispatcher demotes |
 | [`packages.md`](packages.md) | Work packages per step: units, the planner and its plan, package runs, risk classes, waves |
 | [`steps.md`](steps.md) | The current step, the health pass, the checkpoint, stops, notes, the step budget |
 | [`usage.md`](usage.md) | The usage throttle and the usage-limit back-off |

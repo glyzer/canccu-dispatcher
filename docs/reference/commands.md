@@ -106,6 +106,7 @@ The dispatcher creates any that are missing (`canccu-init` does too):
 | `checkpoint` | issue | A step's checkpoint issue |
 | `checkpoint-ok` | issue | Your OK to end a step's checkpoint pause |
 | `fast` | issue | An issue of a step that runs alone, in the fast lane |
+| `security` | issue | A follow-up issue that holds a pre-existing `security` review finding ([`findings.md`](findings.md)) |
 
 Every comment the dispatcher posts as you carries `<!-- canccu-dispatch -->`, so it never takes
 its own comments for yours. Reviews posted as `REVIEWER_LOGIN` do not: their verdict must stay the

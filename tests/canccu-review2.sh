@@ -28,7 +28,7 @@ fixed_to_hc() {
 # fixcheck_passes: that fix-check wrote a pass on HC; the next pass posts and acts on it
 fixcheck_passes() {
   rm -f "$WORKERS_DIR/web-review-50.lock"; last review-50 "done" "wrote it"
-  printf '%s\n' $'1. fixed\n\nReview verdict: pass '"$HC" > "$CANCCU_HOME/reviews/50/$HC.md"
+  printf '%s\n' $'1. fixed\n\n'"$VB0"$'Review verdict: pass '"$HC" > "$CANCCU_HOME/reviews/50/$HC.md"
   touch -d "@$((NOW + 60))" "$CANCCU_HOME/reviews/50/$HC.md"
   : > "$FAKE/gh.log"; dispatch --once
 }

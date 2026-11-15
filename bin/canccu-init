@@ -108,8 +108,9 @@ secrets, variables or collaborators):
   5. Clone the repo to $CLONE if it is not there, and review ${CANCCU_HOME/#$HOME/\~}/rules
      (risky and gated paths, extra reviewer and worker text, AUTO_MERGE_UNTIL, one-at-a-time lock,
      ADD_DIRS, the review-gate checks).
-  6. A narrow GitHub token for this project (without it the project runs on your default gh login
-     and canccu-status warns): github.com → Settings → Developer settings → Personal access
+  6. A narrow GitHub token for this project (without it the project starts no run; with
+     ALLOW_DEFAULT_GH_LOGIN=1 in its config it runs on your default gh login, and canccu-status
+     warns): github.com → Settings → Developer settings → Personal access
      tokens → Fine-grained tokens → Generate new token. Resource owner: ${REPO%%/*} (a fine-grained
      token reaches one owner: a project of another owner needs its own). Repository access: Only
      select repositories → $REPO. Repository permissions, exactly:
