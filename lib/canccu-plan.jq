@@ -60,7 +60,9 @@ def overlap($a; $b): ($a | area) as $x | ($b | area) as $y
           (if (.risk | IN("low", "normal", "high")) | not then "\($x): risk missing or not low|normal|high" else empty end),
           (if (.risk_reason | type) != "string" or (.risk_reason | test("\\S") | not) then "\($x): risk_reason missing" else empty end),
           (if (.areas | strs) | not then "\($x): areas is not a list of strings" else empty end),
-          (if ((.depends_on // []) | strs) | not then "\($x): depends_on is not a list of names" else empty end) ]
+          (if ((.depends_on // []) | strs) | not then "\($x): depends_on is not a list of names" else empty end),
+          (if has("lines") and ((.lines | type) != "number" or .lines < 1 or .lines != (.lines | floor))
+           then "\($x): lines is not a whole number of 1 or more" else empty end) ]
     + [ [ $obj[] | (.name // "?") as $x | (.issues // [] | if type == "array" then .[] else empty end) | numbers | {n: ., x: $x} ]
         | group_by(.n) | .[] | select(length > 1)
         | "issue #\(.[0].n) is in more than one package (\(map(.x) | join(", ")))" ]

@@ -497,7 +497,7 @@ start_reviewer() {
   reviewer_refused && return 1
   wt=$(review_wt "$pr") f=$(review_file "$pr" "$sha")
   if is_fixcheck_mode "$mode"; then read -r turns cost mins <<<"$BUDGET_FIXCHECK"; name="fixcheck#$pr" what=fix-check
-  else read -r turns cost mins <<<"$( [ -n "$(st_get "$n" pkg)" ] && pkg_budget "$BUDGET_REVIEW" "$(unit_size "$n")" || echo "$BUDGET_REVIEW")"
+  else read -r turns cost mins <<<"$( [ -n "$(st_get "$n" pkg)" ] && pkg_budget "$BUDGET_REVIEW" "$(budget_factor "$n")" || echo "$BUDGET_REVIEW")"
     name="review#$pr" what=reviewer; fi
   mut git -C "$CLONE" fetch -q origin "pull/$pr/head" || { log "PR #$pr: git fetch failed"; return 1; }
   if [ -e "$wt/.git" ]; then mut git -C "$wt" checkout -q -f --detach "$sha"

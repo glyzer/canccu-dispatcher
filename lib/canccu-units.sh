@@ -92,6 +92,17 @@ pkg_budget() {
 }
 # unit_size <K>: how many issues the unit covers (1 for an issue or the health pass)
 unit_size() { local c; c=$(members_of "$1" | grep -c .); echo $(( c > 0 ? c : 1 )); }
+# budget_factor <K>: what pkg_budget multiplies the package's budgets by: its issue count, or with
+# BUDGET_LINES=N > 0 its planned changed lines (plan_lines) over N, rounded up, when that is more.
+# One big issue can be as much work as several small ones.
+budget_factor() {
+  local c l n=${BUDGET_LINES:-0}
+  c=$(unit_size "$1") l=$(st_get "$1" plan_lines)
+  if [[ $n =~ ^[0-9]+$ ]] && (( n > 0 )) && [[ $l =~ ^[1-9][0-9]{0,8}$ ]]; then
+    l=$(( (l + n - 1) / n )); (( l > c )) && c=$l
+  fi
+  echo "$c"
+}
 # unit_of_branch <branch>: the managed package whose branch it is (or its contract branch,
 # is_contract_pr), else nothing
 unit_of_branch() {

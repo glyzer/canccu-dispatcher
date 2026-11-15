@@ -89,7 +89,7 @@ resume() {
   if fix_kind "$kind"; then model=${FIX_MODEL:-$MODEL} effort=$(run_effort FIX_EFFORT) type=fix; fi
   # workers never review: a resumed worker is told so as well
   MODEL=$model RUN_EFFORT=$effort run_worker "$n" "$msg Do not review your own work; run the checks only." \
-    "$( [ -n "$(st_get "$n" pkg)" ] && pkg_budget "$BUDGET_RESUME" "$(unit_size "$n")" || echo "$BUDGET_RESUME")" "$type" "${fl[@]}" || return 1
+    "$( [ -n "$(st_get "$n" pkg)" ] && pkg_budget "$BUDGET_RESUME" "$(budget_factor "$n")" || echo "$BUDGET_RESUME")" "$type" "${fl[@]}" || return 1
   has_label "$n" needs-you && edit_issue "$n" --remove-label needs-you
   if [ "$how" = fresh ]; then log "#$n resumed (fresh session, $kind): $(oneline 100 "$2")"
   else log "#$n resumed: $(oneline 100 "$2")"; fi

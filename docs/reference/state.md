@@ -60,7 +60,7 @@ parked), `ny_wait` (`ci`: it only waited on CI), `phase_at` (when the phase last
 `body_fix` (the contract PR whose body the worker was resumed once to correct; [`merging.md`](merging.md)),
 `merge_tries` (the merges that failed on a transient GitHub error in a row, against `MERGE_RETRY`; cleared by a merge that goes through and by lifting a needs-you at the merge; [`merging.md`](merging.md#a-github-error-on-the-merge)),
 `gone_at` (when its merged PR was first seen with an issue it closes still open; [`merging.md`](merging.md#a-merged-pr-that-leaves-its-issue-open)),
-`accept_sha`, `merge_sha` and timestamps. `branch` is the
+`plan_lines` (a package's planned changed lines, `BUDGET_LINES`; [`packages.md`](packages.md#package-runs)), `accept_sha`, `merge_sha` and timestamps. `branch` is the
 unit's branch (a single issue's `<n>-<slug>`, set at its start; an issue started before 0.2 has
 none). A package adds `pkg`, `step`, `wave`, `members`, `risk`, `risk_reason`, `review_risk` and
 `health`.

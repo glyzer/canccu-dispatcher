@@ -14,6 +14,7 @@ change a setting and the settings table are in [`config.md`](config.md); the rul
 | `BUDGET_HEALTH` | `250 60 150` | The health pass at the end of a step |
 | `BUDGET_PACKAGE_MAX` | `600 200 360` | A package's work, resume and review budgets are the issue's times its issue count, each part capped by this |
 | `PACKAGE_LINES` | `1500` | The planner's size guide: changed lines per package |
+| `BUDGET_LINES` | `0` | Above 0: a package's work, resume and review budgets are multiplied by its planned changed lines over this (rounded up) when that is more than its issue count, still capped by `BUDGET_PACKAGE_MAX`; the planner then gives each package `lines` ([`packages.md`](packages.md#the-planner)). `0`: the issue count only |
 | `PACKAGE_MIN_ISSUES` | `3` | Above 1, the planner aims for at least this many issues per package, where they fit together (never unrelated ones); `1`: no nudge |
 | `PACKAGE_HOLD_SMALL` | `0` | `1`: the planner may leave a lone small leftover (under about 300 changed lines) out of a wave while an earlier package of its area runs or other issues of its area wait, so it joins a later wave's package of its area ([`packages.md`](packages.md#the-planner)) |
 | `PLAN_MODEL` | empty | The planner's model; empty: `MODEL` |

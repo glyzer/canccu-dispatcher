@@ -51,7 +51,9 @@ accept and a merge); about `PACKAGE_LINES` changed lines at most per package (an
 `PACKAGE_MIN_ISSUES` issues where they fit, three by default); with `PACKAGE_HOLD_SMALL=1`, a
 lone small leftover (under about 300 lines) that fits no package of the wave is left out while an
 earlier package of its area runs or other issues of its area wait, so it joins a later package;
-never split or create issues; the rules' `PLANNER_EXTRA`. The check: valid JSON and schema, the right step and wave,
+never split or create issues; the rules' `PLANNER_EXTRA`. With `BUDGET_LINES` above 0 the planner
+also gives each package `"lines"`, its estimate of the changed lines (optional; a whole number of
+1 or more). The check: valid JSON and schema, the right step and wave,
 names `[a-z0-9-]` of at most 30 characters, unique, not `health`, not used earlier in the step;
 every issue at most once and only handed issues that are still eligible; a risk class with a
 reason; known dependencies, none on itself, no cycle; a new package whose `areas` overlap a
@@ -67,7 +69,9 @@ the fast lane (`CAP` counts packages, one run each). Every issue is checked agai
 the start: a package with an issue that is no longer eligible is `refused`. Branch
 `pkg-<m>-<name>` (a package of one keeps `<n>-<slug>`). A contract-first PR is on the branch
 plus `-contract`, for a package and a single issue alike ([`merging.md`](merging.md)). Its budget is the issue's times its issue
-count, capped by `BUDGET_PACKAGE_MAX`. The worker may use subagents for the package's issues, but
+count, capped by `BUDGET_PACKAGE_MAX`; with `BUDGET_LINES=<N>` above 0, times its planned `lines`
+over N (rounded up; kept as `plan_lines` in its state) when that is more: the work, resume and
+review budgets alike. A missing or invalid `lines` means the issue count. The worker may use subagents for the package's issues, but
 none of their review steps. The PR has a `Closes #<n>` line per issue, `Package:` and `Risk:`
 lines, and must close exactly the package's issues (else manual). The reviewer reads every
 linked issue and writes `Risk:` before its verdict. A package is finished when all its issues
