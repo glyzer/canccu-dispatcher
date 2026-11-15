@@ -34,6 +34,8 @@
 # WORKER_EFFORT    passed as --effort; empty: none, the account default
 # WORKER_TMPDIR_MODE  disk (default): TMPDIR, TMP and TEMP are the run's own workers/tmp/<repo>-<key>.<pid>, removed when it ends; system: inherited
 # WORKER_RUN_TYPE  the run's type for its spend.log line (build, fix, review, …); empty: -
+# WORKER_TEST_CMD  the project's test command (TEST_CMD): its calls' count and seconds go in the
+#          spend.log line's outcome (tests=, test_secs=); unset: tests/run; empty: not measured
 # WORKER_EFFORT_NOTE  the effort its spend.log line names when there is no WORKER_EFFORT (a
 #          review's code-review effort); WORKER_WINDOW_DELTA=1 and WORKER_WINDOW_BEFORE (the 5-hour
 #          window's % at the start): its line records the window before and after the run
@@ -80,10 +82,11 @@ window_now() {
       else ($w.utilization * 100 | round | tostring) end' "$WORKERS_DIR/usage.json" 2>/dev/null || echo -
 }
 
-# spend_line <repo> <key> <cost or ?> [tokens "in out cache-read cache-write"]: the run's one
+# spend_line <repo> <key> <cost or ?> [tokens "in out cache-read cache-write"] [outcome]: the run's one
 # spend.log line. The first four columns are the old format, which every reader still parses;
 # the rest: run type, model, effort, session (fresh|resumed), the tokens, the 5-hour window before
-# and after (USAGE_WINDOW_DELTA=1), the outcome the dispatcher fills in later (spend_note), and the
+# and after (USAGE_WINDOW_DELTA=1), the outcome (the engine's own fields, the test runs; the
+# dispatcher adds the rest later, spend_note), and the
 # run's wall seconds, "-" for each unknown. The seconds come last, after the outcome, so a reader
 # of the first 15 columns reads old and new lines alike. Under .spend.lock, which spend_note's
 # rewrite of the file holds too.
@@ -93,7 +96,7 @@ spend_line() {
   end=$(date +%s)
   (( run_t0 > 0 )) && secs=$(( end - run_t0 ))
   t=$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' "$end" "$1" "$2" "$3" "${WORKER_RUN_TYPE:--}" \
-        "${run_model:--}" "${WORKER_EFFORT:-${WORKER_EFFORT_NOTE:--}}" "${run_session:--}" "${tok// /$'\t'}" "$before" "$after" - "$secs")
+        "${run_model:--}" "${WORKER_EFFORT:-${WORKER_EFFORT_NOTE:--}}" "${run_session:--}" "${tok// /$'\t'}" "$before" "$after" "${5:--}" "$secs")
   # a lock that stays busy must not cost the line (an append alone is still whole), nor outlast
   # the 3 s kill_tree leaves the TERM trap
   { flock -w 2 6; printf '%s\n' "$t" >> "$WORKERS_DIR/spend.log"; } 6>>"$WORKERS_DIR/.spend.lock"
@@ -164,7 +167,7 @@ run() {
     exec 4< <(cd "$dir" && timed_exec "${mins}m" claude "${args[@]}" -- "$prompt" 2>"$errf")
     cpid=$!
     watchdog "$cpid" & wpid=$!
-    guard "$((mins + 2))m" python3 -I "$LIB/canccu-stream.py" "$base.log" "$sumf" "$turns" "$WORKERS_DIR/usage.json" <&4
+    guard "$((mins + 2))m" python3 -I "$LIB/canccu-stream.py" "$base.log" "$sumf" "$turns" "$WORKERS_DIR/usage.json" "${WORKER_TEST_CMD-tests/run}" <&4
     prc=$?
     exec 4<&-
     (( prc == 3 )) && { stop=turns; kill "$cpid" 2>/dev/null; }
@@ -210,10 +213,11 @@ run() {
   [ -n "$note" ] && msg="($note)"$'\n\n'"$msg"
 
   report "$repo" "$key" "$prompt" "$status" "$nturns" "$spent" "$((SECONDS - started))" "$msg" "$how" \
-    "$(sget tokens_in) $(sget tokens_out) $(sget cache_read) $(sget cache_write)"
+    "$(sget tokens_in) $(sget tokens_out) $(sget cache_read) $(sget cache_write)" \
+    "$( (( $(sget tests) + 0 > 0 )) && echo "test_secs=$(sget test_secs),tests=$(sget tests)")"
 }
 
-# report <repo> <key> <prompt> <status> <turns> <cost> <secs> <message> <fresh|resume> [tokens]:
+# report <repo> <key> <prompt> <status> <turns> <cost> <secs> <message> <fresh|resume> [tokens] [outcome]:
 # writes .last (the dispatcher reaps it) and the run's spend.log line. The session mark goes
 # before the status: readers find the status as the 4th field from the end (a prompt may hold " · ").
 report() {
@@ -229,7 +233,7 @@ report() {
   # reported none (stopped at a turn or time budget, stalled, crashed: it still cost money)
   [[ $cost =~ ^[0-9]+(\.[0-9]+)?$ ]] || cost="?"
   spend_logged=1
-  spend_line "$repo" "$key" "$cost" "$tok"
+  spend_line "$repo" "$key" "$cost" "$tok" "${11:-}"
 }
 
 # ---------------------------------------------------------------- --unlock

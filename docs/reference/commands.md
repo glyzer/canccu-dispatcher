@@ -28,7 +28,7 @@ Every command but `canccu-init` and `canccu-dispatcher` takes `--project <name>`
 | `canccu-dispatch` | The loop: one pass every `INTERVAL` seconds, one instance per project ([`pipeline.md`](pipeline.md)) |
 | `canccu-dispatch --once` | One pass |
 | `canccu-dispatch --dry-run` | The runnable queue, every open PR's classification and what one pass would do. Writes nothing: no labels, comments, merges, state, log or snapshot |
-| `canccu-status` | The credential, paused or back-off state, the usage, running runs (a review with its effort and model), runs it did not start, PRs awaiting accept, issues that need you, open PRs that are not ours (with the reason), the next runnable issues, each current step and the latest digest. `--spend`: the cost of every merged PR, grouped by model and run type ([`state.md`](state.md#the-spend-log)). `--findings`: the most common review findings and the files cited most ([`reviews.md`](reviews.md)) |
+| `canccu-status` | The credential, paused or back-off state, the usage, running runs (a review with its effort and model), runs it did not start, PRs awaiting accept, issues that need you, open PRs that are not ours (with the reason), the next runnable issues, each current step and the latest digest. `--spend`: the cost of every merged PR, grouped by model and run type ([`state.md`](state.md#the-spend-log)). `--findings`: the most common review findings and the files cited most ([`reviews.md`](reviews.md)). `--kpi`: four blocks, one line per day of the last 7 (UTC), newest first: the leader's tokens (input, output, cache read, cache write, summed from its Claude transcripts in `~/.claude/projects/<the project's leader/ dir, each character but a letter or digit as ->/*.jsonl`, or under `CLAUDE_CONFIG_DIR`; none: `leader: none`), the runs' test runs (`TEST_CMD` calls from the spend log's `tests=` and `test_secs=`: count, median, longest; a run's line holds only their sum, so each call counts as its run's mean), the pings posted (`pinged` lines of `dispatch.log`) and the feed lines by owner and class (`po ask`, `po interrupt`, `leader ask`, `info`) |
 | `canccu-monitor` | The live view, from the status snapshots only ([`monitor.md`](monitor.md)) |
 | `canccu-run <n> [message]` | Starts or resumes the worker for issue n by hand (for an issue of a work package: the package). On a resume the message is the follow-up (default `continue`). Refuses while the issue's worker, reviewer or answerer runs |
 | `canccu-review <pr>` | Starts the independent reviewer for a PR of ours at its current head. Refuses without the reviewer token and for a PR that is not ours |
@@ -113,6 +113,7 @@ The dispatcher creates any that are missing (`canccu-init` does too):
 | `checkpoint` | issue | A step's checkpoint issue |
 | `checkpoint-ok` | issue | Your OK to end a step's checkpoint pause |
 | `fast` | issue | An issue of a step that runs alone, in the fast lane |
+| `security` | issue | A follow-up issue that holds a pre-existing `security` review finding ([`findings.md`](findings.md)) |
 
 Every comment the dispatcher posts as you carries `<!-- canccu-dispatch -->`, so it never takes
 its own comments for yours. Reviews posted as `REVIEWER_LOGIN` do not: their verdict must stay the

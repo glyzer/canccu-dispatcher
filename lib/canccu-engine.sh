@@ -228,12 +228,6 @@ window_by_name() {
     awk -v n="$1" '$2 == n { print $1; exit }'
 }
 
-# Bring a window to the front: switch to it inside tmux, attach to it outside.
-tmux_show() {
-  if [ -n "$TMUX" ]; then tmux switch-client -t "$1"
-  else tmux select-window -t "$1" \; attach -t "=$TMUX_SESSION"; fi
-}
-
 ago() {
   local s=$(( ${CANCCU_NOW:-$(date +%s)} - $1 ))   # CANCCU_NOW: the tests' clock
   if   (( s < 60 ));    then echo "${s}s"

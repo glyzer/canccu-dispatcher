@@ -165,7 +165,7 @@ accept_step() {
       mut gh issue edit "$on" -R "$REPO" --remove-label accepted
       log "#$n PR #$pr: \`accepted\` was on issue #$on; taken as the accept"
     fi
-    merge_auto "$n" "$pr" accepted "$head"
+    history_answer "$pr"; merge_auto "$n" "$pr" accepted "$head"
   else warn_once "accept-$pr" "#$n PR #$pr: \`accepted\` on #$on was not added by $USER_LOGIN after the accept request; ignored"; fi
   return 0
 }

@@ -131,6 +131,23 @@ newest_of() { printf '%s\n' "$@" | grep -E '^[0-9]+$' | sort -n | tail -1; }
 # --slurpfile x <(printf '%s' "$v") or stdin, never --argjson: Linux caps one argument at 128 KiB
 # (MAX_ARG_STRLEN). --slurpfile binds [value]: read $x[0], not $x.
 jqr() { guard 20 jq -r "$@"; }
+# safe_title <text>: a GitHub title fit for a terminal, a tmux title or a log line. Its C0 and C1
+# control characters go (a tab becomes a space): a title could otherwise retitle a window, clear
+# the screen or forge a log line. C1 is matched in its UTF-8 form only: a lone byte 0x80-0x9f is
+# part of another character, and gh's JSON never holds invalid UTF-8 (jq turns it into U+FFFD).
+safe_title() {
+  local LC_ALL=C s=${1//$'\t'/ }
+  s=${s//[$'\x01'-$'\x1f'$'\x7f']/}
+  printf '%s\n' "${s//$'\xc2'[$'\x80'-$'\x9f']/}"
+}
+# safe_titles: a gh read (issues, PRs, milestones) on stdin with safe_title applied to each title
+# and milestone title, so that every reader of the pass's lists sees the same clean titles (a
+# step's title is matched against its issues' milestone titles)
+safe_titles() {
+  guard 20 jq -c 'def safe: if type == "string" then explode | map(if . == 9 then 32 else . end
+                     | select(. >= 32 and (. < 127 or . > 159))) | implode else . end;
+                  map(.title |= safe | if (.milestone | type) == "object" then .milestone.title |= safe else . end)'
+}
 # ghj: a gh read. Its stderr passes through, and a failed read that names a rate limit holds the
 # passes (gh_limit_seen).
 ghj() {
@@ -233,45 +250,9 @@ slug() {
 
 # ---------------------------------------------------------------- state (~/.canccu/state/<n>)
 
-# Under --dry-run, writes go to DRY_ST in memory, so the rest of the pass sees them.
-declare -A DRY_ST=()
+# shellcheck source=canccu-kv.sh
+. "$_canccu_lib/canccu-kv.sh"
 st_file() { echo "$CANCCU_HOME/state/$1"; }
-# kv_get <file> <dry key> <key>, kv_set <file> <dry key> key=value...: one key=value file (a unit's
-# state/<K>, a step's steps/<m>); under --dry-run in DRY_ST under "<dry key>.<key>"
-# The last value wins (kv_set may append). Pure bash: a pass reads state files many times.
-kv_get() {
-  if [ -n "${DRY_ST[$2.$3]+x}" ]; then printf '%s\n' "${DRY_ST[$2.$3]}"; return; fi
-  local l="" v="" f=0
-  [ -f "$1" ] && [ -r "$1" ] || return 0   # an empty key names the directory state/: -r passes it
-  while IFS= read -r l || [ -n "$l" ]; do
-    [[ $l == "$3="* ]] && { v=${l#"$3="}; f=1; }
-  done < "$1"
-  (( f )) && printf '%s\n' "$v"
-  return 0
-}
-# kv_lock <file>: the lock of a key=value file, hidden beside it (the state dirs list units by
-# their visible files)
-kv_lock() { echo "${1%/*}/.${1##*/}.lock"; }
-# kv_set writes every key in one go, under the file's lock, through a temp file of its own: the
-# dispatcher's pass and canccu-ship, -stop, -run or -review writing the same file at once never
-# lose a key
-kv_set() {
-  local f=$1 d=$2 kv; shift 2
-  if (( CANCCU_DRY )); then
-    DRY_ST[$d.]=1
-    for kv; do DRY_ST[$d.${kv%%=*}]=${kv#*=}; done
-    return 0
-  fi
-  mkdir -p "${f%/*}" || return 1
-  ( flock -w 30 9 || { echo "kv_set: $f stayed locked" >&2; exit 1; }
-    tmp=$(mktemp "${f%/*}/.${f##*/}.XXXXXX") || exit 1
-    { [ -f "$f" ] && awk -v keys="${*%%=*}" 'BEGIN { n = split(keys, a, " "); for (i = 1; i <= n; i++) drop[a[i]] = 1 }
-        { k = $0; sub(/=.*/, "", k) } !(k in drop)' "$f"
-      awk '{ k = $0; sub(/=.*/, "", k); v[k] = $0; if (!(k in seen)) { seen[k] = 1; o[++n] = k } }
-        END { for (i = 1; i <= n; i++) print v[o[i]] }' < <(printf '%s\n' "$@")
-    } > "$tmp" && mv -f -- "$tmp" "$f" || { rm -f "$tmp"; exit 1; }
-  ) 9>>"$(kv_lock "$f")"
-}
 # st_get <K> <key>, st_set <K> key=value...: a unit's state (K: an issue number or a package key);
 # values are single-line
 st_get() { kv_get "$(st_file "$1")" "$1" "$2"; }
@@ -348,6 +329,10 @@ run_progress() {
 . "$_canccu_lib/canccu-units.sh"
 # shellcheck source=canccu-runs.sh
 . "$_canccu_lib/canccu-runs.sh"
+# shellcheck source=canccu-verdict.sh
+. "$_canccu_lib/canccu-verdict.sh"
+# shellcheck source=canccu-norepeat.sh
+. "$_canccu_lib/canccu-norepeat.sh"
 # shellcheck source=canccu-spend.sh
 . "$_canccu_lib/canccu-spend.sh"
 # shellcheck source=canccu-share.sh
