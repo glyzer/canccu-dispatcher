@@ -94,6 +94,7 @@ TEST_PATHS='(^|/)(tests?|__tests__|spec)/|\.(test|spec)\.[a-z]+$'   # grep -E: t
 # its head; it writes *.txt (a terminal screen) and *.png (a page) captures into <dir> and exits 0.
 # Set, a user-visible PR needs a "## What you will see" section; empty: no captures
 PREVIEW_CMD=''
+TEST_CMD='tests/run'        # the repo's test command: a run's calls of it are counted and timed (canccu-status --kpi); empty: not measured
 # grep -E on the PR's paths: a PR whose every path is docs, a test (TEST_PATHS) or matches this is
 # reviewed with REVIEW_MODEL_LIGHT; never a gated path or agent configuration
 LIGHT_REVIEW_PATHS=''

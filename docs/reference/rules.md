@@ -28,6 +28,7 @@ old path too).
 | `USER_VISIBLE_PATHS` | empty | `grep -E`: a PR touching one always waits for the product owner, with the reason `users see it: <path>` (below, "User-visible paths"). Locked |
 | `TEST_PATHS` | `(^\|/)(tests?\|__tests__\|spec)/\|\.(test\|spec)\.[a-z]+$` | `grep -E`: test files. A path it matches never counts as user-visible |
 | `PREVIEW_CMD` | empty | The repo's preview command: run in the repo root as `$PREVIEW_CMD <dir>`, it writes text captures `*.txt` (a terminal screen) and image captures `*.png` (a page) into `<dir>` and exits 0. Set, a user-visible PR shows them in a `## What you will see` section (below, "Previews"); empty: no captures |
+| `TEST_CMD` | `tests/run` | The repo's test command: every Bash call of a run whose command starts with it is counted and timed, as `tests=` and `test_secs=` in the run's spend-log outcome ([`state.md`](state.md#the-spend-log)), for `canccu-status --kpi`. Empty: not measured |
 | `LIGHT_REVIEW_PATHS` | empty | `grep -E` on the PR's paths: a PR whose every path is docs, a test (`TEST_PATHS`) or matches this is reviewed with `REVIEW_MODEL_LIGHT` (for example `'^docs/contracts/'`). Never a gated path or agent configuration; a bad regex matches nothing. Locked |
 | `SECURITY_REVIEW_WHEN` | sign-in, rights, sessions, secrets, tenancy/RLS or `deploy/` | Words in the reviewer's prompt: it also runs the security-review skill when the diff touches these |
 | `PLANNER_EXTRA` | empty | The project's guidance for the planner, for example "aim for 2-4 issues per package" |
