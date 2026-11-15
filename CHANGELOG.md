@@ -6,6 +6,13 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 
 ## Unreleased
 
+- Upgrade note: a project without its own `gh` login (`GH_CONFIG_DIR`, or
+  `~/.canccu/projects/<name>/gh`) no longer runs on the host's default login: it starts no run
+  until it gets its own login or its config sets `ALLOW_DEFAULT_GH_LOGIN=1` (new, default `0`,
+  locked). `canccu-dispatcher doctor` names such projects with the steps. Issue, PR and milestone
+  titles lose their control characters before they reach a terminal, the monitor or
+  `dispatch.log`. `docs/security.md` states that the reviewer token's deny rule covers the
+  session's own Read and Edit tools only (#173).
 - The scenario suite: `tests/scenarios/run --repo <owner/sandbox>` runs the real dispatcher
   against a sandbox repo with a fake engine (no model tokens). A release PR (one that changes
   `VERSION`) needs the body line `Scenarios: pass at <short sha>` (#189).

@@ -110,6 +110,32 @@ PR and from the issues (with `KEEP_ACCEPT_ON_MAIN_MERGE=1`, a push that is a cle
 only keeps the PR's own label and merges: [`config.md`](config.md)). Everything except reviews and pings is authored as you, so the dispatcher never
 requests a review from you and never relies on approvals.
 
+### The accept channels
+
+`ACCEPT_CHANNELS` ([`config.md`](config.md)) names the accepts that count, space-separated:
+
+| Channel | The accept | Its strength |
+|---|---|---|
+| `label` | the `accepted` label by `USER_LOGIN`, as above | any session holding the project's login can add it |
+| `ship` | `canccu-ship <n>`, run by you | it writes the accept record on the host, where no label or comment reaches |
+| `reply` | an answer comment (the notifier's reply, release 0.3) | no comment acts as an accept yet |
+| `leader` | `canccu-ship <n>` run by the leader (`CANCCU_ACTOR=leader`) | as strong as the leader's session |
+
+`all`, the default, lists every one. With `label` not listed, an `accepted` label is ignored and
+logged once (`` `accepted` label ignored: ACCEPT_CHANNELS does not list label ``); with `ship`
+(or `leader`, for the leader) not listed, `canccu-ship` refuses: `refused: ACCEPT_CHANNELS does not
+list ship`. Before it merges, `canccu-ship` appends its accept record to `accepts.log` (time,
+issue, PR, head sha, actor `po` or `leader`: [`state.md`](state.md)). A PR waiting for the
+accept with auto-merge armed on its head and a record of that PR and head, by an actor whose
+channel is listed, has the `ship` accept: `canccu-ship` armed it before the dispatcher managed
+the PR.
+
+A comment by `USER_LOGIN` posted while a run of the unit was alive (from the run's start to its
+end: the state's `started` for the live run, the spend log's end and `secs` for finished ones) is
+never your answer: the run holds the same login. It is logged once (`a comment by <login> at
+<time> was posted while a run was alive; not taken as the product owner's answer`) and left out
+of every answer, needs-work and plan-ok the dispatcher hands a worker.
+
 ### A PR that conflicts with main
 
 A PR that GitHub marks as conflicting with main (`mergeStateStatus` `DIRTY`), in any phase

@@ -163,7 +163,7 @@ ok "canccu-init: the config names the repo and its clone" eq "$(grep -E '^(REPO|
 ok "canccu-init: the rules from the generic template" eq "$(grep -v '^#' "$w/rules")" "$(grep -v '^#' "$root/profiles/default/rules")"
 ok "canccu-init: says which template" grep -q "^wrote .*/projects/web/config and rules (from the template default: .*profiles/default)$" <<<"$out"
 ok "canccu-init: the only project so far becomes the default (it keeps session canccu)" eq "$(cat "$CANCCU_ROOT/default-project")" tools
-ok "canccu-init: creates the missing labels in the repo" eq "$(grep -c '^label create .* -R example-org/web' "$FAKE/gh.log")" 11
+ok "canccu-init: creates the missing labels in the repo" eq "$(grep -c '^label create .* -R example-org/web' "$FAKE/gh.log")" 12
 ok "… none that exist" not grep -q '^label create ready' "$FAKE/gh.log"
 ok "canccu-init: no other gh call (rulesets, secrets, variables, collaborators)" eq "$(grep -cvE '^label (list|create) ' "$FAKE/gh.log")" 0
 for w8 in 'as a collaborator' 'repo scope' 'repo variable REVIEWER_LOGIN' 'review-gate workflow and its script' 'required checks' \
@@ -295,12 +295,12 @@ ok "init with a relative clone path: refused" eq "$rc $(test -e "$CANCCU_ROOT/pr
 penv init-labels
 echo '[{"name": "ready"}]' > "$FAKE/labels.json"; route 'label list*' labels.json
 out=$(PATH="$fb:$PATH" "$root/bin/canccu-init" web example-org/web 2>&1)
-ok "canccu-init: lists the labels it created" grep -qx 'labels: created blocked in-progress epic needs-you plan-ok awaiting-accept needs-work accepted manual-accept checkpoint checkpoint-ok fast' <<<"$out"
+ok "canccu-init: lists the labels it created" grep -qx 'labels: created blocked in-progress epic needs-you plan-ok awaiting-accept needs-work accepted manual-accept checkpoint checkpoint-ok fast security' <<<"$out"
 ok "canccu-init: lists the labels once" eq "$(grep -c '^label list' "$FAKE/gh.log")" 1
 penv init-labels-fail
 echo '[{"name": "ready"}]' > "$FAKE/labels.json"; route 'label list*' labels.json; echo 'fail:label create' >> "$FAKE/routes"
 out=$(PATH="$fb:$PATH" "$root/bin/canccu-init" web example-org/web 2>&1); rc=$?
-ok "canccu-init: a failed label create is not called created" eq "$(grep -c '^labels: created' <<<"$out") $(grep -c '^labels: could not create blocked .* fast (canccu-dispatch tries again' <<<"$out")" "0 1"
+ok "canccu-init: a failed label create is not called created" eq "$(grep -c '^labels: created' <<<"$out") $(grep -c '^labels: could not create blocked .* security (canccu-dispatch tries again' <<<"$out")" "0 1"
 penv init-labels-all
 route 'label list*' labels.json
 out=$(PATH="$fb:$PATH" "$root/bin/canccu-init" web example-org/web 2>&1)
@@ -420,7 +420,26 @@ ok "… shop's run has shop's config dir, never a's" \
 ok "… tools's log has the line, shop's does not" \
   eq "$(grep -c 'TOKEN CANNOT REACH example-user/tools' "$CANCCU_ROOT/projects/tools/dispatch.log") $(grep -c TOKEN "$CANCCU_ROOT/projects/shop/dispatch.log")" "1 0"
 
-# no config dir: today's behaviour, with a warning
+# no config dir and ALLOW_DEFAULT_GH_LOGIN=0 (the default): no run starts, one log line
+NOLOGIN="this project has no gh login of its own (GH_CONFIG_DIR); set one up (canccu-dispatcher doctor shows how) or set ALLOW_DEFAULT_GH_LOGIN=1"
+env_new token-refused ALLOW_DEFAULT_GH_LOGIN=0
+issue 3 ready | issues
+dispatch --once; dispatch --once
+ok "default login refused: nothing starts" eq "$(wc -l < "$FAKE/worker.log")" 0
+ok "… no gh call reads the repo" eq "$(grep -vcE '^(auth token|label list)' "$FAKE/gh.log")" 0
+ok "… one log line over two passes" eq "$(grep -cF "$NOLOGIN: project web does nothing until it works" "$CANCCU_HOME/dispatch.log")" 1
+ok "… the snapshot says so" eq "$(jq -r '"\(.pass.ok) \(.pass.error)"' "$CANCCU_HOME/status.json")" "false $NOLOGIN"
+ok "… canccu-status says so, without the default-login warning" \
+  eq "$(gstatus | grep -cF "$NOLOGIN: the dispatcher does nothing for this project until it works") $(gstatus | grep -c '^warning: no gh config dir')" "1 0"
+dispatch --dry-run; rc=$?
+ok "… --dry-run stops and says why" eq "$rc $(grep -cF "canccu-dispatch: $NOLOGIN" "$E/out")" "1 1"
+sed -i '/^ALLOW_DEFAULT_GH_LOGIN=/d' "$CANCCU_HOME/config"; dispatch --once
+ok "… 0 is the default" eq "$(wc -l < "$FAKE/worker.log")" 0
+ghlogin "$CANCCU_HOME/gh"; dispatch --once
+ok "… with a project login, the next pass runs" started 3
+ok "… and the warning resets" test ! -e "$CANCCU_HOME/.warned-credential"
+
+# no config dir with ALLOW_DEFAULT_GH_LOGIN=1 (the harness sets it): today's behaviour, with a warning
 env_new token-none
 issue 3 ready | issues
 dispatch --once

@@ -21,6 +21,8 @@ clean_host() {
   mkdir -p "$C/projects/web" "$H/code/web"; git -C "$H/code/web" init -q
   printf 'REPO=example-org/web\nCLONE=%s\n' "$H/code/web" > "$C/projects/web/config"
   cp "$root/tests/fixtures/rules/web" "$C/projects/web/rules"
+  # the project's own gh login (the fake gh reaches every repo)
+  mkdir -p "$C/projects/web/gh"; printf 'github.com:\n    oauth_token: fake-project-token\n' > "$C/projects/web/gh/hosts.yml"
 }
 doctor() { hrun "$P/bin/canccu-dispatcher" doctor "$@"; }
 line() { grep -c -- "$1" "$E/out"; }
@@ -43,6 +45,14 @@ for pat in '~/.canccu/**' '/'"$H"'/.canccu/reviewer-token' '~/.canccu/*-token'; 
   echo "{\"permissions\": {\"deny\": [\"Read($pat)\"]}}" > "$H/.claude/settings.json"; doctor
   ok "the token covered by Read($pat)" eq "$rc" 0
 done
+
+clean_host no-login
+rm -r "$C/projects/web/gh"; doctor
+ok "a project without its own gh login: named, with the steps" \
+  eq "$rc $(line '^project web: no gh login of its own (GH_CONFIG_DIR) and ALLOW_DEFAULT_GH_LOGIN=0: it starts no run; to set one up, create a fine-grained token for example-org/web only (Repository permissions: Contents, Issues and Pull requests, read and write), then GH_CONFIG_DIR=~/.canccu/projects/web/gh gh auth login --with-token --insecure-storage < <the token file>$')" "1 1"
+ok "… on one line" eq "$(wc -l < "$E/out")" 1
+echo ALLOW_DEFAULT_GH_LOGIN=1 >> "$C/projects/web/config"; doctor
+ok "… ALLOW_DEFAULT_GH_LOGIN=1: no problem" eq "$rc $(cat "$E/out")" "0 no problems found"
 
 clean_host off-path
 IPATH=${IPATH#"$P/bin:"}; hrun "$P/bin/canccu-dispatcher" doctor

@@ -133,13 +133,15 @@ printf '%s\t%s\t%s\n' "${GH_CONFIG_DIR:-<default>}" "${GIT_CONFIG_COUNT:-<unset>
 # real git, on the repo mmrepo built in CLONE; $FAKE/numstat still answers diff --numstat
 if [ -e "$FAKE/realgit" ]; then
   case " $a " in
-    *" merge-tree "*|*" merge-base "*|*" rev-list --parents "*|*" diff --name-only "*) exec "$FAKE_REAL_GIT" "$@" ;;
+    *" merge-tree "*|*" merge-base "*|*" rev-list --parents "*|*" diff --name-only "*|*" diff -U0 "*) exec "$FAKE_REAL_GIT" "$@" ;;
     *" rev-parse HEAD "*) ;;
     *" rev-parse "*) exec "$FAKE_REAL_GIT" "$@" ;;
     *" diff --numstat "*) [ -e "$FAKE/numstat" ] || exec "$FAKE_REAL_GIT" "$@" ;;
   esac
 fi
 case " $a " in *" diff --numstat "*) cat "$FAKE/numstat" 2>/dev/null || exit 128 ;; esac
+# the lines changed since a pass (diff -U0): only the real repo answers; else git fails, so no pass rule
+case " $a " in *" diff -U0 "*) exit 128 ;; esac
 # a worktree's branch (branch --show-current: $FAKE/branch), how far main is ahead (rev-list
 # --count: $FAKE/behind), its commits (log --oneline: $FAKE/gitlog) and their diff stat (diff --stat:
 # $FAKE/diffstat); $FAKE/merge-conflict: a merge
@@ -214,6 +216,8 @@ env_new() {
     echo "REPO=example-org/web"; echo "CLONE=$E/code/web"; echo "CAP=3"; echo "USER_LOGIN=octo"; echo 'ADD_DIRS=""'; echo "REVIEWER_LOGIN=review-bot"
     echo "DIGEST_HOUR_UTC=24"; echo "DIGEST_ISSUE=42"; echo "AUTO_MERGE_UNTIL=2031-03-01"
     echo "REVIEWER_TOKEN_FILE=$E/reviewer-token"
+    # the suite runs on the fake gh's default login; tests/canccu-projects.sh tests the refusal
+    echo "ALLOW_DEFAULT_GH_LOGIN=1"
     printf '%s\n' "$@"
   } > "$CANCCU_HOME/config"
   printf '%s\n' "$FAKE_TOKEN" > "$E/reviewer-token"; chmod 600 "$E/reviewer-token"
@@ -225,7 +229,7 @@ env_new() {
     'api repos/example-org/web/issues/*/dependencies/blocking' empty.json \
     'run list*' runs.json  'api user*' user.json > "$FAKE/routes.default"
   echo '[]' > "$FAKE/ms.json"; echo '[]' > "$FAKE/cps.json"; echo '[]' > "$FAKE/empty.json"; echo '[]' > "$FAKE/issues.json"; echo '[]' > "$FAKE/prs.json"; echo '[]' > "$FAKE/runs.json"
-  jq -n '["ready","blocked","in-progress","epic","needs-you","plan-ok","awaiting-accept","needs-work","accepted","manual-accept","checkpoint","checkpoint-ok","fast"] | map({name: .})' \
+  jq -n '["ready","blocked","in-progress","epic","needs-you","plan-ok","awaiting-accept","needs-work","accepted","manual-accept","checkpoint","checkpoint-ok","fast","security"] | map({name: .})' \
     > "$FAKE/labels.json"
   : > "$FAKE/routes"; : > "$FAKE/gh.log"; : > "$FAKE/worker.log"
 }
@@ -303,13 +307,13 @@ penv() {
   printf '%s\n' "$FAKE_TOKEN" > "$E/reviewer-token"; chmod 600 "$E/reviewer-token"
   jq -n --arg l "$BOT" '{login: $l}' > "$FAKE/user.json"
   echo '[]' > "$FAKE/empty.json"; echo '[]' > "$FAKE/runs.json"
-  jq -n '["ready","blocked","in-progress","epic","needs-you","plan-ok","awaiting-accept","needs-work","accepted","manual-accept","checkpoint","checkpoint-ok","fast"] | map({name: .})' \
+  jq -n '["ready","blocked","in-progress","epic","needs-you","plan-ok","awaiting-accept","needs-work","accepted","manual-accept","checkpoint","checkpoint-ok","fast","security"] | map({name: .})' \
     > "$FAKE/labels.json"
   : > "$FAKE/routes"; : > "$FAKE/gh.log"; : > "$FAKE/worker.log"; : > "$FAKE/routes.default"
   for p; do
     mkdir -p "$CANCCU_ROOT/projects/$p/state" "$CANCCU_ROOT/projects/$p/workers" "$E/code/$p"
     { echo "REPO=$(prepo "$p")"; echo "CLONE=$E/code/$p"; echo "USER_LOGIN=octo"; echo "REVIEWER_LOGIN=review-bot"; echo "DIGEST_HOUR_UTC=24"
-      echo "REVIEWER_TOKEN_FILE=$E/reviewer-token"; } > "$CANCCU_ROOT/projects/$p/config"
+      echo "REVIEWER_TOKEN_FILE=$E/reviewer-token"; echo "ALLOW_DEFAULT_GH_LOGIN=1"; } > "$CANCCU_ROOT/projects/$p/config"
     sed "s/@NAME@/$p/g" "$root/profiles/default/rules" > "$CANCCU_ROOT/projects/$p/rules"
     echo '[]' > "$FAKE/issues-$p.json"; echo '[]' > "$FAKE/prs-$p.json"
     printf '%s\t%s\n' "issue list -R $(prepo "$p") *" "issues-$p.json" "pr list -R $(prepo "$p") -s open*" "prs-$p.json" \
@@ -383,6 +387,10 @@ mmrepo() {
 
 # used by tests/canccu-review.sh and tests/canccu-review2.sh; FINDING: the full review's finding on HA
 FINDING='1. src/a.ts:3 off by one; fix: use <='
+# review files in the shape of contracts §8 (#190), to put before the verdict line: VB0 has no
+# findings, VB1 one blocking finding (FINDING's, with a class and its Evidence:)
+VB0=$'Blocking: none\nNon-blocking: none\nPre-existing: none\nFindings: 0 blocking, 0 non-blocking, 0 pre-existing\n'
+VB1=$'Blocking:\n1. [correctness] src/a.ts:3 off by one; fix: use <=\n   Evidence: three items give 2\nNon-blocking: none\nPre-existing: none\nFindings: 1 blocking, 0 non-blocking, 0 pre-existing\n'
 # sethead <sha>: the PR moves to a new head (the posted comments stay)
 sethead() {
   pr 50 5 "$1" | prs

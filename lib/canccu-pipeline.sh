@@ -71,7 +71,7 @@ reap_worker() {
 # too). Every run ends with one outcome line in the log: posted, post failed, post timed out, no
 # valid verdict, or void (a push during the run).
 reap_review() {
-  local n=$1 pr sha j head kind status last started f prc at why
+  local n=$1 pr sha j head kind status last started f at why reason="" REVIEW_SETTLED REVIEW_PASSRULE REVIEW_CHANGED
   pr=$(st_get "$n" pr); sha=$(st_get "$n" review_sha)
   run_alive "review-$pr" && return 0
   [ "$(st_get "$n" phase)" = review ] || return 0
@@ -93,19 +93,20 @@ reap_review() {
   fi
   if [ -z "$(verdict_of "$j" "$(st_get "$n" verdict_at)")" ] && [ "$(st_get "$n" posted)" != "$sha" ]; then
     kind=none last="$WORKERS_DIR/$REPO_NAME-review-$pr.last" started=$(st_get "$n" started) f=$(review_file "$pr" "$sha")
+    review_ctx "$n" "$pr" "$sha"
     [ -e "$last" ] && (( $(stat -c %Y "$last") >= ${started:-0} )) &&
       IFS='|' read -r kind status <<<"$(run_exit "$last")"
     spend_review_note "$n" "$pr" "$f" "$sha" "${started:-0}"
     if [ -e "$f" ] && (( $(stat -c %Y "$f") >= ${started:-0} )) && [ -n "$(file_verdict "$f" "$sha")" ]; then
-      post_review "$n" "$pr" "$f" "$sha"; prc=$?
-      (( prc == 2 )) && { st_set "$n" posted="$sha" posted_at="$(now)" post_uncertain=1; return; }
-      (( prc == 0 )) || return 0
+      # 2: the post timed out and may have landed
+      review_post "$n" "$pr" "$f" "$sha" || { (( $? == 2 )) && st_set "$n" posted="$sha" posted_at="$(now)" post_uncertain=1; return 0; }
       st_set "$n" posted="$sha" posted_at="$(now)" post_uncertain=
       j=$(pr_detail "$pr") || { log "#$n PR #$pr: review posted; reading it back next pass"; return; }
       [ -n "$(verdict_of "$j" "$(st_get "$n" verdict_at)")" ] || { log "#$n PR #$pr: review posted; acting on it once GitHub lists it"; return; }
     else
       if [ ! -e "$f" ]; then why="no review file"
       elif (( $(stat -c %Y "$f") < ${started:-0} )); then why="the review file is older than the run"
+      elif [ -n "$(file_verdict_raw "$f" "$sha")" ]; then why="a file whose count line does not match the items" reason="the count line does not match the items"
       else why="the file's last line is no verdict for ${sha:0:7}"; fi
       if [ "$kind" = usage ]; then
         outcome "$n" "$pr" "$sha" "no valid verdict ($why; usage limit); again after the back-off"
@@ -116,7 +117,7 @@ reap_review() {
       # a run that ended well but wrote no valid file is asked once per head to write it
       if [ "$kind" = "done" ] && [ "$(st_get "$n" file_retry)" != "$sha" ]; then
         may_start "$n" || return 0
-        retry_review_file "$pr" "$n" "$sha" || return 0
+        retry_review_file "$pr" "$n" "$sha" "${reason:-}" || return 0
         st_set "$n" file_retry="$sha" started="$(now)"
         log "#$n PR #$pr: the reviewer left $why; asked once to write the review file"
         return
@@ -311,23 +312,7 @@ adopt() {
 
 # ---------------------------------------------------------------- 4. resume
 
-# user_comments <n> <pr> <since epoch>: the user's comments on the issue and PR since then,
-# without the dispatcher's own (its marker), review verdicts, or the answerer's (it posts as the
-# user too). A verdict is what verdict_of reads: its last non-empty line matches VERDICT_RE; a
-# lead's quote-reply holds a verdict line too but ends in the lead's own words, and counts.
-user_comments() {
-  local n=$1 pr=$2 since; since=$(iso "${3:-0}")
-  # a gh error on either read fails the call (pipefail), never a silently shorter list
-  { ghj issue view "$(lead_of "$n")" -R "$REPO" --json comments || exit 1
-    if [ -n "$pr" ]; then ghj pr view "$pr" -R "$REPO" --json comments || exit 1; fi; } |
-    jqr -s --arg u "$USER_LOGIN" --arg s "$since" --arg m "$CANCCU_MARK" --arg vre "$VERDICT_RE" '
-      [ .[].comments[] | select(.author.login == $u and .createdAt > $s
-                                and (.body | contains($m) | not)
-                                and (.body | gsub("\r"; "") | split("\n") | map(select(test("\\S")))
-                                     | last // "" | test($vre; "i") | not)
-                                and (.body | test("^[\\s*_]*(Answer|Needs the product owner):") | not)) ]
-      | sort_by(.createdAt) | map(.body) | join("\n\n---\n\n")'
-}
+# user_comments: lib/canccu-accepts.sh
 
 # full_review_asked <comments>: the lead asks for a new full review with a line that is just
 # `full review` (any case; spaces, `*`, `_`, backticks and a final . or ! allowed): the words
@@ -378,7 +363,7 @@ resume_step() {
       { log "#$n PR #$pr: gh error reading the comments for needs-work; retrying next pass"; return 0; }
     extra_round "$n" "$pr" "$c" && return 0
     resume "$n" "The user rejected PR #$pr (needs-work). Address their comments, rerun the checks, push once and stop: the dispatcher watches CI. Their comments: ${c:-none found; read the latest comments on the PR and the issue}" needs-work || return 0
-    edit_issue "$n" --remove-label needs-work
+    history_answer "$pr"; edit_issue "$n" --remove-label needs-work
     has_label "$n" awaiting-accept && edit_issue "$n" --remove-label awaiting-accept
     new_cycle "$n"
   elif [ "$phase" = needs-you ]; then
