@@ -6,6 +6,10 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 
 ## Unreleased
 
+- The scenario suite: `tests/scenarios/run --repo <owner/sandbox>` runs the real dispatcher
+  against a sandbox repo with a fake engine (no model tokens). A release PR (one that changes
+  `VERSION`) needs the body line `Scenarios: pass at <short sha>` (#189).
+
 ## [0.1.4] — 2026-11-14
 
 **Upgrade:** the host profiles now set the run models. With `HOST_PROFILE=max`, the work and plan

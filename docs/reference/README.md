@@ -25,6 +25,8 @@ The guides (getting started, install, upgrading, security, …) are in [`../READ
 | [`state.md`](state.md) | Where the state lives, a unit's state, colours |
 | [`snapshot.md`](snapshot.md) | The status snapshot's schema |
 | [`monitor.md`](monitor.md) | canccu-monitor's layout and self-test |
+| [`scenarios.md`](scenarios.md) | The scenario suite: the sandbox, running it, what a FAIL prints, the release gate |
+| [`release.md`](release.md) | The release steps and their checks |
 
 ## Sections
 
