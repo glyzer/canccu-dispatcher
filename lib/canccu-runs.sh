@@ -91,15 +91,18 @@ reviewer_token_problem() {
   m=$(stat -c %a "$f"); [ "$m" = 600 ] || echo "$f has mode $m, not 600"
 }
 # gh_credential_problem: why the project's own gh credential cannot work, or nothing when it
-# reaches REPO (and nothing for a project without a config dir: the default login).
+# reaches REPO. A project without a config dir has none: it may run on the default login (broad:
+# every repo the host's user reaches) only with ALLOW_DEFAULT_GH_LOGIN=1.
+#   GH_NO_LOGIN                  no config dir, and ALLOW_DEFAULT_GH_LOGIN is not 1
 #   TOKEN MISSING (…)            no token in the dir's own hosts.yml. Only the key is looked for,
 #                                never the value; gh's keyring fallback (keyed by host, not dir:
 #                                the default login's) never counts as the project's login.
 #   TOKEN CANNOT REACH <repo> (…) GitHub refused it (HTTP 401, 403 or 404)
 #   CREDENTIAL CHECK FAILED (…)  no answer from GitHub (network, 5xx): checked again next pass
+GH_NO_LOGIN="this project has no gh login of its own (GH_CONFIG_DIR); set one up (canccu-dispatcher doctor shows how) or set ALLOW_DEFAULT_GH_LOGIN=1"
 gh_credential_problem() {
   local err d=${CANCCU_GH_DIR/#$HOME/\~}
-  [ -n "$CANCCU_GH_DIR" ] || return 0
+  if [ -z "$CANCCU_GH_DIR" ]; then [ "${ALLOW_DEFAULT_GH_LOGIN:-0}" = 1 ] || echo "$GH_NO_LOGIN"; return 0; fi
   grep -qE '^[[:space:]]*oauth_token:[[:space:]]*[^[:space:]]' "$CANCCU_GH_DIR/hosts.yml" 2>/dev/null ||
     { echo "TOKEN MISSING (no token in $d/hosts.yml; log in with gh auth login --with-token --insecure-storage)"; return; }
   err=$(ghj api "repos/$REPO" -q .full_name 2>&1 >/dev/null) && return 0
@@ -107,6 +110,10 @@ gh_credential_problem() {
   if grep -qiE 'HTTP (401|403|404)|bad credentials|not found|resource not accessible' <<<"$err"; then
     echo "TOKEN CANNOT REACH $REPO (gh: $err)"
   else echo "CREDENTIAL CHECK FAILED (GitHub did not answer for $REPO; gh: $err)"; fi
+}
+# gh_login_steps: how to give the project its own gh login, in one line (doctor)
+gh_login_steps() {
+  echo "create a fine-grained token for $REPO only (Repository permissions: Contents, Issues and Pull requests, read and write), then GH_CONFIG_DIR=${CANCCU_HOME/#$HOME/\~}/gh gh auth login --with-token --insecure-storage < <the token file>"
 }
 # gh_credential_warning: the one-line warning for a project on the default gh login, or nothing
 gh_credential_warning() {

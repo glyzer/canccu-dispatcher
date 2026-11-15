@@ -69,8 +69,10 @@ ensure_unit_wt() {
   mut git -C "$CLONE" fetch -q origin || { log "#$1: git fetch failed"; return 1; }
   mut git -C "$CLONE" worktree add -q --detach "$wt" origin/main || { log "#$1: worktree $wt failed"; return 1; }
 }
-# unit_title <K>: the issue's title; "package <name>: <lead's title> (+k)"; "health pass: <step>"
-unit_title() {
+# unit_title <K>: the issue's title; "package <name>: <lead's title> (+k)"; "health pass: <step>".
+# Through safe_title: a step's title in the state may predate it.
+unit_title() { safe_title "$(_unit_title "$1")"; }
+_unit_title() {
   local k=$1 l c
   is_pkg "$k" || { jqr --argjson n "$k" '.[] | select(.number == $n) | .title' <<<"$ISSUES"; return; }
   if is_health "$k"; then echo "health pass: $(step_get "$(st_get "$k" step)" title)"; return; fi

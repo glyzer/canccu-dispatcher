@@ -7,13 +7,14 @@
 ISSUES='[]' PRS='[]' AUTO_MERGE_ALLOWED="" MERGE_METHOD="" MF=()
 fetch() {
   AUTO_MERGE_ALLOWED="" MERGE_METHOD=""   # read again (auto_merge_read, merge_method_read) in each pass that merges
-  ISSUES=$(ghj issue list -R "$REPO" -s open -L 300 --json number,title,labels,milestone,body) && fetch_prs
+  local i
+  i=$(ghj issue list -R "$REPO" -s open -L 300 --json number,title,labels,milestone,body) && ISSUES=$(safe_titles <<<"$i") && fetch_prs
 }
 # fetch_prs: this pass's open PRs (read again where a stale list would mislead: reap_worker)
 fetch_prs() {
   local p
   p=$(ghj pr list -R "$REPO" -s open -L 300 --json number,title,url,isDraft,headRefOid,headRefName,author,isCrossRepository,autoMergeRequest,labels,closingIssuesReferences,body,statusCheckRollup,mergeStateStatus) &&
-    PRS=$p
+    PRS=$(safe_titles <<<"$p")
 }
 
 # is_open, labels_of, has_label, title_of take a unit key too (lib/canccu-units.sh): a package is
