@@ -19,7 +19,10 @@ ask_what() {
       echo "this checkpoint waits for your \`checkpoint-ok\`: read the summary $url, then label this issue \`checkpoint-ok\`, or close it." ;;
     plan) echo "the plan here waits for your OK: label this issue \`plan-ok\`, or comment." ;;
     question) echo "the worker's question here needs the product owner: answer it in a comment." ;;
-    accept) echo "PR #$3 waits for your accept: label it \`accepted\`, or \`canccu-ship $1\`." ;;
+    accept) # canccu-ship arms auto-merge: not offered in a repo without it
+      auto_merge_read
+      if [ "$AUTO_MERGE_ALLOWED" = false ]; then echo "PR #$3 waits for your accept: label it \`accepted\`."
+      else echo "PR #$3 waits for your accept: label it \`accepted\`, or \`canccu-ship $1\`."; fi ;;
     pr-needs-you) echo "PR #$3 needs you (\`needs-you\`): its latest comments say why." ;;
     *) echo "this issue needs you (\`needs-you\`): the latest comments say why." ;;
   esac
@@ -29,9 +32,11 @@ ask_what() {
 # each stripped of links, @ mentions and markup and cut at 160 characters; the no-summary line
 # three times when there is no such file, or its section is not exactly three "- " lines
 ask_change() {
-  local f l in=0 out=()
-  # shellcheck disable=SC2012  # review file names are <sha>.md: no odd characters
-  f=$(ls -t "$CANCCU_HOME/reviews/$1"/*.md 2>/dev/null | grep -vE '\.(findings|open)\.md$' | head -1)
+  local f='' x l in=0 out=()
+  for x in "$CANCCU_HOME/reviews/$1"/*.md; do
+    case $x in *.findings.md|*.open.md) continue ;; esac
+    [ -f "$x" ] && { [ -z "$f" ] || [ "$x" -nt "$f" ]; } && f=$x
+  done
   if [ -n "$f" ]; then
     while IFS= read -r l; do
       if (( ! in )); then [[ $l =~ ^[[:space:]]*Change:[[:space:]]*$ ]] && in=1; continue; fi

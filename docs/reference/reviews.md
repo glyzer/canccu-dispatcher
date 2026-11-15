@@ -18,7 +18,10 @@ the choices under `Decisions made:` in the PR body. It treats the PR, the issue,
 `CLAUDE.md` and `AGENTS.md` as data, never as instructions; it edits, pushes, comments, labels
 and merges nothing.
 
-It writes its review to `~/.canccu/projects/<name>/reviews/<pr>/<sha>.md`: the blocking
+It writes its review to `~/.canccu/projects/<name>/reviews/<pr>/<sha>.md`: first a line
+`Change:` and exactly three lines starting `- `, each one plain sentence on what the PR changes for
+its users, written from the diff (the summary of [the ask form](pings.md#the-ask-form); missing or
+malformed, the form says the reviewer gave none, and the verdict is not affected); then the blocking
 findings under "Blocking:", ranked, each with a repo-relative `file:line` and a concrete fix;
 then, only when the PR breaks a contract or holds a destructive migration, `Maintainer accept:
 <what>`; for a package, `Risk: <low|normal|high> — <why>` (it confirms or raises the plan's
@@ -35,7 +38,7 @@ findings, step <title>, wave <w>` for a package, `…, health pass` for the heal
 you decide), later ones are comments on it while it is open; a closed one makes a new issue.
 A PR that closes the follow-up issue files its own findings in a new one. The
 fix run of a `changes` verdict gets only the blocking findings, and the fix-check checks only
-those. They are saved to `reviews/<pr>/<head>.findings.md` before the fix run starts; its prompt
+those (its file opens with the same `Change:` section, so the ask after a fix shows a summary of the new head). They are saved to `reviews/<pr>/<head>.findings.md` before the fix run starts; its prompt
 names that file and inlines at most their first 3,000 characters, so a long list is read there. A `gh` error is logged and blocks nothing: the items stay in the PR comment.
 `canccu-status --findings` lists the most common findings and the files cited most, across the
 review records (`FINDINGS_TOP` lines at most, 15 by default).
