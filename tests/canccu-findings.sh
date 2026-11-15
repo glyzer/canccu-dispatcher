@@ -138,13 +138,14 @@ rmerged() {
   body+=$'\n'"Findings: $b blocking, $nb non-blocking, $p pre-existing"$'\n'"Review verdict: $( (( b )) && echo changes || echo pass) $sha"
   mkdir -p "$CANCCU_HOME/reviews/$pr"; printf '%s\n' "$body" > "$CANCCU_HOME/reviews/$pr/$sha.md"
   printf '%s\t%s\t%s\tfull\tpass\t0\t1\t0\t0\t-\n' "$(lib iso "$t")" "$pr" "$sha" >> "$CANCCU_HOME/reviews.log"
-  CANCCU_NOW=$t lib unit_merged "$pr" "$pr" "Issue $pr" > /dev/null
+  CANCCU_NOW=$t mlib unit_merged "$pr" "$pr" "Issue $pr" > /dev/null
 }
+# mlib: lib with the after-merge part (unit_merged), which canccu-dispatch sources
+mlib() { ( PATH="$fb:$PATH"; . "$root/lib/canccu-common.sh"; . "$root/lib/canccu-aftermerge.sh"; "$@" ) 2>/dev/null; }
 creates() { grep -c '^issue create' "$FAKE/gh.log"; }
-json open900.json '{"state": "OPEN"}'
 
 env_new recur-3
-route 'issue view 900 *' open900.json
+json open900.json '{"state": "OPEN"}'; route 'issue view 900 *' open900.json
 rmerged 51 20; rmerged 52 10
 ok "two merged PRs with [correctness] lib/a.sh: no issue yet" eq "$(creates)" 0
 ok "… their keys are in findings.log, one line per key per PR" \
@@ -163,12 +164,13 @@ rmerged 54 0
 ok "a fourth comments on the open issue, no new one" eq "$(creates) $(grep -c '^issue comment 900 .*PR #54.*lib/a.sh:54' "$FAKE/gh.log")" "1 1"
 rmerged 54 0
 ok "… a merge recorded again comments no second time" eq "$(grep -c '^issue comment 900 ' "$FAKE/gh.log")" 1
+issue 900 "" | issues
 out=$(cd "$E" && PATH="$fb:$PATH" "$root/bin/canccu-status" 2>&1)
 ok "canccu-status lists the open recurring-finding issues on one line" \
   grep -qx 'recurring findings (a person decides): #900 correctness in lib/a.sh' <<<"$out"
 
 env_new recur-40
-route 'issue view 900 *' open900.json
+json open900.json '{"state": "OPEN"}'; route 'issue view 900 *' open900.json
 rmerged 51 40; rmerged 52 20; rmerged 53 0
 ok "three such PRs over 40 days: no issue" eq "$(creates)" 0
 
@@ -190,7 +192,7 @@ rmerged 51 2; rmerged 52 1; rmerged 53 0
 ok "a recorded issue that is closed: a new one, recorded" eq "$(creates) $(cat "$CANCCU_HOME/recurring")" $'1 correctness\tlib/a.sh\t900'
 
 env_new recur-gh-error
-route 'fail:issue create' x
+echo 'fail:issue create' >> "$FAKE/routes"
 rmerged 51 2; rmerged 52 1; rmerged 53 0
 ok "a gh error is logged; the merge goes on" \
   eq "$(grep -c 'recurring finding correctness in lib/a.sh: creating the issue failed (gh)' "$CANCCU_HOME/dispatch.log") $(grep -c '53 merged' "$CANCCU_HOME/dispatch.log")" "1 1"

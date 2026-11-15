@@ -110,6 +110,7 @@ if fetch; then
             done)
   echo "not ours (never reviewed, merged or commented on):"
   echo "${foreign:-  none}"
+  rl=$(recurring_open_line); [ -n "$rl" ] && echo "$rl"
   q=$(runnable 5 | sed 's/^/#/' | tr '\n' ' ')
   echo "queue (fast lane, next 5 runnable): ${q:-none}"
   # the steps: the current one(s), the package plan, the spend, the checkpoint, the notes

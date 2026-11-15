@@ -110,6 +110,7 @@ unit_merged() {
   local n=$1 pr=$2 title how m; title=$(safe_title "$3"); shift 3
   how=$(st_get "$n" how)
   (( CANCCU_DRY )) || printf '%s\t%s\t%s\t%s\t%s\n' "$(now)" "$n" "$pr" "${how:-by hand}" "$title" >> "$CANCCU_HOME/merged.log"
+  findings_record "$pr"
   log "#$n merged (PR #$pr, ${how:-by hand})"
   unit_cleanup "$n" "$pr"
   [ "$(guard 10 git -C "$CLONE" branch --show-current)" = main ] && { mut git -C "$CLONE" pull -q --ff-only || log "git pull in $CLONE failed"; }
