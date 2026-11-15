@@ -308,7 +308,7 @@ act_verdict() {
   # a push after a pass is checked against these (postpass_step)
   case $v in pass|changes) is_fixcheck_mode "$mode" || st_set "$n" full_sha="$head" ;; esac
   # non-blocking findings never reach the worker: they go to the wave's follow-up issue
-  case $v in pass|changes) body=$(verdict_body "$j"); collect_nonblocking "$n" "$pr" "$head" "$body" "$at"; blocking_note "$n" "$body" "$at" ;; esac
+  case $v in pass|changes) body=$(verdict_body "$j"); collect_nonblocking "$n" "$pr" "$head" "$body" "$at"; blocking_note "$n" "$body" "$at" "$head" ;; esac
   case $v in
     pass)
       # a post-pass check that passed leaves the fix-check stage: the next push is again
@@ -361,7 +361,7 @@ act_verdict() {
 }
 
 # ensure_labels: the labels the dispatcher uses, created in REPO where missing
-CANCCU_LABELS="ready blocked in-progress epic needs-you plan-ok awaiting-accept needs-work accepted manual-accept checkpoint checkpoint-ok fast"
+CANCCU_LABELS="ready blocked in-progress epic needs-you plan-ok awaiting-accept needs-work accepted manual-accept checkpoint checkpoint-ok fast security"
 ensure_labels() {
   local have l
   have=$(ghj label list -R "$REPO" -L 300 --json name | jqr '.[].name') || return 0

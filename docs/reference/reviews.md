@@ -18,18 +18,20 @@ the choices under `Decisions made:` in the PR body. It treats the PR, the issue,
 `CLAUDE.md` and `AGENTS.md` as data, never as instructions; it edits, pushes, comments, labels
 and merges nothing.
 
-It writes its review to `~/.canccu/projects/<name>/reviews/<pr>/<sha>.md`: the blocking
-findings under "Blocking:", ranked, each with a repo-relative `file:line` and a concrete fix;
-then, only when the PR breaks a contract or holds a destructive migration, `Maintainer accept:
-<what>`; for a package, `Risk: <low|normal|high> — <why>` (it confirms or raises the plan's
-class, never lowers it); and last, exactly `Review verdict: pass <sha>` or `Review verdict:
-changes <sha>`. Only correctness and security findings (an unmet acceptance criterion counts) make
-the verdict `changes`; nits go under "Non-blocking:". The dispatcher checks the file and posts
-it as `REVIEWER_LOGIN`.
+It writes its review to `~/.canccu/projects/<name>/reviews/<pr>/<sha>.md`: any prose of its own,
+then the finding block below; `Maintainer accept: <what>` only when the PR breaks a contract or
+holds a destructive migration; for a package, `Risk: <low|normal|high> — <why>` (it confirms or
+raises the plan's class, never lowers it); and last, exactly `Review verdict: pass <sha>` or
+`Review verdict: changes <sha>`. The dispatcher checks the file and posts it as `REVIEWER_LOGIN`.
+
+### The finding block
+
+Every review and fix-check file ends with the finding block of `docs/plan/contracts.md` §8; its
+classes, its rules and how the dispatcher decides what blocks are in [`findings.md`](findings.md).
 
 **Non-blocking findings go to a follow-up issue.** From every verdict comment (a review's or a
 fix-check's, `pass` or `changes`, once per verdict) the dispatcher takes the items under
-"Non-blocking:" and files them in one open issue per wave: `Follow-ups: non-blocking review
+"Non-blocking:" (with the demoted and the pre-existing ones) and files them in one open issue per wave: `Follow-ups: non-blocking review
 findings, step <title>, wave <w>` for a package, `…, health pass` for the health pass, and
 `… (fast lane)` for every other issue. The first findings make the issue (not labelled `ready`:
 you decide), later ones are comments on it while it is open; a closed one makes a new issue.
@@ -78,9 +80,11 @@ keeps `FIXCHECK_MODEL`; a retry of the review file keeps the model the review st
 After the worker fixed a full review's findings and CI is green, the fix-check runs: the same
 setup (window `fixcheck#<pr>`, budget `BUDGET_FIXCHECK`), with the findings in its prompt and
 `git diff <reviewed sha>..<head>` as its only diff. It answers each blocking finding (fixed, not
-fixed, the fix broke something), looks for nothing new except a correctness or security bug the
-fix introduced, and ignores changes that came from merging `origin/main`. It copies the review's
-`Maintainer accept:` and `Risk:` lines, and adds its own for a breaking change in the fix diff.
+fixed, the fix broke something) on one line each above the finding block, whose `Blocking:` lists
+only what is still open or newly broken; it looks for nothing new except a correctness or security
+bug the fix introduced, and ignores changes that came from merging `origin/main`. It copies the
+review's `Maintainer accept:` and `Risk:` lines into the block, and adds its own for a breaking
+change in the fix diff.
 Its file is posted like a review, so `review-gate` passes on the new head.
 
 **Effort:** `low` by default; `medium` above 300 changed lines in the fix diff, when it touches
