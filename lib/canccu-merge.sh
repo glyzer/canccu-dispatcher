@@ -369,7 +369,7 @@ postpass_step() {
     return 0
   fi
   base=$(st_get "$n" full_sha); base=${base:-$psha}
-  backing_off && return 0
+  { backing_off || pause_holds; } && return 0
   if [ -n "$(reviewer_token_problem)" ]; then room || return 0; else room "$n" || return 0; fi
   why=$(postpass_full "$base" "$head")
   if [ -n "$why" ]; then

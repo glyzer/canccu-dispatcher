@@ -239,7 +239,7 @@ check_pr() {
   if (( fix )) && [ -n "$rsha" ] && [ "$head" = "$rsha" ]; then
     needs_you "$n" "the worker pushed no fix for the review's findings on PR #$pr (the head is still the reviewed ${rsha:0:7}). If no fix was needed (a finding was wrong), \`canccu-review $pr\` reviews the head again: its pass merges, its \`changes\` comes back here; otherwise comment the way on and the worker resumes"; return
   fi
-  backing_off && return
+  { backing_off || pause_holds; } && return
   # with reviews refused the review cannot start: it waits for no shared slot
   if [ -n "$(reviewer_token_problem)" ]; then room || return; else room "$n" || return; fi
   if (( fix )) && [ -n "$rsha" ]; then start_fixcheck "$pr" "$n" "$rsha" "$head"

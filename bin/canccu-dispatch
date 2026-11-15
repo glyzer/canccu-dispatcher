@@ -115,7 +115,7 @@ pass() {
       check) check_pr "$n" ;;
       # merge_unpark leaves it in accept (accept_step below merges) or requeued for the next pass
       needs-you) merge_unpark "$n" || { { ci_unpark "$n" || ready_unpark "$n"; } && check_pr "$n"; } ;;
-      question) backing_off || ! room "$n" || start_answer "$n" ;;
+      question) backing_off || pause_holds || ! room "$n" || start_answer "$n" ;;
     esac
   done
   # 3. start
@@ -149,8 +149,8 @@ pass() {
     for m in $(current_step_ids); do reap_planner "$m"; step_tick "$m" "$go"; done
     (( go )) && for m in $(current_step_ids); do start_packages "$m"; done
   fi
-  # 4. resume
-  backing_off || for n in "${open[@]}"; do resume_step "$n"; done
+  # 4. resume: a resume is a new run, so the pause and the disk hold it too (#215)
+  backing_off || pause_holds || disk_low >/dev/null || for n in "${open[@]}"; do resume_step "$n"; done
   # 5. accept
   for n in "${open[@]}"; do
     case $(st_get "$n" phase) in accept) accept_step "$n" ;; merging) merging_step "$n" ;; esac

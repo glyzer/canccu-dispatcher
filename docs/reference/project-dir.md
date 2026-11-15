@@ -31,7 +31,7 @@ fields are in [`state.md`](state.md). Every file in `~/.canccu/projects/<name>/`
 | `feed.open` | `<key>=<id>` of the open feed items no unit's state holds (holds, checkpoints, PRs labelled `needs-you`), and `leader_ack=<id>`: the highest line the leader acknowledged |
 | `.running` | Present while the dispatcher loops; one left at its start means a stop it did not plan |
 | `dispatch.pid`, `.dispatch.lock` | The running dispatcher and its lock |
-| `paused` | Present while paused (`canccu-pause`) |
+| `paused` | Present while paused: empty for `canccu-pause` (no new run at all), `finish` for `canccu-pause --finish` (work in flight goes on) ([`pipeline.md`](pipeline.md#one-pass)) |
 | `gh_limit` | The epoch until which passes pause for a GitHub rate limit ([`pipeline.md`](pipeline.md#one-pass)); removed when it has passed |
 | `.disk-low` | Present while free space is below `DISK_MIN_MB`, so the hold is logged once |
 | `status.json` | The status snapshot, written after every pass ([`snapshot.md`](snapshot.md)) |

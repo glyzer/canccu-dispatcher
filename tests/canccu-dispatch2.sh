@@ -73,6 +73,10 @@ ok "disk: below DISK_MIN_MB a ready issue does not start" not started 3
 ok "… the hold is logged once over two passes" \
   eq "$(grep -c "disk: 100 MB free for $WORKERS_DIR, below DISK_MIN_MB (200); nothing new starts" "$CANCCU_HOME/dispatch.log")" 1
 ok "canccu-status shows the low disk" grep -qF ' · disk low: 100 MB (DISK_MIN_MB 200)' <<<"$(status)"
+state 7 phase=limited; { issue 3 ready; issue 7 in-progress; } | issues
+dispatch --once
+ok "… the disk hold holds a resume too" eq "$(wc -l < "$FAKE/worker.log") $(st 7 phase)" "0 limited"
+rm -f "$CANCCU_HOME/state/7"; { issue 3 ready; } | issues
 echo 500 > "$FAKE/df_mb"
 dispatch --once
 ok "… with 500 MB free the next pass starts it" started 3

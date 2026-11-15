@@ -201,6 +201,13 @@ dispatcher_running() {
 # $CANCCU_ROOT/.engine.lock), which no run inherits. A start by hand yields too.
 engine() {
   local o w rc
+  # the backstop of the pause (#215), for every caller and canccu-run or canccu-review by hand. Not
+  # SLOT_REFUSED: a paused project waits for no slot. Its text names the first refusal only: once
+  # per pause (canccu-resume removes the marker).
+  if pause_holds; then
+    [ -e "$CANCCU_HOME/.warned-paused-start" ] || warn_once paused-start "could not start $1: the project is paused (canccu-resume to continue)"
+    return 1
+  fi
   if (( CANCCU_DRY )); then echo "  would: start $1"; DRY_STARTED=$((DRY_STARTED + 1)); return 0; fi
   mkdir -p "$CANCCU_ROOT" || return 1
   # the wait outlasts a holder's worst case (the 300 s start plus the 30 s unlock)

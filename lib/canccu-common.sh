@@ -288,6 +288,10 @@ is_managed() { [ -f "$(st_file "$1")" ] || [ -n "${DRY_ST[$1.]+x}" ]; }
 backoff_until() { local b; b=$(cat "$CANCCU_ROOT/backoff" 2>/dev/null); [[ $b =~ ^[0-9]+$ ]] && echo "$b" || echo 0; }
 backing_off() { (( $(backoff_until) > $(now) )); }
 paused() { [ -e "$CANCCU_HOME/paused" ]; }
+# pause_holds: the pause holds every new run, a resume, review or answer too (#215): it is how the
+# product owner stops spending. `finish` in the file (canccu-pause --finish) is the old pause, for a
+# host move: work in flight still gets its reviews, answers and resumes.
+pause_holds() { paused && [ "$(cat "$CANCCU_HOME/paused" 2>/dev/null)" != finish ]; }
 
 # ---------------------------------------------------------------- spend and progress
 

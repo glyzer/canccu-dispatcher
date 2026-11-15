@@ -863,7 +863,21 @@ ok "back-off: nothing starts" eq "$(wc -l < "$FAKE/worker.log")" 0
 echo $((NOW - 1)) > "$CANCCU_ROOT/backoff"; touch "$CANCCU_HOME/paused"
 dispatch --once
 ok "paused: no new issue" not started 6
-ok "paused: a limited worker resumes after the back-off" grep -q 'web 5 Rules for this run: .* The usage limit has reset' "$FAKE/worker.log"
+ok "paused: a limited worker past its back-off is not resumed (#215)" eq "$(wc -l < "$FAKE/worker.log") $(st 5 phase)" "0 limited"
+ok "canccu-status: PAUSED" grep -qF 'PAUSED (canccu-resume to continue)' <<<"$(PATH="$fb:$PATH" "$root/bin/canccu-status" 2>&1)"
+PATH="$fb:$PATH" "$root/bin/canccu-resume" > /dev/null 2>&1
+dispatch --once
+ok "… after canccu-resume it is" grep -q 'web 5 Rules for this run: .* The usage limit has reset' "$FAKE/worker.log"
+env_new pause-finish
+{ issue 5 in-progress; issue 6 ready; } | issues
+state 5 phase=limited
+PATH="$fb:$PATH" "$root/bin/canccu-pause" --finish > /dev/null 2>&1
+ok "canccu-pause --finish: logged" grep -qF 'paused, work in flight finishes (canccu-pause --finish, project web)' "$CANCCU_HOME/dispatch.log"
+ok "… canccu-status says so" grep -qF 'PAUSED, work in flight finishes (canccu-resume to continue)' <<<"$(PATH="$fb:$PATH" "$root/bin/canccu-status" 2>&1)"
+dispatch --once
+ok "… no new issue, but the limited worker resumes" eq "$(started 6 && echo started) $(grep -c 'The usage limit has reset' "$FAKE/worker.log")" " 1"
+PATH="$fb:$PATH" "$root/bin/canccu-pause" > /dev/null 2>&1
+ok "a plain canccu-pause after --finish holds again (an empty file)" eq "$(wc -c < "$CANCCU_HOME/paused")" 0
 
 # needs-work on the PR of a unit in accept moves to the lead issue, where the issue's path handles it (#154)
 nw_pr_env() {   # nw_pr_env <name> <issue labels> <pr labels>
