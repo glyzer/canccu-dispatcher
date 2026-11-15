@@ -55,6 +55,8 @@ REVIEW_MODEL_LIGHT	name	project	open
 FIXCHECK_MODEL	name	project	open
 FIXCHECK_FULL_LINES	int:0:100000	project	locked
 FIXCHECK_COUNT_MAIN	enum:0|1	project	locked
+FINDINGS_RECUR	int:0:100	project	open
+FINDINGS_RECUR_DAYS	int:1:3650	project	open
 HEALTH_MODEL	name	project	open
 HEALTH_EFFORT	enum:low|medium|high|xhigh|max|	project	open
 USAGE_SLOW	int:1:100	project	open

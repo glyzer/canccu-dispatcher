@@ -38,7 +38,9 @@ In `~/.canccu/projects/<name>/`:
 | `questions/<K>.txt` | The question a worker stopped with, for its answerer |
 | `pings/<n>` | The state issue n was last pinged for ([`pings.md`](pings.md)) |
 | `digest/<date>.md` | The daily digest |
+| `findings.log` | One tab-separated line per key (class + file) of a merged PR's posted verdicts, written once per PR when it merges, append only: `<time> <pr> <class> <file>` (epoch seconds); `FINDINGS_RECUR=0` writes nothing ([`reviews.md`](reviews.md#recurring-findings)) |
 | `merged.log` | One line per merged PR of a managed issue: time, issue, PR, how (`auto`, `accepted`, or `by hand` when the dispatcher did not arm it), title |
+| `recurring` | One tab-separated line per key with a recurring-finding issue: `<class> <file> <issue>` ([`reviews.md`](reviews.md#recurring-findings)) |
 | `workers/spend.log` | One tab-separated line per run, written when it ends (below) |
 | `answers.log` | One line per question an answerer answered, with the link to its comment |
 | `want` | The project's wait for a shared slot, rewritten by every pass: `n` (the runs it could not start for want of a slot of `TOTAL_CAP`; 0: none), `cap` (its `CAP`), `until` (the epoch the wait holds to); removed when the dispatcher exits ([`projects.md`](projects.md#fair-share-of-total_cap)) |
