@@ -16,13 +16,13 @@ fix_kind() { case $1 in fix|ci|needs-work) return 0 ;; esac; return 1; }
 fixes_used() { [ "$(st_get "$1" fixes_pr)" = "$2" ] && echo "$(( $(st_get "$1" fixes) + 0 ))" || echo 0; }
 fix_left() { (( $(fixes_used "$1" "$2") < $(fix_max) )); }
 fix_count() { st_set "$1" fixes=$(( $(fixes_used "$1" "$2") + 1 )) fixes_pr="$2"; }
-# blocking_note <K> <verdict body> <verdict at>: the verdict's blocking count (findings_count, the
-# estimate spend.log has) becomes blocking_last, the one before it blocking_prev. Once per verdict
+# blocking_note <K> <verdict body> <verdict at> <head>: the verdict's blocking count (findings_count:
+# the blocking findings left, as spend.log has them) becomes blocking_last, the one before it blocking_prev. Once per verdict
 # (blocking_at): a verdict acted on again next pass, after a step that failed, never shifts twice.
 blocking_note() {
   local b nb
   [ "$(st_get "$1" blocking_at)" = "$3" ] && return 0
-  read -r b nb <<<"$(findings_count <(printf '%s\n' "$2"))"
+  read -r b nb <<<"$(findings_count <(printf '%s\n' "$2") "${4:-}")"
   st_set "$1" blocking_prev="$(st_get "$1" blocking_last)" blocking_last="${b:-0}" blocking_at="$3"
 }
 # extra_fix_due <K>: FIX_EXTRA_IF_FEWER is 1, the cycle had no extra round yet (extra_fix, cleared by

@@ -71,7 +71,7 @@ reap_worker() {
 # too). Every run ends with one outcome line in the log: posted, post failed, post timed out, no
 # valid verdict, or void (a push during the run).
 reap_review() {
-  local n=$1 pr sha j head kind status last started f prc at why
+  local n=$1 pr sha j head kind status last started f prc at why reason=""
   pr=$(st_get "$n" pr); sha=$(st_get "$n" review_sha)
   run_alive "review-$pr" && return 0
   [ "$(st_get "$n" phase)" = review ] || return 0
@@ -97,15 +97,19 @@ reap_review() {
       IFS='|' read -r kind status <<<"$(run_exit "$last")"
     spend_review_note "$n" "$pr" "$f" "$sha" "${started:-0}"
     if [ -e "$f" ] && (( $(stat -c %Y "$f") >= ${started:-0} )) && [ -n "$(file_verdict "$f" "$sha")" ]; then
+      # the dispatcher's verdict, not the reviewer's, is posted (§8)
+      review_settle "$f" "$sha"
       post_review "$n" "$pr" "$f" "$sha"; prc=$?
       (( prc == 2 )) && { st_set "$n" posted="$sha" posted_at="$(now)" post_uncertain=1; return; }
       (( prc == 0 )) || return 0
       st_set "$n" posted="$sha" posted_at="$(now)" post_uncertain=
+      reviews_log "$n" "$pr" "$sha" "$f"
       j=$(pr_detail "$pr") || { log "#$n PR #$pr: review posted; reading it back next pass"; return; }
       [ -n "$(verdict_of "$j" "$(st_get "$n" verdict_at)")" ] || { log "#$n PR #$pr: review posted; acting on it once GitHub lists it"; return; }
     else
       if [ ! -e "$f" ]; then why="no review file"
       elif (( $(stat -c %Y "$f") < ${started:-0} )); then why="the review file is older than the run"
+      elif [ -n "$(file_verdict_raw "$f" "$sha")" ]; then why="a file whose count line does not match the items" reason="the count line does not match the items"
       else why="the file's last line is no verdict for ${sha:0:7}"; fi
       if [ "$kind" = usage ]; then
         outcome "$n" "$pr" "$sha" "no valid verdict ($why; usage limit); again after the back-off"
@@ -116,7 +120,7 @@ reap_review() {
       # a run that ended well but wrote no valid file is asked once per head to write it
       if [ "$kind" = "done" ] && [ "$(st_get "$n" file_retry)" != "$sha" ]; then
         may_start "$n" || return 0
-        retry_review_file "$pr" "$n" "$sha" || return 0
+        retry_review_file "$pr" "$n" "$sha" "${reason:-}" || return 0
         st_set "$n" file_retry="$sha" started="$(now)"
         log "#$n PR #$pr: the reviewer left $why; asked once to write the review file"
         return
