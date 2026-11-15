@@ -20,9 +20,9 @@ printf '# TOTAL_CAP=3\nTOTAL_CAP=4\n' > "$C/config"
 echo web > "$C/default-project"
 printf '%s\n' "$FAKE_TOKEN" > "$C/reviewer-token"; chmod 600 "$C/reviewer-token"
 # as canccu-init wrote them, then edited by hand
-printf 'REPO=example-org/web\nCLONE=$HOME/code/web\nDIGEST_ISSUE=\nUSER_LOGIN=octo\nREVIEWER_LOGIN=review-bot\nCAP=2\n' > "$W/config"
+printf 'REPO=example-org/web\nCLONE=$HOME/code/web\nDIGEST_ISSUE=\nUSER_LOGIN=octo\nREVIEWER_LOGIN=review-bot\nCAP=2\nALLOW_DEFAULT_GH_LOGIN=1\n' > "$W/config"
 cp "$root/tests/fixtures/rules/web" "$W/rules"
-printf 'REPO=example-user/tools\nCLONE=$HOME/code/tools\nDIGEST_ISSUE=\nUSER_LOGIN=octo\nREVIEWER_LOGIN=review-bot\n' > "$C/projects/tools/config"
+printf 'REPO=example-user/tools\nCLONE=$HOME/code/tools\nDIGEST_ISSUE=\nUSER_LOGIN=octo\nREVIEWER_LOGIN=review-bot\nALLOW_DEFAULT_GH_LOGIN=1\n' > "$C/projects/tools/config"
 sed 's/@NAME@/tools/g' "$root/profiles/default/rules" > "$C/projects/tools/rules"
 # unit 5: a worker that runs (its lock is live: this test's own pid)
 printf 'phase=work\nstarted=%s\ncolor=0\nexclusive=0\n' "$((NOW - 1500))" > "$W/state/5"
@@ -55,7 +55,7 @@ detail "$p" 2030-11-05T09:00:00Z > "$FAKE/pr70.json"
 echo '[{"filename": "setup/x.sh"}]' > "$FAKE/files70.json"
 echo '{"labels": [{"name": "in-progress"}], "comments": []}' > "$FAKE/issue7.json"
 echo '[]' > "$FAKE/prs-tools.json"
-jq -n '["ready","blocked","in-progress","epic","needs-you","plan-ok","awaiting-accept","needs-work","accepted","manual-accept","checkpoint","checkpoint-ok","fast"] | map({name: .})' > "$FAKE/labels.json"
+jq -n '["ready","blocked","in-progress","epic","needs-you","plan-ok","awaiting-accept","needs-work","accepted","manual-accept","checkpoint","checkpoint-ok","fast","security"] | map({name: .})' > "$FAKE/labels.json"
 jq -n --arg l "$BOT" '{login: $l}' > "$FAKE/user.json"
 printf '%s\t%s\n' 'pr view 70 *' pr70.json 'issue view 7 *' issue7.json 'api --paginate repos/example-org/web/pulls/70/files*' files70.json 'issue list -R example-org/web -s open*' issues-web.json 'issue list -R example-user/tools -s open*' issues-tools.json \
   'issue list*' empty.json 'pr list -R example-org/web -s open*' prs-web.json 'pr list -R example-user/tools -s open*' prs-tools.json \

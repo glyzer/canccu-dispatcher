@@ -17,12 +17,20 @@ _NB_AWK='
   on && stop($0) { on = 0 }
   (on && want) || (!on && !want) { print }'
 
-# nonblocking_of <review body>: the items of its Non-blocking section, blank lines and "none" dropped
+# nonblocking_of <review body>: what goes to the follow-up issue. A body with the block of §8
+# (review_valid): every item but the blocking ones left (Non-blocking:, the demoted, Pre-existing:).
+# Else (a verdict posted by hand, or from before §8) the items of its Non-blocking section, blank
+# lines and "none" dropped.
 nonblocking_of() {
+  if review_valid "$1"; then _review_awk moved <<<"$1"; return; fi
   awk -v want=1 "$_NB_AWK" <<<"$1" | grep -v '^[[:space:]]*$' | grep -viE '^[[:space:]*_-]*(none|n/a|nothing)[[:space:].]*$' || true
 }
-# blocking_of <review body>: the review without that section (its findings, accept, risk, verdict)
-blocking_of() { awk -v want=0 "$_NB_AWK" <<<"$1" | cat -s; }
+# blocking_of <review body>: what the fix round fixes. With the block of §8, only the blocking
+# items left; else the review without its Non-blocking section (findings, accept, risk, verdict).
+blocking_of() {
+  if review_valid "$1"; then _review_awk kept <<<"$1"; return; fi
+  awk -v want=0 "$_NB_AWK" <<<"$1" | cat -s
+}
 
 # followup_key <K>: whose follow-up issue the unit's findings go to: its step's wave, the step's
 # health pass, or the fast lane (an issue outside any wave)
@@ -41,13 +49,14 @@ followup_title() {
   esac
 }
 
-# file_nonblocking <K> <pr> <sha> <items>: the items go to the unit's follow-up issue: a comment on
+# file_nonblocking <K> <pr> <sha> <items> [label]: the items go to the unit's follow-up issue: a comment on
 # the recorded one while it is open (this pass's open issues list it), else a new issue, not
 # `ready` (the leader decides what of it gets built). A recorded issue that is the unit or that
 # the PR closes counts as not open: the merge would close the findings with it. A gh error is
-# logged: the items are still in the PR's review comment, and the merge never waits for them.
+# logged: the items are still in the PR's review comment, and the merge never waits for them. The
+# label (security, for a pre-existing security finding) goes on the issue either way.
 file_nonblocking() {
-  local k=$1 pr=$2 sha=$3 items=$4 key f="" text n
+  local k=$1 pr=$2 sha=$3 items=$4 label=${5:-} key f="" text n
   key=$(followup_key "$k")
   f=$(awk -F '\t' -v k="$key" '$1 == k { n = $2 } END { print n }' "$CANCCU_HOME/followups" 2>/dev/null)
   # an item starts at column 0; its own indented lines (a "- Fix:") are not findings of their own
@@ -57,9 +66,10 @@ file_nonblocking() {
      [ "$(pr_get "$pr" '[.closingIssuesReferences[]?.number]' | jqr --argjson n "$f" 'index($n) == null')" != false ]; then
     mut gh issue comment "$f" -R "$REPO" --body "$(home_tilde "$text")"$'\n\n'"$CANCCU_MARK" ||
       { log "#$k PR #$pr: filing its non-blocking findings in #$f failed (gh); they stay in the review comment"; return 0; }
+    [ -z "$label" ] || mut gh issue edit "$f" -R "$REPO" --add-label "$label" || log "#$k PR #$pr: labelling #$f $label failed (gh)"
   else
     (( CANCCU_DRY )) && { mut gh issue create -R "$REPO" --title "$(followup_title "$k")"; return 0; }
-    mut_out gh issue create -R "$REPO" --title "$(followup_title "$k")" \
+    mut_out gh issue create -R "$REPO" --title "$(followup_title "$k")" ${label:+--label "$label"} \
       --body "Non-blocking review findings, collected by the dispatcher instead of a fix round. Pick what is worth building into issues of its own."$'\n\n'"$(home_tilde "$text")"$'\n\n'"$CANCCU_MARK" ||
       { log "#$k PR #$pr: creating the follow-up issue failed (gh); its non-blocking findings stay in the review comment"; return 0; }
     f=$(grep -oE '/issues/[0-9]+' <<<"$MUT_OUT" | grep -oE '[0-9]+$' | tail -1)
@@ -73,12 +83,13 @@ file_nonblocking() {
 }
 
 # collect_nonblocking <K> <pr> <sha> <review body> <verdict at>: file the verdict's non-blocking
-# items once (nb_at): a step that fails after it sees the same verdict again next pass
+# (and demoted and pre-existing) items once (nb_at): a step that fails after it sees the same verdict again next pass
 collect_nonblocking() {
-  local items
+  local items label=""
   [ "$(st_get "$1" nb_at)" = "$5" ] && return 0
   items=$(nonblocking_of "$4")
-  [ -n "$items" ] && file_nonblocking "$1" "$2" "$3" "$items"
+  preexisting_security "$4" && label=security
+  [ -n "$items" ] && file_nonblocking "$1" "$2" "$3" "$items" "$label"
   st_set "$1" nb_at="$5"
 }
 

@@ -14,7 +14,7 @@ Linux with:
 | GNU coreutils (or a compatible one, such as uutils), `flock` (util-linux), procps | — | the distribution's packages |
 | bash | bash 5.0 | `apt install bash` |
 | git | git 2.30 | `apt install git` |
-| gh, logged in | — | <https://cli.github.com>, then `gh auth login` (or a project's own login: `canccu-init` prints the steps) |
+| gh, logged in | — | <https://cli.github.com>, then `gh auth login` (each project needs its own login: `canccu-init` prints the steps; the default login runs a project only with `ALLOW_DEFAULT_GH_LOGIN=1`) |
 | jq | jq 1.6 | `apt install jq` |
 | tmux | tmux 3.2 | `apt install tmux` |
 | python3 | python3 3.10 | `apt install python3` (the monitor's pinned packages need 3.10) |

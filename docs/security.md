@@ -32,9 +32,15 @@ Only a comment by `REVIEWER_LOGIN`, the second GitHub account, carries a verdict
 - The run engine starts with `GH_TOKEN`, `GITHUB_TOKEN` and `REVIEWER_TOKEN_FILE` removed; every
   window gets them as empty values (overriding what the tmux server inherited), and each run
   unsets them again before `claude` starts.
-- A Claude Code deny rule keeps every session from reading the file even by path:
-  `"Read(~/.canccu/reviewer-token)"` (and `"Edit(…)"`) in `permissions.deny` of
-  `~/.claude/settings.json`. `canccu-dispatcher doctor` checks the mode and the rule.
+- A Claude Code deny rule, `"Read(~/.canccu/reviewer-token)"` (and `"Edit(…)"`) in
+  `permissions.deny` of `~/.claude/settings.json`, keeps every session's own Read and Edit tools
+  off the file. That is all it covers: a command the session runs (`cat`, `python`, any
+  subprocess) runs as the same Unix user and could still read it. `canccu-dispatcher doctor`
+  checks the mode and the rule.
+- What protects the token today is therefore the file's mode 600 against other users, and that
+  the token is never in a run's environment, on a command line or in a log, so a session has no
+  copy to find unless it goes and reads the file. The gap closes with the second Unix user
+  (package S2): runs then execute as a user that cannot read the dispatcher's home.
 - The reviewer writes its review to a file and exits. The dispatcher posts it only when the file
   was written after the review started and its last line is exactly `Review verdict: pass|changes
   <full head sha>` for the head that was reviewed. A model cannot post a verdict, and cannot post
@@ -92,6 +98,12 @@ rule keeps personal paths out of this repo (`tests/leak-check.sh`).
   the strong accept, but only where the repo allows auto-merge: in a repo without it the label is
   the only accept, and this limit applies in full. Running the reviewer as its own OS user would
   close this.
+- **A comment during a run is not your answer.** A comment by `USER_LOGIN` posted while a run of
+  that unit was alive no longer counts as your answer: the run could have written it. One posted
+  while no run of the unit runs still looks like yours to the dispatcher, whoever wrote it.
+- **Narrow the accepts with `ACCEPT_CHANNELS`.** `ACCEPT_CHANNELS=ship` makes `canccu-ship`, with
+  its record on the host, the only accept; the label any session can add no longer counts
+  ([`reference/merging.md`](reference/merging.md#the-accept-channels)).
 - **A merge of main can carry an accept.** With `KEEP_ACCEPT_ON_MAIN_MERGE=1` your accept holds
   over a push that is a clean merge of main only; a run can push such a merge as easily as it
   adds the label, so keep the setting `0` until package S2.
