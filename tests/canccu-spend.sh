@@ -225,10 +225,10 @@ run11 env WORKER_RUN_TYPE=build
 o=$(tail -1 "$WORKERS_DIR/spend.log" | cut -f15)
 ok "tests: two tests/run calls → tests=2 and their summed seconds in the outcome; other commands not" \
   grep -qxE 'test_secs=[23],tests=2' <<<"$o"
+lib spend_note 11 0 pr=50
+ok "tests: the dispatcher's note keeps the engine's fields" grep -qxE 'test_secs=[23],tests=2,pr=50' <<<"$(tail -1 "$WORKERS_DIR/spend.log" | cut -f15)"
 run11 env WORKER_RUN_TYPE=build WORKER_TEST_CMD='make test'
 ok "tests: another TEST_CMD → those calls are not counted, the outcome stays -" eq "$(tail -1 "$WORKERS_DIR/spend.log" | cut -f15)" "-"
-lib spend_note 11 0 pr=50
-ok "tests: the dispatcher's note keeps the engine's fields" grep -qxE 'test_secs=[23],tests=2,pr=50' <<<"$(sed -n 1p "$WORKERS_DIR/spend.log" | cut -f15)"
 env_new spend-testcmd
 { issue 10 ready; } | issues
 dispatch --once
@@ -248,6 +248,7 @@ u() { printf '{"type":"assistant","timestamp":"%s","message":{"id":"%s","usage":
   echo 'not json'
   u 2030-10-20T11:00:00.000Z m0 9 9 9 9; } > "$lt/a.jsonl"     # older than 7 days
 u 2030-11-04T23:59:59.000Z m3 100 200 0 0 > "$lt/b.jsonl"
+touch -d "@$NOW" "$lt"/*.jsonl   # a transcript older than the window is not read
 d5=$(date -u -d 2030-11-05T08:00:00Z +%s) d3=$(date -u -d 2030-11-03T08:00:00Z +%s)
 { printf '%s\tweb\t5\t1.00\tbuild\t-\t-\tfresh\t-\t-\t-\t-\t-\t-\ttest_secs=60,tests=2,pr=50\t100\n' "$d5"
   printf '%s\tweb\t6\t1.00\tfix\t-\t-\tfresh\t-\t-\t-\t-\t-\t-\ttest_secs=200,tests=1\t300\n' "$d5"

@@ -220,7 +220,7 @@ engine_start() {
   out=$(timeout -k 10 300 env -u GH_TOKEN -u GITHUB_TOKEN -u REVIEWER_TOKEN_FILE \
           WORKER_ADD_DIRS="$ADD_DIRS${extra_dirs:+ $extra_dirs}" WORKER_EXCLUSIVE_RE="$EXCLUSIVE_WORKER_RE" \
           WORKER_STALL_MIN="$STALL_MIN" WORKER_TMPDIR_MODE="$RUN_TMPDIR" WORKER_CAP="$CAP" WORKER_REPO_CAP="$CAP" \
-          WORKER_EFFORT="${RUN_EFFORT:-}" WORKER_RUN_TYPE="${RUN_TYPE:-}" WORKER_EFFORT_NOTE="${RUN_EFFORT_NOTE:-}" \
+          WORKER_EFFORT="${RUN_EFFORT:-}" WORKER_RUN_TYPE="${RUN_TYPE:-}" WORKER_EFFORT_NOTE="${RUN_EFFORT_NOTE:-}" WORKER_TEST_CMD="${TEST_CMD-tests/run}" \
           WORKER_WINDOW_DELTA="${USAGE_WINDOW_DELTA:-0}" WORKER_WINDOW_BEFORE="$(window_before)" \
           "$CANCCU_WORKER" --quiet ${MODEL:+--model "$MODEL"} "${@:3}" 2>&1 3>&- 7>&- 8>&-); rc=$?   # fd 3: the pane (quiet), 7: the engine lock, 8: the dispatcher's
   if (( rc == 0 )); then date +%s%N > "$CANCCU_HOME/last_start"   # the fair share's tie rule
