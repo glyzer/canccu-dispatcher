@@ -9,6 +9,7 @@ The guides (getting started, install, upgrading, security, …) are in [`../READ
 |---|---|
 | [`commands.md`](commands.md) | Roles, every command, the labels, whose PRs the dispatcher acts on |
 | [`config.md`](config.md) | Every config key with its default, changing a setting, the settings table |
+| [`config-steps.md`](config-steps.md) | The keys of steps, packages, reviews, usage and pacing |
 | [`config-files.md`](config-files.md) | Where the values come from, when a change applies |
 | [`hosts.md`](hosts.md) | Host profiles, environment variables |
 | [`rules.md`](rules.md) | A project's rules: risky and gated paths, extra prompt text, the freeze, the one-at-a-time lock, pings |

@@ -9,8 +9,9 @@ cd "$root" || exit 1
 tname=docs
 
 R=docs/reference
-# the configuration reference is two topics: config (the defaults and the host profiles) and rules
-cfgref="$R/config.md $R/rules.md"
+# the configuration reference is three topics: config (the defaults and the host profiles), its
+# part config-steps (steps, packages, reviews, usage) and rules
+cfgref="$R/config.md $R/config-steps.md $R/rules.md"
 # keys <file...>: the KEY of each KEY=value line, commented out (the templates) or not
 keys() { sed -nE 's/^(# )?([A-Z][A-Z0-9_]*)=.*/\2/p' "$@" 2>/dev/null | sort -u; }
 # documented: the key of each table row "| `KEY` | …" of the configuration reference
