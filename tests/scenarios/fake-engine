@@ -65,7 +65,13 @@ play_worker() {
   cd "$wt" || { echo "crashed (exit 1)|no worktree"; return; }
   br=$(git branch --show-current); [ -n "$br" ] || { br=$key-scenario; git switch -q -c "$br" >&2; }
   case $4 in
-    pr) commit_push "$br" "$key $4" && open_pr "$br" Closes "$key" && echo "done|opened the PR" ;;
+    pr) commit_push "$br" "$key $4" && open_pr "$br" Closes "$key" &&
+          { gh pr ready "$br" >&2 2>/dev/null || true; } && echo "done|opened the PR" ;;   # a contract unit's draft
+    merge-main)
+      # the PR's side of every conflict: the suite's main commit only touched the PR's own file
+      { git fetch -q origin main && { git merge -q --no-edit origin/main ||
+          { git checkout -q --ours . && git add -A && git -c user.name=scenario -c user.email=scenario@users.noreply.github.com commit -q --no-edit; }; } &&
+          git push -q origin "$br"; } >&2 && echo "done|merged main" ;;
     contract)
       git switch -q -c "$br-contract" origin/main >&2 && commit_push "$br-contract" "$key contract" &&
         open_pr "$br-contract" Refs "$key" && git switch -q "$br" >&2 &&

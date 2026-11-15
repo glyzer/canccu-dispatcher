@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# shellcheck disable=SC2034  # keep is read in the EXIT trap; LOGIN, CLONE_URL and SCENARIO by lib.sh and the scenarios
+# tests/scenarios/run — the scenario suite (docs/reference/scenarios.md): the real dispatcher
+# against a real sandbox repo, with tests/scenarios/fake-engine in place of claude (no tokens).
+#   tests/scenarios/run --repo <owner/sandbox> [--keep] [scenario...]
+# Per scenario: reset the sandbox, make its issues, run `canccu-dispatch --once` every
+# SCENARIO_PASS_SEC (20) until its end state holds or SCENARIO_TIMEOUT_MIN (15) pass, and check
+# it with gh. Prints "<scenario>: pass" or "<scenario>: FAIL <why>". Exit 0 all passed, 1 a
+# scenario failed, 2 a usage error or a sandbox that is not set up. Not part of tests/run, nor CI.
+set -uo pipefail
+root=$(cd "$(dirname "$0")/../.." && pwd); here=$root/tests/scenarios
+usage() { sed -n '3,9s/^# \{0,1\}//p' "$0" >&2; exit 2; }
+die2() { echo "scenarios: $1" >&2; exit 2; }
+
+REPO="" keep=0 want=()
+while (( $# )); do
+  case $1 in
+    --repo) REPO=${2:-}; shift ;; --keep) keep=1 ;; -h|--help) usage ;;
+    -*) usage ;; *) want+=("$1") ;;
+  esac
+  shift
+done
+[[ $REPO =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || usage
+all=(single package contract-first conflict-waiting queue-removal push-after-pass denied-push crash)
+(( ${#want[@]} )) || want=("${all[@]}")
+for s in "${want[@]}"; do [ -f "$here/$s.sh" ] || die2 "no scenario $s (the scenarios: ${all[*]})"; done
+
+# preflight: the suite force-moves the sandbox's main and closes all its PRs and issues, so it
+# refuses this repo itself, and a sandbox without its tag or the login's push access
+mine=$(git -C "$root" remote get-url origin 2>/dev/null | sed -E 's#^(https://[^/]+/|[^@]+@[^:]+:)##; s#\.git$##')
+[ "${REPO,,}" = "${mine,,}" ] && die2 "--repo $REPO is this repo itself: the suite needs a sandbox it may reset"
+[ "$(gh api "repos/$REPO" --jq .permissions.push 2>/dev/null)" = true ] || die2 "the gh login cannot push to $REPO"
+gh api "repos/$REPO/git/ref/tags/scenario-base" >/dev/null 2>&1 || die2 "$REPO has no tag scenario-base"
+LOGIN=$(gh api user --jq .login 2>/dev/null) || die2 "no gh login"
+CLONE_URL=${SCENARIO_CLONE_URL:-https://github.com/$REPO.git}
+PASS_SEC=${SCENARIO_PASS_SEC:-20} TIMEOUT_SEC=${SCENARIO_TIMEOUT_SEC:-$(( ${SCENARIO_TIMEOUT_MIN:-15} * 60 ))}
+# the pass of the suite: the real dispatcher with the fake engine; a test replaces it
+dispatch() { CANCCU_WORKER=$here/fake-engine "${SCENARIO_DISPATCH:-$root/bin/canccu-dispatch}" --once >> "$SCENARIO_DIR/dispatch.out" 2>&1; }
+
+W=$(mktemp -d); trap '(( keep )) && echo "kept $W" >&2 || rm -rf "$W"' EXIT
+# shellcheck source=lib.sh
+. "$here/lib.sh"
+
+# one <scenario>: its whole run in a subshell, so one scenario's functions never leak into the next
+one() (
+  SCENARIO=$1 WHY="" EXPECT_NEEDS_YOU=0
+  sc_tick() { :; }
+  # shellcheck source=/dev/null
+  . "$here/$1.sh"
+  home "$1" && reset && sc_setup || { echo "$1: FAIL setup: ${WHY:-see $SCENARIO_DIR}"; return 1; }
+  local end=$(( $(date +%s) + TIMEOUT_SEC ))
+  while :; do
+    dispatch
+    world && sc_tick && world && sc_check && { echo "$1: pass"; return 0; }
+    # a needs-you the scenario does not expect can never turn into its end state
+    if (( ! EXPECT_NEEDS_YOU )) && q '[.issues[] | labelled("needs-you")] | any'; then WHY="needs-you: $WHY"; break; fi
+    (( $(date +%s) < end )) || { WHY="timed out after $TIMEOUT_SEC s: $WHY"; break; }
+    sleep "$PASS_SEC"
+  done
+  echo "$1: FAIL $WHY (last log: $(tail -1 "$CANCCU_HOME/dispatch.log" 2>/dev/null | cut -c1-200))"
+  return 1
+)
+
+rc=0
+for s in "${want[@]}"; do one "$s" || rc=1; done
+exit "$rc"
