@@ -1,5 +1,6 @@
 canccu-dispatcher <version> · example-org/web · running · canccu-dispatch is NOT running (canccu-up, or run it in the window dispatch)
 model: the account default · reviews post as review-bot
+accepts: all
 usage: usage unknown
 project: web (~/.canccu/projects/web, tmux canccu) · runs: 1 of CAP 2 · all projects: 1 of TOTAL_CAP 4
 warning: no gh config dir for project web (GH_CONFIG_DIR, or ~/.canccu/projects/web/gh): it uses the default gh login (a narrow token per project: canccu-init prints the steps)
