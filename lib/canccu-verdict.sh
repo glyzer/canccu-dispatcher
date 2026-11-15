@@ -35,7 +35,8 @@ review_format_text() {
 # heading or stop line are its own (Evidence:, Fix:). Text on a heading's line is an item too,
 # unless it says none. mode: parse (review_parse), eff ("<kept> <n> <p> <demoted> <classes>", nothing
 # without a count line or when it does not match), kept / moved (the items' text: the blocking ones
-# left / all others, in file order), presec (1 when a Pre-existing: item is a security one).
+# left / all others, in file order), presec (1 when a Pre-existing: item is a security one), items
+# ("<class> <file> <the item's first line>" per item, tab-separated: the recurring-finding issue's lines).
 _REVIEW_AWK='
   function head(t) {
     if (t ~ /^[[:space:]#*_>]*non-blocking[*_[:space:]]*(:|$)/) return "nonblocking"
@@ -85,6 +86,10 @@ _REVIEW_AWK='
     if (mode == "parse") {
       for (i = 1; i <= ni; i++) printf "%s\t%s\t%s\t%s\t%d\n", sec[i], cl[i], fl[i], ln[i], ev[i]
       if (hasc) printf "count\t%d\t%d\t%d\n", cb, cn, cp; else print "count\t-"
+      exit
+    }
+    if (mode == "items") {
+      for (i = 1; i <= ni; i++) { l = tx[i]; sub(/\n.*/, "", l); printf "%s\t%s\t%s\n", cl[i], fl[i], l }
       exit
     }
     for (i = 1; i <= ni; i++) {
