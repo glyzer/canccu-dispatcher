@@ -61,8 +61,15 @@ Every `INTERVAL` seconds, under the project's lock:
        log tail, at most `FIX_ATTEMPTS` automatic fix runs per PR (review fix rounds included),
        then `needs-you`. Checks in `REVIEW_CHECKS` are ignored here. A `needs-you`
        that only waited on CI goes back to `check` by itself once CI is green or red;
+     - CI green, no verdict for this head and a PR body without its `Testing:` or `Revert:` line
+       (at a line's start, markdown marks allowed; not a contract or plan PR) → the worker is
+       resumed once to edit the body only (`body_lines`; not a fix round of `FIX_ATTEMPTS`). The
+       same PR still without it goes on to the review, whose prompt names the missing line as a
+       `[criterion]` finding: never `needs-you`;
      - CI green and no verdict for this head → the review (or, after a fix round, the
-       fix-check) starts.
+       fix-check) starts. The reviewer checks the body's `Testing:` and `Revert:` lines against the
+       diff: a `Testing:` naming a test the diff does not touch or run is a `[test]` finding, a
+       plain `Revert:` on a diff with a migration or a state-format bump a `[correctness]` one.
    - A reviewer that finished: its review file, if valid for the reviewed head, is posted as
      `REVIEWER_LOGIN`; then the verdict on the current head decides:
      - `pass` → classify: **auto** arms the merge (phase `merging`); **manual** labels

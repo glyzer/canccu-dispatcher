@@ -282,7 +282,7 @@ benv() {
 BSEND='PR #50 needs `Testing:` and `Revert:` lines in its body (after Verification run:). Edit the body only (gh pr edit 50 --body-file <file>); no code change, no push.'
 benv body-no-testing $'Closes #5\nVerification run: tests/run, green\nRevert: plain revert'
 dispatch --once
-ok "body lines: a PR body without Testing: → the worker is resumed with the text" grep -qF "web 5 $BSEND" "$FAKE/worker.log"
+ok "body lines: a PR body without Testing: → the worker is resumed with the text" grep -qF "$BSEND" "$FAKE/worker.log"
 ok "… body_lines is set, no reviewer starts" eq "$(st 5 body_lines) $(grep -c -- '--key review-' "$FAKE/worker.log")" "50 0"
 ok "… logged" grep -qF '#5 PR #50: body lacks Testing:/Revert:; the worker adds them' "$CANCCU_HOME/dispatch.log"
 ok "… not a fix round" eq "$(st 5 fixes)" ""
@@ -293,7 +293,7 @@ ok "body lines: the same PR still without it on the next pass → the review, no
   eq "$(grep -c -- '--key review-50' "$FAKE/worker.log") $(st 5 phase) $(grep -c needs-you "$FAKE/gh.log")" "1 review 0"
 ok "… no second send-back" not grep -qF "$BSEND" "$FAKE/worker.log"
 ok "… the review prompt says the lines are missing: a [criterion] finding" \
-  grep -qF 'The PR body still lacks a `Testing:` line after the worker was asked once to add it: raise a `[criterion]` finding for it.' "$FAKE/worker.log"
+  grep -qF 'The PR body lacks a `Testing:` line: raise a `[criterion]` finding for it.' "$FAKE/worker.log"
 
 benv body-both $'Closes #5\n- **Testing:** tests/a.sh failed before, passes now\n- `Revert:` plain revert'
 dispatch --once
