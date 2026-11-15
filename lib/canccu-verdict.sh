@@ -154,6 +154,16 @@ review_settle() {
     log "cannot rewrite the verdict of $f"
 }
 
+# review_post <n> <pr> <file> <sha>: posts the dispatcher's verdict, not the reviewer's (§8), and
+# on a post that landed appends its line to reviews.log; returns post_review's status
+review_post() {
+  local rc
+  review_settle "$3" "$4"
+  post_review "$1" "$2" "$3" "$4"; rc=$?
+  (( rc == 0 )) && reviews_log "$1" "$2" "$4" "$3"
+  return "$rc"
+}
+
 # reviews_log <n> <pr> <sha> <file>: the posted verdict's line in reviews.log (§8); a post-pass
 # check is a fixcheck. Append only.
 reviews_log() {
