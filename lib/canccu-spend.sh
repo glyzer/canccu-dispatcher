@@ -132,3 +132,18 @@ spend_report() {
       if (keys["all"] != "") { print ""; show("all", sprintf("all %d merged PR%s", np, (np == 1 ? "" : "s"))) }
     }' "$m" "$s" 2>/dev/null
 }
+
+# leader_transcripts: where Claude keeps the leader's sessions: its projects dir, named after the
+# leader kit's dir (the project's leader/, where canccu-up starts it) with every character but a
+# letter or a digit as "-", as claude names it. CLAUDE_CONFIG_DIR moves ~/.claude, for claude too.
+leader_transcripts() {
+  local d="$CANCCU_HOME/leader"
+  echo "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects/${d//[^A-Za-z0-9]/-}"
+}
+
+# kpi_report: the leader's tokens, the runs' test times, the pings and the feed lines per day, the
+# last 7 days (lib/canccu-kpi.py)
+kpi_report() {
+  guard 120 python3 -I "$_canccu_lib/canccu-kpi.py" "$(now)" "$REPO_NAME" "$(leader_transcripts)" \
+    "$WORKERS_DIR/spend.log" "$CANCCU_HOME/dispatch.log" "$CANCCU_HOME/events"
+}

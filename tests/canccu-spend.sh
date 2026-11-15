@@ -210,5 +210,106 @@ ok "report: a log of 15- and 16-column lines gives the same report" \
 rm "$CANCCU_HOME/merged.log"
 ok "report: nothing merged yet → said" grep -q 'no merged PR yet' <<<"$(PATH="$fb:$PATH" "$root/bin/canccu-status" --spend 2>&1)"
 
+# ---------------------------------------------------------------- the test runs of a run (#188)
+
+env_new spend-tests
+mkdir -p "$E/cb" "$E/code/web/.git" "$E/wd"
+# tu() <id> <command>: a top-level Bash call; res() <id>: its result, after the sleep between them
+cat > "$E/cb/claude" <<'EOF2'
+#!/bin/bash
+tu() { printf '{"type":"assistant","message":{"id":"m%s","content":[{"type":"tool_use","id":"%s","name":"Bash","input":{"command":"%s"}}]}}\n' "$1" "$1" "$2"; }
+res() { printf '{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"%s","content":"ok"}]}}\n' "$1"; }
+tu a 'tests/run lib/a.sh'; sleep 1; res a
+tu b 'git status'; sleep 1; res b
+tu c 'tests/runner x'; sleep 1; res c
+tu d '  tests/run --affected'; sleep 1; res d
+echo '{"type":"result","subtype":"success","is_error":false,"num_turns":4,"total_cost_usd":0.10,"result":"ok","usage":{}}'
+EOF2
+chmod +x "$E/cb/claude"
+run11 env WORKER_RUN_TYPE=build
+o=$(tail -1 "$WORKERS_DIR/spend.log" | cut -f15)
+ok "tests: two tests/run calls → tests=2 and their summed seconds in the outcome; other commands not" \
+  grep -qxE 'test_secs=[23],tests=2' <<<"$o"
+lib spend_note 11 0 pr=50
+ok "tests: the dispatcher's note keeps the engine's fields" grep -qxE 'test_secs=[23],tests=2,pr=50' <<<"$(tail -1 "$WORKERS_DIR/spend.log" | cut -f15)"
+run11 env WORKER_RUN_TYPE=build WORKER_TEST_CMD='make test'
+ok "tests: another TEST_CMD → those calls are not counted, the outcome stays -" eq "$(tail -1 "$WORKERS_DIR/spend.log" | cut -f15)" "-"
+env_new spend-testcmd
+{ issue 10 ready; } | issues
+dispatch --once
+ok "tests: the dispatcher passes TEST_CMD (default tests/run) to the engine" eq "$(env_of '#10 ' WORKER_TEST_CMD)" "tests/run"
+
+# ---------------------------------------------------------------- canccu-status --kpi (#188)
+
+env_new spend-kpi
+export CLAUDE_CONFIG_DIR=$E/claude
+lt=$CLAUDE_CONFIG_DIR/projects/$(sed 's/[^A-Za-z0-9]/-/g' <<<"$CANCCU_HOME/leader")
+mkdir -p "$lt"
+u() { printf '{"type":"assistant","timestamp":"%s","message":{"id":"%s","usage":{"input_tokens":%s,"output_tokens":%s,"cache_read_input_tokens":%s,"cache_creation_input_tokens":%s}}}\n' "$@"; }
+{ u 2030-11-05T10:00:00.000Z m1 10 20 300 40
+  u 2030-11-05T10:00:01.000Z m1 10 20 300 40   # the same message's next block: counted once
+  u 2030-11-05T11:00:00.000Z m2 1 2 3 4
+  echo '{"type":"user","timestamp":"2030-11-05T11:00:00.000Z","message":{"content":"hi"}}'
+  echo 'not json'
+  u 2030-10-20T11:00:00.000Z m0 9 9 9 9; } > "$lt/a.jsonl"     # older than 7 days
+u 2030-11-04T23:59:59.000Z m3 100 200 0 0 > "$lt/b.jsonl"
+touch -d "@$NOW" "$lt"/*.jsonl   # a transcript older than the window is not read
+d5=$(date -u -d 2030-11-05T08:00:00Z +%s) d3=$(date -u -d 2030-11-03T08:00:00Z +%s)
+{ printf '%s\tweb\t5\t1.00\tbuild\t-\t-\tfresh\t-\t-\t-\t-\t-\t-\ttest_secs=60,tests=2,pr=50\t100\n' "$d5"
+  printf '%s\tweb\t6\t1.00\tfix\t-\t-\tfresh\t-\t-\t-\t-\t-\t-\ttest_secs=200,tests=1\t300\n' "$d5"
+  printf '%s\tweb\t6\t1.00\tfix\t-\t-\tfresh\t-\t-\t-\t-\t-\t-\tpr=51\t300\n' "$d5"
+  printf '%s\tother\t6\t1.00\tfix\t-\t-\tfresh\t-\t-\t-\t-\t-\t-\ttest_secs=999,tests=1\t300\n' "$d5"
+  printf '%s\tweb\t7\t1.00\tbuild\t-\t-\tfresh\t-\t-\t-\t-\t-\t-\ttest_secs=10,tests=1\t50\n' "$d3"; } > "$WORKERS_DIR/spend.log"
+{ echo '2030-11-05T09:00:00Z #5 pinged @octo as review-bot: accept'
+  echo '2030-11-05T10:00:00Z #6 pinged @octo as review-bot: plan'
+  echo '2030-11-05T10:00:01Z #6 started a worker'
+  echo '2030-11-04 08:00:00 #7 pinged @octo as review-bot: question'; } > "$CANCCU_HOME/dispatch.log"
+f() { printf '%s\t%s\t%s\t%s\t%s\t-\t-\t-\tx\n' "$@"; }
+{ f 2030-11-05T08:00:00Z 1 po ask accept
+  f 2030-11-05T08:01:00Z 2 po ask needs-you
+  f 2030-11-05T08:02:00Z 3 po interrupt dispatcher
+  f 2030-11-05T08:03:00Z 4 - info closed
+  f 2030-11-05T08:04:00Z 5 - info step-done
+  f 2030-11-04T08:00:00Z 6 leader ask needs-you; } > "$CANCCU_HOME/events"
+kpi=$(PATH="$fb:$PATH" "$root/bin/canccu-status" --kpi 2>&1)
+ok "kpi: the four blocks, the last 7 days, newest first" eq "$kpi" "leader tokens per day (input · output · cache read · cache write):
+  2030-11-05  11 · 22 · 303 · 44
+  2030-11-04  100 · 200 · 0 · 0
+  2030-11-03  none
+  2030-11-02  none
+  2030-11-01  none
+  2030-10-31  none
+  2030-10-30  none
+test runs per day (TEST_CMD calls in runs: count · median · longest):
+  2030-11-05  3 · median 30s · longest 200s
+  2030-11-04  none
+  2030-11-03  1 · median 10s · longest 10s
+  2030-11-02  none
+  2030-11-01  none
+  2030-10-31  none
+  2030-10-30  none
+pings per day:
+  2030-11-05  2
+  2030-11-04  1
+  2030-11-03  0
+  2030-11-02  0
+  2030-11-01  0
+  2030-10-31  0
+  2030-10-30  0
+feed lines per day (po ask · po interrupt · leader ask · info):
+  2030-11-05  2 · 1 · 0 · 2
+  2030-11-04  0 · 0 · 1 · 0
+  2030-11-03  0 · 0 · 0 · 0
+  2030-11-02  0 · 0 · 0 · 0
+  2030-11-01  0 · 0 · 0 · 0
+  2030-10-31  0 · 0 · 0 · 0
+  2030-10-30  0 · 0 · 0 · 0"
+rm -rf "$lt"
+ok "kpi: no leader transcripts → leader: none" eq "$(PATH="$fb:$PATH" "$root/bin/canccu-status" --kpi 2>&1 | head -1)" "leader: none"
+rm -f "$WORKERS_DIR/spend.log" "$CANCCU_HOME/dispatch.log" "$CANCCU_HOME/events"
+ok "kpi: no spend log, log or feed → the blocks still print, empty" \
+  eq "$(PATH="$fb:$PATH" "$root/bin/canccu-status" --kpi 2>&1 | grep -c 'per day')" 3
+unset CLAUDE_CONFIG_DIR
+
 echo "canccu-spend tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
