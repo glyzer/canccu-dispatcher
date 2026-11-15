@@ -35,7 +35,12 @@ a phone over ssh (80×30). Top to bottom:
   status with its PR), the issues outside a package grouped by status, the health pass and the
   checkpoint, then the next step and the later ones. Without steps, the fast lane: one row per
   managed or queued issue. One status vocabulary, one mark each: `●` running, `○` can go next, `–`
-  blocked or later, `✖` needs you, `✓` done; **Waiting on** names the blocker in words.
+  blocked or later, `✖` needs you, `✓` done; **Waiting on** names the blocker in words. A blocked
+  group's cell takes at most two lines: when its reasons do not fit, the blockers most issues wait
+  on, then `+N more` (`behind #306×8, #109×4 · +11 more`). A table too tall for the pane first
+  drops the later steps and the blocked groups, then the idle parallel-track steps, then folds the
+  done packages into one row (`20 merged`), then drops the next step and the fast lane; only then
+  is each step one line.
 - **RECENT**: each project's latest events, newest last, with repeats folded into one row `×N`.
 
 When the terminal is short, the parts drop in a fixed order (the last log lines first, NEEDS YOU
