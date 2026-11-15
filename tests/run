@@ -33,7 +33,7 @@ tests_for() {
     tests/fixtures/plans/*|lib/canccu-plan.jq|lib/canccu-planner.sh|lib/canccu-steps.sh)
       echo tests/canccu-steps.sh tests/canccu-steps2.sh tests/canccu-share.sh ;;
     lib/canccu-snapshot-steps.sh) echo tests/canccu-snapshot2.sh tests/canccu-steps.sh ;;
-    lib/canccu-usage.sh|libexec/canccu-nudge-hook) echo tests/canccu-usage.sh ;;
+    lib/canccu-usage.sh|lib/canccu-pace.sh|libexec/canccu-nudge-hook) echo tests/canccu-usage.sh tests/canccu-dispatch.sh ;;
     lib/canccu-stream.py) echo tests/canccu-usage.sh tests/canccu-engine.sh ;;
     libexec/canccu-worker|lib/canccu-engine.sh)
       echo tests/canccu-engine.sh tests/canccu-units.sh tests/canccu-usage.sh tests/canccu-pane.sh tests/canccu-install.sh tests/canccu-install2.sh tests/canccu-doctor.sh ;;

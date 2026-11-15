@@ -323,6 +323,8 @@ run_progress() {
 . "$_canccu_lib/canccu-colour.sh"
 # shellcheck source=canccu-usage.sh
 . "$_canccu_lib/canccu-usage.sh"
+# shellcheck source=canccu-pace.sh
+. "$_canccu_lib/canccu-pace.sh"
 # shellcheck source=canccu-stateformat.sh
 . "$_canccu_lib/canccu-stateformat.sh"
 # shellcheck source=canccu-feed.sh

@@ -203,5 +203,60 @@ ok "canccu-resume without --usage: the back-off and the readings stay" \
   eq "$(ls "$CANCCU_ROOT/backoff" "$CANCCU_ROOT"/projects/*/workers/usage.json 2>/dev/null | wc -l)" 3
 ok "… nothing on stderr" eq "$(cat "$E/err")" ""
 
+# ---------------------------------------------------------------- pacing (#216 D6)
+
+# puse <weekly share> <days to the weekly reset> [age s]: a reading of project web
+puse() {
+  mkdir -p "$WORKERS_DIR"
+  jq -n --argjson w "$1" --argjson at "$((NOW - ${3:-60}))" --argjson wr "$((NOW + $2 * 86400))" \
+    '{at: $at, info: {unifiedWindows: {five_hour: {utilization: 0.1, resetsAt: ($at + 3600)}, seven_day: {utilization: ($w / 100), resetsAt: $wr}}}}' > "$WORKERS_DIR/usage.json"
+}
+plog() { grep -c -- "$1" "$CANCCU_HOME/dispatch.log"; }
+env_new pace-cap PACE=cap
+puse 60 4
+ok "pace: weekly 60%, 3 of 7 days gone → 60 43 17" eq "$(lib pace_read)" "60 43 17"
+ok "PACE=cap ahead: usage_cap is PACE_CAP (1)" eq "$(lib usage_cap)" 1
+dispatch --once; dispatch --once
+ok "… the ahead line once over two passes" \
+  eq "$(plog 'pace: weekly usage 60% is 17 points ahead of the week (43% gone, PACE_MARGIN 10); PACE=cap: at most 1 run(s) at once over all projects')" 1
+ok "… kept in pace" grep -qx "since=$NOW" "$CANCCU_HOME/pace"
+ok "… no hold line in the feed (cap)" not grep -q 'hold' "$CANCCU_HOME/events"
+puse 45 4
+ok "weekly 45%: usage_cap is TOTAL_CAP again" eq "$(lib usage_cap)" 3
+dispatch --once; dispatch --once
+ok "… the back-on-pace line once" eq "$(plog 'pace: back on pace (weekly 45%, 43% of the week gone); PACE=cap no longer limits runs')" 1
+ok "… pace removed" not test -e "$CANCCU_HOME/pace"
+ok "pacing never writes CAP or TOTAL_CAP" not grep -qE '^(TOTAL_)?CAP=1' "$CANCCU_HOME/config"
+
+env_new pace-pause PACE=pause
+{ issue 5 in-progress; issue 6 ready; } | issues
+state 5 phase=limited
+puse 60 4
+ok "PACE=pause ahead: draining, usage_cap unchanged" eq "$(lib draining && echo drain) $(lib usage_cap)" "drain 3"
+dispatch --once
+ok "… nothing new starts, nothing resumes" eq "$(wc -l < "$FAKE/worker.log")" 0
+ok "… a hold line (info) in the feed" grep -qP '\t-\tinfo\thold\t.*pace: weekly usage 60% is ahead of the week; nothing new starts until it is back on pace$' "$CANCCU_HOME/events"
+puse 45 4
+dispatch --once
+ok "… back on pace: its closed line" grep -qP '\tclosed\t.*: back on pace$' "$CANCCU_HOME/events"
+ok "… the new issue starts" started 6
+
+env_new pace-notify PACE=notify
+puse 60 4
+dispatch --once
+ok "PACE=notify ahead: no limit" eq "$(lib usage_cap) $(lib draining && echo drain)" "3 "
+ok "… the line says notice only" eq "$(plog 'PACE=notify: notice only')" 1
+
+env_new pace-stale PACE=cap
+puse 60 4; dispatch --once
+puse 60 4 $((7 * 3600))
+ok "a stale reading while ahead: no limit" eq "$(lib usage_cap)" 3
+dispatch --once
+ok "… and no transition: no back-on-pace line, pace kept" eq "$(plog 'back on pace') $([ -e "$CANCCU_HOME/pace" ] && echo kept)" "0 kept"
+
+env_new pace-off
+puse 60 4; dispatch --once
+ok "PACE=off (the default): no line, no limit" eq "$(plog 'pace:') $(lib usage_cap) $([ -e "$CANCCU_HOME/pace" ] && echo file)" "0 3 "
+
 echo "canccu-usage tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

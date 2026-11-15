@@ -22,7 +22,7 @@ The guides (getting started, install, upgrading, security, …) are in [`../READ
 | [`findings.md`](findings.md) | The finding block: classes, Evidence:, Pre-existing:, the count line, what the dispatcher demotes |
 | [`packages.md`](packages.md) | Work packages per step: units, the planner and its plan, package runs, risk classes, waves |
 | [`steps.md`](steps.md) | The current step, the health pass, the checkpoint, stops, notes, the step budget |
-| [`usage.md`](usage.md) | The usage throttle and the usage-limit back-off |
+| [`usage.md`](usage.md) | The usage throttle, the usage-limit back-off, weekly pacing |
 | [`pings.md`](pings.md) | The @mentions that tell your phone something needs you |
 | [`engine.md`](engine.md) | The run engine, untrusted runs, locks |
 | [`state.md`](state.md) | Where the state lives, the state format, a unit's state, colours, the spend log |

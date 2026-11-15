@@ -33,6 +33,7 @@ fields are in [`state.md`](state.md). Every file in `~/.canccu/projects/<name>/`
 | `dispatch.pid`, `.dispatch.lock` | The running dispatcher and its lock |
 | `paused` | Present while paused: empty for `canccu-pause` (no new run at all), `finish` for `canccu-pause --finish` (work in flight goes on) ([`pipeline.md`](pipeline.md#one-pass)) |
 | `gh_limit` | The epoch until which passes pause for a GitHub rate limit ([`pipeline.md`](pipeline.md#one-pass)); removed when it has passed |
+| `pace` | `since=<epoch>` while the project is ahead of the week with `PACE` on ([`usage.md`](usage.md#pacing)) |
 | `.disk-low` | Present while free space is below `DISK_MIN_MB`, so the hold is logged once |
 | `status.json` | The status snapshot, written after every pass ([`snapshot.md`](snapshot.md)) |
 | `.warned-*` | The last recurring warning of a kind, so it is logged once |

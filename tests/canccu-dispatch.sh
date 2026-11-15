@@ -1174,5 +1174,17 @@ CANCCU_NOW=$((NOW + 600)) dispatch --once
 ok "… the next pass, 600 s later with a slot, leaves ci_wait at 420" \
   eq "$(cut -f15 "$WORKERS_DIR/spend.log")" "pr=50,ci=green,ci_wait=420"
 
+# the digest's Pace section (#216 D6): only with PACE on
+for m in cap off; do
+  env_new "digest-pace-$m" DIGEST_HOUR_UTC=0 "PACE=$m"
+  mkdir -p "$WORKERS_DIR"
+  jq -n --argjson at "$((NOW - 60))" --argjson wr "$((NOW + 4 * 86400))" \
+    '{at: $at, info: {unifiedWindows: {five_hour: {utilization: 0.1, resetsAt: ($at + 3600)}, seven_day: {utilization: 0.6, resetsAt: $wr}}}}' > "$WORKERS_DIR/usage.json"
+  dispatch --once
+done
+ok "the digest has a Pace section with PACE=cap" grep -qxF "**Pace:** ahead by 17 points since 2030-11-05T12:00:00Z (PACE=cap); weekly 60%, 43% of the week gone" "$T/digest-pace-cap/root/projects/web/digest/2030-11-05.md"
+ok "… none with PACE=off" not grep -q 'Pace' "$T/digest-pace-off/root/projects/web/digest/2030-11-05.md"
+ok "… the off one is written" test -s "$T/digest-pace-off/root/projects/web/digest/2030-11-05.md"
+
 echo "canccu-dispatch tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
