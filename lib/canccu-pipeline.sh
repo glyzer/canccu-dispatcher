@@ -379,9 +379,7 @@ resume_step() {
       { log "#$n PR #$pr: gh error reading the comments for needs-work; retrying next pass"; return 0; }
     extra_round "$n" "$pr" "$c" && return 0
     resume "$n" "The user rejected PR #$pr (needs-work). Address their comments, rerun the checks, push once and stop: the dispatcher watches CI. Their comments: ${c:-none found; read the latest comments on the PR and the issue}" needs-work || return 0
-    # their comment is the answer to the open items: a new full review does not raise them again
-    history_answer "$pr"
-    edit_issue "$n" --remove-label needs-work
+    history_answer "$pr"; edit_issue "$n" --remove-label needs-work
     has_label "$n" awaiting-accept && edit_issue "$n" --remove-label awaiting-accept
     new_cycle "$n"
   elif [ "$phase" = needs-you ]; then
