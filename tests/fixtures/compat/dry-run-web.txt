@@ -15,4 +15,5 @@ one pass would:
   would: start worker #3
   would: gh issue edit 3 -R example-org/web --add-label in-progress --remove-label ready --add-assignee octo
 2030-11-05T12:00:00Z #3 started: Issue 3
+  would: gh pr edit 70 -R example-org/web --body-file <the PR body with the ask form>
   would: write <home>/.canccu/projects/web/digest/2030-11-05.md (DIGEST_ISSUE is empty: not posted)

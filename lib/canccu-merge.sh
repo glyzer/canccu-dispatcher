@@ -167,8 +167,7 @@ accept_step() {
       log "#$n PR #$pr: \`accepted\` was on issue #$on; taken as the accept"
     fi
     history_answer "$pr"; merge_auto "$n" "$pr" accepted "$head"
-  else warn_once "accept-$pr" "#$n PR #$pr: \`accepted\` on #$on was not added by $USER_LOGIN after the accept request; ignored"; fi
-  return 0
+  else warn_once "accept-$pr" "#$n PR #$pr: \`accepted\` on #$on was not added by $USER_LOGIN after the accept request; ignored"; fi; return 0
 }
 
 # conflict_merge <n> <pr> <head> [disarm|queue]: GitHub says the PR conflicts with main (DIRTY; queue: the merge queue said so): merge

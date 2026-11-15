@@ -130,6 +130,7 @@ ask_block() {
   form=$(ask_form "$1" accept "$2" - "$3")
   rest=$(pr_get "$2" '.body // ""' | awk '/^<!-- canccu:ask -->$/ { s = 1; next }
     s && /^<!-- \/canccu:ask -->$/ { s = 0; next } !s' | sed '/./,$!d')
+  if (( CANCCU_DRY )); then mut gh pr edit "$2" -R "$REPO" --body-file "<the PR body with the ask form>"; return 0; fi
   f=$(mktemp) || { log "#$1 PR #$2: gh error writing the ask block; tried again next pass"; return 0; }
   printf '%s\n%s\n%s\n' '<!-- canccu:ask -->' "$form" '<!-- /canccu:ask -->' > "$f"
   [ -z "$rest" ] || printf '\n%s\n' "$rest" >> "$f"
