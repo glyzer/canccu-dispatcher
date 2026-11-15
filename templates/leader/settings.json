@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(canccu-dispatcher leader brief*)",
+      "Bash(canccu-dispatcher wait *)",
+      "Bash(canccu-dispatcher config show*)",
+      "Bash(canccu-status*)",
+      "Bash(canccu-ship *)",
+      "Bash(gh issue view *)",
+      "Bash(gh issue list *)",
+      "Bash(gh issue comment *)",
+      "Bash(gh pr view *)",
+      "Bash(gh pr diff *)",
+      "Bash(gh pr checks *)"
+    ],
+    "deny": [
+      "Read(/@REVIEWER_TOKEN_FILE@)",
+      "Edit(/@REVIEWER_TOKEN_FILE@)",
+      "Bash(*@REVIEWER_TOKEN_FILE@*)",
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git push * --force*)",
+      "Bash(git push * -f*)",
+      "Bash(git rebase*)",
+      "Bash(gh pr merge*)"
+    ]
+  }
+}

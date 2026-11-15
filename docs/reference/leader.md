@@ -1,15 +1,45 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
-# The lead
+# The leader
 
 Part of the reference; the index is [`README.md`](README.md).
 
-## The lead's session
+## The leader's session
 
-The lead is an interactive `claude` session in the left pane of window `main`, which `canccu-up`
-starts in `~/code` with the project's `gh` login ([`projects.md`](projects.md)). The dispatcher
-does not start, wake or watch it: it is your own session, used to turn ideas into issues the
-pipeline can run and to clear what waits for you. Nothing the lead does bypasses the pipeline:
-its PRs, if any, are reviewed and gated like a worker's.
+The left pane of window `main` runs an interactive `claude` with the project's `gh` login
+([`projects.md`](projects.md)). With `LEADER=off` (the default) it is your own session, titled
+`lead`, started in `~/code`: you use it to turn ideas into issues the pipeline can run and to
+clear what waits for you. With `LEADER=on` it is the leader: `canccu-up` titles the pane `leader`
+and starts `claude` in the project's leader kit with `CANCCU_ACTOR=leader`, so `config set`
+refuses it a locked setting. The dispatcher does not start, wake or watch it. Nothing the leader
+does bypasses the pipeline: its PRs, if any, are reviewed and gated like a worker's.
+
+## The leader kit
+
+```
+canccu-init --leader <project>
+```
+
+gives an existing project a leader. It writes the kit to `~/.canccu/projects/<project>/leader/`
+and sets `LEADER=on` in the project's config (through `config set`, so `config.history` records
+it), then prints `leader kit written to <dir>; canccu-up starts the leader there`. A kit already
+there is never overwritten: `canccu-init: leader files exist in <dir>; remove them first`. Run as
+the leader or a run, it is refused (`LEADER` is locked) and writes nothing. The kit:
+
+- `CLAUDE.md`, from `templates/leader/CLAUDE.leader.md`: the role (the leader of one project; the
+  product owner decides scope and accepts what users see), what it may accept (a technical PR
+  after a passed review and green CI, with `LEADER_ACCEPTS=technical`), what always goes to the
+  product owner (contracts §1, rule 4), its commands (`canccu-dispatcher leader brief`,
+  `canccu-dispatcher wait --owner leader --ack <id>`, `canccu-status`, `canccu-ship <n>`,
+  comments on needs-you issues), how it waits ([the feed](#the-feed), acking each line, the
+  60-minute hand-over), the ask form for what it passes to you, and its limits;
+- `.claude/settings.json`, from `templates/leader/settings.json`: Claude's permissions. They deny
+  reading the project's `REVIEWER_TOKEN_FILE`, `git push --force` (and `-f`), `git rebase` and
+  `gh pr merge`, and allow the commands above without a prompt.
+
+The kit is yours to edit once written; to start again from the templates, remove it and run
+`canccu-init --leader` again (`LEADER` stays `on`). `canccu-up` reads `LEADER` when it creates the
+session: restart the session for a change to show. With `LEADER=on` and no kit, it says so and
+starts the leader in `~/code`.
 
 ## Writing issues
 
@@ -33,7 +63,7 @@ A roadmap step is a milestone whose title starts with its number (`1 Skeleton`, 
 
 - an **epic** (label `epic`) whose sub-issues are the step's issues; an `Order: #a → #b` line
   orders them in the queue. The dispatcher posts the step's plan there and labels it `needs-you`
-  when the step needs the lead;
+  when the step needs the leader;
 - optionally a **checkpoint** issue (label `checkpoint`): the step pauses there after its health
   pass until you label it `checkpoint-ok` or close it ([`steps.md`](steps.md)).
 
@@ -119,4 +149,4 @@ ack=0; while l=$(canccu-dispatcher wait --owner leader --ack "$ack"); do ack=$(c
 | `closed` | An item no longer waits (class `info`) | Nothing: drop the item it closes |
 
 `Follow-up:` and `Roadmap note:` lines from the step's PRs land in the digest and the checkpoint
-summary: the lead turns the ones you want into issues.
+summary: the leader turns the ones you want into issues.

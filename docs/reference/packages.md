@@ -27,13 +27,13 @@ It starts when the step has issues to plan and no plan, when a wave is over (or 
 `WAVE_ROLLING`, below), or when new ready issues joined an idle step. **The dispatcher alone decides which issues are eligible**: open, in
 the step's milestone, `ready`, not `epic`, `checkpoint`, `fast`, `in-progress` or `needs-you`,
 not managed, in no package, with no open blocker. It hands the planner exactly those numbers,
-with the earlier waves' packages (the running ones with their `areas`) and the lead's comments on
+with the earlier waves' packages (the running ones with their `areas`) and the leader's comments on
 the epic.
 
 The planner is a fresh session (window `plan#<m>`, `--untrusted`, `PLAN_MODEL`, `BUDGET_PLAN`)
 in a fresh worktree at `origin/main`. It gets no directory the dispatcher reads: its plan is its
 final message, which the dispatcher parses as JSON, validates (`lib/canccu-plan.jq`) and writes
-itself to `steps/<m>.plan-<w>.json` (a rejected plan is kept as `….rejected.json` for the lead).
+itself to `steps/<m>.plan-<w>.json` (a rejected plan is kept as `….rejected.json` for the leader).
 The dispatcher never follows a link or reads a path the planner chose.
 
 The plan:

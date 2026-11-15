@@ -12,7 +12,7 @@ problem is in [`../SECURITY.md`](../SECURITY.md).
 |---|---|---|
 | The dispatcher (plain bash, no AI) | The project's narrow `gh` login; the reviewer token, read in a subshell for one `gh` call at a time | — |
 | Workers, reviewers, fix-checks, answerers, planners | The project's narrow `gh` login (a path to its config dir, never the token) | The reviewer token or its path; `GH_TOKEN` and `GITHUB_TOKEN` |
-| The lead's session | The project's narrow `gh` login | The reviewer token |
+| The leader's session | The project's narrow `gh` login | The reviewer token |
 
 **Narrow tokens.** Each project's fine-grained token reaches one repo with Contents, Issues, Pull
 requests and Workflows write, and nothing else: no Administration (rulesets, collaborators), no

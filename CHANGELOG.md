@@ -6,6 +6,10 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 
 ## Unreleased
 
+- `canccu-init --leader <project>` writes a leader kit (`CLAUDE.md` and `.claude/settings.json`)
+  to `~/.canccu/projects/<project>/leader/` and sets `LEADER=on`; with `LEADER=on`, `canccu-up`
+  starts the left pane's `claude` there, titled `leader`, with `CANCCU_ACTOR=leader`. The
+  reference topic of the role is now `leader.md`, and the docs call it the leader (#187).
 - Upgrade note: a project without its own `gh` login (`GH_CONFIG_DIR`, or
   `~/.canccu/projects/<name>/gh`) no longer runs on the host's default login: it starts no run
   until it gets its own login or its config sets `ALLOW_DEFAULT_GH_LOGIN=1` (new, default `0`,

@@ -153,7 +153,7 @@ names each such project with the steps above. With `ALLOW_DEFAULT_GH_LOGIN=1` in
 runs on the default login, and `canccu-status` warns: `no gh config dir for project <name>`. Once
 no project runs on it, you can `gh auth logout` the default login and revoke a classic token.
 
-**The lead's session** uses the same dir: `canccu-up` starts every pane with the project's
-`GH_CONFIG_DIR` and git config, so the lead's `gh` and `git push` use the project's token. A
+**The leader's session** uses the same dir: `canccu-up` starts every pane with the project's
+`GH_CONFIG_DIR` and git config, so the leader's `gh` and `git push` use the project's token. A
 session that already exists keeps its environment: export `GH_CONFIG_DIR` in a pane by hand, or
 end the session and run `canccu-up` again.

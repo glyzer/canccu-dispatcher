@@ -20,7 +20,7 @@ a phone over ssh (80×30). Top to bottom:
   cost), the freeze date, and the 5-hour and weekly usage with their reset times. Banners below:
   "dispatcher not running?", a failed pass, a newer schema, sections from an earlier pass.
 - **NEEDS YOU**, a red box that is never dropped: one card per item of every project whose owner is the product owner
-  ([`lead.md`](lead.md#the-owner-of-a-waiting-item); an item with no `owner` counts as theirs), oldest
+  ([`leader.md`](leader.md#the-owner-of-a-waiting-item); an item with no `owner` counts as theirs), oldest
   first; with none, `nothing needs you`. Under the box, `LEADER: <n> items · oldest <age>` counts
   the leader's items, listed as `#<i> <kind> <age>` on a wide screen, only the count on a phone. Line 1: the verb (`ACCEPT`, `STUCK`, `QUESTION`, `PLAN OK?`, `CHECKPOINT`, `PLAN BAD`,
   `BUDGET`), the project, the issue and PR, the reason, since when, and the stage it parked at.
@@ -62,6 +62,6 @@ creates (`<p>` is the project, `<session>` its session):
    keeps running in its own window).
 2. `tmux new-window -d -t <session>: -n dispatch -e CANCCU_PROJECT=<p> 'canccu-dispatch --project <p>; exec bash'`
 3. `tmux new-window -d -t <session>: -n shell -e CANCCU_PROJECT=<p>`
-4. In the pane beside the lead: `canccu-monitor --project <p>`.
+4. In the pane beside the leader: `canccu-monitor --project <p>`.
 
 Ending the session instead would end the runs too: their windows live in it.

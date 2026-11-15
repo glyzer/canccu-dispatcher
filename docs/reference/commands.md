@@ -8,7 +8,7 @@ Part of the reference; the index is [`README.md`](README.md).
 | Who | Where | Does |
 |---|---|---|
 | You | a terminal (ssh into tmux) and GitHub | Decide scope and design, mark issues `ready`, accept the PRs that need you |
-| Lead | window `main`, left pane: an interactive `claude` | Writes issues, epics, milestones and blocked-by links with you ([`lead.md`](lead.md)) |
+| Leader | window `main`, left pane: an interactive `claude` (the leader's kit with `LEADER=on`) | Writes issues, epics, milestones and blocked-by links with you ([`leader.md`](leader.md)) |
 | Monitor | window `main`, right pane: `canccu-monitor` | What needs you, what runs, the roadmap, recent events ([`monitor.md`](monitor.md)) |
 | Dispatcher | window `dispatch`: `canccu-dispatch` | Polls GitHub every `INTERVAL`, starts runs, records outcomes as labels, merges. Plain bash: no AI runs in it |
 | Workers | window `#<n>` each: headless `claude -p` | One issue (or one work package) each, in its own git worktree; stop at a green PR or a question |
@@ -24,7 +24,8 @@ Every command but `canccu-init` and `canccu-dispatcher` takes `--project <name>`
 | Command | What it does |
 |---|---|
 | `canccu-init [--profile <t>] <name> <owner/repo> [clone]` | Adds a project ([`projects.md`](projects.md)) |
-| `canccu-up` | Creates the project's tmux session if it is missing: window `main` with the lead and the monitor, window `dispatch` with `canccu-dispatch`, window `shell`; then attaches. Never kills or rearranges a session that exists |
+| `canccu-init --leader <name>` | Writes the project's leader kit and sets `LEADER=on` ([`leader.md`](leader.md#the-leader-kit)) |
+| `canccu-up` | Creates the project's tmux session if it is missing: window `main` with `claude` (the leader in its kit with `LEADER=on`) and the monitor, window `dispatch` with `canccu-dispatch`, window `shell`; then attaches. Never kills or rearranges a session that exists |
 | `canccu-dispatch` | The loop: one pass every `INTERVAL` seconds, one instance per project ([`pipeline.md`](pipeline.md)) |
 | `canccu-dispatch --once` | One pass |
 | `canccu-dispatch --dry-run` | The runnable queue, every open PR's classification and what one pass would do. Writes nothing: no labels, comments, merges, state, log or snapshot |
@@ -41,7 +42,7 @@ Every command but `canccu-init` and `canccu-dispatcher` takes `--project <name>`
 | `canccu-dispatcher config show [--project <name>] [--global] [--origin] [KEY…]` | Every setting, its default and where it comes from (below) |
 | `canccu-dispatcher config set [--project <name> \| --global] KEY=VALUE [--why <text>]` | Checks one setting and writes it to the file it belongs in, with a history line (below) |
 | `canccu-dispatcher config unset [--project <name> \| --global] KEY [--why <text>]` | Removes that file's line for one setting, with a history line (below) |
-| `canccu-dispatcher wait [--project <name>] [--owner po\|leader] [--ack <id>]` | Blocks until the feed has a line with an id above `--ack` (default: its last id at start) for that owner, prints it and exits 0; exits 3 with `heartbeat stale: <n> min; the dispatcher may be down` when the heartbeat is 10 minutes old ([`lead.md`](lead.md#the-feed)) |
+| `canccu-dispatcher wait [--project <name>] [--owner po\|leader] [--ack <id>]` | Blocks until the feed has a line with an id above `--ack` (default: its last id at start) for that owner, prints it and exits 0; exits 3 with `heartbeat stale: <n> min; the dispatcher may be down` when the heartbeat is 10 minutes old ([`leader.md`](leader.md#the-feed)) |
 
 ### config show
 

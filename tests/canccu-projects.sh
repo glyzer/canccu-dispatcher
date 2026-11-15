@@ -548,7 +548,7 @@ penv leader-kit web tools
 k=$CANCCU_ROOT/projects/web/leader kt=$CANCCU_ROOT/projects/web/leader; kt=${kt/#$HOME/\~}
 out=$(PATH="$fb:$PATH" "$root/bin/canccu-init" --leader web 2>&1); rc=$?
 ok "canccu-init --leader web: succeeds, says where the kit is" eq "$rc $out" "0 leader kit written to $kt; canccu-up starts the leader there"
-ok "… the leader's instructions, as the template has them" cmp -s "$root/templates/leader/CLAUDE.md" "$k/CLAUDE.md"
+ok "… the leader's instructions, the template's for web" eq "$(cat "$k/CLAUDE.md")" "$(sed 's|@NAME@|web|g; s|@REPO@|example-org/web|g' "$root/templates/leader/CLAUDE.leader.md")"
 ok "… its permissions where claude loads them, valid JSON" jq -e .permissions "$k/.claude/settings.json" > /dev/null
 ok "… they deny reading this project's reviewer token file" \
   jq -e --arg t "Read(/$E/reviewer-token)" '.permissions.deny | index($t) != null' "$k/.claude/settings.json" > /dev/null
@@ -580,7 +580,7 @@ ok "canccu-init --leader as the leader: LEADER is locked, refused, no kit left b
 mkdir -p "$E/home"; : > "$FAKE/tmux.log"; rm -f "$FAKE/panes" "$FAKE/has-session"
 HOME=$E/home PATH="$T/tmuxup:$fb:$PATH" "$root/bin/canccu-up" --project web > "$E/out" 2>&1
 ok "canccu-up, LEADER=on: the left pane is titled leader" grep -qxF 'select-pane -t %0 -T leader' "$FAKE/tmux.log"
-ok "… its claude starts in the kit dir" grep -qxF "send-keys -t %0 cd $(printf %q "$k") && claude C-m" "$FAKE/tmux.log"
+ok "… its claude starts in the kit dir, marked as the leader" grep -qxF "send-keys -t %0 cd $(printf %q "$k") && CANCCU_ACTOR=leader claude C-m" "$FAKE/tmux.log"
 ok "… the other panes as before" grep -qxF 'send-keys -t %1 canccu-monitor --project web C-m' "$FAKE/tmux.log"
 : > "$FAKE/tmux.log"; rm -f "$FAKE/panes"
 HOME=$E/home PATH="$T/tmuxup:$fb:$PATH" "$root/bin/canccu-up" --project tools > "$E/out" 2>&1
@@ -589,7 +589,7 @@ ok "canccu-up, LEADER=off: the left pane as today, titled lead, claude in ~/code
 penv leader-nokit web; mkdir -p "$E/home"; echo LEADER=on >> "$CANCCU_ROOT/projects/web/config"
 HOME=$E/home PATH="$T/tmuxup:$fb:$PATH" "$root/bin/canccu-up" --project web > "$E/out" 2>&1
 ok "canccu-up, LEADER=on without a kit: the leader pane in ~/code, and says how to write the kit" \
-  eq "$(grep -cxF 'select-pane -t %0 -T leader' "$FAKE/tmux.log") $(grep -cxF 'send-keys -t %0 claude C-m' "$FAKE/tmux.log") $(grep -c 'no leader kit in .*: canccu-init --leader web' "$E/out")" "1 1 1"
+  eq "$(grep -cxF 'select-pane -t %0 -T leader' "$FAKE/tmux.log") $(grep -cxF 'send-keys -t %0 CANCCU_ACTOR=leader claude C-m' "$FAKE/tmux.log") $(grep -c 'no leader kit in .*: canccu-init --leader web' "$E/out")" "1 1 1"
 
 echo "canccu-projects tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

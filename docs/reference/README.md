@@ -13,7 +13,7 @@ The guides (getting started, install, upgrading, security, …) are in [`../READ
 | [`hosts.md`](hosts.md) | Host profiles, environment variables |
 | [`rules.md`](rules.md) | A project's rules: risky and gated paths, extra prompt text, the freeze, the one-at-a-time lock, pings |
 | [`projects.md`](projects.md) | Projects, adding one, a narrow token per project |
-| [`lead.md`](lead.md) | The lead's session, how to write issues, steps and epics, clearing what waits for you |
+| [`leader.md`](leader.md) | The leader's session and kit, how to write issues, steps and epics, clearing what waits for you |
 | [`pipeline.md`](pipeline.md) | One pass of the dispatcher, the phases |
 | [`merging.md`](merging.md) | The merge policy (auto or manual), your accept, the guards |
 | [`reviews.md`](reviews.md) | The reviewer, the fix-check, the verdict line, the answerer, the worker prompt |

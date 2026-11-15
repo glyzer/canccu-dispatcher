@@ -29,7 +29,7 @@ here; interfaces may still change between releases ([`CHANGELOG.md`](CHANGELOG.m
 - It runs no AI itself: the dispatcher is bash, `gh` and `jq`. It never merges without a passing
   review on the current head and green CI, and never touches a PR that is not its own.
 - It never changes rulesets, secrets, repo variables or collaborators, and never creates a token.
-- It does not write your issues or decide scope: you (with the lead, an interactive Claude
+- It does not write your issues or decide scope: you (with the leader, an interactive Claude
   session) do. It does not deploy, and it is no hosted service: it runs on your Linux host.
 
 ## Prerequisites
@@ -65,7 +65,7 @@ $EDITOR ~/.canccu/config                 # USER_LOGIN=<you>, REVIEWER_LOGIN=<the
 canccu-init web example-org/web          # a project: config, rules, labels, and a checklist
 canccu-dispatcher doctor --project web   # one line per problem; "no problems found"
 canccu-dispatch --project web --dry-run  # what one pass would do; changes nothing
-canccu-up --project web                  # the tmux session: lead, monitor, dispatcher
+canccu-up --project web                  # the tmux session: leader, monitor, dispatcher
 ```
 
 `canccu-init` prints what is left by hand: the repo's side above, the clone, and a narrow

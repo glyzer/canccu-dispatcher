@@ -9,14 +9,14 @@ packages is in [`packages.md`](packages.md).
 A step is a milestone; its work issues are the ones that are neither `epic` nor `checkpoint`.
 The **current step** is the first *pending* milestone in milestone order (the leading number of
 its title): it has open work issues, or an open checkpoint, or its step is planning, running,
-waiting for or in its health pass, at its checkpoint, or needs the lead. Earlier steps are done.
+waiting for or in its health pass, at its checkpoint, or needs the leader. Earlier steps are done.
 A milestone named "Parallel tracks" is a second current step whenever it is pending; its
 checkpoint gates nothing else. Only current steps run packages. An empty step with an open
 checkpoint is current and idle: later steps wait.
 
 **Cross-step blockers.** An open work issue of the current step blocked by an open issue of a
 later step would stall it: the step's epic gets `needs-you` with one comment per pair (`step
-<title> waits on #x in step <title>`), so the lead can move the issue.
+<title> waits on #x in step <title>`), so the leader can move the issue.
 
 ## Health pass
 
@@ -27,7 +27,7 @@ removed; comments follow the comment rule; duplicated logic merged; no behaviour
 `Closes` line. Its rules come from the target repo's `AGENTS.md` ([`../repo-contract.md`](../repo-contract.md)).
 It is `normal` risk, `high` when its diff touches `HIGH_RISK_PATHS`. Nothing to change: no PR
 and the line `Health: nothing to do`. Once per step. It runs on `HEALTH_MODEL` at `HEALTH_EFFORT`
-(empty: `MODEL` and the account's default effort) and ends with a short report for the lead.
+(empty: `MODEL` and the account's default effort) and ends with a short report for the leader.
 
 ## Checkpoint
 
@@ -44,7 +44,7 @@ skips the pause. The step's epic closes once the step is done and its sub-issues
 What the dispatcher does not handle on its own stops the step: a done step's checkpoint
 reopened, a done step with new open work, or its epic closed while it runs. Nothing of the step
 starts; its epic (else its checkpoint) gets `needs-you` and one comment with what it found. The
-step goes on by itself once the lead sorted it out (closed or moved the issue, closed the
+step goes on by itself once the leader sorted it out (closed or moved the issue, closed the
 checkpoint, reopened the epic).
 
 A finished package's issue that is open again (reopened, or left open by its merged PR) does not
@@ -55,7 +55,7 @@ in the next wave like any other issue of the step. Without `ready` it waits for 
 
 `Follow-up:` and `Roadmap note:` lines of the step's package PRs are kept once per text in
 `steps/<m>.notes`, and listed in the digest, the checkpoint summary, the snapshot and
-`canccu-status`. The dispatcher never creates issues from them: the lead does, with you. Put
+`canccu-status`. The dispatcher never creates issues from them: the leader does, with you. Put
 follow-ups and review leftovers in the step's milestone, not the fast lane: the planner then
 bundles them with the step's other issues of their area, where each one alone would pay a
 package's review, CI, accept and merge.

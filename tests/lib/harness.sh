@@ -26,6 +26,8 @@ MON_VENV=${CANCCU_VENV:-$HOME/.local/share/canccu/venv}; unset CANCCU_VENV
 # the caller's gh login, tokens and git config never reach a test: a canccu tmux session sets
 # GH_CONFIG_DIR= and GIT_CONFIG_COUNT= (empty), and a test sets what it needs itself
 unset GH_CONFIG_DIR CANCCU_GH_OWNER GH_TOKEN GITHUB_TOKEN "${!GIT_CONFIG_@}"
+# … nor the caller's actor marker: a worker running the tests carries CANCCU_ACTOR=run
+unset CANCCU_ACTOR
 # the caller's locale never reaches a test (ls, sort and [a-z] order by it); a test that needs
 # another locale sets its own
 export LC_ALL=C
