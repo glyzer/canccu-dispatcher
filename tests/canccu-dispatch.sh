@@ -827,6 +827,33 @@ route 'issue view 5 *' issue5.json
 dispatch --once
 ok "user comment → resumed with it" grep -q 'web 5 Rules for this run: .* The user answered: Use port 8080. This run is a fresh session.* Do not review your own work; run the checks only. turns=' "$FAKE/worker.log"
 ok "needs-you dropped on resume" has gh.log "issue edit 5 -R example-org/web --remove-label needs-you"
+# a comment by USER_LOGIN posted while a run of the unit was alive is no answer (#185): the run
+# below ran 10:30-11:00 (the spend log: its end and secs), the live one started 11:50 (state)
+live_env() {   # live_env <name> <comment time>: issue 5 needs-you since 10:00, one comment then
+  env_new "$1"
+  { issue 5 in-progress,needs-you; } | issues
+  state 5 phase=needs-you "ny_at=$((NOW - 7200))" "started=$((NOW - 600))"
+  printf '%s\tweb\t5\t1.00\tbuild\t-\t-\tfresh\t0\t0\t0\t0\t-\t-\t-\t1800\n' "$((NOW - 3600))" > "$WORKERS_DIR/spend.log"
+  json issue5.json "$(jq -n --argjson a "$(comment "$2" 'Use port 8080.')" '{comments: [$a]}')"
+  route 'issue view 5 *' issue5.json
+}
+live_env live-comment-during 2030-11-05T10:45:00Z
+dispatch --once
+ok "a comment by the user during the unit's run → not an answer" not grep -q 'The user answered' "$FAKE/worker.log"
+ok "… logged" grep -q '#5: a comment by octo at 2030-11-05T10:45:00Z was posted while a run was alive; not taken as the product owner.s answer' "$CANCCU_HOME/dispatch.log"
+dispatch --once
+ok "… once per comment" eq "$(grep -c 'at 2030-11-05T10:45:00Z was posted while a run was alive' "$CANCCU_HOME/dispatch.log")" 1
+live_env live-comment-after 2030-11-05T11:30:00Z
+dispatch --once
+ok "a comment posted after the run ended → the answer" grep -q 'web 5 Rules for this run: .* The user answered: Use port 8080.' "$FAKE/worker.log"
+live_env live-comment-live 2030-11-05T11:55:00Z
+live_lock 5
+ok "a comment after the live run's start (state started) → dropped" eq "[$(lib user_comments 5 "" 0)]" "[]"
+json issue5.json "$(jq -n --argjson a "$(comment 2030-11-05T11:55:00Z 'live')" --argjson b "$(comment 2030-11-05T11:30:00Z 'between')" \
+  --argjson c "$(comment 2030-11-05T10:59:59Z 'late in the run')" '{comments: [$a, $b, $c]}')"
+ok "… one between the runs kept" eq "$(lib user_comments 5 "" 0)" between
+sed -i 's/\t1800$/\t-/' "$WORKERS_DIR/spend.log"
+ok "a finished run with an unknown secs drops nothing it cannot place" eq "$(lib user_comments 5 "" 0 | tr '\n' ' ')" "late in the run  ---  between "
 env_new resume-paused-backoff
 { issue 5 in-progress; issue 6 ready; } | issues
 state 5 phase=limited
