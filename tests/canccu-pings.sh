@@ -329,6 +329,11 @@ ok "ask form: the change lines are stripped of links, mentions and markup, and c
   eq "$(lib eval "PRS=\$(cat '$FAKE/prs.json'); ISSUES='[]'; ask_form 12 checkpoint 50 3" | sed -n '4,6p')" "  - Adds NOTIFYCONTENT, see and ask about it.
   - ${LONG:0:160}
   - Keeps the old record format b."
+review 50 $HA '- see @*octocat* now' '- ping @`team` here' '- go h`ttp`s://evil.example/x or H*TTP://evil.example/y'
+ok "… markup inside a mention or a link does not bring it back" \
+  eq "$(lib eval "PRS=\$(cat '$FAKE/prs.json'); ISSUES='[]'; ask_form 12 checkpoint 50 3" | sed -n '4,6p')" "  - see now
+  - ping here
+  - go or"
 review 50 $HA
 ok "… a review file without Change: gives the no-summary lines" \
   eq "$(lib eval "PRS=\$(cat '$FAKE/prs.json'); ISSUES='[]'; ask_form 12 checkpoint 50 3" | sed -n '4,6p')" "$NOSUM

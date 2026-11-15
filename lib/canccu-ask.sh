@@ -29,8 +29,9 @@ ask_what() {
 }
 
 # ask_change <pr>: the three "  - " lines of the Change: section of the PR's newest review file,
-# each stripped of links, @ mentions and markup and cut at 160 characters; the no-summary line
-# three times when there is no such file, or its section is not exactly three "- " lines
+# each stripped of markup, then links, then @ mentions (markup first, so it cannot hide either),
+# and cut at 160 characters; the no-summary line three times when there is no such file, or its
+# section is not exactly three "- " lines
 ask_change() {
   local f='' x l in=0 out=()
   for x in "$CANCCU_HOME/reviews/$1"/*.md; do
@@ -41,7 +42,7 @@ ask_change() {
     while IFS= read -r l; do
       if (( ! in )); then [[ $l =~ ^[[:space:]]*Change:[[:space:]]*$ ]] && in=1; continue; fi
       [[ $l =~ ^[[:space:]]*-[[:space:]]+(.*)$ ]] || break
-      l=$(sed -E 's#http[^[:space:]]*##g; s#@[[:alnum:]_-]+##g; s#[`*_#<>]##g; s#[[:space:]]+# #g; s#^ ##; s# $##' <<<"${BASH_REMATCH[1]}")
+      l=$(sed -E 's#[`*_#<>]##g; s#[Hh][Tt][Tt][Pp][^[:space:]]*##g; s#@[[:alnum:]_-]+##g; s#[[:space:]]+# #g; s#^ ##; s# $##' <<<"${BASH_REMATCH[1]}")
       out+=("  - ${l:0:160}")
     done < "$f"
   fi
