@@ -11,7 +11,9 @@ when a row waits on something), a row per managed or queued issue. A snapshot wi
 
 One status vocabulary, a mark each (VOCAB): ● running, ○ can go next, – blocked or later,
 ✖ needs you, ✓ done. "Waiting on" names the blocker in words. Nothing is cut: long cells wrap.
-detail=False drops the later steps and the blocked groups; headers_only keeps a line per step.
+detail=False drops the later steps and the blocked groups; fold=1 also the idle parallel-track
+steps, fold=2 also folds the done packages into one row (fit.py), fold=3 keeps the current steps'
+tables only (no next step, no fast lane); headers_only keeps a line per step.
 The phone form (phone=True) puts each step's cell on a heading line above its table."""
 import io
 import re
@@ -22,6 +24,7 @@ from rich.table import Table
 from rich.text import Text
 
 from .data import lst, num, nums, obj, other_keys, txt
+from .fit import Capped, cap_cells, fold_done
 from .parts import cut, issue_style, line, wrap
 
 RUN, NEXT, WAIT, YOU, DONE = "●", "○", "–", "✖", "✓"
@@ -184,9 +187,13 @@ def loose_rows(snap, loose, detail, styles):
             wait = "your accept"
         elif (mark, word) == (NEXT, "ready"):
             wait = ready_wait(snap)
+        elif mark == WAIT:
+            reasons = [waiting(txt(i, "waits_on")) for i in items]
+            wait = Capped(counted(reasons), reasons)
         else:
             wait = counted([waiting(txt(i, "waits_on")) for i in items])
-        rows.append([name, Text(issue_list([num(i, "issue") for i in items])), Text(""), status(mark, word), Text(wait)])
+        rows.append([name, Text(issue_list([num(i, "issue") for i in items])), Text(""), status(mark, word),
+                     wait if isinstance(wait, Text) else Text(wait)])
     return rows
 
 
@@ -203,11 +210,14 @@ def running_styles(snap):
     return out
 
 
-def current_rows(snap, st, over, detail):
+def current_rows(snap, st, over, detail, fold=0):
     plan = obj(st, "plan")
     packages = lst(plan, "packages")
     styles = running_styles(snap)
-    rows = [package_row(snap, p, over, styles) for p in packages]
+    folded = fold_done(packages) if fold >= 2 else None
+    rows = [] if folded is None else [[Text(folded[0]), Text(issue_list([n for p in folded[1] for n in nums(p, "issues")])),
+                                       Text(""), status(DONE, "done"), Text("")]]
+    rows += [package_row(snap, p, over, styles) for p in packages if folded is None or p not in folded[1]]
     seen = {n for p in packages for n in nums(p, "issues")}
     by_n = {num(i, "issue"): i for i in lst(over, "issues") if num(i, "issue") is not None}
     loose = [by_n[n] for n in by_n if n not in seen]
@@ -268,7 +278,12 @@ def next_and_later(snap):
     return nxt, [(txt(m, "title", "?"), num(m, "open") or 0, num(m, "closed") or 0) for m in rest[1:]], 0
 
 
-def step_sections(snap, detail=True):
+def idle(rows):
+    """Nothing in rows runs, can go next or needs you."""
+    return not any(r[3].plain[:1] in (RUN, NEXT, YOU) for r in rows)
+
+
+def step_sections(snap, detail=True, fold=0):
     """[{head: [Text] (the Step cell), rows: [[Work, Issues, Risk, Status, Waiting on]]}]: the
     current steps (the main track first), then the next step."""
     view = lst(snap, "step_overview")
@@ -277,9 +292,11 @@ def step_sections(snap, detail=True):
     out = []
     for st in current:
         over = next((o for o in view if num(o, "milestone") == num(st, "milestone")), {})
-        out.append({"head": step_head(txt(st, "title", "?"), "NOW", over, st),
-                    "rows": current_rows(snap, st, over, detail)})
-    for o in next_and_later(snap)[0]:
+        rows = current_rows(snap, st, over, detail, fold)
+        if fold and txt(st, "track") == "parallel" and idle(rows):
+            continue
+        out.append({"head": step_head(txt(st, "title", "?"), "NOW", over, st), "rows": rows})
+    for o in next_and_later(snap)[0] if fold < 3 else []:
         issues = [i for i in lst(o, "issues") if num(i, "issue") is not None]
         rows = loose_rows(snap, issues, detail, running_styles(snap))
         if not issues and not (num(o, "work_open") or 0):
@@ -386,7 +403,19 @@ def col_widths(cols, rows, width, header):
 def table(cols, sections, width, header=True):
     """A box table (┌─┬─┐) of the sections' rows, a line between sections; the columns wrap, never cut."""
     t = Table(box=box.SQUARE, show_header=header, header_style="bold", expand=False)
-    ws = col_widths(cols, [r for rows in sections for r in rows], width, header)
+    every = [r for rows in sections for r in rows]
+    ws = col_widths(cols, every, width, header)
+    # a capped cell is set for its column's width, which then changes the widths: a few rounds
+    # settle it, and the last widths are the ones the cells were set for
+    for _ in range(3):
+        if ws is None or not cap_cells(every, ws):
+            break
+        again = col_widths(cols, every, width, header)
+        if again == ws:
+            break
+        ws = again
+    if ws is not None:
+        cap_cells(every, ws)
     for k, c in enumerate(cols):
         t.add_column(c, overflow="fold", width=ws[k] if ws else None)
     for k, rows in enumerate(sections):
@@ -436,7 +465,7 @@ def title_line(name, snap, width):
     return wrap(t, width, 2)
 
 
-def roadmap(name, snap, width, detail=True, headers_only=False, phone=False):
+def roadmap(name, snap, width, detail=True, headers_only=False, phone=False, fold=0):
     """The project's roadmap, as lines of at most width cells."""
     if snap is None:
         return [Text("ROADMAP  %s: no snapshot" % name, style="dim")]
@@ -447,7 +476,7 @@ def roadmap(name, snap, width, detail=True, headers_only=False, phone=False):
         if lst(snap, "milestones"):
             rows += [cut(x, width) for x in bars(snap)]
         return rows + fast_table(snap, width)
-    secs = step_sections(snap, detail)
+    secs = step_sections(snap, detail, fold)
     if not lst(snap, "steps") or not any(s.get("current") is True for s in lst(snap, "steps")):
         rows.append(Text("  no current step", style="dim"))
     if headers_only:
@@ -466,7 +495,7 @@ def roadmap(name, snap, width, detail=True, headers_only=False, phone=False):
         rows += spanning(lines, "Later", later) if later else lines
     elif later:
         rows += wrap(line(("  Later  ", "bold"), later), width, 4)
-    fast = fast_table(snap, width)
+    fast = fast_table(snap, width) if fold < 3 else []
     if fast:
         rows += [Text("  fast lane", style="bold")] + fast
     return rows

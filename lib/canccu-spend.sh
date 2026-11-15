@@ -57,25 +57,32 @@ fix_rounds() {
     "$WORKERS_DIR/spend.log" 2>/dev/null || echo 0
 }
 
-# findings_count <review file> → "<blocking> <non-blocking>": the top-level list items (1. / 1) /
+# findings_count <review file> [sha] → "<blocking> <non-blocking>". A file with a valid verdict for
+# that head (review_effective): the blocking findings left, and every other item (non-blocking,
+# demoted, pre-existing). Else an estimate, for a verdict posted by hand: the top-level list items (1. / 1) /
 # - / *) after a "Blocking" heading and before a "Non-blocking" one, and after that. Items before
 # any heading count as neither (a passed review lists what it checked there), unless the file has
 # no Blocking heading and its verdict is changes: then they are the blocking findings. An
 # estimate: it counts what the reviewer listed under the prompt's headings; no file → "0 0".
 findings_count() {
+  local body e v b n p d
+  # read once: the file may be a process substitution
+  body=$(cat "$1" 2>/dev/null) || { echo "0 0"; return; }
+  e=$(review_effective_body "$body" "${2:-}")
+  if [ -n "$e" ]; then read -r v b n p d _ <<<"$e"; echo "$b $(( n + p + d ))"; return; fi
   awk 'BEGIN { b = 0; n = 0; pre = 0; part = 0; seen = 0; changes = 0 }
        /^[[:space:]*_#]*Non-blocking/ { part = 2; next }
        /^[[:space:]*_#]*Blocking/ { seen = 1; if (part == 0) part = 1; next }
        /^[[:space:]*_]*Review verdict:[[:space:]*_]*changes/ { changes = 1; next }
        /^[[:space:]*_]*(Review verdict|Maintainer accept|Risk):/ { next }
        /^([0-9]+[.)]|[-*])[[:space:]]/ { if (part == 2) n++; else if (part == 1) b++; else pre++ }
-       END { if (!seen && changes) b = pre; print b, n }' "$1" 2>/dev/null || echo "0 0"
+       END { if (!seen && changes) b = pre; print b, n }' <<<"$body"
 }
 
 # spend_review_note <K> <pr> <review file> <sha> <since>: a review's or fix-check's outcome: its
 # verdict (none without a valid one), its findings and the unit's fix rounds so far
 spend_review_note() {
-  local v b nb; v=$(file_verdict "$3" "$4"); read -r b nb <<<"$(findings_count "$3")"
+  local v b nb; v=$(file_verdict "$3" "$4"); read -r b nb <<<"$(findings_count "$3" "$4")"
   [ -e "$3" ] && (( $(stat -c %Y "$3") >= $5 )) || { v="" b=0 nb=0; }
   spend_note "review-$2" "$5" "verdict=${v:-none}" "blocking=$b" "nonblocking=$nb" "rounds=$(fix_rounds "$1")"
 }

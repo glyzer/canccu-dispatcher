@@ -68,7 +68,7 @@ last 5 "crashed (exit 1)" "cannot read /home/someone/code/web/notes.txt; see /ho
 state 6 phase=review pr=50 review_sha=$HA "started=$NOW" rounds=0
 last review-50 done "wrote the review"
 RF=$CANCCU_HOME/reviews/50/$HA.md; mkdir -p "${RF%/*}"
-printf '1. /home/someone/code/web/src/a.ts:3 off by one\n\nReview verdict: changes %s\n' "$HA" > "$RF"; touch -d "@$((NOW + 60))" "$RF"
+printf 'Blocking:\n1. [correctness] /home/someone/code/web/src/a.ts:3 off by one\n   Evidence: three items give 2\nNon-blocking: none\nPre-existing: none\nFindings: 1 blocking, 0 non-blocking, 0 pre-existing\nReview verdict: changes %s\n' "$HA" > "$RF"; touch -d "@$((NOW + 60))" "$RF"
 HOME=/home/someone dispatch --once
 ok "HOME=/home/someone: the needs-you comment quotes the report with ~/" has gh.log "cannot read ~/code/web/notes.txt; see ~"
 ok "… the review-post failure names the token file as ~/" has gh.log "no reviewer token file (~/.canccu/reviewer-token)"
@@ -83,7 +83,7 @@ json files50.json '[{"filename": "src/a.ts"}]'; route 'api --paginate repos/exam
 state 6 phase=review pr=50 review_sha=$HA "started=$NOW" rounds=0
 last review-50 done "wrote the review"
 RF=$CANCCU_HOME/reviews/50/$HA.md; mkdir -p "${RF%/*}"
-printf '1. /home/someone/code/web/src/a.ts:3 off by one\n\nReview verdict: changes %s\n' "$HA" > "$RF"; touch -d "@$((NOW + 60))" "$RF"
+printf 'Blocking:\n1. [correctness] /home/someone/code/web/src/a.ts:3 off by one\n   Evidence: three items give 2\nNon-blocking: none\nPre-existing: none\nFindings: 1 blocking, 0 non-blocking, 0 pre-existing\nReview verdict: changes %s\n' "$HA" > "$RF"; touch -d "@$((NOW + 60))" "$RF"
 HOME=/home/someone dispatch --once
 # shellcheck disable=SC2088  # a literal ~ is what the posted text holds
 ok "HOME=/home/someone: a posted review shows ~/" grep -qF '~/code/web/src/a.ts:3' "$FAKE/posted-50"

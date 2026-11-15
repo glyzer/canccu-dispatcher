@@ -1,0 +1,1030 @@
+{
+ "schema": 2,
+ "project": "web",
+ "repo": "example-org/web",
+ "repo_name": "web",
+ "pid": 6262,
+ "interval": 60,
+ "pass": {
+  "at": 1920110400,
+  "started": 1920110395,
+  "duration": 5,
+  "durations": [
+   5
+  ],
+  "ok": true,
+  "error": null,
+  "paused": false,
+  "backoff_until": null
+ },
+ "caps": {
+  "running": 1,
+  "cap": 3,
+  "total_running": 1,
+  "total_cap": 3
+ },
+ "spend": {
+  "today_usd": 12.5,
+  "runs_without_cost": 0,
+  "day": "2030-11-05",
+  "freeze": "2031-02-01"
+ },
+ "usage": {
+  "five_hour": 27,
+  "seven_day": 58,
+  "resets_at": 1920243600,
+  "weekly_resets_at": 1920618000,
+  "at": 1920110390,
+  "state": "normal",
+  "text": "5-hour 27% · weekly 58%"
+ },
+ "stale": [],
+ "other_runs": [],
+ "steps": [
+  {
+   "milestone": 4,
+   "title": "4 Sharing",
+   "track": "main",
+   "current": true,
+   "phase": "running",
+   "wave": 3,
+   "epic": 399,
+   "error": null,
+   "checkpoint": {
+    "issue": 398,
+    "state": "open",
+    "waiting": false
+   },
+   "budget": {
+    "usd": 40.1,
+    "limit": 300,
+    "runs_without_cost": 0,
+    "over": false
+   },
+   "plan": {
+    "wave": 3,
+    "at": 1920100000,
+    "left_out": [],
+    "packages": [
+     {
+      "name": "merged-0",
+      "issues": [
+       400
+      ],
+      "risk": "low",
+      "risk_reason": "why",
+      "areas": [
+       "src/merged-0/"
+      ],
+      "depends_on": [],
+      "key": "pkg-4-merged-0",
+      "state": "merged",
+      "pr": 500,
+      "branch": null,
+      "risk_effective": "low"
+     },
+     {
+      "name": "merged-1",
+      "issues": [
+       401
+      ],
+      "risk": "low",
+      "risk_reason": "why",
+      "areas": [
+       "src/merged-1/"
+      ],
+      "depends_on": [],
+      "key": "pkg-4-merged-1",
+      "state": "merged",
+      "pr": 501,
+      "branch": null,
+      "risk_effective": "low"
+     },
+     {
+      "name": "merged-2",
+      "issues": [
+       402
+      ],
+      "risk": "low",
+      "risk_reason": "why",
+      "areas": [
+       "src/merged-2/"
+      ],
+      "depends_on": [],
+      "key": "pkg-4-merged-2",
+      "state": "merged",
+      "pr": 502,
+      "branch": null,
+      "risk_effective": "low"
+     },
+     {
+      "name": "merged-3",
+      "issues": [
+       403
+      ],
+      "risk": "low",
+      "risk_reason": "why",
+      "areas": [
+       "src/merged-3/"
+      ],
+      "depends_on": [],
+      "key": "pkg-4-merged-3",
+      "state": "merged",
+      "pr": 503,
+      "branch": null,
+      "risk_effective": "low"
+     },
+     {
+      "name": "merged-4",
+      "issues": [
+       404
+      ],
+      "risk": "low",
+      "risk_reason": "why",
+      "areas": [
+       "src/merged-4/"
+      ],
+      "depends_on": [],
+      "key": "pkg-4-merged-4",
+      "state": "merged",
+      "pr": 504,
+      "branch": null,
+      "risk_effective": "low"
+     },
+     {
+      "name": "merged-5",
+      "issues": [
+       405
+      ],
+      "risk": "low",
+      "risk_reason": "why",
+      "areas": [
+       "src/merged-5/"
+      ],
+      "depends_on": [],
+      "key": "pkg-4-merged-5",
+      "state": "merged",
+      "pr": 505,
+      "branch": null,
+      "risk_effective": "low"
+     },
+     {
+      "name": "merged-6",
+      "issues": [
+       406
+      ],
+      "risk": "low",
+      "risk_reason": "why",
+      "areas": [
+       "src/merged-6/"
+      ],
+      "depends_on": [],
+      "key": "pkg-4-merged-6",
+      "state": "merged",
+      "pr": 506,
+      "branch": null,
+      "risk_effective": "low"
+     },
+     {
+      "name": "merged-7",
+      "issues": [
+       407
+      ],
+      "risk": "low",
+      "risk_reason": "why",
+      "areas": [
+       "src/merged-7/"
+      ],
+      "depends_on": [],
+      "key": "pkg-4-merged-7",
+      "state": "merged",
+      "pr": 507,
+      "branch": null,
+      "risk_effective": "low"
+     },
+     {
+      "name": "merged-8",
+      "issues": [
+       408
+      ],
+      "risk": "low",
+      "risk_reason": "why",
+      "areas": [
+       "src/merged-8/"
+      ],
+      "depends_on": [],
+      "key": "pkg-4-merged-8",
+      "state": "merged",
+      "pr": 508,
+      "branch": null,
+      "risk_effective": "low"
+     },
+     {
+      "name": "merged-9",
+      "issues": [
+       409
+      ],
+      "risk": "low",
+      "risk_reason": "why",
+      "areas": [
+       "src/merged-9/"
+      ],
+      "depends_on": [],
+      "key": "pkg-4-merged-9",
+      "state": "merged",
+      "pr": 509,
+      "branch": null,
+      "risk_effective": "low"
+     },
+     {
+      "name": "merged-10",
+      "issues": [
+       410
+      ],
+      "risk": "low",
+      "risk_reason": "why",
+      "areas": [
+       "src/merged-10/"
+      ],
+      "depends_on": [],
+      "key": "pkg-4-merged-10",
+      "state": "merged",
+      "pr": 510,
+      "branch": null,
+      "risk_effective": "low"
+     },
+     {
+      "name": "merged-11",
+      "issues": [
+       411
+      ],
+      "risk": "low",
+      "risk_reason": "why",
+      "areas": [
+       "src/merged-11/"
+      ],
+      "depends_on": [],
+      "key": "pkg-4-merged-11",
+      "state": "merged",
+      "pr": 511,
+      "branch": null,
+      "risk_effective": "low"
+     },
+     {
+      "name": "merged-12",
+      "issues": [
+       412
+      ],
+      "risk": "low",
+      "risk_reason": "why",
+      "areas": [
+       "src/merged-12/"
+      ],
+      "depends_on": [],
+      "key": "pkg-4-merged-12",
+      "state": "merged",
+      "pr": 512,
+      "branch": null,
+      "risk_effective": "low"
+     },
+     {
+      "name": "merged-13",
+      "issues": [
+       413
+      ],
+      "risk": "low",
+      "risk_reason": "why",
+      "areas": [
+       "src/merged-13/"
+      ],
+      "depends_on": [],
+      "key": "pkg-4-merged-13",
+      "state": "merged",
+      "pr": 513,
+      "branch": null,
+      "risk_effective": "low"
+     },
+     {
+      "name": "merged-14",
+      "issues": [
+       414
+      ],
+      "risk": "low",
+      "risk_reason": "why",
+      "areas": [
+       "src/merged-14/"
+      ],
+      "depends_on": [],
+      "key": "pkg-4-merged-14",
+      "state": "merged",
+      "pr": 514,
+      "branch": null,
+      "risk_effective": "low"
+     },
+     {
+      "name": "merged-15",
+      "issues": [
+       415
+      ],
+      "risk": "low",
+      "risk_reason": "why",
+      "areas": [
+       "src/merged-15/"
+      ],
+      "depends_on": [],
+      "key": "pkg-4-merged-15",
+      "state": "merged",
+      "pr": 515,
+      "branch": null,
+      "risk_effective": "low"
+     },
+     {
+      "name": "merged-16",
+      "issues": [
+       416
+      ],
+      "risk": "low",
+      "risk_reason": "why",
+      "areas": [
+       "src/merged-16/"
+      ],
+      "depends_on": [],
+      "key": "pkg-4-merged-16",
+      "state": "merged",
+      "pr": 516,
+      "branch": null,
+      "risk_effective": "low"
+     },
+     {
+      "name": "merged-17",
+      "issues": [
+       417
+      ],
+      "risk": "low",
+      "risk_reason": "why",
+      "areas": [
+       "src/merged-17/"
+      ],
+      "depends_on": [],
+      "key": "pkg-4-merged-17",
+      "state": "merged",
+      "pr": 517,
+      "branch": null,
+      "risk_effective": "low"
+     },
+     {
+      "name": "merged-18",
+      "issues": [
+       418
+      ],
+      "risk": "low",
+      "risk_reason": "why",
+      "areas": [
+       "src/merged-18/"
+      ],
+      "depends_on": [],
+      "key": "pkg-4-merged-18",
+      "state": "merged",
+      "pr": 518,
+      "branch": null,
+      "risk_effective": "low"
+     },
+     {
+      "name": "merged-19",
+      "issues": [
+       419
+      ],
+      "risk": "low",
+      "risk_reason": "why",
+      "areas": [
+       "src/merged-19/"
+      ],
+      "depends_on": [],
+      "key": "pkg-4-merged-19",
+      "state": "merged",
+      "pr": 519,
+      "branch": null,
+      "risk_effective": "low"
+     },
+     {
+      "name": "exporter",
+      "issues": [
+       425
+      ],
+      "risk": "normal",
+      "risk_reason": "why",
+      "areas": [
+       "src/exporter/"
+      ],
+      "depends_on": [],
+      "key": "pkg-4-exporter",
+      "state": "work",
+      "pr": null,
+      "branch": null,
+      "risk_effective": "normal"
+     },
+     {
+      "name": "importer",
+      "issues": [
+       426
+      ],
+      "risk": "low",
+      "risk_reason": "why",
+      "areas": [
+       "src/importer/"
+      ],
+      "depends_on": [],
+      "key": "pkg-4-importer",
+      "state": "pending",
+      "pr": null,
+      "branch": null,
+      "risk_effective": "low"
+     },
+     {
+      "name": "sharing",
+      "issues": [
+       427,
+       428
+      ],
+      "risk": "normal",
+      "risk_reason": "why",
+      "areas": [
+       "src/sharing/"
+      ],
+      "depends_on": [],
+      "key": "pkg-4-sharing",
+      "state": "accept",
+      "pr": 520,
+      "branch": null,
+      "risk_effective": "normal"
+     },
+     {
+      "name": "archive",
+      "issues": [
+       429
+      ],
+      "risk": "low",
+      "risk_reason": "why",
+      "areas": [
+       "src/archive/"
+      ],
+      "depends_on": [
+       "importer"
+      ],
+      "key": "pkg-4-archive",
+      "state": "blocked",
+      "pr": null,
+      "branch": null,
+      "risk_effective": "low"
+     }
+    ]
+   },
+   "health": {
+    "state": "n/a",
+    "key": "pkg-4-health",
+    "pr": null
+   },
+   "notes": []
+  },
+  {
+   "milestone": 9,
+   "title": "Parallel: docs",
+   "track": "parallel",
+   "current": true,
+   "phase": "running",
+   "wave": 1,
+   "epic": 390,
+   "error": null,
+   "checkpoint": null,
+   "budget": {
+    "usd": 0,
+    "limit": 50,
+    "runs_without_cost": 0,
+    "over": false
+   },
+   "plan": {
+    "wave": 1,
+    "at": 1920100000,
+    "left_out": [],
+    "packages": []
+   },
+   "health": null,
+   "notes": []
+  }
+ ],
+ "step_overview": [
+  {
+   "milestone": 3,
+   "title": "3 Search",
+   "track": "main",
+   "place": "done",
+   "work_open": 0,
+   "work_closed": 9,
+   "issues": []
+  },
+  {
+   "milestone": 4,
+   "title": "4 Sharing",
+   "track": "main",
+   "place": "current",
+   "work_open": 30,
+   "work_closed": 20,
+   "issues": [
+    {
+     "issue": 400,
+     "title": "Issue 400",
+     "status": "done",
+     "waits_on": null,
+     "package": "pkg-4-merged-0"
+    },
+    {
+     "issue": 401,
+     "title": "Issue 401",
+     "status": "done",
+     "waits_on": null,
+     "package": "pkg-4-merged-1"
+    },
+    {
+     "issue": 402,
+     "title": "Issue 402",
+     "status": "done",
+     "waits_on": null,
+     "package": "pkg-4-merged-2"
+    },
+    {
+     "issue": 403,
+     "title": "Issue 403",
+     "status": "done",
+     "waits_on": null,
+     "package": "pkg-4-merged-3"
+    },
+    {
+     "issue": 404,
+     "title": "Issue 404",
+     "status": "done",
+     "waits_on": null,
+     "package": "pkg-4-merged-4"
+    },
+    {
+     "issue": 405,
+     "title": "Issue 405",
+     "status": "done",
+     "waits_on": null,
+     "package": "pkg-4-merged-5"
+    },
+    {
+     "issue": 406,
+     "title": "Issue 406",
+     "status": "done",
+     "waits_on": null,
+     "package": "pkg-4-merged-6"
+    },
+    {
+     "issue": 407,
+     "title": "Issue 407",
+     "status": "done",
+     "waits_on": null,
+     "package": "pkg-4-merged-7"
+    },
+    {
+     "issue": 408,
+     "title": "Issue 408",
+     "status": "done",
+     "waits_on": null,
+     "package": "pkg-4-merged-8"
+    },
+    {
+     "issue": 409,
+     "title": "Issue 409",
+     "status": "done",
+     "waits_on": null,
+     "package": "pkg-4-merged-9"
+    },
+    {
+     "issue": 410,
+     "title": "Issue 410",
+     "status": "done",
+     "waits_on": null,
+     "package": "pkg-4-merged-10"
+    },
+    {
+     "issue": 411,
+     "title": "Issue 411",
+     "status": "done",
+     "waits_on": null,
+     "package": "pkg-4-merged-11"
+    },
+    {
+     "issue": 412,
+     "title": "Issue 412",
+     "status": "done",
+     "waits_on": null,
+     "package": "pkg-4-merged-12"
+    },
+    {
+     "issue": 413,
+     "title": "Issue 413",
+     "status": "done",
+     "waits_on": null,
+     "package": "pkg-4-merged-13"
+    },
+    {
+     "issue": 414,
+     "title": "Issue 414",
+     "status": "done",
+     "waits_on": null,
+     "package": "pkg-4-merged-14"
+    },
+    {
+     "issue": 415,
+     "title": "Issue 415",
+     "status": "done",
+     "waits_on": null,
+     "package": "pkg-4-merged-15"
+    },
+    {
+     "issue": 416,
+     "title": "Issue 416",
+     "status": "done",
+     "waits_on": null,
+     "package": "pkg-4-merged-16"
+    },
+    {
+     "issue": 417,
+     "title": "Issue 417",
+     "status": "done",
+     "waits_on": null,
+     "package": "pkg-4-merged-17"
+    },
+    {
+     "issue": 418,
+     "title": "Issue 418",
+     "status": "done",
+     "waits_on": null,
+     "package": "pkg-4-merged-18"
+    },
+    {
+     "issue": 419,
+     "title": "Issue 419",
+     "status": "done",
+     "waits_on": null,
+     "package": "pkg-4-merged-19"
+    },
+    {
+     "issue": 425,
+     "title": "Issue 425",
+     "status": "running",
+     "waits_on": null,
+     "package": "pkg-4-exporter"
+    },
+    {
+     "issue": 426,
+     "title": "Issue 426",
+     "status": "ready",
+     "waits_on": null,
+     "package": "pkg-4-importer"
+    },
+    {
+     "issue": 427,
+     "title": "Issue 427",
+     "status": "accept",
+     "waits_on": null,
+     "package": "pkg-4-sharing"
+    },
+    {
+     "issue": 428,
+     "title": "Issue 428",
+     "status": "accept",
+     "waits_on": null,
+     "package": "pkg-4-sharing"
+    },
+    {
+     "issue": 429,
+     "title": "Issue 429",
+     "status": "blocked",
+     "waits_on": null,
+     "package": "pkg-4-archive"
+    },
+    {
+     "issue": 430,
+     "title": "Part 0",
+     "status": "blocked",
+     "waits_on": "blocked by 109 306 309",
+     "package": null
+    },
+    {
+     "issue": 431,
+     "title": "Part 1",
+     "status": "blocked",
+     "waits_on": "blocked by 109 306 309",
+     "package": null
+    },
+    {
+     "issue": 432,
+     "title": "Part 2",
+     "status": "blocked",
+     "waits_on": "blocked by 109 306 309",
+     "package": null
+    },
+    {
+     "issue": 433,
+     "title": "Part 3",
+     "status": "blocked",
+     "waits_on": "blocked by 109 306 309",
+     "package": null
+    },
+    {
+     "issue": 434,
+     "title": "Part 4",
+     "status": "blocked",
+     "waits_on": "blocked by 306",
+     "package": null
+    },
+    {
+     "issue": 435,
+     "title": "Part 5",
+     "status": "blocked",
+     "waits_on": "blocked by 306",
+     "package": null
+    },
+    {
+     "issue": 436,
+     "title": "Part 6",
+     "status": "blocked",
+     "waits_on": "blocked by 306",
+     "package": null
+    },
+    {
+     "issue": 437,
+     "title": "Part 7",
+     "status": "blocked",
+     "waits_on": "blocked by 306",
+     "package": null
+    },
+    {
+     "issue": 438,
+     "title": "Part 8",
+     "status": "blocked",
+     "waits_on": "blocked by 189",
+     "package": null
+    },
+    {
+     "issue": 439,
+     "title": "Part 9",
+     "status": "blocked",
+     "waits_on": "blocked by 189",
+     "package": null
+    },
+    {
+     "issue": 440,
+     "title": "Part 10",
+     "status": "blocked",
+     "waits_on": "blocked by 150",
+     "package": null
+    },
+    {
+     "issue": 441,
+     "title": "Part 11",
+     "status": "blocked",
+     "waits_on": "blocked by 150",
+     "package": null
+    },
+    {
+     "issue": 442,
+     "title": "Part 12",
+     "status": "blocked",
+     "waits_on": "blocked by 160",
+     "package": null
+    },
+    {
+     "issue": 443,
+     "title": "Part 13",
+     "status": "blocked",
+     "waits_on": "blocked by 161",
+     "package": null
+    },
+    {
+     "issue": 444,
+     "title": "Part 14",
+     "status": "blocked",
+     "waits_on": "blocked by 162",
+     "package": null
+    },
+    {
+     "issue": 445,
+     "title": "Part 15",
+     "status": "blocked",
+     "waits_on": "blocked by 163",
+     "package": null
+    },
+    {
+     "issue": 446,
+     "title": "Part 16",
+     "status": "blocked",
+     "waits_on": "blocked by 164",
+     "package": null
+    },
+    {
+     "issue": 447,
+     "title": "Part 17",
+     "status": "blocked",
+     "waits_on": "blocked by 165",
+     "package": null
+    },
+    {
+     "issue": 448,
+     "title": "Part 18",
+     "status": "blocked",
+     "waits_on": "blocked by 166",
+     "package": null
+    },
+    {
+     "issue": 449,
+     "title": "Part 19",
+     "status": "blocked",
+     "waits_on": "blocked by 167",
+     "package": null
+    },
+    {
+     "issue": 450,
+     "title": "Part 20",
+     "status": "blocked",
+     "waits_on": "blocked by 168",
+     "package": null
+    },
+    {
+     "issue": 451,
+     "title": "Part 21",
+     "status": "blocked",
+     "waits_on": "blocked by 169",
+     "package": null
+    },
+    {
+     "issue": 452,
+     "title": "Part 22",
+     "status": "blocked",
+     "waits_on": "blocked by 170",
+     "package": null
+    },
+    {
+     "issue": 455,
+     "title": "Ready one",
+     "status": "ready",
+     "waits_on": null,
+     "package": null
+    },
+    {
+     "issue": 456,
+     "title": "Ready two",
+     "status": "ready",
+     "waits_on": null,
+     "package": null
+    }
+   ]
+  },
+  {
+   "milestone": 9,
+   "title": "Parallel: docs",
+   "track": "parallel",
+   "place": "current",
+   "work_open": 2,
+   "work_closed": 0,
+   "issues": [
+    {
+     "issue": 460,
+     "title": "Docs page",
+     "status": "blocked",
+     "waits_on": "labelled blocked",
+     "package": null
+    },
+    {
+     "issue": 461,
+     "title": "Docs index",
+     "status": "blocked",
+     "waits_on": "labelled blocked",
+     "package": null
+    }
+   ]
+  },
+  {
+   "milestone": 5,
+   "title": "5 Export",
+   "track": "main",
+   "place": "next",
+   "work_open": 2,
+   "work_closed": 0,
+   "issues": [
+    {
+     "issue": 470,
+     "title": "Export page",
+     "status": "ready",
+     "waits_on": null,
+     "package": null
+    },
+    {
+     "issue": 471,
+     "title": "Export api",
+     "status": "blocked",
+     "waits_on": "labelled blocked",
+     "package": null
+    }
+   ]
+  },
+  {
+   "milestone": 6,
+   "title": "6 Filters",
+   "track": "main",
+   "place": "later",
+   "work_open": 5,
+   "work_closed": 0,
+   "issues": []
+  },
+  {
+   "milestone": 7,
+   "title": "7 Reports",
+   "track": "main",
+   "place": "later",
+   "work_open": 3,
+   "work_closed": 0,
+   "issues": []
+  }
+ ],
+ "current_step": 4,
+ "milestones": [],
+ "running": [
+  {
+   "key": "pkg-4-exporter",
+   "issue": 425,
+   "pr": null,
+   "kind": "work",
+   "phase": "work",
+   "stage": "",
+   "pipeline": "work",
+   "title": "Issue 425",
+   "started": 1920109800,
+   "minutes": 10,
+   "min_cap": 150,
+   "turns": 5,
+   "turn_cap": 250,
+   "last_line": "[t5] → Bash make",
+   "color": 33,
+   "package": "pkg-4-exporter",
+   "issues": [
+    425
+   ],
+   "risk": "normal"
+  }
+ ],
+ "needs_you": [
+  {
+   "kind": "accept",
+   "issue": 427,
+   "pr": 520,
+   "reason": "manual: risk normal",
+   "since": 1920100000,
+   "title": "Sharing (+1)",
+   "url": "https://github.com/example-org/web/pull/520",
+   "color": 208,
+   "package": "pkg-4-sharing",
+   "step": 4,
+   "stage": "merge",
+   "issues": [
+    427,
+    428
+   ]
+  }
+ ],
+ "queue": [
+  {
+   "issue": 480,
+   "title": "Fast fix 0",
+   "blocked": false,
+   "waits_on": null,
+   "lane": "fast"
+  },
+  {
+   "issue": 481,
+   "title": "Fast fix 1",
+   "blocked": false,
+   "waits_on": null,
+   "lane": "fast"
+  },
+  {
+   "issue": 482,
+   "title": "Fast fix 2",
+   "blocked": true,
+   "waits_on": "blocked by 479",
+   "lane": "fast"
+  }
+ ],
+ "events": [
+  {
+   "at": 1920100000,
+   "issue": 419,
+   "package": null,
+   "text": "#419 merged (PR #519, auto)",
+   "count": 1,
+   "first_at": 1920100000
+  }
+ ]
+}
