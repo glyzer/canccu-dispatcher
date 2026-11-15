@@ -6,29 +6,30 @@
 . "$(dirname "$0")/lib/harness.sh"
 
 # review <verdict> <"b n p"> [blocking items] [non-blocking items] [pre-existing items]: a review
-# file in the shape of §8 for head HA, with prose above the block
+# file in the shape of §8 for head VH (default HA), with prose above the block
 review() {
   printf 'I read the diff and ran the checks.\n\nBlocking:\n%s\nNon-blocking:\n%s\nPre-existing:\n%s\nFindings: %s blocking, %s non-blocking, %s pre-existing\nReview verdict: %s %s\n' \
-    "${3:-none}" "${4:-none}" "${5:-none}" $2 "$1" "$HA"
+    "${3:-none}" "${4:-none}" "${5:-none}" $2 "$1" "${VH:-$HA}"
 }
 DEMOTED=$'1. [style] src/a.ts:3 — the name says nothing\n   Evidence: the line `let x = 1`\n   Fix: rename it\n2. src/b.ts:4 — no class on this one\n   Evidence: it reads a closed file\n   Fix: open it first\n3. [correctness] src/c.ts:5 — off by one, no evidence\n   Fix: use <='
 VALID=$'4. [correctness] src/d.ts:6 — the loop skips the last item\n   Evidence: [1,2,3] sums to 3, not 6\n   Fix: loop to <= n'
 NBI='- [docs] docs/a.md:2 — a typo'
 PRE='- [security] src/old.ts:9 — the token is logged (not in this diff)'
 
-# venv <name> <file content | -> [config...]: the review run of PR 50 (issue 5) at HA has ended
-# and left that review file
-venv() {
-  env_new "$1" "${@:3}"
+# venv <name> <file content | -> [config...]: the review run of PR 50 (issue 5) at VH (default
+# HA) has ended and left that review file; venv_at the same in the environment already made
+venv() { env_new "$1" "${@:3}"; venv_at "$2"; }
+venv_at() {
+  local h=${VH:-$HA}
   { issue 5 in-progress; } | issues
-  p=$(pr 50 5 $HA); printf '%s\n' "$p" | prs
+  p=$(pr 50 5 "$h"); printf '%s\n' "$p" | prs
   json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z)"; route 'pr view 50 *' pr50.json
   json files50.json '[{"filename": "src/a.ts"}]'; route 'api --paginate repos/example-org/web/pulls/50/files*' files50.json
   json issue5.json '{"labels": [{"name": "in-progress"}], "comments": []}'; route 'issue view 5 *' issue5.json
-  state 5 phase=review pr=50 review_sha=$HA "started=$NOW" rounds=0
+  state 5 phase=review pr=50 "review_sha=$h" "started=$NOW" rounds=0
   last review-50 "done" "wrote the review"
-  RF=$CANCCU_HOME/reviews/50/$HA.md; mkdir -p "${RF%/*}"
-  if [ "$2" != - ]; then printf '%s\n' "$2" > "$RF"; touch -d "@$((NOW + 60))" "$RF"; fi
+  RF=$CANCCU_HOME/reviews/50/$h.md; mkdir -p "${RF%/*}"
+  if [ "$1" != - ]; then printf '%s\n' "$1" > "$RF"; touch -d "@$((NOW + 60))" "$RF"; fi
 }
 
 # ---------------------------------------------------------------- the parser and the effective verdict
@@ -118,6 +119,88 @@ venv postpass "$(review pass "0 0 0")"
 echo review_mode=postpass >> "$CANCCU_HOME/state/5"
 dispatch --once
 ok "a post-pass check is logged as fixcheck" eq "$(cut -f4 "$CANCCU_HOME/reviews.log")" fixcheck
+
+# ---------------------------------------------------------------- no repeats (#191)
+
+# item <class> <file:line>: one blocking item with its Evidence:
+item() { printf '1. [%s] %s — the guard is missing\n   Evidence: an empty list crashes\n   Fix: check it first' "$1" "$2"; }
+HIST=$'%s\tcorrectness\ta.sh\t10-12\tfixed\n'
+
+env_new parse-range
+F=$E/review.md
+review changes "1 0 0" "$(item correctness a.sh:10-12)" > "$F"
+ok "review_parse: a line range a-b is kept whole" eq "$(lib review_parse "$F" | head -1)" "$(printf 'blocking\tcorrectness\ta.sh\t10-12\t1')"
+
+venv settled "$(review changes "1 0 0" "$(item correctness a.sh:11)")"
+printf "$HIST" "$HB" > "$CANCCU_HOME/reviews/50/history"
+dispatch --once
+ok "a [correctness] a.sh:10-12 fixed earlier, raised again at a.sh:11: posted as pass" eq "$(tail -1 "$FAKE/posted-50")" "Review verdict: pass $HA"
+ok "… the dispatcher line names it already settled" \
+  eq "$(tail -2 "$FAKE/posted-50" | head -1)" "Dispatcher: no blocking finding left (1 moved out of Blocking: 1 already settled); verdict pass."
+ok "… no fix round, auto-merge" eq "$(grep -c '^pr merge 50' "$FAKE/gh.log") $(grep -c 'asked for changes' "$FAKE/worker.log")" "1 0"
+ok "… reviews.log counts it demoted" eq "$(cut -f5- "$CANCCU_HOME/reviews.log")" "$(printf 'pass\t0\t0\t0\t1\t-')"
+ok "… the history keeps the settled line and adds none" eq "$(cat "$CANCCU_HOME/reviews/50/history")" "$(printf "$HIST" "$HB")"
+
+venv settled-elsewhere "$(review changes "1 0 0" "$(item correctness a.sh:40)")"
+printf "$HIST" "$HB" > "$CANCCU_HOME/reviews/50/history"
+dispatch --once
+ok "the same finding at a.sh:40 still blocks: posted as changes" eq "$(tail -1 "$FAKE/posted-50")" "Review verdict: changes $HA"
+ok "… the fix round starts" grep -q 'asked for changes' "$FAKE/worker.log"
+ok "… the history gets its open line" eq "$(tail -1 "$CANCCU_HOME/reviews/50/history")" "$(printf '%s\tcorrectness\ta.sh\t40\topen' "$HA")"
+
+venv settled-other-class "$(review changes "1 0 0" "$(item security a.sh:11)")"
+printf "$HIST" "$HB" > "$CANCCU_HOME/reviews/50/history"
+printf '%s\tcorrectness\ta.sh\t11\topen\n' "$HB" >> "$CANCCU_HOME/reviews/50/history"
+dispatch --once
+ok "another class on the same lines, and an open line, do not settle it" eq "$(tail -1 "$FAKE/posted-50")" "Review verdict: changes $HA"
+
+# the pass rule: the PR passed at MB_B; MB_PC appends line 5 of a.txt
+env_new unchanged; mmrepo; VH=$MB_PC venv_at "$(VH=$MB_PC review changes "1 0 0" "$(item correctness a.txt:2)")"
+echo "pass_sha=$MB_B" >> "$CANCCU_HOME/state/5"
+dispatch --once
+ok "after a pass, a full review's finding on a line unchanged since: posted as pass" eq "$(tail -1 "$FAKE/posted-50")" "Review verdict: pass $MB_PC"
+ok "… the dispatcher line names it unchanged since the pass" \
+  eq "$(tail -2 "$FAKE/posted-50" | head -1)" "Dispatcher: no blocking finding left (1 moved out of Blocking: 1 unchanged since the pass); verdict pass."
+
+env_new unchanged-security; mmrepo; VH=$MB_PC venv_at "$(VH=$MB_PC review changes "1 0 0" "$(item security a.txt:2)")"
+echo "pass_sha=$MB_B" >> "$CANCCU_HOME/state/5"
+dispatch --once
+ok "… the same as [security] blocks" eq "$(tail -1 "$FAKE/posted-50")" "Review verdict: changes $MB_PC"
+
+env_new changed-line; mmrepo; VH=$MB_PC venv_at "$(VH=$MB_PC review changes "1 0 0" "$(item correctness a.txt:5)")"
+echo "pass_sha=$MB_B" >> "$CANCCU_HOME/state/5"
+dispatch --once
+ok "… a finding on the line changed since the pass blocks" eq "$(tail -1 "$FAKE/posted-50")" "Review verdict: changes $MB_PC"
+
+env_new unchanged-fixcheck; mmrepo; VH=$MB_PC venv_at "$(VH=$MB_PC review changes "1 0 0" "$(item correctness a.txt:2)")"
+printf 'pass_sha=%s\nreview_mode=postpass\nstage=fixcheck\n' "$MB_B" >> "$CANCCU_HOME/state/5"
+dispatch --once
+ok "… a fix-check is not under the pass rule" eq "$(tail -1 "$FAKE/posted-50")" "Review verdict: changes $MB_PC"
+
+# the history's outcomes
+env_new history
+H=$CANCCU_HOME/reviews/50/history; mkdir -p "${H%/*}"
+printf '%s\tcorrectness\ta.sh\t10-12\topen\n%s\ttest\tb.sh\t3\topen\n' "$HA" "$HA" > "$H"
+state 5 phase=review pr=50 review_mode=fixcheck
+lib history_record 5 50 "$HB" "$(VH=$HB review changes "1 0 0" "$(item test b.sh:3)")" 2030-11-05T11:00:00Z
+ok "a fix-check: the earlier item it does not raise again is fixed, the one it raises stays open, its own is added" \
+  eq "$(cat "$H")" "$(printf '%s\tcorrectness\ta.sh\t10-12\tfixed\n%s\ttest\tb.sh\t3\topen\n%s\ttest\tb.sh\t3\topen' "$HA" "$HA" "$HB")"
+lib history_record 5 50 "$HB" "$(VH=$HB review changes "1 0 0" "$(item test b.sh:3)")" 2030-11-05T11:00:00Z
+ok "… once per verdict" eq "$(wc -l < "$H")" 3
+lib history_answer 50
+ok "an accept or a needs-work answers every open item" eq "$(cut -f5 "$H" | tr '\n' ' ')" "fixed answered answered "
+
+# both prompts carry the history as data, and the rule
+venv prompts -
+printf "$HIST" "$HB" > "$CANCCU_HOME/reviews/50/history"
+for kind in review fixcheck; do
+  if [ $kind = review ]; then out=$(lib review_prompt 50 5 "$HA" /f high); else out=$(lib fixcheck_prompt 50 5 "$HA" "$HB" /f low "x"); fi
+  ok "the $kind prompt has the PR's history with its outcomes" grep -qF "${HB:0:7} [correctness] a.sh:10-12 fixed" <<<"$out"
+  ok "… and the no-repeat rule" grep -qF 'same class and file on overlapping lines as one there that is `fixed` or `answered` is not raised again' <<<"$out"
+done
+echo "pass_sha=$HB" >> "$CANCCU_HOME/state/5"
+ok "after a pass, the full review's prompt has the pass rule" \
+  grep -qF "raise nothing new on lines git diff $HB..$HA did not change, except a \`security\` bug" <<<"$(lib review_prompt 50 5 "$HA" /f high)"
 
 echo "canccu-verdict tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
