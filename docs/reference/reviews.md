@@ -75,6 +75,12 @@ and the log says `PR #<pr>: light review (<model>): docs, tests or light paths o
 paths decide, never the PR body. A gated path or agent configuration is never light; a fix-check
 keeps `FIXCHECK_MODEL`; a retry of the review file keeps the model the review started on.
 
+### No repeats
+
+A finding fixed or answered earlier is not raised again, and a full review after a pass blocks on
+nothing the commits since left alone, except a security bug: the history, the prompts and the
+dispatcher's check are in [`findings.md`](findings.md#no-repeats).
+
 ## Fix-check
 
 After the worker fixed a full review's findings and CI is green, the fix-check runs: the same

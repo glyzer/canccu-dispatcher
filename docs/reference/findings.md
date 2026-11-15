@@ -49,9 +49,38 @@ Dispatcher: no blocking finding left (<d> moved out of Blocking: never-blocking 
 Review verdict: pass <sha>
 ```
 
-(and, for a `pass` with a blocking item left, `Dispatcher: <b> blocking finding(s) left (a
+With no-repeat demotions ([below](#no-repeats)), the reason lists each kind with
+its count: `<p> never-blocking class, no class or no Evidence:`, `<s> already settled`, `<u>
+unchanged since the pass`, separated by `; `. (And, for a `pass` with a blocking item left, `Dispatcher: <b> blocking finding(s) left (a
 blocking class and Evidence:); verdict changes.`). The posted comment then carries the effective
 verdict, so the state and the PR agree. The fix round gets only the blocking items left; the
 demoted, non-blocking and pre-existing items go to the follow-up issue. Each posted verdict adds a
 line to `reviews.log` ([`state.md`](state.md)). A verdict comment posted by hand, without a valid
 block, is read as before: its whole text without the `Non-blocking:` section blocks.
+
+## No repeats
+
+A settled finding is not raised again (`lib/canccu-norepeat.sh`; the key of contracts §8: the
+class and the file path, the lines overlapping; no matching of the text).
+
+- **The history.** Each verdict acted on adds its blocking findings left to
+  `reviews/<pr>/history` as `open` ([`state.md`](state.md)). A fix-check (it checks the earlier
+  findings, and its `Blocking:` lists only what is still open) marks every `open` line it does
+  not raise again `fixed`. Your accept, or your `needs-work` that starts a new cycle (not the
+  one more fix round of a fix-check's open items), marks every `open` line `answered`.
+- **The prompts.** Every full review and fix-check prompt carries the history with its outcomes,
+  as data, and the rule: a finding with the same class and file on overlapping lines as a
+  `fixed` or `answered` one is not raised again. After a pass, the full review's prompt adds the
+  pass rule below.
+- **The dispatcher checks it.** A `Blocking:` item whose key and lines match a `fixed` or
+  `answered` line is demoted (`already settled`); it does not go to the follow-up issue either.
+  When `pass_sha` is set and the full review is of a later head, a blocking item on lines that
+  `git diff <pass_sha>..<head>` did not change is demoted (`unchanged since the pass`), unless its
+  class is `security`; it goes to the follow-up issue. A fix-check is never under the pass rule,
+  nor is an item without `file:line`. When that diff cannot be read, the pass rule is off for
+  the review (logged), so its findings still block. Both demotions count in `<demoted>` of
+  `reviews.log`, and the dispatcher line names them:
+
+```
+Dispatcher: no blocking finding left (2 moved out of Blocking: 1 already settled; 1 unchanged since the pass); verdict pass.
+```

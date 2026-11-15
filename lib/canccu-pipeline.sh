@@ -71,7 +71,7 @@ reap_worker() {
 # too). Every run ends with one outcome line in the log: posted, post failed, post timed out, no
 # valid verdict, or void (a push during the run).
 reap_review() {
-  local n=$1 pr sha j head kind status last started f at why reason=""
+  local n=$1 pr sha j head kind status last started f at why reason="" REVIEW_SETTLED REVIEW_PASSRULE REVIEW_CHANGED
   pr=$(st_get "$n" pr); sha=$(st_get "$n" review_sha)
   run_alive "review-$pr" && return 0
   [ "$(st_get "$n" phase)" = review ] || return 0
@@ -93,6 +93,7 @@ reap_review() {
   fi
   if [ -z "$(verdict_of "$j" "$(st_get "$n" verdict_at)")" ] && [ "$(st_get "$n" posted)" != "$sha" ]; then
     kind=none last="$WORKERS_DIR/$REPO_NAME-review-$pr.last" started=$(st_get "$n" started) f=$(review_file "$pr" "$sha")
+    review_ctx "$n" "$pr" "$sha"
     [ -e "$last" ] && (( $(stat -c %Y "$last") >= ${started:-0} )) &&
       IFS='|' read -r kind status <<<"$(run_exit "$last")"
     spend_review_note "$n" "$pr" "$f" "$sha" "${started:-0}"
@@ -378,7 +379,7 @@ resume_step() {
       { log "#$n PR #$pr: gh error reading the comments for needs-work; retrying next pass"; return 0; }
     extra_round "$n" "$pr" "$c" && return 0
     resume "$n" "The user rejected PR #$pr (needs-work). Address their comments, rerun the checks, push once and stop: the dispatcher watches CI. Their comments: ${c:-none found; read the latest comments on the PR and the issue}" needs-work || return 0
-    edit_issue "$n" --remove-label needs-work
+    history_answer "$pr"; edit_issue "$n" --remove-label needs-work
     has_label "$n" awaiting-accept && edit_issue "$n" --remove-label awaiting-accept
     new_cycle "$n"
   elif [ "$phase" = needs-you ]; then
