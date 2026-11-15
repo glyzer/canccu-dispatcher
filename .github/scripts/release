@@ -3,6 +3,8 @@
 # .github/scripts/release — the steps of release.yml (and CI's tarball), run in the repo's top dir:
 #   release check <tag>              the tag is v<VERSION>, and CHANGELOG.md has a dated section
 #                                    "## [<version>] — <date>" for it (not "unreleased")
+#   release check <tag> --body <f>   also: the release PR body in <f> has the line
+#                                    "Scenarios: pass at <short sha>" (tests/scenarios/run)
 #   release notes <version>          print that section's body: the release notes
 #   release build <version> <dir>    git archive of HEAD as <dir>/canccu-dispatcher-<version>.tar.gz
 #                                    (every file under canccu-dispatcher-<version>/), plus
@@ -11,7 +13,7 @@
 set -uo pipefail
 
 die() { echo "release: $1" >&2; exit "${2:-1}"; }
-usage() { sed -n '3,8s/^# \{0,1\}//p' "$0" >&2; exit 2; }
+usage() { sed -n '3,10s/^# \{0,1\}//p' "$0" >&2; exit 2; }
 
 version() { local v=""; { read -r v < VERSION; } 2>/dev/null; printf '%s\n' "${v//[[:space:]]/}"; }
 
@@ -26,8 +28,10 @@ section() {
 cmd=${1:-}; shift || true
 case $cmd in
   check)
-    [ $# -eq 1 ] || usage
-    tag=$1 v=$(version)
+    [ $# -eq 1 ] || { [ $# -eq 3 ] && [ "$2" = --body ]; } || usage
+    tag=$1 v=$(version) body=${3:-}
+    # a missing body file is a wrong call, not a release without scenarios
+    [ -z "$body" ] || [ -f "$body" ] || usage
     [[ $tag == v* ]] || die "the tag $tag does not start with v (release tags are v<VERSION>)"
     [ "${tag#v}" = "$v" ] || die "the tag $tag is not v<VERSION>: VERSION says '${v:-nothing}'"
     head=$(section "$v" | head -n1)
@@ -35,7 +39,12 @@ case $cmd in
     # only a dated heading is a release: "unreleased" means the section is still being written
     [[ $head =~ ^\#\#\ \[[^]]+\]\ —\ [0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] ||
       die "the CHANGELOG.md heading '$head' is not '## [$v] — <YYYY-MM-DD>' (still unreleased?)"
-    echo "tag $tag matches VERSION and CHANGELOG.md" ;;
+    if [ -n "$body" ]; then
+      # the gate is the line a run of tests/scenarios/run asks for; a PR body may end in CRLF
+      tr -d '\r' < "$body" | grep -qE '^Scenarios: pass at [0-9a-f]{7,40}$' ||
+        die 'the release PR body has no "Scenarios: pass at <sha>" line'
+    fi
+    echo "tag $tag matches VERSION and CHANGELOG.md${body:+; the scenarios passed}" ;;
   notes)
     [ $# -eq 1 ] || usage
     s=$(section "$1")
