@@ -159,9 +159,14 @@ ok "findings: a passed review's list of checks, no Blocking heading → 0 blocki
 printf 'I checked:\n- the tests\n\n**Blocking**\n1. src/a.ts:3 off by one\n\n## Non-blocking\n- naming\n- wording\n' > "$E/both.md"
 ok "findings: both headings → each part counted, the items before them in neither" eq "$(lib findings_count "$E/both.md")" "1 2"
 printf '%s\tweb\treview-50\t1.00\treview\t-\thigh\tfresh\t-\t-\t-\t-\t-\t-\t-\n%s\tweb\t5\t1.00\tfix\t-\t-\tresumed\t-\t-\t-\t-\t-\t-\t-\n' "$((NOW - 30))" "$((NOW - 20))" >> "$WORKERS_DIR/spend.log"
+# a review file in the shape of §8 (#190): one blocking finding left, one demoted, one non-blocking
+printf 'Blocking:\n1. [correctness] src/a.ts:3 — off by one\n   Evidence: 3 items give 2\n   Fix: use <=\n2. [style] src/b.ts:9 — naming\n   Evidence: x\nNon-blocking:\n- [docs] a.md:1 — wording\nPre-existing: none\nFindings: 2 blocking, 1 non-blocking, 0 pre-existing\nReview verdict: changes %s\n' "$HA" > "$E/rev8.md"
+touch -d "@$NOW" "$E/rev8.md"
+lib spend_review_note 5 50 "$E/rev8.md" "$HA" "$((NOW - 100))"
+ok "note: a review's verdict, its findings left and the rest, the unit's fix rounds" eq "$(grep -P '\treview-50\t' "$WORKERS_DIR/spend.log" | cut -f15)" "verdict=changes,blocking=1,nonblocking=2,rounds=1"
 touch -d "@$NOW" "$E/rev.md"
 lib spend_review_note 5 50 "$E/rev.md" "$HA" "$((NOW - 100))"
-ok "note: a review's verdict, its findings and the unit's fix rounds" eq "$(grep -P '\treview-50\t' "$WORKERS_DIR/spend.log" | cut -f15)" "verdict=changes,blocking=2,nonblocking=2,rounds=1"
+ok "… a file without the block has no valid verdict; its findings are the estimate" eq "$(grep -P '\treview-50\t' "$WORKERS_DIR/spend.log" | cut -f15)" "verdict=none,blocking=2,nonblocking=2,rounds=1"
 
 # the dispatcher notes the outcome when it reaps the run, and CI when it checks the PR
 env_new spend-reap

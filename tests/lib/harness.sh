@@ -244,7 +244,7 @@ env_new() {
     'api repos/example-org/web/issues/*/dependencies/blocking' empty.json \
     'run list*' runs.json  'api user*' user.json > "$FAKE/routes.default"
   echo '[]' > "$FAKE/ms.json"; echo '[]' > "$FAKE/cps.json"; echo '[]' > "$FAKE/empty.json"; echo '[]' > "$FAKE/issues.json"; echo '[]' > "$FAKE/prs.json"; echo '[]' > "$FAKE/runs.json"
-  jq -n '["ready","blocked","in-progress","epic","needs-you","plan-ok","awaiting-accept","needs-work","accepted","manual-accept","checkpoint","checkpoint-ok","fast"] | map({name: .})' \
+  jq -n '["ready","blocked","in-progress","epic","needs-you","plan-ok","awaiting-accept","needs-work","accepted","manual-accept","checkpoint","checkpoint-ok","fast","security"] | map({name: .})' \
     > "$FAKE/labels.json"
   : > "$FAKE/routes"; : > "$FAKE/gh.log"; : > "$FAKE/worker.log"
 }
@@ -322,7 +322,7 @@ penv() {
   printf '%s\n' "$FAKE_TOKEN" > "$E/reviewer-token"; chmod 600 "$E/reviewer-token"
   jq -n --arg l "$BOT" '{login: $l}' > "$FAKE/user.json"
   echo '[]' > "$FAKE/empty.json"; echo '[]' > "$FAKE/runs.json"
-  jq -n '["ready","blocked","in-progress","epic","needs-you","plan-ok","awaiting-accept","needs-work","accepted","manual-accept","checkpoint","checkpoint-ok","fast"] | map({name: .})' \
+  jq -n '["ready","blocked","in-progress","epic","needs-you","plan-ok","awaiting-accept","needs-work","accepted","manual-accept","checkpoint","checkpoint-ok","fast","security"] | map({name: .})' \
     > "$FAKE/labels.json"
   : > "$FAKE/routes"; : > "$FAKE/gh.log"; : > "$FAKE/worker.log"; : > "$FAKE/routes.default"
   for p; do
@@ -402,6 +402,10 @@ mmrepo() {
 
 # used by tests/canccu-review.sh and tests/canccu-review2.sh; FINDING: the full review's finding on HA
 FINDING='1. src/a.ts:3 off by one; fix: use <='
+# review files in the shape of contracts §8 (#190), to put before the verdict line: VB0 has no
+# findings, VB1 one blocking finding (FINDING's, with a class and its Evidence:)
+VB0=$'Blocking: none\nNon-blocking: none\nPre-existing: none\nFindings: 0 blocking, 0 non-blocking, 0 pre-existing\n'
+VB1=$'Blocking:\n1. [correctness] src/a.ts:3 off by one; fix: use <=\n   Evidence: three items give 2\nNon-blocking: none\nPre-existing: none\nFindings: 1 blocking, 0 non-blocking, 0 pre-existing\n'
 # sethead <sha>: the PR moves to a new head (the posted comments stay)
 sethead() {
   pr 50 5 "$1" | prs
