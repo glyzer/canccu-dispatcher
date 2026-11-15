@@ -911,5 +911,22 @@ dispatch --once
 ok "a postpass fix-check with pass → after_pass merges the head" has gh.log "pr merge 50 -R example-org/web --auto --match-head-commit $HB"
 ok "… pass_sha moves, full_sha stays, and the next push takes the post-pass path again" eq "$(st 5 pass_sha) $(st 5 full_sha) $(st 5 stage)" "$HB $HA review"
 
+# ---------------------------------------------------------------- the finding format (#190, contracts §8)
+
+env_new prompts-block
+for kind in review fixcheck; do
+  if [ $kind = review ]; then out=$(lib review_prompt 50 5 "$HA" /f high); else out=$(lib fixcheck_prompt 50 5 "$HA" "$HB" /f low "1. [correctness] a.sh:1 — x"); fi
+  miss=""
+  while IFS= read -r l; do grep -qF -- "$l" <<<"$out" || miss+="[$l]"; done <<<"$(lib eval 'printf "%s\n" "$REVIEW_BLOCK"' | sed 's/^ *//; s/ *(.*)$//')"
+  ok "the $kind prompt has every line of the §8 block, in its order" eq "$miss" ""
+  ok "… in that order" grep -qE 'Blocking:.*Evidence:.*Fix:.*Non-blocking:.*Pre-existing:.*Maintainer accept:.*Risk:.*Findings: <b> blocking, <n> non-blocking, <p> pre-existing.*Review verdict: <pass\|changes>' <<<"$out"
+  ok "… the class lists" grep -qF 'Blocking: `correctness`, `security`, `criterion` (an acceptance criterion not met), `contract`' <<<"$out"
+  ok "… and the never-blocking ones" grep -qF 'Never blocking: `style`, `docs`, `simplify`, `test-gap` (a test that could be better), `other`.' <<<"$out"
+  ok "… the Pre-existing: rule, quoted" grep -qF "the cited line is not in the diff's changed lines and the diff did not make its bug reachable. A \`security\` finding of that kind is still listed there; it goes to the follow-up issue with the label \`security\` and never blocks the PR." <<<"$out"
+  ok "… the count line counts the items as written" grep -qF 'the three numbers count the items as written under each heading' <<<"$out"
+done
+ok "the fix-check keeps its line per earlier finding above the block" grep -qF 'above that block, one line per earlier finding: fixed / not fixed / the fix broke something' <<<"$out"
+ok "… and lists under Blocking: only what is still open or newly broken" grep -qF "its 'Blocking:' lists only what is still open or newly broken" <<<"$out"
+
 echo "canccu-review tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
