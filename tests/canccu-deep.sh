@@ -169,5 +169,67 @@ tagenv tag-non "STEP_TAG='release'"
 dpass
 ok "STEP_TAG without {n} → no tag, one warning" eq "$(cat "$FAKE/git.log" 2>/dev/null | grep -c " tag release") $(dlog 'STEP_TAG (release) has no {n}: no step tag')" "0 1"
 
+# ---------------------------------------------------------------- cadence rounds (#216 D8)
+
+# cenv <name> <days since the step started> [config...]: step 4 Search, marked `Cadence: on`, runs
+# wave 1: package a (#101) works, package b (#104) waits for a slot; checkpoint 95 is open
+cenv() {
+  DESC=$'Search across all items.\nCadence: on' denv "$1" CADENCE_DAYS=14 STEP_DEEP_REVIEW=1 "STEP_TAG='step-{n}'" "${@:3}"
+  { issue 90 epic "" "4 Search"; issue 101 in-progress "" "4 Search"; issue 104 ready "" "4 Search"; issue 41 ready "" "5 Later"; } | issues
+  printf '%s\n' '{"schema":1,"step":12,"wave":1,"packages":[{"name":"a","issues":[101],"risk":"normal","risk_reason":"x","areas":[],"depends_on":[]},{"name":"b","issues":[104],"risk":"low","risk_reason":"y","areas":[],"depends_on":[]}]}' > "$CANCCU_HOME/steps/12.plan-1.json"
+  printf 'phase=running\nwave=1\nplan=%s\nstarted_at=%s\ntitle=4 Search\nepic=90\ncheckpoint=95\n' "$CANCCU_HOME/steps/12.plan-1.json" "$((NOW - $2 * 86400))" > "$CANCCU_HOME/steps/12"
+  : > "$CANCCU_HOME/steps/12.packages"
+  state pkg-12-a pkg=a step=12 wave=1 members=101 branch=pkg-12-a risk=normal phase=work; live_lock pkg-12-a
+}
+cenv cadence-13 13
+dpass
+ok "a Cadence: on step, 13 days in: no round" eq "$(grep -c -- '--key pkg-12-deep' "$FAKE/worker.log") $(dlog 'cadence round')" "0 0"
+cenv cadence 14
+dpass
+ok "14 days in: round 1 starts" eq "$(dlog 'step 4 Search: cadence round 1 starts (every 14 days)') $(grep -c -- '--key pkg-12-deep' "$FAKE/worker.log")" "1 1"
+ok "… its deep review reads from the step's PRs, the step stays running" \
+  eq "$(grep -c "from the step's merged PRs (read them" "$FAKE/worker.log") $(sf phase) $(sf round) $(sf round_phase)" "1 running 1 deep"
+ok "… the wave goes on: package b starts" grep -q -- '--name #104 ' "$FAKE/worker.log"
+h1=$(sf round_head)
+# its report is merged with nothing blocking: the summary goes on the open checkpoint
+report
+rm -f "$WORKERS_DIR/web-pkg-12-deep.lock"; sed -i 's/^phase=.*/phase=merging/' "$CANCCU_HOME/state/pkg-12-deep"; echo pr=60 >> "$CANCCU_HOME/state/pkg-12-deep"
+json pv60.json '{"state": "MERGED", "title": "Step 4 Search: deep review", "body": "Package: deep-review"}'; route 'pr view 60 *' pv60.json
+touch "$FAKE/comment-urls"
+dpass; dpass
+ok "the round's report, nothing blocking → summary on the checkpoint, needs-you" \
+  eq "$(grep -c '^issue edit 95 -R example-org/web --add-label needs-you' "$FAKE/gh.log") $(grep -c '^issue comment 95 .*Cadence round 1.* of step 4 Search' "$FAKE/gh.log") $(sf round_phase)" "1 1 checkpoint"
+ok "… a checkpoint line in the feed" grep -qP '\tpo\task\tcheckpoint\t.*cadence round 1: checkpoint #95 waits for checkpoint-ok$' "$CANCCU_HOME/events"
+ok "… no health pass, the step still running" eq "$(grep -c -- '--key pkg-12-health' "$FAKE/worker.log") $(sf phase)" "0 running"
+cpi 95 OPEN "4 Search" checkpoint-ok,needs-you | jq -s . > "$FAKE/cps.json"
+json ev95.json "$(jq -n --arg t 2030-11-05T13:00:00Z '[{event: "labeled", label: {name: "checkpoint-ok"}, actor: {login: "octo"}, created_at: $t}]')"
+route 'api --paginate repos/example-org/web/issues/95/events' ev95.json
+dpass
+ok "checkpoint-ok by octo ends the round: label and needs-you go, the checkpoint stays open" \
+  eq "$(grep -c '^issue edit 95 -R example-org/web --remove-label checkpoint-ok --remove-label needs-you' "$FAKE/gh.log") $(grep -c '^issue close 95' "$FAKE/gh.log")" "1 0"
+ok "… the comment, the log, cadence_at" \
+  eq "$(grep -c '^issue comment 95 -R example-org/web --body Cadence round 1 OK.' "$FAKE/gh.log") $(dlog 'step 4 Search: cadence round 1 OK') $(sf cadence_at) [$(sf round_phase)]" "1 1 $NOW []"
+ok "… tagged step-4-r1" eq "$(git -C "$E/origin.git" rev-parse step-4-r1 2>/dev/null)" "$(rg rev-parse origin/main)"
+cpi 95 OPEN "4 Search" | jq -s . > "$FAKE/cps.json"
+CANCCU_NOW=$((NOW + 13 * 86400)) dpass
+ok "13 days after the round: no round" eq "$(grep -c -- '--key pkg-12-deep' "$FAKE/worker.log")" 1
+CANCCU_NOW=$((NOW + 14 * 86400)) dpass
+ok "14 days after: round 2, from round 1's head" \
+  eq "$(dlog 'cadence round 2 starts') $(grep -c "from the head $h1 of cadence round 1 (git diff $h1..<head>)" "$FAKE/worker.log")" "1 1"
+
+cenv cadence-nocp 20
+cpi 95 CLOSED "4 Search" | jq -s . > "$FAKE/cps.json"
+dpass; dpass
+ok "a round due with no open checkpoint: skipped, one warning, cadence_at kept" \
+  eq "$(grep -c -- '--key pkg-12-deep' "$FAKE/worker.log") $(dlog 'cadence round 1 is due, but the step has no open checkpoint; skipped until one is open') [$(sf cadence_at)]" "0 1 []"
+cenv cadence-nodeep 14 STEP_DEEP_REVIEW=0
+touch "$FAKE/comment-urls"
+dpass
+ok "without STEP_DEEP_REVIEW a round is its checkpoint only" \
+  eq "$(dlog 'cadence round 1 starts') $(grep -c -- '--key pkg-12-deep' "$FAKE/worker.log") $(grep -c '^issue comment 95 .*Cadence round 1.* of step 4 Search' "$FAKE/gh.log") $(grep -c 'Deep review:' "$FAKE/gh.log") $(sf round_phase)" "1 0 1 0 checkpoint"
+cenv cadence-off 30 CADENCE_DAYS=0
+dpass
+ok "CADENCE_DAYS=0: a normal step, no round" eq "$(grep -c -- '--key pkg-12-deep' "$FAKE/worker.log") $(dlog 'cadence')" "0 0"
+
 echo "canccu-deep tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

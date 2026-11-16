@@ -325,7 +325,8 @@ digest_notes() {
 
 # health_due <m>: every work issue of the step is closed, some work was done, no health pass yet
 health_due() {
-  [ "$(cur "$1" .work_open)" = 0 ] && (( $(cur "$1" .work_closed) > 0 )) && [ -z "$(step_get "$1" health)" ]
+  [ "$(cur "$1" .work_open)" = 0 ] && (( $(cur "$1" .work_closed) > 0 )) && [ -z "$(step_get "$1" health)" ] &&
+    [ -z "$(step_get "$1" round_phase)" ]   # a cadence round in progress ends first
 }
 # label_by_user <issue|pr> <label> <since epoch>: its newest such label event is USER_LOGIN's, after then
 label_by_user() {
@@ -488,7 +489,7 @@ step_tick() {
     [ -n "$r" ] && step_set "$m" ny_reason="$(step_get "$m" ny_next)" ny_next=
     log "step $(step_title "$m"): the stop is resolved; it goes on"; step_ny_clear "$m"
   fi
-  xblock_tick "$m"; budget_tick "$m"; notes_tick "$m"
+  xblock_tick "$m"; budget_tick "$m"; notes_tick "$m"; cadence_tick "$m" "$go"
   ph=$(step_get "$m" phase)
   case $ph in
     needs-you) plan_retry "$m" ;;

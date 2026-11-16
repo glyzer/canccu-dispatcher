@@ -32,6 +32,7 @@ change a setting and the settings table are in [`config.md`](config.md); the rul
 | `DEEP_REVIEW_MODEL` | empty | The deep review's model; empty: `REVIEW_MODEL`, else `MODEL` |
 | `DEEP_REVIEW_EFFORT` | `high` | The deep review's `--effort` (`low`, `medium`, `high`, `xhigh`, `max`) |
 | `BUDGET_DEEP_REVIEW` | `150 40 120` | The deep review at the end of a step |
+| `CADENCE_DAYS` | `0` | Above 0: a step whose milestone description has the line `Cadence: on` gets a round every this many days while it runs: its deep review, polish and checkpoint summary ([`steps.md`](steps.md#cadence-rounds)). `0`: no rounds |
 | `STEP_TAG` | empty | The step tag the checkpoint OK pushes, with `{n}` for the step's number (for example `step-{n}`); empty: none. Locked |
 | `USAGE_SLOW` | `60` | 5-hour usage share (%) from which one run at a time runs, over all projects ([`usage.md`](usage.md)) |
 | `USAGE_STOP` | `90` | 5-hour usage share (%) from which no run starts and running workers are asked to stop at a safe point |

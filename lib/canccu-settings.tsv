@@ -64,6 +64,7 @@ STEP_DEEP_REVIEW	enum:0|1	project	open
 DEEP_REVIEW_MODEL	name	project	open
 DEEP_REVIEW_EFFORT	enum:low|medium|high|xhigh|max	project	open
 BUDGET_DEEP_REVIEW	budget	project	open
+CADENCE_DAYS	int:0:365	project	open
 STEP_TAG	text	project	locked
 USAGE_SLOW	int:1:100	project	open
 USAGE_STOP	int:1:100	project	open

@@ -74,7 +74,9 @@ same time never lose a key. The state of an issue goes when the issue closes.
 `left_out`, the needs-you reason, `health`, `health_pr`, `checkpoint` and the summary's link;
 with `STEP_DEEP_REVIEW=1` `deep` (`running`, `read`: merged, its report not read yet, `merged`,
 `closed`), `deep_head`, `deep_pr`, `deep_blocking` and `polish` ([`steps.md`](steps.md#deep-review-and-polish)).
-The deep review's unit adds `deep=1` and `deep_base`.
+The deep review's unit adds `deep=1` and `deep_base` (and `round` in a cadence round). A cadence
+step adds `round`, `round_phase`, `round_head`, `round_pr`, `round_blocking`, `round_polish`,
+`round_cp`, `round_cp_at` and `cadence_at` ([`steps.md`](steps.md#cadence-rounds)).
 
 ## Colour per issue
 

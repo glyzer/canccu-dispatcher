@@ -78,6 +78,31 @@ Logged: `step <title>: tagged <tag> at <sha7>`, `step <title>: tag <tag> exists 
 moved`, or `step <title>: tagging <tag> failed (<why>); tag it by hand`. A value without `{n}`, or
 no valid tag name after it (`git check-ref-format`): no tag, one warning.
 
+## Cadence rounds
+
+A long-running step can be checked while it runs. With `CADENCE_DAYS` above 0 (project config),
+a step whose milestone description has the line `Cadence: on` (any case; the title keeps its
+ordering number) starts a **round** every `CADENCE_DAYS` days, counted from the end of the last
+round (step field `cadence_at`), else from the step's start, while the step runs or is idle with
+work open. Logged: `step <title>: cadence round <r> starts (every <D> days)`. A round:
+
+1. with `STEP_DEEP_REVIEW=1`, the deep review of the section above, from the last round's head
+   (else the newest step tag, else the step's PRs) to `origin/main`, then its polish issue until
+   that is closed;
+2. the round's summary on the step's open checkpoint, with `needs-you` and a `checkpoint` line in
+   the feed;
+3. `checkpoint-ok` by `USER_LOGIN` after the summary ends it: the label and `needs-you` go, the
+   checkpoint stays open, the comment `Cadence round <r> OK.`, the tag `<STEP_TAG name>-r<r>`
+   when `STEP_TAG` is set, `cadence_at` now; logged `step <title>: cadence round <r> OK`. Closing
+   the checkpoint ends the round too, and no further round starts until one is open.
+
+The step's waves go on during a round; a round has no health pass. A round due while the step has
+no open checkpoint is skipped (one warning) and starts once one is open. Once every work issue is
+closed no round starts; one in progress ends first, then the step ends like any step (deep
+review, health pass, checkpoint). Step fields: `round`, `round_phase` (`deep`, `read`, `polish`,
+`checkpoint`), `round_head`, `round_pr`, `round_blocking`, `round_polish`, `round_cp`,
+`round_cp_at`, `cadence_at`.
+
 ## Stops
 
 What the dispatcher does not handle on its own stops the step: a done step's checkpoint

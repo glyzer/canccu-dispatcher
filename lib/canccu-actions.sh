@@ -119,7 +119,7 @@ issue_branch() { echo "$1-$(slug "$2")"; }
 # unit_prompt <K>: the whole task of a unit's worker, for a fresh session
 unit_prompt() {
   if is_health "$1"; then health_prompt "$(st_get "$1" step)" "$1"
-  elif is_deep "$1"; then deep_prompt "$(st_get "$1" step)" "$1" "$(st_get "$1" deep_base)" "$(step_get "$(st_get "$1" step)" deep_head)"
+  elif is_deep "$1"; then deep_prompt "$(st_get "$1" step)" "$1" "$(st_get "$1" deep_base)" "$(deep_head_of "$1")"
   elif is_pkg "$1"; then package_prompt "$1"
   else issue_prompt "$1"; fi
 }

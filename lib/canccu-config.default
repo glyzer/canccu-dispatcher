@@ -71,6 +71,7 @@ STEP_DEEP_REVIEW=0          # 1: a step whose work is done gets a deep review of
 DEEP_REVIEW_MODEL=          # the deep review's model; empty: REVIEW_MODEL, else MODEL
 DEEP_REVIEW_EFFORT=high     # the deep review's --effort (low, medium, high, xhigh, max)
 BUDGET_DEEP_REVIEW="150 40 120"   # the deep review at the end of a step
+CADENCE_DAYS=0              # above 0: a step whose milestone description has the line "Cadence: on" gets a review round every this many days
 STEP_TAG=''                 # e.g. step-{n}: the checkpoint OK tags origin/main ({n}: the title's leading number); empty: no tag; locked
 # the usage throttle (shares of the Claude account's limits, from the rate-limit reports in the runs' output)
 USAGE_SLOW=60               # 5-hour share (%) from which one run at a time runs, over all projects
