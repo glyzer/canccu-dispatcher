@@ -171,5 +171,56 @@ ho_unit 61
 dispatch --once
 ok "hand-over: LEADER=off → nothing" eq "$(lines) $(grep -c 'passed to the product owner' "$CANCCU_HOME/dispatch.log")" "1 0"
 
+# ---------------------------------------------------------------- watch and stall (#216 D5)
+
+watchcmd() { PATH="$fb:$PATH" CANCCU_WAIT_EVERY=1 timeout 30 "$root/bin/canccu-dispatcher" watch "$@"; }
+stallcmd() { PATH="$fb:$PATH" timeout 30 "$root/bin/canccu-dispatcher" stall "$@"; }
+env_new feed-watch
+touch -d "@$NOW" "$CANCCU_HOME/heartbeat"
+L=$CANCCU_HOME/dispatch.log
+printf '%s\n' "2030-11-05T11:00:00Z #5: PR #50 awaiting accept (an old line)" "2030-11-05T11:00:01Z #5 started" > "$L"
+echo "an old note" > "$E/extra"
+( sleep 2; echo "2030-11-05T12:00:00Z #6: PR #60 awaiting accept" >> "$L"; echo "2030-11-05T12:00:01Z #7 started" >> "$L"
+  sleep 1; echo "2030-11-05T12:00:02Z step 4 Search is done: checkpoint #95" >> "$L" ) &
+out=$(watchcmd --settle 3); rc=$?
+wait
+ok "watch: the first run prints no old line; the matching lines after the settle, exit 0" \
+  eq "$rc|$out" "0|2030-11-05T12:00:00Z #6: PR #60 awaiting accept"$'\n'"2030-11-05T12:00:02Z step 4 Search is done: checkpoint #95"
+ok "… the offsets kept in watch.offsets" grep -qP "^\Q$L\E\t$(stat -c %s "$L")$" "$CANCCU_HOME/watch.offsets"
+( sleep 2; echo "a new note" >> "$E/extra" ) &
+SECONDS=0; out=$(watchcmd --settle 100 --file "$E/extra"); rc=$?
+wait
+ok "watch --file: a new line of the file exits at once; no old line, no log line seen before" eq "$rc|$out|$(( SECONDS < 20 ))" "0|a new note|1"
+echo "2030-11-05T12:10:00Z step 4 Search: checkpoint #95 waits for checkpoint-ok" >> "$L"
+out=$(watchcmd --settle 1); rc=$?
+ok "watch: a second run starts at the saved offsets" eq "$rc|$out" "0|2030-11-05T12:10:00Z step 4 Search: checkpoint #95 waits for checkpoint-ok"
+printf '2030-11-05T12:20:00Z #8: PR #80 awaiting accept\n2030-11-05T12:20:01Z #9 needs-you: x' > "$L"
+out=$(watchcmd --settle 1); rc=$?
+ok "watch: a shorter file restarts at 0; a line without its newline waits" eq "$rc|$out" "0|2030-11-05T12:20:00Z #8: PR #80 awaiting accept"
+touch -d "@$((NOW - 11 * 60))" "$CANCCU_HOME/heartbeat"
+out=$(watchcmd --settle 1); rc=$?
+ok "watch: a heartbeat 11 minutes old → exit 3, saying so" eq "$rc|$out" "3|heartbeat stale: 11 min; the dispatcher may be down"
+
+env_new feed-stall
+mkdir -p "$CANCCU_HOME/steps"; printf 'phase=running\ntitle=4 Search\n' > "$CANCCU_HOME/steps/12"
+printf 'phase=done\ntitle=3 Import\n' > "$CANCCU_HOME/steps/11"
+touch -d "@$((NOW - 3 * 3600 - 60))" "$CANCCU_HOME/dispatch.log"
+json prs.json '[{"number":50,"author":{"login":"octo"},"mergeable":"CONFLICTING"},{"number":51,"author":{"login":"octo"},"mergeable":"MERGEABLE"},{"number":52,"author":{"login":"review-bot"},"mergeable":"CONFLICTING"}]'
+json runs.json "$(jq -n --arg a "$(date -u -d "@$((NOW - 61 * 60))" +%FT%TZ)" --arg b "$(date -u -d "@$((NOW - 30 * 60))" +%FT%TZ)" \
+  '[{databaseId: 7001, workflowName: "CI", startedAt: $a}, {databaseId: 7002, workflowName: "CI", startedAt: $b}]')"
+three="stall: PR #50 conflicts with main (no CI runs until it merges main)
+stall: CI run 7001 (CI) in progress for 61 min
+stall: dispatch.log silent for 3 h while step 4 Search is running"
+out=$(stallcmd); rc=$?
+ok "stall: one line per kind, exit 0" eq "$rc|$out" "0|$three"
+json runs.json "$(jq '[.[0]]' "$FAKE/runs.json")"   # run 7002 would pass 60 min in the hour
+out=$(CANCCU_NOW=$((NOW + 3600)) stallcmd)
+ok "… an hour later: none" eq "$out" ""
+out=$(CANCCU_NOW=$((NOW + 3 * 3600)) stallcmd)
+ok "… 3 hours later: all three again" eq "$out" "$(sed -e 's/for 61 min/for 241 min/' -e 's/for 3 h/for 6 h/' <<<"$three")"
+rm -f "$CANCCU_HOME/stall.seen"; route 'run list*' FAIL
+out=$(stallcmd 2>/dev/null); rc=$?
+ok "stall: a gh error skips that kind only" eq "$rc|$(grep -c '^stall: ' <<<"$out")|$(grep -c 'CI run [0-9]' <<<"$out")" "0|2|0"
+
 echo "canccu-feed tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

@@ -28,6 +28,7 @@ fields are in [`state.md`](state.md). Every file in `~/.canccu/projects/<name>/`
 | `state.format` | The format of `state/` and `steps/`: one number ([`state.md`](state.md#the-state-format)) |
 | `dispatch.log` | One line per action, each starting with its UTC time (`2030-11-05T12:00:00Z`; lines written by an earlier release have the host's local time, `2030-11-05 12:00:00`, and readers accept both), plus the raw output of the commands (prefixed `  │ `) |
 | `events`, `heartbeat` | The feed, one line per event a person must act on, and the file every pass touches ([`lead.md`](lead.md#the-feed)) |
+| `watch.offsets`, `stall.seen` | Where `canccu-dispatcher watch` stopped reading each file, and when `stall` last printed each item ([`lead-tools.md`](lead-tools.md)) |
 | `feed.open` | `<key>=<id>` of the open feed items no unit's state holds (holds, checkpoints, PRs labelled `needs-you`), and `leader_ack=<id>`: the highest line the leader acknowledged |
 | `.running` | Present while the dispatcher loops; one left at its start means a stop it did not plan |
 | `dispatch.pid`, `.dispatch.lock` | The running dispatcher and its lock |

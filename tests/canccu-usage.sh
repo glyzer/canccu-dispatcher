@@ -258,5 +258,29 @@ env_new pace-off
 puse 60 4; dispatch --once
 ok "PACE=off (the default): no line, no limit" eq "$(plog 'pace:') $(lib usage_cap) $([ -e "$CANCCU_HOME/pace" ] && echo file)" "0 3 "
 
+# ---------------------------------------------------------------- canccu-status --pace (#216 D5)
+
+statuspace() { PATH="$fb:$PATH" "$root/bin/canccu-status" --pace 2>&1; }
+env_new pace-report PACE=cap
+puse 60 4; dispatch --once
+printf '%s\tweb\t5\t1.50\n%s\tweb\t6\t?\n%s\tweb\t7\t2.25\n%s\ttools\t8\t9.00\n%s\tweb\t9\t4.00\n' \
+  "$((NOW - 3600))" "$((NOW - 7200))" "$((NOW - 86400))" "$((NOW - 3600))" "$((NOW - 8 * 86400))" > "$WORKERS_DIR/spend.log"
+ok "canccu-status --pace: the weekly line, the PACE line, the spend per day" eq "$(statuspace)" "weekly 60% · 43% of the week gone · 17 points ahead · resets 2030-11-09T12:00:00Z
+PACE=cap · margin 10 · ahead since 2030-11-05T12:00:00Z: at most 1 run(s) at once over all projects
+spend of this project's runs, last 7 days (UTC), newest first:
+  2030-11-05 \$1.50 (2 runs)
+  2030-11-04 \$2.25 (1 runs)
+  2030-11-03 \$0.00 (0 runs)
+  2030-11-02 \$0.00 (0 runs)
+  2030-11-01 \$0.00 (0 runs)
+  2030-10-31 \$0.00 (0 runs)
+  2030-10-30 \$0.00 (0 runs)"
+puse 30 4; dispatch --once
+ok "… behind the week: points behind, on pace" eq "$(statuspace | head -2)" "weekly 30% · 43% of the week gone · 13 points behind · resets 2030-11-09T12:00:00Z
+PACE=cap · margin 10 · on pace"
+env_new pace-report-none
+ok "… no reading: weekly usage unknown" eq "$(statuspace | head -2)" "weekly usage unknown (no fresh reading)
+PACE=off · margin 10 · on pace"
+
 echo "canccu-usage tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
