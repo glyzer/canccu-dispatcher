@@ -38,10 +38,11 @@ pace_effect() {
   esac
 }
 
-# pace_tick: the pass's transitions, each logged once. $CANCCU_HOME/pace (since=<epoch>) exists
-# while ahead; PACE=pause also keeps a hold line in the feed. An unknown reading changes nothing.
+# pace_tick: the pass's transitions, each logged once. $CANCCU_HOME/pace (since=<epoch>, mode=<PACE>)
+# exists while ahead; PACE=pause also keeps a hold line in the feed. PACE changed while ahead is a
+# transition too: the hold line follows the mode. An unknown reading changes nothing.
 pace_tick() {
-  local f="$CANCCU_HOME/pace" r w g d m
+  local f="$CANCCU_HOME/pace" r w g d m o hold
   m=$(pace_mode)
   if [ -z "$m" ]; then
     [ -e "$f" ] && (( ! CANCCU_DRY )) && { rm -f "$f"; feed_settle hold-pace "PACE is off"; }
@@ -50,11 +51,20 @@ pace_tick() {
   r=$(pace_read); [ -n "$r" ] || return 0
   read -r w g d <<<"$r"
   (( CANCCU_DRY )) && return 0
+  hold="pace: weekly usage $w% is ahead of the week; nothing new starts until it is back on pace"
   if (( d > $(pace_margin) )); then
-    [ -e "$f" ] && return 0
-    echo "since=$(now)" > "$f"
+    if [ -e "$f" ]; then
+      o=$(sed -n 's/^mode=//p' "$f")
+      [ "$o" = "$m" ] && return 0
+      printf 'since=%s\nmode=%s\n' "$(pace_since)" "$m" > "$f"
+      log "pace: PACE is now $m while $d points ahead: $(pace_effect)"
+      [ "$o" = pause ] && feed_settle hold-pace "PACE is now $m"
+      [ "$m" = pause ] && feed_open hold-pace - info hold - - - "$hold"
+      return 0
+    fi
+    printf 'since=%s\nmode=%s\n' "$(now)" "$m" > "$f"
     log "pace: weekly usage $w% is $d points ahead of the week ($g% gone, PACE_MARGIN $(pace_margin)); PACE=$m: $(pace_effect)"
-    [ "$m" = pause ] && feed_open hold-pace - info hold - - - "pace: weekly usage $w% is ahead of the week; nothing new starts until it is back on pace"
+    [ "$m" = pause ] && feed_open hold-pace - info hold - - - "$hold"
   elif [ -e "$f" ]; then
     rm -f "$f"
     log "pace: back on pace (weekly $w%, $g% of the week gone); PACE=$m no longer limits runs"

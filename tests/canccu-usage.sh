@@ -241,6 +241,18 @@ dispatch --once
 ok "… back on pace: its closed line" grep -qP '\tclosed\t.*: back on pace$' "$CANCCU_HOME/events"
 ok "… the new issue starts" started 6
 
+# PACE changed while ahead: the effect follows the new mode each pass, logged once, and the hold
+# line goes with pause (and comes back with it)
+env_new pace-switch PACE=pause
+puse 60 4; dispatch --once
+sed -i 's/^PACE=.*/PACE=cap/' "$CANCCU_HOME/config"; dispatch --once; dispatch --once
+ok "PACE pause → cap while ahead: the change logged once, the mode kept" \
+  eq "$(plog 'pace: PACE is now cap while 17 points ahead: at most 1 run(s) at once over all projects') $(sed -n 's/^mode=//p' "$CANCCU_HOME/pace") $(grep -c "^since=$NOW$" "$CANCCU_HOME/pace")" "1 cap 1"
+ok "… the hold line is closed" grep -qP '\tclosed\t.*: PACE is now cap$' "$CANCCU_HOME/events"
+sed -i 's/^PACE=.*/PACE=pause/' "$CANCCU_HOME/config"; dispatch --once
+ok "… back to pause: the hold line again" \
+  eq "$(grep -cP '\t-\tinfo\thold\t.*nothing new starts until it is back on pace$' "$CANCCU_HOME/events") $(plog 'pace: PACE is now pause while 17 points ahead: nothing new starts')" "2 1"
+
 env_new pace-notify PACE=notify
 puse 60 4
 dispatch --once
