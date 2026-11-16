@@ -33,7 +33,7 @@ tests_for() {
     tests/fixtures/plans/*|lib/canccu-plan.jq|lib/canccu-planner.sh|lib/canccu-steps.sh)
       echo tests/canccu-steps.sh tests/canccu-steps2.sh tests/canccu-share.sh ;;
     lib/canccu-snapshot-steps.sh) echo tests/canccu-snapshot2.sh tests/canccu-steps.sh ;;
-    lib/canccu-usage.sh|libexec/canccu-nudge-hook) echo tests/canccu-usage.sh ;;
+    lib/canccu-usage.sh|lib/canccu-pace.sh|libexec/canccu-nudge-hook) echo tests/canccu-usage.sh tests/canccu-dispatch.sh ;;
     lib/canccu-stream.py) echo tests/canccu-usage.sh tests/canccu-engine.sh ;;
     libexec/canccu-worker|lib/canccu-engine.sh)
       echo tests/canccu-engine.sh tests/canccu-units.sh tests/canccu-usage.sh tests/canccu-pane.sh tests/canccu-install.sh tests/canccu-install2.sh tests/canccu-doctor.sh ;;
@@ -44,7 +44,9 @@ tests_for() {
     bin/canccu-status)
       echo tests/canccu-dispatch.sh tests/canccu-dispatch2.sh tests/canccu-review-effort.sh tests/canccu-projects.sh tests/canccu-config.sh tests/canccu-cost.sh tests/canccu-compat.sh \
         tests/canccu-version.sh tests/canccu-hosts.sh tests/canccu-share.sh ;;
-    lib/canccu-units.sh|lib/canccu-packages.sh) echo tests/canccu-units.sh tests/canccu-cost.sh tests/canccu-health-review.sh tests/canccu-share.sh ;;
+    lib/canccu-leadtools.sh) echo tests/canccu-feed.sh tests/canccu-usage.sh ;;
+    lib/canccu-deep.sh) echo tests/canccu-deep.sh tests/canccu-steps2.sh tests/canccu-health-review.sh ;;
+    lib/canccu-units.sh|lib/canccu-packages.sh) echo tests/canccu-units.sh tests/canccu-deep.sh tests/canccu-cost.sh tests/canccu-health-review.sh tests/canccu-share.sh ;;
     lib/canccu-share.sh)
       echo tests/canccu-share.sh tests/canccu-projects.sh tests/canccu-dispatch.sh tests/canccu-dispatch2.sh tests/canccu-steps.sh tests/canccu-steps2.sh tests/canccu-units.sh \
         tests/canccu-health-review.sh tests/canccu-cost.sh ;;
@@ -57,7 +59,7 @@ tests_for() {
     lib/canccu-doctor.sh) echo tests/canccu-doctor.sh ;;
     hosts/*) echo tests/canccu-hosts.sh tests/canccu-doctor.sh tests/canccu-docs.sh ;;
     lib/canccu-ping.sh) echo tests/canccu-pings.sh tests/canccu-steps2.sh ;;
-    lib/canccu-runs.sh|lib/canccu-answer.sh|lib/canccu-github.sh|lib/canccu-merge.sh|lib/canccu-accepts.sh|bin/canccu-ship|lib/canccu-aftermerge.sh|lib/canccu-pipeline.sh|lib/canccu-prbody.sh|lib/canccu-actions.sh|lib/canccu-queue.sh|lib/canccu-followup.sh|lib/canccu-findings.sh|lib/canccu-verdict.sh|lib/canccu-norepeat.sh|lib/canccu-spend.sh)
+    lib/canccu-runs.sh|lib/canccu-answer.sh|lib/canccu-github.sh|lib/canccu-merge.sh|lib/canccu-accepts.sh|bin/canccu-ship|lib/canccu-aftermerge.sh|lib/canccu-pipeline.sh|lib/canccu-prbody.sh|lib/canccu-actions.sh|lib/canccu-queue.sh|lib/canccu-followup.sh|lib/canccu-findings.sh|lib/canccu-verdict.sh|lib/canccu-norepeat.sh|lib/canccu-spend.sh|lib/canccu-depth.sh)
       echo tests/canccu-verdict.sh tests/canccu-findings.sh tests/canccu-followup.sh tests/canccu-spend.sh tests/canccu-dispatch.sh tests/canccu-dispatch2.sh tests/canccu-waits.sh tests/canccu-merge.sh tests/canccu-review.sh tests/canccu-review2.sh tests/canccu-review-effort.sh tests/canccu-cost.sh tests/canccu-health-review.sh tests/canccu-config.sh \
         tests/canccu-compat.sh tests/canccu-share.sh ;;
     bin/canccu-init)

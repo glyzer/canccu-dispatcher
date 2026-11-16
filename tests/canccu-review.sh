@@ -248,6 +248,23 @@ ok "… and starts nothing" eq "$(wc -l < "$FAKE/worker.log")" 0
 PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-ship" 8 > "$E/out" 2>&1
 ok "canccu-ship never merges a PR that is not ours" not grep -q '^pr merge' "$FAKE/gh.log"
 
+# #220: a PR closing three issues, its branch named after the highest: canccu-review takes the
+# issue the branch names, not the lowest of the three
+manyenv() {   # manyenv <name> <managed issue...>: PR 60 closes #14, #15, #16 from branch 16-thing
+  env_new "$1"; shift
+  { issue 14 in-progress; issue 15 in-progress; issue 16 in-progress; } | issues
+  p=$(PR_BRANCH=16-thing pr 60 16 $HA | jq '.closingIssuesReferences = [{number: 14}, {number: 15}, {number: 16}]')
+  printf '%s\n' "$p" | prs; json pr60.json "$(detail "$p" x)"; route 'pr view 60 *' pr60.json
+  for n in "$@"; do state "$n" phase=check "check_at=$NOW" pr=60; done
+  PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-review" 60 > "$E/out" 2>&1
+}
+manyenv own-many 14 15 16
+ok "canccu-review: a PR closing #14, #15, #16 from branch 16-… is reviewed" grep -q -- '--key review-60' "$FAKE/worker.log"
+ok "… not refused" not grep -q 'refused' "$E/out"
+manyenv own-many-unmanaged 14 15
+ok "… with the branch's issue not managed: refused for that issue" grep -qF 'refused: not ours: #16 is not managed by the dispatcher' "$E/out"
+ok "… and starts nothing" eq "$(wc -l < "$FAKE/worker.log")" 0
+
 # ---------------------------------------------------------------- the answerer
 
 qenv() {   # qenv <name> <worker report> [config...]
@@ -876,6 +893,13 @@ ppenv pp-big $HA $HA $HB $'80\t21\tsrc/a.ts'
 dispatch --once
 ok "pass, then a push of more than FIXCHECK_FULL_LINES lines → full review" grep -q 'You are the independent reviewer' "$FAKE/worker.log"
 ok "… logged with the count" grep -qF "full review (101 changed lines, over FIXCHECK_FULL_LINES=100)" "$CANCCU_HOME/dispatch.log"
+# REVIEW_LIGHT=1, a normal package: the full review the push escalated to stays a full one
+ppenv pp-big-light $HA $HA $HB $'80\t21\tsrc/a.ts'
+echo REVIEW_LIGHT=1 >> "$CANCCU_HOME/rules"; printf 'pkg=a\nmembers=5\nrisk=normal\nrisk_reason=plain code\n' >> "$CANCCU_HOME/state/5"
+json files50.json '[{"filename": "src/a.ts", "changes": 101}]'; route 'api --paginate repos/example-org/web/pulls/50/files*' files50.json
+dispatch --once
+ok "… with REVIEW_LIGHT=1 for a normal package: still a full review, never a light one" \
+  eq "$(grep -c 'Run the code-review skill' "$FAKE/worker.log") $(grep -c 'This is a light review' "$FAKE/worker.log")" "1 0"
 ppenv pp-limit $HA $HA $HB $'80\t20\tsrc/a.ts'
 dispatch --once
 ok "… exactly FIXCHECK_FULL_LINES lines → still a fix-check" grep -qF "fixcheck#50 " "$FAKE/worker.log"

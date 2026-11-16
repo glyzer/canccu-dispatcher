@@ -50,7 +50,7 @@ def overlap($a; $b): ($a | area) as $x | ($b | area) as $y
     + [ $pk | to_entries[] | .key as $i | .value
         | if type != "object" then "package \($i + 1): not an object"
           elif (.name | type) != "string" or (.name | test("^[a-z0-9]+(-[a-z0-9]+)*$") | not)
-               or (.name | length) > 30 or .name == "health"
+               or (.name | length) > 30 or .name == "health" or (.name | test("^deep(-r[0-9]+)?$"))
           then "package \($i + 1): bad name \(.name | tojson)" else empty end ]
     + [ $names | group_by(.) | .[] | select(length > 1) | "duplicate package name \(.[0])" ]
     + [ $names | unique[] | select(IN($input[0].earlier[]?.name)) | "package name \(.) was used by an earlier package" ]
@@ -60,7 +60,9 @@ def overlap($a; $b): ($a | area) as $x | ($b | area) as $y
           (if (.risk | IN("low", "normal", "high")) | not then "\($x): risk missing or not low|normal|high" else empty end),
           (if (.risk_reason | type) != "string" or (.risk_reason | test("\\S") | not) then "\($x): risk_reason missing" else empty end),
           (if (.areas | strs) | not then "\($x): areas is not a list of strings" else empty end),
-          (if ((.depends_on // []) | strs) | not then "\($x): depends_on is not a list of names" else empty end) ]
+          (if ((.depends_on // []) | strs) | not then "\($x): depends_on is not a list of names" else empty end),
+          (if has("lines") and ((.lines | type) != "number" or .lines < 1 or .lines != (.lines | floor))
+           then "\($x): lines is not a whole number of 1 or more" else empty end) ]
     + [ [ $obj[] | (.name // "?") as $x | (.issues // [] | if type == "array" then .[] else empty end) | numbers | {n: ., x: $x} ]
         | group_by(.n) | .[] | select(length > 1)
         | "issue #\(.[0].n) is in more than one package (\(map(.x) | join(", ")))" ]

@@ -35,7 +35,7 @@ reap_worker() {
       q=$(worker_question "$(run_msg "$n")")
       # a run that finished with no PR is resumed afresh (resume); one nudged to stop mid-work is not
       p=$(pr_for "$n")
-      [ -n "$p" ] || is_health "$n" || b=$(worker_blocked "$(run_msg "$n")")
+      [ -n "$p" ] || is_step_run "$n" || b=$(worker_blocked "$(run_msg "$n")")
       # a PR opened after this pass read the list: read it again before parking the run as blocked
       [ -n "$b" ] && fetch_prs && p=$(pr_for "$n") && [ -n "$p" ] && b=""
       [ -n "$p" ] || st_set "$n" no_pr=1
@@ -176,9 +176,9 @@ check_pr() {
   local n=$1 pr j head at rsha fix c
   pr=$(pr_for "$n")
   if [ -z "$pr" ]; then
-    # the health pass's PR left the open list (closed or merged): health_pr_closed or finish_unit
-    # takes it from here. Still open but not ours (another branch): needs-you below.
-    is_health "$n" && pr=$(st_get "$n" pr) && [ -n "$pr" ] && ! pr_is_open "$pr" && return 0
+    # the health pass's or deep review's PR left the open list (closed or merged): health_pr_closed,
+    # deep_tick or finish_unit takes it from here. Still open but not ours (another branch): needs-you below.
+    is_step_run "$n" && pr=$(st_get "$n" pr) && [ -n "$pr" ] && ! pr_is_open "$pr" && return 0
     if is_health "$n" && grep -qE '^[[:space:]*_]*Health: nothing to do' <<<"$(run_msg "$n")"; then health_nothing "$n"; return; fi
     finish_once "$n" && return 0
     needs_you "$n" "the worker finished without an open PR" "$(run_msg "$n")" "" work; return
@@ -224,17 +224,26 @@ check_pr() {
       review_mode="$(cat "$CANCCU_HOME/reviews/$pr.mode" 2>/dev/null)"
     return
   fi
+  # a head that passed already: its verdict is reused, unless the lead asked for a full review
+  # (review_asked), the worker's conflict merge run pushed nothing (postpass_step's needs-you), or
+  # a fix round waits on that very head (the review's `changes` came after the pass: below, the
+  # worker pushed no fix)
+  rsha=$(st_get "$n" reviewed_sha)
+  case $(st_get "$n" stage) in fixing|fixcheck) fix=1 ;; *) fix=0 ;; esac
+  if [ -z "$(st_get "$n" review_asked)" ] && [ "$(st_get "$n" conflict_sha)" != "$head" ] &&
+     ! { (( fix )) && [ "$head" = "$rsha" ]; } && passed_before "$n" "$pr" "$head"; then
+    log "#$n PR #$pr: head ${head:0:7} passed review already; no new review (verdict reused)"
+    after_pass "$n" "$pr" "$head" "earlier"; return
+  fi
   body_lines_missing "$n" "$pr" "$j" && return
   postpass_step "$n" "$pr" "$head" && return
   # the worker fixed the full review's findings: the fix-check of reviewed_sha..head, never a
   # second full review. A push after a fix-check voids it (its verdict names the old head): a
   # new fix-check of the whole fix diff runs.
-  rsha=$(st_get "$n" reviewed_sha)
-  case $(st_get "$n" stage) in fixing|fixcheck) fix=1 ;; *) fix=0 ;; esac
   if (( fix )) && [ -n "$rsha" ] && [ "$head" = "$rsha" ]; then
     needs_you "$n" "the worker pushed no fix for the review's findings on PR #$pr (the head is still the reviewed ${rsha:0:7}). If no fix was needed (a finding was wrong), \`canccu-review $pr\` reviews the head again: its pass merges, its \`changes\` comes back here; otherwise comment the way on and the worker resumes"; return
   fi
-  backing_off && return
+  { backing_off || pause_holds; } && return
   # with reviews refused the review cannot start: it waits for no shared slot
   if [ -n "$(reviewer_token_problem)" ]; then room || return; else room "$n" || return; fi
   if (( fix )) && [ -n "$rsha" ]; then start_fixcheck "$pr" "$n" "$rsha" "$head"
@@ -323,7 +332,7 @@ extra_round() {
 }
 
 resume_step() {
-  local n=$1 phase pr c since
+  local n=$1 phase pr c since refused=""
   run_alive "$n" && return 0
   phase=$(st_get "$n" phase); pr=$(st_get "$n" pr); needs_work_from_pr "$n" "$pr" || return 0
   if has_label "$n" plan-ok; then
@@ -344,10 +353,17 @@ resume_step() {
     c=$(user_comments "$n" "$pr" "${since:-$(st_get "$n" started)}") ||
       { log "#$n PR #$pr: gh error reading the comments for needs-work; retrying next pass"; return 0; }
     extra_round "$n" "$pr" "$c" && return 0
+    # a refused accept (or a Maintainer accept or Risk: high kept only in the state, read before
+    # new_cycle clears them) asks for a full review: a reused pass would merge without the accept
+    { has_label "$n" awaiting-accept || [ "$phase" = accept ] || [ -n "$(st_get "$n" review_maccept)" ] ||
+      [ "$(st_get "$n" review_risk)" = high ]; } && refused=1
     resume "$n" "The user rejected PR #$pr (needs-work). Address their comments, rerun the checks, push once and stop: the dispatcher watches CI. Their comments: ${c:-none found; read the latest comments on the PR and the issue}" needs-work || return 0
     history_answer "$pr"; edit_issue "$n" --remove-label needs-work
     has_label "$n" awaiting-accept && edit_issue "$n" --remove-label awaiting-accept
     new_cycle "$n"
+    # kept until the full review's verdict is acted on: it holds for the next head, even the same
+    # one, and through a review run that ends with no verdict (check_pr)
+    { [ -n "$refused" ] || full_review_asked "$c"; } && st_set "$n" review_asked=1
   elif [ "$phase" = needs-you ]; then
     c=$(user_comments "$n" "$pr" "$(st_get "$n" ny_at)")
     # the answer to a worker's Question: is the one follow-up whose conversation matters

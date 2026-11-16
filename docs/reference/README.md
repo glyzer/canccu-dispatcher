@@ -9,21 +9,25 @@ The guides (getting started, install, upgrading, security, …) are in [`../READ
 |---|---|
 | [`commands.md`](commands.md) | Roles, every command, the labels, whose PRs the dispatcher acts on |
 | [`config.md`](config.md) | Every config key with its default, changing a setting, the settings table |
+| [`config-steps.md`](config-steps.md) | The keys of steps, packages, reviews, usage and pacing |
 | [`config-files.md`](config-files.md) | Where the values come from, when a change applies |
 | [`hosts.md`](hosts.md) | Host profiles, environment variables |
 | [`rules.md`](rules.md) | A project's rules: risky and gated paths, extra prompt text, the freeze, the one-at-a-time lock, pings |
 | [`projects.md`](projects.md) | Projects, adding one, a narrow token per project |
 | [`lead.md`](lead.md) | The lead's session, how to write issues, steps and epics, clearing what waits for you |
+| [`lead-tools.md`](lead-tools.md) | The lead's toolkit: `watch`, `stall`, `canccu-status --pace` |
 | [`pipeline.md`](pipeline.md) | One pass of the dispatcher, the phases |
 | [`merging.md`](merging.md) | The merge policy (auto or manual), your accept, the guards |
 | [`reviews.md`](reviews.md) | The reviewer, the fix-check, the verdict line, the answerer, the worker prompt |
+| [`review-depth.md`](review-depth.md) | A head reviewed once, the light review and its high-risk upgrade, the count after a merge of main |
 | [`findings.md`](findings.md) | The finding block: classes, Evidence:, Pre-existing:, the count line, what the dispatcher demotes |
 | [`packages.md`](packages.md) | Work packages per step: units, the planner and its plan, package runs, risk classes, waves |
-| [`steps.md`](steps.md) | The current step, the health pass, the checkpoint, stops, notes, the step budget |
-| [`usage.md`](usage.md) | The usage throttle and the usage-limit back-off |
+| [`steps.md`](steps.md) | The current step, the deep review and polish, the health pass, the checkpoint and step tag, cadence rounds, stops, notes, the step budget |
+| [`usage.md`](usage.md) | The usage throttle, the usage-limit back-off, weekly pacing |
 | [`pings.md`](pings.md) | The @mentions that tell your phone something needs you |
 | [`engine.md`](engine.md) | The run engine, untrusted runs, locks |
-| [`state.md`](state.md) | Where the state lives, a unit's state, colours |
+| [`state.md`](state.md) | Where the state lives, the state format, a unit's state, colours, the spend log |
+| [`project-dir.md`](project-dir.md) | Every file in a project's dir |
 | [`snapshot.md`](snapshot.md) | The status snapshot's schema |
 | [`monitor.md`](monitor.md) | canccu-monitor's layout and self-test |
 

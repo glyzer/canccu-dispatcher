@@ -9,8 +9,9 @@ cd "$root" || exit 1
 tname=docs
 
 R=docs/reference
-# the configuration reference is two topics: config (the defaults and the host profiles) and rules
-cfgref="$R/config.md $R/rules.md"
+# the configuration reference is three topics: config (the defaults and the host profiles), its
+# part config-steps (steps, packages, reviews, usage) and rules
+cfgref="$R/config.md $R/config-steps.md $R/rules.md"
 # keys <file...>: the KEY of each KEY=value line, commented out (the templates) or not
 keys() { sed -nE 's/^(# )?([A-Z][A-Z0-9_]*)=.*/\2/p' "$@" 2>/dev/null | sort -u; }
 # documented: the key of each table row "| `KEY` | …" of the configuration reference
@@ -145,6 +146,30 @@ ok "docs explain how to merge the snippets into a repo's own files" grep -qF 'CL
 # the person who accepts is the product owner (contracts §1): the agent instructions and the
 # prompts never call them "the maintainer", or workers copy it into their PR bodies (#131)
 ok "CLAUDE.md and lib/ never say \"the maintainer\"" eq "$(grep -rniw 'the maintainer' CLAUDE.md lib/)" ""
+
+# ---------------------------------------------------------------- the kickoff and gate guides (#216 D7)
+
+tname=guides
+for g in kickoff gates; do
+  ok "docs/$g.md exists with its SPDX line" eq "$(head -1 "docs/$g.md" 2>/dev/null)" "<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->"
+  ok "… linked from docs/README.md" grep -qF "]($g.md)" docs/README.md
+done
+miss=""; for h in Vision Users 'Their experiences' 'Quality bar' Constraints 'The step ladder' 'Question bank'; do
+  grep -qE "^#+ $h" docs/kickoff.md 2>/dev/null || miss+=" $h"
+done
+ok "docs/kickoff.md has the template's headings and a question bank" eq "${miss# }" ""
+miss=""; for h in 'Always: the functional gate' 'Chosen per step' UX 'API or library' 'CLI or tooling' Performance Security Operations 'Data or AI'; do
+  grep -qE "^#+ $h" docs/gates.md 2>/dev/null || miss+=" $h"
+done
+ok "docs/gates.md has the functional gate and each gate chosen per step" eq "${miss# }" ""
+
+# ---------------------------------------------------------------- PACE=pause drains (#216 D6)
+
+# may_start holds no fix run for PACE (only pace_holds in step 4 and draining): the docs say so,
+# not "resumes nothing"
+ok "usage.md: PACE=pause holds the resumes of stopped runs, the fix runs of started work go on" \
+  eq "$(grep -c 'resumes nothing' $R/usage.md) $(tr '\n' ' ' < $R/usage.md | grep -c 'the fix runs of work already *started')" "0 1"
+ok "… config-steps.md's PACE row too" grep -qF 'stopped runs are not resumed; fix runs of started work go on' $R/config-steps.md
 
 echo "canccu-docs tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

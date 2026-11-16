@@ -15,10 +15,13 @@ review.
 Every `INTERVAL` seconds, under the project's lock:
 
 1. **Credential and pings.** The project's token is checked ([`projects.md`](projects.md)); a
-   problem stops the pass. Pings ([`pings.md`](pings.md)) go out next, paused or not. Paused:
-   no new issue, package, planner or health pass starts (step 3); work in flight still gets its
-   reviews, answers and resumes. Backing off from a usage limit: nothing starts and nothing
-   resumes.
+   problem stops the pass. Pings ([`pings.md`](pings.md)) go out next, paused or not. Paused
+   (`canccu-pause`): no new run starts at all, no issue, package, planner, health pass, review,
+   fix-check, answer or resume; running runs finish, their reaps work, and a passed review still
+   merges (a merge costs no tokens). Paused with `--finish` (for a host move): no new issue,
+   package, planner or health pass starts (step 3); work in flight still gets its reviews,
+   answers and resumes. Backing off from a usage limit, or holding for a low disk: nothing starts
+   and nothing resumes.
    A GitHub rate limit (a failed `gh` call that says so) writes `gh_limit` with the reset (the
    primary limit's from `gh api rate_limit`, else 15 minutes): until then every pass returns at
    once, with no `gh` call, logging `GitHub rate limit: passes pause until <time>` once and
@@ -147,6 +150,9 @@ Every `INTERVAL` seconds, under the project's lock:
    again. A push while the merge is armed disarms it and reviews again; auto-merge switched off
    by someone, or no merge within `MERGE_WAIT_MIN` → `needs-you`. Auto-merge off because the PR
    already merged (the merge queue's reason `merged`) is a merge, not a rejection.
+   `--auto` refused for "clean status" → a direct merge at that head. Auto-merge off on an
+   open PR → `mergeable` read fresh: `CONFLICTING` → the conflict path; `UNKNOWN` → the
+   next pass looks again; else the queue's removal reason, or `needs-you`.
    A merged plan-only PR (`Plan for #n` or `Tier: plan`, closing none of the issues) sends the
    unit back to the queue: no longer managed, its worktree, branch (locally and on GitHub) and
    session gone, its issues
