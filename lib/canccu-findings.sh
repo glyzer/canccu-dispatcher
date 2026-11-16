@@ -86,17 +86,20 @@ file_nonblocking() {
 
 # collect_nonblocking <K> <pr> <sha> <review body> <verdict at>: file the verdict's non-blocking
 # (and demoted and pre-existing) items once (nb_at): a step that fails after it sees the same verdict again next pass.
-# Once per head too (nb_sha): a second verdict on a head finds the same items (#214).
+# Once per head and kind too (nb_sha <pr>:<sha>:<light|full>): a second verdict of a kind on a
+# head finds the same items (#214), but the full review after a light one looks deeper.
 collect_nonblocking() {
-  local items label=""
+  local items label="" key kind=full
   [ "$(st_get "$1" nb_at)" = "$5" ] && return 0
-  if [ "$(st_get "$1" nb_sha)" = "$2:$3" ]; then
+  [ "$(cat "$(light_file "$2")" 2>/dev/null)" = "$3" ] && kind=light
+  key=$2:$3:$kind
+  if [ "$(st_get "$1" nb_sha)" = "$key" ]; then
     log "#$1 PR #$2: non-blocking findings of ${3:0:7} are filed already; not filed again"
     st_set "$1" nb_at="$5"; return 0
   fi
   items=$(nonblocking_of "$4")
   preexisting_security "$4" && label=security
-  if [ -n "$items" ]; then file_nonblocking "$1" "$2" "$3" "$items" "$label"; st_set "$1" nb_sha="$2:$3"; fi
+  if [ -n "$items" ]; then file_nonblocking "$1" "$2" "$3" "$items" "$label"; st_set "$1" nb_sha="$key"; fi
   st_set "$1" nb_at="$5"
 }
 
