@@ -225,8 +225,13 @@ check_pr() {
     return
   fi
   # a head that passed already: its verdict is reused, unless the lead asked for a full review
-  # (review_asked), or the worker's conflict merge run pushed nothing (postpass_step's needs-you)
-  if [ -z "$(st_get "$n" review_asked)" ] && [ "$(st_get "$n" conflict_sha)" != "$head" ] && passed_before "$n" "$pr" "$head"; then
+  # (review_asked), the worker's conflict merge run pushed nothing (postpass_step's needs-you), or
+  # a fix round waits on that very head (the review's `changes` came after the pass: below, the
+  # worker pushed no fix)
+  rsha=$(st_get "$n" reviewed_sha)
+  case $(st_get "$n" stage) in fixing|fixcheck) fix=1 ;; *) fix=0 ;; esac
+  if [ -z "$(st_get "$n" review_asked)" ] && [ "$(st_get "$n" conflict_sha)" != "$head" ] &&
+     ! { (( fix )) && [ "$head" = "$rsha" ]; } && passed_before "$n" "$pr" "$head"; then
     log "#$n PR #$pr: head ${head:0:7} passed review already; no new review (verdict reused)"
     after_pass "$n" "$pr" "$head" "earlier"; return
   fi
@@ -234,8 +239,6 @@ check_pr() {
   # the worker fixed the full review's findings: the fix-check of reviewed_sha..head, never a
   # second full review. A push after a fix-check voids it (its verdict names the old head): a
   # new fix-check of the whole fix diff runs.
-  rsha=$(st_get "$n" reviewed_sha)
-  case $(st_get "$n" stage) in fixing|fixcheck) fix=1 ;; *) fix=0 ;; esac
   if (( fix )) && [ -n "$rsha" ] && [ "$head" = "$rsha" ]; then
     needs_you "$n" "the worker pushed no fix for the review's findings on PR #$pr (the head is still the reviewed ${rsha:0:7}). If no fix was needed (a finding was wrong), \`canccu-review $pr\` reviews the head again: its pass merges, its \`changes\` comes back here; otherwise comment the way on and the worker resumes"; return
   fi

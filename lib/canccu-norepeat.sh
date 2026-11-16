@@ -9,13 +9,16 @@
 # <sha> <class> <file> <line or a-b> <open|fixed|answered>
 history_file() { echo "$CANCCU_HOME/reviews/$1/history"; }
 
-# passed_before <n> <pr> <sha>: that head of the PR passed a review already (pass_sha, else a pass
-# line in reviews.log: a new cycle clears pass_sha, the log keeps it). Its verdict is reused: the
-# same head reviewed again finds the same things and costs a whole review (#214).
+# passed_before <n> <pr> <sha>: that head of the PR passed a review already, and no later review
+# of it returned changes: the newest reviews.log line of the PR and head says pass (a new cycle
+# clears pass_sha, the log keeps it); with no line there, pass_sha. Its verdict is reused: the
+# same head reviewed again finds the same things and costs a whole review (#214). A `changes`
+# after the pass (the lead's needs-work with a full review, a light review's upgrade) wins: its
+# findings are not fixed on that head.
 passed_before() {
-  [ "$(st_get "$1" pass_sha)" = "$3" ] && return 0
-  awk -F '\t' -v pr="$2" -v sha="$3" '$2 == pr && $3 == sha && $5 == "pass" { f = 1 } END { exit !f }' \
-    "$CANCCU_HOME/reviews.log" 2>/dev/null
+  local last
+  last=$(awk -F '\t' -v pr="$2" -v sha="$3" '$2 == pr && $3 == sha { v = $5 } END { print v }' "$CANCCU_HOME/reviews.log" 2>/dev/null)
+  if [ -n "$last" ]; then [ "$last" = pass ]; else [ "$(st_get "$1" pass_sha)" = "$3" ]; fi
 }
 
 # history_settled <pr>: "<class> <file> <line>" of the fixed and answered lines

@@ -893,5 +893,22 @@ dispatch --once; echo $((NOW - 1)) > "$CANCCU_ROOT/backoff"; dispatch --once
 ok "… it ends at the usage limit: the full review starts again, no verdict reused" \
   eq "$(grep -c -- "--key review-50" "$FAKE/worker.log") $(dlog 'passed review already') $(st 5 review_asked)" "2 0 1"
 
+# a later review returned changes on the passed head (needs-work's full review, or the light
+# upgrade's): the pass is not reused; with no push, the fix round's needs-you, never a merge
+reuse_env reuse-then-changes '[{"filename": "src/a.ts"}]' pass_sha= stage=fixing reviewed_sha=$HA
+printf '2030-11-05T11:00:00Z\t50\t%s\tfull\tpass\t0\t0\t0\t-\t-\n2030-11-05T12:00:00Z\t50\t%s\tfull\tchanges\t1\t0\t0\t-\t-\n' "$HA" "$HA" > "$CANCCU_HOME/reviews.log"
+dispatch --once
+ok "pass on a head, then changes on it, no push → no merge, needs-you 'pushed no fix'" \
+  eq "$(grep -c 'pr merge 50' "$FAKE/gh.log") $(grep -c 'pushed no fix' "$FAKE/gh.log") $(dlog 'passed review already')" "0 1 0"
+reuse_env reuse-then-changes-log '[{"filename": "src/a.ts"}]' pass_sha=
+printf '2030-11-05T11:00:00Z\t50\t%s\tfull\tpass\t0\t0\t0\t-\t-\n2030-11-05T12:00:00Z\t50\t%s\tfull\tchanges\t1\t0\t0\t-\t-\n' "$HA" "$HA" > "$CANCCU_HOME/reviews.log"
+dispatch --once
+ok "… the newest reviews.log line of that head is changes: its older pass is not reused" \
+  eq "$(grep -c 'pr merge 50' "$FAKE/gh.log") $(dlog 'passed review already')" "0 0"
+reuse_env reuse-then-changes-sha '[{"filename": "src/a.ts"}]' stage=fixing reviewed_sha=$HA
+dispatch --once
+ok "… pass_sha still on that head in a fix round: no reuse either" \
+  eq "$(grep -c 'pr merge 50' "$FAKE/gh.log") $(grep -c 'pushed no fix' "$FAKE/gh.log")" "0 1"
+
 echo "canccu-merge tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
