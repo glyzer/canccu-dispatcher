@@ -97,7 +97,9 @@ ok "parallel tracks: the base is the highest {n} below the step's (step-3), not 
 denv deep-tag-none-below STEP_DEEP_REVIEW=1 "STEP_TAG='step-{n}'"
 rg tag step-7 HEAD; rg push -q origin --tags 2>/dev/null
 dpass
-ok "… no tag below it: the newest tag of the pattern, as before" grep -qF "from the tag step-7 (git diff step-7..<head>) up to origin/main" "$FAKE/worker.log"
+# step-7 belongs to a later step: the base is the step's own merged PRs, from before its first merge
+ok "… no tag below it: the step's merged PRs, not a later step's tag" \
+  eq "$(grep -c 'from the tag step-7' "$FAKE/worker.log") $(grep -c "from the step's merged PRs #50, #51 (read them" "$FAKE/worker.log")" "0 1"
 
 # ---------------------------------------------------------------- its PR merged: polish or health
 
@@ -226,6 +228,8 @@ ok "… its deep review reads from the step's PRs, the step stays running" \
 ok "… the wave goes on: package b starts" grep -q -- '--name #104 ' "$FAKE/worker.log"
 ok "… the round's own branch and report path: its PR adds only its report, no force-push" \
   eq "$(st pkg-12-deep branch) $(grep -c -- '--key pkg-12-deep.*Write the report docs/reports/step-4-r1-deep-review.md .*Create the branch pkg-12-deep-r1 from origin/main' "$FAKE/worker.log")" "pkg-12-deep-r1 1"
+ok "… its prompt: the step's work goes on, only merged work is reviewed, open issues are no finding" \
+  eq "$(grep -- '--key pkg-12-deep' "$FAKE/worker.log" | grep -c 'Every issue of the step is closed') $(grep -- '--key pkg-12-deep' "$FAKE/worker.log" | grep -cF 'This is cadence round 1: the step'"'"'s work goes on. Review only the work merged so far; do not report open issues or work not merged yet as missing.')" "0 1"
 # the round's run stops with no PR and is resumed fresh: the whole task again, still the round's
 cp "$CANCCU_HOME/state/pkg-12-deep" "$E/deep-state"; cp "$FAKE/worker.log" "$E/deep-wlog"; rm -f "$WORKERS_DIR/web-pkg-12-deep.lock"; : > "$FAKE/worker.log"
 ( PATH="$E/sbin:$fb:$PATH"; CANCCU_WORKER="$fb/worker"; . "$root/lib/canccu-common.sh"; st_set pkg-12-deep no_pr=1; resume pkg-12-deep "Go on." ) >/dev/null 2>&1
@@ -274,6 +278,28 @@ ok "without STEP_DEEP_REVIEW a round is its checkpoint only" \
 cenv cadence-off 30 CADENCE_DAYS=0
 dpass
 ok "CADENCE_DAYS=0: a normal step, no round" eq "$(grep -c -- '--key pkg-12-deep' "$FAKE/worker.log") $(dlog 'cadence')" "0 0"
+
+# a round whose deep-review PR closed unmerged: its summary says so, not "blocking (none)"
+cenv cadence-closed 14
+printf 'round=1\nround_phase=checkpoint\nround_pr=60\nround_blocking=\nround_polish=\n' >> "$CANCCU_HOME/steps/12"
+s=$(dlib eval 'fetch_steps; round_summary 12')
+ok "a round whose deep review's PR closed unmerged: the summary says closed without merging" \
+  eq "$(grep -cxF '**Deep review:** PR #60, closed without merging' <<<"$s") $(grep -c 'blocking' <<<"$s")" "1 0"
+
+# CADENCE_DAYS set to 0 while a round waits at its checkpoint, the work closed: checkpoint-ok
+# still ends the round, and the step's end (its deep review) follows
+DESC=$'Search across all items.\nCadence: on' denv cadence-off-mid CADENCE_DAYS=0 STEP_DEEP_REVIEW=1
+printf 'phase=idle\nwave=1\nstarted_at=%s\ntitle=4 Search\nepic=90\ncheckpoint=95\nround=1\nround_phase=checkpoint\nround_cp=95\nround_cp_at=%s\n' \
+  "$((NOW - 20 * 86400))" "$((NOW - 3600))" > "$CANCCU_HOME/steps/12"
+cpi 95 OPEN "4 Search" checkpoint-ok,needs-you | jq -s . > "$FAKE/cps.json"
+json ev95.json "$(jq -n --arg t 2030-11-05T11:30:00Z '[{event: "labeled", label: {name: "checkpoint-ok"}, actor: {login: "octo"}, created_at: $t}]')"
+route 'api --paginate repos/example-org/web/issues/95/events' ev95.json
+dpass
+ok "CADENCE_DAYS=0 during a round: checkpoint-ok still ends it" \
+  eq "$(dlog 'step 4 Search: cadence round 1 OK') [$(sf round_phase)]" "1 []"
+dpass
+ok "… and once the work is closed the step's end follows: its deep review starts" \
+  eq "$(grep -c -- '--key pkg-12-deep' "$FAKE/worker.log") $(sf deep)" "1 running"
 
 echo "canccu-deep tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

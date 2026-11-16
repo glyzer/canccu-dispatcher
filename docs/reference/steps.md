@@ -38,7 +38,8 @@ health pass: one worker run (`pkg-<m>-deep`, window `deep#<m>`, a fresh session 
 says `#pkg-<m>-deep started: the deep review of step <title>`. Its prompt names the base (the
 tag matching `STEP_TAG` exactly, `{n}` as digits only, so no round tag, with the highest `{n}`
 below the step's own number, since with parallel tracks a later step's tag can be newer; with none
-below it, the newest such tag; else the step's merged PRs from `steps/<m>.packages`), the head it reads (`origin/main`'s sha, the step field `deep_head`), the
+below it, the step's merged PRs from `steps/<m>.packages`, since any other such tag is the step's
+own or a later step's), the head it reads (`origin/main`'s sha, the step field `deep_head`), the
 step's issues and its follow-up issues (the `followups` keys `step-<m>-*`). It writes
 `docs/reports/step-<n>-deep-review.md` (`<n>`: the leading number of the milestone's title, else
 the milestone number) with the sections Architecture, Security, Contracts and Test quality, then
@@ -88,8 +89,10 @@ round (step field `cadence_at`), else from the step's start, while the step runs
 work open. Logged: `step <title>: cadence round <r> starts (every <D> days)`. A round:
 
 1. with `STEP_DEEP_REVIEW=1`, the deep review of the section above, from the last round's head
-   (else the newest step tag, else the step's PRs) to `origin/main`, then its polish issue until
-   that is closed. Each round has its own branch `pkg-<m>-deep-r<r>` and report
+   (else the step tag below the step's, else the step's PRs) to `origin/main`, then its polish
+   issue until that is closed. Its prompt says the step's work goes on: only merged work is
+   reviewed, and open issues are no finding. A round whose PR closed unmerged goes on to its
+   summary, which says `closed without merging`. Each round has its own branch `pkg-<m>-deep-r<r>` and report
    `docs/reports/step-<n>-r<r>-deep-review.md`, so its PR adds only its own report (the step's
    end keeps `pkg-<m>-deep` and `step-<n>-deep-review.md`);
 2. the round's summary on the step's open checkpoint, with `needs-you` and a `checkpoint` line in
@@ -101,7 +104,8 @@ work open. Logged: `step <title>: cadence round <r> starts (every <D> days)`. A 
 
 The step's waves go on during a round; a round has no health pass. A round due while the step has
 no open checkpoint is skipped (one warning) and starts once one is open. Once every work issue is
-closed no round starts; one in progress ends first, then the step ends like any step (deep
+closed no round starts; one in progress ends first (also once `CADENCE_DAYS` is 0 or the
+`Cadence: on` line is gone), then the step ends like any step (deep
 review, health pass, checkpoint). Step fields: `round`, `round_phase` (`deep`, `read`, `polish`,
 `checkpoint`), `round_head`, `round_pr`, `round_blocking`, `round_polish`, `round_cp`,
 `round_cp_at`, `cadence_at`.
