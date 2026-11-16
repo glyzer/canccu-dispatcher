@@ -863,7 +863,21 @@ ok "back-off: nothing starts" eq "$(wc -l < "$FAKE/worker.log")" 0
 echo $((NOW - 1)) > "$CANCCU_ROOT/backoff"; touch "$CANCCU_HOME/paused"
 dispatch --once
 ok "paused: no new issue" not started 6
-ok "paused: a limited worker resumes after the back-off" grep -q 'web 5 Rules for this run: .* The usage limit has reset' "$FAKE/worker.log"
+ok "paused: a limited worker past its back-off is not resumed (#215)" eq "$(wc -l < "$FAKE/worker.log") $(st 5 phase)" "0 limited"
+ok "canccu-status: PAUSED" grep -qF 'PAUSED (canccu-resume to continue)' <<<"$(PATH="$fb:$PATH" "$root/bin/canccu-status" 2>&1)"
+PATH="$fb:$PATH" "$root/bin/canccu-resume" > /dev/null 2>&1
+dispatch --once
+ok "… after canccu-resume it is" grep -q 'web 5 Rules for this run: .* The usage limit has reset' "$FAKE/worker.log"
+env_new pause-finish
+{ issue 5 in-progress; issue 6 ready; } | issues
+state 5 phase=limited
+PATH="$fb:$PATH" "$root/bin/canccu-pause" --finish > /dev/null 2>&1
+ok "canccu-pause --finish: logged" grep -qF 'paused, work in flight finishes (canccu-pause --finish, project web)' "$CANCCU_HOME/dispatch.log"
+ok "… canccu-status says so" grep -qF 'PAUSED, work in flight finishes (canccu-resume to continue)' <<<"$(PATH="$fb:$PATH" "$root/bin/canccu-status" 2>&1)"
+dispatch --once
+ok "… no new issue, but the limited worker resumes" eq "$(started 6 && echo started) $(grep -c 'The usage limit has reset' "$FAKE/worker.log")" " 1"
+PATH="$fb:$PATH" "$root/bin/canccu-pause" > /dev/null 2>&1
+ok "a plain canccu-pause after --finish holds again (an empty file)" eq "$(wc -c < "$CANCCU_HOME/paused")" 0
 
 # needs-work on the PR of a unit in accept moves to the lead issue, where the issue's path handles it (#154)
 nw_pr_env() {   # nw_pr_env <name> <issue labels> <pr labels>
@@ -1159,6 +1173,18 @@ sed -i 's/^CAP=0$/CAP=3/' "$CANCCU_HOME/config"
 CANCCU_NOW=$((NOW + 600)) dispatch --once
 ok "… the next pass, 600 s later with a slot, leaves ci_wait at 420" \
   eq "$(cut -f15 "$WORKERS_DIR/spend.log")" "pr=50,ci=green,ci_wait=420"
+
+# the digest's Pace section (#216 D6): only with PACE on
+for m in cap off; do
+  env_new "digest-pace-$m" DIGEST_HOUR_UTC=0 "PACE=$m"
+  mkdir -p "$WORKERS_DIR"
+  jq -n --argjson at "$((NOW - 60))" --argjson wr "$((NOW + 4 * 86400))" \
+    '{at: $at, info: {unifiedWindows: {five_hour: {utilization: 0.1, resetsAt: ($at + 3600)}, seven_day: {utilization: 0.6, resetsAt: $wr}}}}' > "$WORKERS_DIR/usage.json"
+  dispatch --once
+done
+ok "the digest has a Pace section with PACE=cap" grep -qxF "**Pace:** ahead by 17 points since 2030-11-05T12:00:00Z (PACE=cap); weekly 60%, 43% of the week gone" "$T/digest-pace-cap/root/projects/web/digest/2030-11-05.md"
+ok "… none with PACE=off" not grep -q 'Pace' "$T/digest-pace-off/root/projects/web/digest/2030-11-05.md"
+ok "… the off one is written" test -s "$T/digest-pace-off/root/projects/web/digest/2030-11-05.md"
 
 echo "canccu-dispatch tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

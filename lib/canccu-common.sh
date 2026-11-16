@@ -290,6 +290,10 @@ is_managed() { [ -f "$(st_file "$1")" ] || [ -n "${DRY_ST[$1.]+x}" ]; }
 backoff_until() { local b; b=$(cat "$CANCCU_ROOT/backoff" 2>/dev/null); [[ $b =~ ^[0-9]+$ ]] && echo "$b" || echo 0; }
 backing_off() { (( $(backoff_until) > $(now) )); }
 paused() { [ -e "$CANCCU_HOME/paused" ]; }
+# pause_holds: the pause holds every new run, a resume, review or answer too (#215): it is how the
+# product owner stops spending. `finish` in the file (canccu-pause --finish) is the old pause, for a
+# host move: work in flight still gets its reviews, answers and resumes.
+pause_holds() { paused && [ "$(cat "$CANCCU_HOME/paused" 2>/dev/null)" != finish ]; }
 
 # ---------------------------------------------------------------- spend and progress
 
@@ -321,18 +325,26 @@ run_progress() {
 . "$_canccu_lib/canccu-colour.sh"
 # shellcheck source=canccu-usage.sh
 . "$_canccu_lib/canccu-usage.sh"
+# shellcheck source=canccu-pace.sh
+. "$_canccu_lib/canccu-pace.sh"
 # shellcheck source=canccu-stateformat.sh
 . "$_canccu_lib/canccu-stateformat.sh"
 # shellcheck source=canccu-feed.sh
 . "$_canccu_lib/canccu-feed.sh"
 # shellcheck source=canccu-units.sh
 . "$_canccu_lib/canccu-units.sh"
+# shellcheck source=canccu-leadtools.sh
+. "$_canccu_lib/canccu-leadtools.sh"
+# shellcheck source=canccu-deep.sh
+. "$_canccu_lib/canccu-deep.sh"
 # shellcheck source=canccu-runs.sh
 . "$_canccu_lib/canccu-runs.sh"
 # shellcheck source=canccu-verdict.sh
 . "$_canccu_lib/canccu-verdict.sh"
 # shellcheck source=canccu-norepeat.sh
 . "$_canccu_lib/canccu-norepeat.sh"
+# shellcheck source=canccu-depth.sh
+. "$_canccu_lib/canccu-depth.sh"
 # shellcheck source=canccu-spend.sh
 . "$_canccu_lib/canccu-spend.sh"
 # shellcheck source=canccu-accepts.sh

@@ -134,5 +134,8 @@ ack=0; while l=$(canccu-dispatcher wait --owner leader --ack "$ack"); do ack=$(c
 | `handover` | A leader's item went unacknowledged for 60 minutes and is now the product owner's | The product owner clears it as the item it replaces |
 | `closed` | An item no longer waits (class `info`) | Nothing: drop the item it closes |
 
+`canccu-dispatcher watch` waits for the log lines the lead acts on, `stall` names what is stuck,
+`canccu-status --pace` shows the pace: [`lead-tools.md`](lead-tools.md).
+
 `Follow-up:` and `Roadmap note:` lines from the step's PRs land in the digest and the checkpoint
 summary: the lead turns the ones you want into issues.

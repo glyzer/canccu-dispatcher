@@ -145,13 +145,22 @@ feed_idle() {
 
 # ---------------------------------------------------------------- wait
 
+# heartbeat_stale: what to say when the heartbeat is missing or older than 10 minutes, else nothing
+# (wait and watch exit 3 then: the dispatcher may be down)
+heartbeat_stale() {
+  local hb=$CANCCU_HOME/heartbeat age
+  [ -e "$hb" ] || { echo "heartbeat stale: none written yet; the dispatcher may be down"; return 0; }
+  age=$(( ($(now) - $(stat -c %Y "$hb")) / 60 ))
+  (( age < 10 )) || echo "heartbeat stale: $age min; the dispatcher may be down"
+}
+
 # feed_wait <owner or empty> <ack or empty>: blocks until a line with an id above ack (default: the
 # last id now) for that owner (lines of owner - only without one), prints it, returns 0; returns
 # 3 when the heartbeat is older than 10 minutes. It polls: no inotify dependency. The leader's
 # --ack is recorded first (leader_ack, never lowered): feed_handover reads it.
 feed_wait() {
-  local owner=$1 ack=$2 f hb age l old
-  f=$(feed_file); hb=$CANCCU_HOME/heartbeat
+  local owner=$1 ack=$2 f hb l old
+  f=$(feed_file)
   if [ "$owner" = leader ] && [ -n "$ack" ]; then
     old=$(kv_get "$(feed_open_file)" feed leader_ack); [[ $old =~ ^[0-9]+$ ]] || old=0
     (( ack <= old )) || kv_set "$(feed_open_file)" feed "leader_ack=$ack"
@@ -160,9 +169,7 @@ feed_wait() {
   while :; do
     l=$(awk -F '\t' -v a="$ack" -v o="$owner" '$2 + 0 > a + 0 && (o == "" || $3 == o) { print; exit }' "$f" 2>/dev/null)
     [ -n "$l" ] && { printf '%s\n' "$l"; return 0; }
-    if [ -e "$hb" ]; then age=$(( ($(now) - $(stat -c %Y "$hb")) / 60 )); else age=""; fi
-    if [ -z "$age" ]; then echo "heartbeat stale: none written yet; the dispatcher may be down"; return 3; fi
-    (( age < 10 )) || { echo "heartbeat stale: $age min; the dispatcher may be down"; return 3; }
+    hb=$(heartbeat_stale); [ -z "$hb" ] || { echo "$hb"; return 3; }
     sleep "${CANCCU_WAIT_EVERY:-5}"
   done
 }

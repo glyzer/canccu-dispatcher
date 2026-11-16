@@ -289,6 +289,11 @@ GATED_PATHS|(|GATED_PATHS is not a pattern grep -E accepts
 RESUME_ON|answer,nope|RESUME_ON may only hold: answer, plan, fix, ci, needs-work, merge, limited, blocked, crash, user, all
 AUTO_MERGE_UNTIL|2026-13-01|AUTO_MERGE_UNTIL must be a date as YYYY-MM-DD, or empty
 MODEL|a b|MODEL may only hold letters, digits and . _ : / [ ] -
+PACE|fast|PACE must be one of: off, notify, cap, pause
+PACE_MARGIN|-1|PACE_MARGIN must be a whole number from 0 to 100
+BUDGET_LINES|x|BUDGET_LINES must be a whole number from 0 to 100000
+CADENCE_DAYS|x|CADENCE_DAYS must be a whole number from 0 to 365
+DEEP_REVIEW_EFFORT|extreme|DEEP_REVIEW_EFFORT must be one of: low, medium, high, xhigh, max
 CHK
 # alternatives joined by | are none of them: the table's separator is refused in a value
 while read -r k v want; do
@@ -379,6 +384,13 @@ out=$(CANCCU_ACTOR=leader "$root/bin/canccu-dispatcher" config set 'USER_VISIBLE
 ok "CANCCU_ACTOR=leader config set USER_VISIBLE_PATHS: refused, locked (#78)" \
   eq "$rc $out $(cmp -s "$P/rules" "$E/before"; echo $?)" "3 canccu-dispatcher: refused: USER_VISIBLE_PATHS is locked; only the product owner changes it 0"
 ok "… three lines in all" eq "$(hist | wc -l)" 3
+# the workflow v2 keys that weaken a check or push a tag (#216)
+for kv in REVIEW_LIGHT=1 FIXCHECK_COUNT_RESOLVED=1 'STEP_TAG=step-{n}'; do
+  cp "$P/config" "$E/cbefore"; cp "$P/rules" "$E/before"
+  out=$(CANCCU_ACTOR=leader "$root/bin/canccu-dispatcher" config set "$kv" 2>&1); rc=$?
+  ok "CANCCU_ACTOR=leader config set $kv: refused, locked, nothing written" \
+    eq "$rc $out $(cmp -s "$P/rules" "$E/before"; echo $?) $(cmp -s "$P/config" "$E/cbefore"; echo $?)" "3 canccu-dispatcher: refused: ${kv%%=*} is locked; only the product owner changes it 0 0"
+done
 out=$(CANCCU_ACTOR=run "$root/bin/canccu-dispatcher" config unset GATED_PATHS 2>&1); rc=$?
 ok "a run's unset of a locked key is refused too" eq "$rc $(hist | tail -1 | cut -f2-6)" "3 run	refused	GATED_PATHS	^\.github/	-"
 cs set 'GATED_PATHS=^x/'

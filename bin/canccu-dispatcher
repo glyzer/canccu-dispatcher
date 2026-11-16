@@ -8,6 +8,8 @@
 #   canccu-dispatcher config unset [--project <name> | --global] KEY [--why <text>]       removes one setting's line
 #   canccu-dispatcher wait [--project <name>] [--owner po|leader] [--ack <id>]   the next feed line; exit 3: a stale heartbeat
 #   canccu-dispatcher leader brief [--project <name>]   what a fresh leader session needs; read only
+#   canccu-dispatcher watch [--project <name>] [--settle <sec>] [--match <regex>] [--file <path>]...   the next event the lead acts on; exit 3: a stale heartbeat
+#   canccu-dispatcher stall [--project <name>]        one line per stuck PR, CI run or silent log, each once per 3 hours
 #   canccu-dispatcher rollback [--prefix DIR]         current back to the previous release
 #   canccu-dispatcher uninstall [--prefix DIR] [--purge-state --yes] [--force]
 # --prefix defaults to the prefix of the release this runs from (~/.local from a checkout).
@@ -40,7 +42,7 @@ CANCCU_USER_PATH=$PATH
 # shellcheck source=../lib/canccu-feed.sh
 . "$here/lib/canccu-feed.sh"
 
-usage() { sed -n '3,13s/^# \{0,1\}//p' "$self" >&2; exit 2; }
+usage() { sed -n '3,15s/^# \{0,1\}//p' "$self" >&2; exit 2; }
 cmd=${1:-}; [ $# -gt 0 ] && shift
 # from a checkout, the prefix of the PREFIX/bin link this was run through ($0, not resolved)
 prefix=$(canccu_default_prefix "$here" "$0") purge=0 yes=0 force=0
@@ -101,6 +103,26 @@ case $cmd in
       *) usage ;;
     esac
     exec "$here/libexec/canccu-brief" "$@" ;;
+  watch|stall)
+    # the whole engine lib is read for these two: they need the project's config, gh login and state
+    lt_project="" lt_settle=180 lt_files=()
+    lt_match='awaiting accept|needs-you:|checkpoint #[0-9]+ waits for checkpoint-ok|is done: |usage at stopping|waits \(no PR\)|stopped, needs-you|Z pace: '
+    while [ $# -gt 0 ]; do
+      [ $# -ge 2 ] && [ -n "$2" ] || usage
+      case $cmd:$1 in
+        *:--project) lt_project=$2 ;;
+        watch:--settle) [[ $2 =~ ^[0-9]+$ ]] || usage; lt_settle=$2 ;;
+        watch:--match) lt_match=$2 ;;
+        watch:--file) lt_files+=("$(realpath -m "$2")") ;;
+        *) usage ;;
+      esac
+      shift 2
+    done
+    [ -z "$lt_project" ] || export CANCCU_PROJECT=$lt_project
+    set --   # lib/canccu-common.sh reads a leading --project from the arguments: none is left
+    # shellcheck source=../lib/canccu-common.sh
+    . "$here/lib/canccu-common.sh"
+    if [ "$cmd" = stall ]; then lead_stall; else lead_watch "$lt_settle" "$lt_match" "${lt_files[@]}"; fi ;;
   rollback) opts "$@"; canccu_rollback "$prefix" ;;
   uninstall) opts "$@"; canccu_uninstall "$prefix" "$purge" "$yes" "$force" ;;
   "") usage ;;

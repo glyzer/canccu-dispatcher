@@ -1,10 +1,23 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# canccu-pause [--project <name>] — the dispatcher starts no new issue until canccu-resume; running workers continue.
+# canccu-pause [--project <name>] [--finish] — the dispatcher starts no new run until canccu-resume:
+# no new issue, resume, review, fix or answer; running runs finish and a passed review still merges.
+# --finish: the old pause, for a host move: nothing new starts, but work in flight still gets its
+# reviews, answers and resumes.
 set -uo pipefail
 self=$(realpath "$0")
+# --finish comes off first: lib/canccu-common.sh only takes a --project that leads the arguments
+finish=0 args=()
+for a in "$@"; do [ "$a" = --finish ] && finish=1 || args+=("$a"); done
+set -- "${args[@]}"
 # shellcheck source=../lib/canccu-common.sh
 . "$(dirname "$self")/../lib/canccu-common.sh"
-act_track canccu-pause
+act_track "canccu-pause$( ((finish)) && echo " --finish")"
 
-mkdir -p "$CANCCU_HOME" && touch "$CANCCU_HOME/paused" && log "paused (canccu-pause, project $CANCCU_PROJECT)"
+mkdir -p "$CANCCU_HOME" || exit 1
+# a plain pause empties the file: one written by --finish would otherwise keep its meaning
+if (( finish )); then
+  echo finish > "$CANCCU_HOME/paused" && log "paused, work in flight finishes (canccu-pause --finish, project $CANCCU_PROJECT)"
+else
+  : > "$CANCCU_HOME/paused" && log "paused (canccu-pause, project $CANCCU_PROJECT)"
+fi

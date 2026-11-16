@@ -34,6 +34,20 @@ echo '[]' > "$FAKE/issues.json"
 ok "… and closed when none is" not lf unit_open pkg-12-auth
 ok "units: the budget scales with the issue count" eq "$(BUDGET_PACKAGE_MAX='600 200 360' lib pkg_budget '250 80 150' 2)" "500 160 300"
 ok "… capped per part" eq "$(lib pkg_budget '250 80 150' 3)" "600 200 360"
+# BUDGET_LINES (#216 D10): a package's factor by its planned lines
+bf() { lib eval "BUDGET_LINES=$1; budget_factor 101"; }
+state 101 pkg=a step=12 members=101 plan_lines=2000
+ok "BUDGET_LINES=500, one issue, 2000 planned lines → factor 4" eq "$(bf 500)" 4
+ok "… its budget capped by BUDGET_PACKAGE_MAX" eq "$(lib pkg_budget '250 80 150' "$(bf 500)")" "600 200 360"
+ok "… BUDGET_LINES=0 → the issue count" eq "$(bf 0)" 1
+state pkg-12-a pkg=a step=12 members="101 102 103" plan_lines=900
+ok "… fewer lines than issues → the issue count" eq "$(lib eval "BUDGET_LINES=500; budget_factor pkg-12-a")" 3
+rm -f "$CANCCU_HOME/state/pkg-12-a"
+state 101 pkg=a step=12 members=101
+ok "… no planned lines → the issue count" eq "$(bf 500)" 1
+state 101 pkg=a step=12 members=101 plan_lines=x
+ok "… a bad value → the issue count" eq "$(bf 500)" 1
+rm -f "$CANCCU_HOME/state/101"
 ok "units: the window of a package" eq "$(lib unit_window pkg-12-auth) $(lib unit_window 5)" "pkg#auth #5"
 ok "units: the branch names the package" eq "$(lib unit_of_branch pkg-12-auth)" pkg-12-auth
 j=$(ppr 50 "101 103" "$HA" pkg-12-other)

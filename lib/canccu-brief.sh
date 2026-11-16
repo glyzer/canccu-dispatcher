@@ -7,7 +7,8 @@
 # status_header: the state, model, usage, project and runs lines that open canccu-status
 status_header() {
   local state="running" free lim rv lp w
-  paused && state="PAUSED (canccu-resume to continue)"
+  if pause_holds; then state="PAUSED (canccu-resume to continue)"
+  elif paused; then state="PAUSED, work in flight finishes (canccu-resume to continue)"; fi
   dispatcher_running || state+=" · canccu-dispatch is NOT running (canccu-up, or run it in the window dispatch)"
   backing_off && state+=" · usage limit until $(iso "$(backoff_until)")"
   free=$(disk_low) && state+=" · disk low: $free MB (DISK_MIN_MB ${DISK_MIN_MB:-200})"
