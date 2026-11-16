@@ -42,10 +42,11 @@ light_review_prompt() {
 # light_file <pr>: the head the PR's running (or last) full review was light on; nothing otherwise
 light_file() { echo "$CANCCU_HOME/reviews/$1.light"; }
 
-# light_upgrade <n> <pr> <head> <pr_detail json> <verdict at>: a light review's pass whose Risk:
-# line says high is not acted on as a pass: the unit asks for one full review of the same head
-# (review_asked, which also keeps check_pr from reusing the pass), retried each pass until a slot
-# lets it start. 0 when it did that: the caller returns.
+# light_upgrade <n> <pr> <head> <pr_detail json> <verdict at>: a light review's verdict whose Risk:
+# line says high is not acted on, pass or changes: the unit asks for one full review of the same
+# head (review_asked, which also keeps check_pr from reusing a pass), retried each pass until a
+# slot lets it start. A `changes` starts no fix run: a narrow fix-check of it would leave the
+# high-risk PR without a full review. 0 when it did that: the caller returns.
 light_upgrade() {
   local n=$1 pr=$2 head=$3
   is_fixcheck_mode "$(st_get "$n" review_mode)" && return 1

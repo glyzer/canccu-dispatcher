@@ -323,6 +323,8 @@ act_verdict() {
       after_pass "$n" "$pr" "$head" "$what" || return 0
       st_set "$n" verdict_at="$at" ;;
     changes)
+      # a light review rated high gets the full review first: its verdict drives the fix round
+      light_upgrade "$n" "$pr" "$head" "$j" "$at" && return 0
       case $stage in
         fixing|fixcheck)
           save_findings "$n" "$pr" "$(open_file "$pr" "$head")" "$body"

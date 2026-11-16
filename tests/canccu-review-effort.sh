@@ -295,6 +295,18 @@ ok "the full review refused for a slot: no merge over two passes" \
   eq "$(grep -c -- '--key review-50' "$FAKE/worker.log") $(grep -c 'pr merge 50' "$FAKE/gh.log") $(st 101 phase) $(st 101 review_asked)" "0 0 check 1"
 rm -f "$WORKERS_DIR/web-77.lock"; dispatch --once
 ok "… a slot frees: the full review starts" eq "$(grep -c -- '--key review-50' "$FAKE/worker.log") $(grep -c 'This is a light review' "$FAKE/worker.log")" "1 0"
+# a light `changes` rated high: no fix run on it; the full review of the same head comes first,
+# and its verdict drives the fix round
+lightenv light-up-changes "$VB1"$'Risk: high — a new dependency\n\nReview verdict: changes '"$HA"
+dispatch --once
+ok "a light changes with Risk: high → the full review of that head, no fix run" \
+  eq "$(grep -cF 'the light review rated it high risk' "$CANCCU_HOME/dispatch.log") $(grep -c -- '--key review-50' "$FAKE/worker.log") $(grep -c 'Run the code-review skill' "$FAKE/worker.log") $(grep -c 'asked for changes on PR #50' "$FAKE/worker.log") $(st 101 stage) $(st 101 review_asked)" "1 1 1 0 review 1"
+rm -f "$WORKERS_DIR/web-review-50.lock"
+jq --argjson c "$(vcomment 2030-11-05T11:30:00Z "$VB1"$'Risk: normal — fine\n\nReview verdict: changes '"$HA")" '.comments += [$c]' "$FAKE/pr50.json" > "$FAKE/x" && mv "$FAKE/x" "$FAKE/pr50.json"
+dispatch --once
+ok "… the full review's changes starts the fix round" \
+  eq "$(grep -c 'asked for changes on PR #50' "$FAKE/worker.log") $(st 101 stage) $(st 101 reviewed_sha) [$(st 101 review_asked)]" "1 fixing $HA []"
+
 printf '%s\nReview verdict: pass %s\n' "$VB0" "$HA" > "$E/light.md"; lib reviews_log 101 50 "$HA" "$E/light.md"
 ok "reviews.log keeps kind full for a light review" grep -qP "^\S+\t50\t$HA\tfull\tpass\t" "$CANCCU_HOME/reviews.log"
 
