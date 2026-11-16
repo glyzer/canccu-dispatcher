@@ -76,6 +76,14 @@ denv deep-tag-base STEP_DEEP_REVIEW=1 "STEP_TAG='step-{n}'"
 rg tag step-3 HEAD; rg push -q origin refs/tags/step-3 2>/dev/null
 dpass
 ok "with STEP_TAG the base is the newest tag of its pattern" grep -qF "from the tag step-3 (git diff step-3..<head>) up to origin/main" "$FAKE/worker.log"
+# a newer round tag (step-<n>-r<r>) and a tag with more around the number are no match of step-{n}
+denv deep-tag-exact STEP_DEEP_REVIEW=1 "STEP_TAG='step-{n}'"
+rg tag step-3 HEAD; echo later >> "$E/code/web/README.md"; rg add -A
+GIT_COMMITTER_DATE=2030-11-06T10:00:00Z "$FAKE_REAL_GIT" -C "$E/code/web" -c user.name=octo -c user.email=octo@example.com commit -qm later
+rg tag step-3-r1 HEAD; rg tag xstep-4 HEAD; rg tag step-x HEAD; rg push -q origin --tags 2>/dev/null
+dpass
+ok "the base matches STEP_TAG exactly, {n} as digits: not a round tag or a longer name" \
+  grep -qF "from the tag step-3 (git diff step-3..<head>) up to origin/main" "$FAKE/worker.log"
 
 # ---------------------------------------------------------------- its PR merged: polish or health
 
