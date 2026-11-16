@@ -174,7 +174,7 @@ ok "hand-over: LEADER=off → nothing" eq "$(lines) $(grep -c 'passed to the pro
 # ---------------------------------------------------------------- watch and stall (#216 D5)
 
 watchcmd() { PATH="$fb:$PATH" CANCCU_WAIT_EVERY=1 timeout 30 "$root/bin/canccu-dispatcher" watch "$@"; }
-stallcmd() { PATH="$fb:$PATH" timeout 30 "$root/bin/canccu-dispatcher" stall "$@"; }
+stallcmd() { PATH="$fb:$PATH" timeout 30 "$root/bin/canccu-dispatcher" stall; }
 env_new feed-watch
 touch -d "@$NOW" "$CANCCU_HOME/heartbeat"
 L=$CANCCU_HOME/dispatch.log
