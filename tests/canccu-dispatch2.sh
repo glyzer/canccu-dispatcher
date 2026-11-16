@@ -31,25 +31,34 @@ dispatch --once; base_out=$(grep -v 'state format' "$E/out" | cut -c22-); base_g
 base_st=$(for n in 5 6 7; do cat "$CANCCU_HOME/state/$n"; done)
 fmt_env fmt-upgrade
 dispatch --once
-ok "state format: a project without state.format is migrated to 2" eq "$(cat "$CANCCU_HOME/state.format")" 2
+ok "state format: a project without state.format is migrated to 3" eq "$(cat "$CANCCU_HOME/state.format")" 3
 ok "… the migration is logged" grep -qE '^[0-9TZ:-]{20} state format 0 → 1: ' "$CANCCU_HOME/dispatch.log"
 ok "… step by step (1 → 2: the owner of the waiting units)" \
   grep -qE '^[0-9TZ:-]{20} state format 1 → 2: the owner of 1 waiting unit\(s\) set' "$CANCCU_HOME/dispatch.log"
+ok "… 2 → 3: workflow v2's fields start empty (#216)" \
+  grep -qE "^[0-9TZ:-]{20} state format 2 → 3: no field changes \(workflow v2's new fields start empty\)" "$CANCCU_HOME/dispatch.log"
 ok "… the needs-you unit in flight gets its owner (#70)" eq "$(st 6 owner)" po
 ok "… the pass then handles the work, needs-you and merging units as before (state)" \
   eq "$(for n in 5 6 7; do cat "$CANCCU_HOME/state/$n"; done)" "$base_st"
 ok "… (GitHub calls)" eq "$(cat "$FAKE/gh.log")" "$base_gh"
 ok "… (pane lines)" eq "$(grep -v 'state format' "$E/out" | cut -c22-)" "$base_out"
 dispatch --once
-ok "… the next start migrates nothing (one line per step, 0 → 1 → 2)" eq "$(grep -c 'state format' "$CANCCU_HOME/dispatch.log")" 2
+ok "… the next start migrates nothing (one line per step, 0 → 1 → 2 → 3)" eq "$(grep -c 'state format' "$CANCCU_HOME/dispatch.log")" 3
 echo 9 > "$CANCCU_HOME/state.format"; : > "$FAKE/gh.log"
 dispatch --once; rc=$?
 ok "state format 9: the start stops" eq "$rc" 1
-ok "… with the message" grep -qF 'state format 9 is newer than this release knows (2); install a newer release' "$E/out"
+ok "… with the message" grep -qF 'state format 9 is newer than this release knows (3); install a newer release' "$E/out"
 ok "… before any pass (no GitHub call)" eq "$(wc -l < "$FAKE/gh.log")" 0
 ok "… and the file is left as it was" eq "$(cat "$CANCCU_HOME/state.format")" 9
 ok "--dry-run with state format 9 stops too" \
   grep -qF 'is newer than this release knows' <<<"$(PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-dispatch" --dry-run 2>&1)"
+fmt_env fmt-2to3; echo 2 > "$CANCCU_HOME/state.format"
+before=$(cd "$CANCCU_HOME/state" && cat 5 6 7)
+ok "state format 2 → 3 with units in flight: the migration says so (#216)" eq "$(lib state_migrate_3)" "no field changes (workflow v2's new fields start empty)"
+ok "… and changes no unit" eq "$(cd "$CANCCU_HOME/state" && cat 5 6 7)" "$before"
+dispatch --once
+ok "… a start migrates it: format 3, one migration line" \
+  eq "$(cat "$CANCCU_HOME/state.format") $(grep -c 'state format' "$CANCCU_HOME/dispatch.log")" "3 1"
 rm -f "$CANCCU_HOME/state.format"
 PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-dispatch" --dry-run > "$E/dry" 2>&1
 ok "--dry-run on an old project says it would migrate, and writes nothing" \
@@ -73,6 +82,10 @@ ok "disk: below DISK_MIN_MB a ready issue does not start" not started 3
 ok "… the hold is logged once over two passes" \
   eq "$(grep -c "disk: 100 MB free for $WORKERS_DIR, below DISK_MIN_MB (200); nothing new starts" "$CANCCU_HOME/dispatch.log")" 1
 ok "canccu-status shows the low disk" grep -qF ' · disk low: 100 MB (DISK_MIN_MB 200)' <<<"$(status)"
+state 7 phase=limited; { issue 3 ready; issue 7 in-progress; } | issues
+dispatch --once
+ok "… the disk hold holds a resume too" eq "$(wc -l < "$FAKE/worker.log") $(st 7 phase)" "0 limited"
+rm -f "$CANCCU_HOME/state/7"; { issue 3 ready; } | issues
 echo 500 > "$FAKE/df_mb"
 dispatch --once
 ok "… with 500 MB free the next pass starts it" started 3

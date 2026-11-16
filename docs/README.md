@@ -12,6 +12,8 @@
 | [`hosts.md`](hosts.md) | Several hosts: one repo per host, one Claude account, host profiles |
 | [`troubleshooting.md`](troubleshooting.md) | What each message means and what to do |
 | [`security.md`](security.md) | Reviewer token isolation, untrusted checkouts, prompt injection, posted paths, known limits |
+| [`kickoff.md`](kickoff.md) | The planning session of a new project: vision, users, quality bar, constraints, the step ladder, a question bank |
+| [`gates.md`](gates.md) | What proves a step done: the functional gate, and the UX, API, CLI, performance, security, operations and data gates |
 | [`canccu-dispatch.md`](canccu-dispatch.md) | Where the sections the code cites went |
 
 ## Plan

@@ -490,6 +490,45 @@ ok "… with FIXCHECK_COUNT_MAIN=1: full review, as before" eq "$(ppf 1 "$FC_B" 
 ok "… 150 own lines: full review" eq "$(ppf 0 "$FC_B" "$FC_O")" "150 changed lines, over FIXCHECK_FULL_LINES=100"
 ok "… a merge of main resolved by hand: counted from base, as before" eq "$(ppf 0 "$FC_C0" "$FC_C")" "150 changed lines, over FIXCHECK_FULL_LINES=100"
 
+# FIXCHECK_COUNT_RESOLVED (#216 D9). rsrepo <main lines>: a PR (RS_B, the passed head) changes the
+# 10 lines of a.txt, adds a line to b.txt and to auth.ts; main changes the same 10 lines of a.txt,
+# puts <main lines> lines before b.txt's and edits auth.ts' first line; RS_H merges main into the
+# PR, its 10 conflicting lines resolved by hand to the PR's. RS_M: the PR moves .github/w.yml out.
+rsrepo() {
+  local d=$E/code/web i
+  _rg() { GIT_AUTHOR_DATE=2030-11-05T10:00:00Z GIT_COMMITTER_DATE=2030-11-05T10:00:00Z \
+          "$FAKE_REAL_GIT" -C "$d" -c user.name=octo -c user.email=octo@example.com -c init.defaultBranch=main "$@" >/dev/null 2>&1; }
+  rm -rf "$d"; mkdir -p "$d/.github"; _rg init
+  seq -f 'r%g' 10 > "$d/a.txt"; echo b1 > "$d/b.txt"; printf 'x1\nx2\nx3\n' > "$d/auth.ts"; echo w > "$d/.github/w.yml"
+  _rg add .; _rg commit -m root
+  _rg checkout -b pr; seq -f 'p%g' 10 > "$d/a.txt"; echo pb >> "$d/b.txt"; echo pa >> "$d/auth.ts"; _rg commit -am "the PR"
+  RS_B=$("$FAKE_REAL_GIT" -C "$d" rev-parse HEAD)
+  _rg checkout main; seq -f 'm%g' 10 > "$d/a.txt"; { seq -f 'n%g' "$1"; echo b1; } > "$d/b.txt"; sed -i 's/^x1$/x1 main/' "$d/auth.ts"
+  _rg commit -am "main"; _rg update-ref refs/remotes/origin/main main
+  _rg checkout -b fix pr; _rg merge --no-edit main; _rg checkout --ours a.txt; _rg add a.txt; _rg commit --no-edit -m "merge main, resolved"
+  RS_H=$("$FAKE_REAL_GIT" -C "$d" rev-parse HEAD)
+  _rg checkout -b mv pr; mkdir -p "$d/src"; _rg mv .github/w.yml src/w.yml; _rg commit -m "move"
+  RS_M=$("$FAKE_REAL_GIT" -C "$d" rev-parse HEAD)
+  _rg checkout main; touch "$FAKE/realgit"
+}
+pr2() { lib eval ". '$root/lib/canccu-merge.sh'; FIXCHECK_COUNT_RESOLVED=$1; postpass_full $2 $3"; }
+fce() { lib eval "FIXCHECK_COUNT_RESOLVED=$1; fixcheck_effort $2 $3"; }
+env_new count-resolved; rsrepo 500
+ok "a conflicting merge of main (500 main lines, 10 resolved), FIXCHECK_COUNT_RESOLVED=0: today's count" \
+  eq "$(pr2 0 "$RS_B" "$RS_H")" "502 changed lines, over FIXCHECK_FULL_LINES=100"
+ok "… with 1: only the resolved lines count, a fix-check" eq "$(pr2 1 "$RS_B" "$RS_H")" ""
+ok "… fixcheck_effort with 0: today's count (medium)" eq "$(fce 0 "$RS_B" "$RS_H")" medium
+ok "… with 1: low" eq "$(fce 1 "$RS_B" "$RS_H")" low
+env_new count-resolved-risky; rsrepo 0
+ok "a risky path changed only by main: a full review with 0" eq "$(pr2 0 "$RS_B" "$RS_H")" "risky path auth.ts"
+ok "… none with 1" eq "$(pr2 1 "$RS_B" "$RS_H")" ""
+ok "a file moved out of a gated path counts by its old path" eq "$(pr2 0 "$RS_B" "$RS_M")" "gated path .github/w.yml"
+# a git that fails merge-tree: today's count, never a smaller one
+mkdir -p "$E/sbin"; printf '#!/usr/bin/env bash\ncase " $* " in *" merge-tree "*) exit 128 ;; esac\nexec "%s/git" "$@"\n' "$fb" > "$E/sbin/git"; chmod +x "$E/sbin/git"
+env_new count-resolved-gitfail; rsrepo 500
+ok "merge-tree failing → today's count" eq "$( ( PATH="$E/../count-resolved-risky/sbin:$fb:$PATH"; . "$root/lib/canccu-common.sh"; . "$root/lib/canccu-merge.sh"; FIXCHECK_COUNT_RESOLVED=1; postpass_full "$RS_B" "$RS_H" ) 2>/dev/null)" \
+  "502 changed lines, over FIXCHECK_FULL_LINES=100"
+
 # ---------------------------------------------------------------- the accept kept on a merge of main (#92)
 
 # keepenv <name> <phase> <setting> <new head>: PR 50, accepted by the user on MB_B (in accept, or
@@ -795,6 +834,110 @@ ok "… no record → still waits" eq "$(st 5 phase)" accept
 chan_armed chan-armed-off $HA ACCEPT_CHANNELS=label
 dispatch --once
 ok "… ship not in ACCEPT_CHANNELS → the record does not count" eq "$(st 5 phase)" accept
+
+# ---------------------------------------------------------------- a head that passed is not reviewed again (#214)
+
+# reuse_env <name> <files json> [state line...]: PR 50 of issue 5 back in check at HA (CI green),
+# its pass on HA acted on already (verdict_at); the state lines replace the default pass_sha=HA
+reuse_env() {
+  env_new "$1"
+  { issue 5 in-progress; } | issues
+  p=$(pr 50 5 $HA); printf '%s\n' "$p" | prs
+  json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z "$(vcomment 2030-11-05T11:00:00Z "Review verdict: pass $HA")")"
+  route 'pr view 50 *' pr50.json
+  json files50.json "$2"; route 'api --paginate repos/example-org/web/pulls/50/files*' files50.json
+  json issue5.json '{"labels": [{"name": "in-progress"}], "comments": []}'; route 'issue view 5 *' issue5.json
+  state 5 phase=check pr=50 "check_at=$NOW" verdict_at=2030-11-05T11:00:00Z full_sha=$HA stage=review "${@:3}"
+  grep -q '^pass_sha=' "$CANCCU_HOME/state/5" || echo "pass_sha=$HA" >> "$CANCCU_HOME/state/5"
+}
+GATED='[{"filename": ".github/workflows/ci.yml"}]'
+reuse_env reuse-after-dequeue "$GATED" ny_stage=merge
+dispatch --once
+ok "a merge-queue removal, needs-you cleared, the head unchanged: no reviewer starts" hasnt worker.log '--key review-50'
+ok "… logged" grep -qF "#5 PR #50: head ${HA:0:7} passed review already; no new review (verdict reused)" "$CANCCU_HOME/dispatch.log"
+ok "… a manual PR goes back to the accept" eq "$(st 5 phase)" accept
+reuse_env reuse-auto '[{"filename": "src/a.ts"}]'
+dispatch --once
+ok "… an automatic one merges" eq "$(grep -c 'pr merge 50 -R example-org/web --auto' "$FAKE/gh.log") $(grep -c -- '--key review-50' "$FAKE/worker.log")" "1 0"
+reuse_env reuse-after-fixcheck '[{"filename": "src/a.ts"}]' stage=fixcheck review_mode=fixcheck reviewed_sha=$HB
+dispatch --once
+ok "the same after a fix-check pass: no second fix-check" eq "$(grep -c -- '--key review-50' "$FAKE/worker.log") $(dlog 'passed review already')" "0 1"
+reuse_env reuse-from-log '[{"filename": "src/a.ts"}]' pass_sha=
+printf '2030-11-05T11:00:00Z\t50\t%s\tfull\tpass\t0\t0\t0\t-\t-\n' "$HA" > "$CANCCU_HOME/reviews.log"
+dispatch --once
+ok "a pass line in reviews.log, pass_sha empty: no review" eq "$(grep -c -- '--key review-50' "$FAKE/worker.log") $(dlog 'passed review already')" "0 1"
+reuse_env reuse-log-other '[{"filename": "src/a.ts"}]' pass_sha=
+printf '2030-11-05T11:00:00Z\t50\t%s\tfull\tchanges\t1\t0\t0\t-\t-\n2030-11-05T11:00:00Z\t51\t%s\tfull\tpass\t0\t0\t0\t-\t-\n' "$HA" "$HA" > "$CANCCU_HOME/reviews.log"
+dispatch --once
+ok "… a changes line, or another PR's pass, does not count: the review starts" eq "$(grep -c -- '--key review-50' "$FAKE/worker.log")" 1
+# the worker's merge run for a conflict pushed nothing on the passed head: needs-you keeps priority
+reuse_env reuse-conflict-run '[{"filename": "src/a.ts"}]' conflict_sha=$HA conflict_paths=src/a.ts
+dispatch --once
+ok "a conflict merge run that pushed nothing on a passed head → needs-you, no merge" \
+  eq "$(grep -c 'pushed no resolution' "$FAKE/gh.log") $(grep -c 'pr merge 50' "$FAKE/gh.log")" "1 0"
+# needs-work with a `full review` line, and the worker pushes nothing: one full review of that head
+reuse_env reuse-full-asked '[{"filename": "src/a.ts"}]' phase=accept accept_sha=$HA "accept_at=$((NOW - 3600))"
+printf '2030-11-05T11:00:00Z\t50\t%s\tfull\tpass\t0\t0\t0\t-\t-\n' "$HA" > "$CANCCU_HOME/reviews.log"
+{ issue 5 in-progress,awaiting-accept,needs-work; } | issues
+json issue5.json "$(comment 2030-11-05T11:45:00Z $'Look again.\n\nfull review' | jq -s '{labels: [{name: "in-progress"}, {name: "needs-work"}], comments: .}')"
+dispatch --once
+ok "needs-work with a full review line: review_asked is set" eq "$(st 5 review_asked)" 1
+rm -f "$WORKERS_DIR/web-5.lock"; last 5 "done" 'nothing to change'
+{ issue 5 in-progress; } | issues; : > "$FAKE/worker.log"
+dispatch --once
+ok "… the worker pushed nothing: one full review of that head" eq "$(grep -c -- "--key review-50" "$FAKE/worker.log") $(dlog 'passed review already')" "1 0"
+ok "… review_asked is kept while it runs" eq "$(st 5 review_asked)" 1
+# that review ends at the usage limit with no verdict: the pass in reviews.log is still not reused
+rm -f "$WORKERS_DIR/web-review-50.lock"; last review-50 error "Claude AI usage limit reached|$((NOW + 3600))"
+dispatch --once; echo $((NOW - 1)) > "$CANCCU_ROOT/backoff"; dispatch --once
+ok "… it ends at the usage limit: the full review starts again, no verdict reused" \
+  eq "$(grep -c -- "--key review-50" "$FAKE/worker.log") $(dlog 'passed review already') $(st 5 review_asked)" "2 0 1"
+
+# a later review returned changes on the passed head (needs-work's full review, or the light
+# upgrade's): the pass is not reused; with no push, the fix round's needs-you, never a merge
+reuse_env reuse-then-changes '[{"filename": "src/a.ts"}]' pass_sha= stage=fixing reviewed_sha=$HA
+printf '2030-11-05T11:00:00Z\t50\t%s\tfull\tpass\t0\t0\t0\t-\t-\n2030-11-05T12:00:00Z\t50\t%s\tfull\tchanges\t1\t0\t0\t-\t-\n' "$HA" "$HA" > "$CANCCU_HOME/reviews.log"
+dispatch --once
+ok "pass on a head, then changes on it, no push → no merge, needs-you 'pushed no fix'" \
+  eq "$(grep -c 'pr merge 50' "$FAKE/gh.log") $(grep -c 'pushed no fix' "$FAKE/gh.log") $(dlog 'passed review already')" "0 1 0"
+reuse_env reuse-then-changes-log '[{"filename": "src/a.ts"}]' pass_sha=
+printf '2030-11-05T11:00:00Z\t50\t%s\tfull\tpass\t0\t0\t0\t-\t-\n2030-11-05T12:00:00Z\t50\t%s\tfull\tchanges\t1\t0\t0\t-\t-\n' "$HA" "$HA" > "$CANCCU_HOME/reviews.log"
+dispatch --once
+ok "… the newest reviews.log line of that head is changes: its older pass is not reused" \
+  eq "$(grep -c 'pr merge 50' "$FAKE/gh.log") $(dlog 'passed review already')" "0 0"
+reuse_env reuse-then-changes-sha '[{"filename": "src/a.ts"}]' stage=fixing reviewed_sha=$HA
+dispatch --once
+ok "… pass_sha still on that head in a fix round: no reuse either" \
+  eq "$(grep -c 'pr merge 50' "$FAKE/gh.log") $(grep -c 'pushed no fix' "$FAKE/gh.log")" "0 1"
+
+# a plain needs-work on a refused accept (no `full review` line), the worker pushes nothing: the
+# accept came from the full review's Maintainer accept line, the fix-check's pass names none; the
+# new cycle clears review_maccept, so a reused pass would merge without the product owner
+reuse_env reuse-refused-accept '[{"filename": "src/a.ts"}]' phase=accept accept_sha=$HA "accept_at=$((NOW - 3600))" \
+  stage=fixcheck review_mode=fixcheck reviewed_sha=$HB "review_maccept=breaking contract — the state file"
+printf '2030-11-05T11:00:00Z\t50\t%s\tfixcheck\tpass\t0\t0\t0\t-\t-\n' "$HA" > "$CANCCU_HOME/reviews.log"
+{ issue 5 in-progress,awaiting-accept,needs-work; } | issues
+json issue5.json "$(comment 2030-11-05T11:45:00Z 'Not this way.' | jq -s '{labels: [{name: "in-progress"}, {name: "needs-work"}], comments: .}')"
+dispatch --once
+ok "needs-work on a refused accept, no full review line: review_asked is set" eq "$(st 5 review_asked)" 1
+rm -f "$WORKERS_DIR/web-5.lock"; last 5 "done" 'nothing to change'
+{ issue 5 in-progress; } | issues; : > "$FAKE/worker.log"
+dispatch --once
+ok "… the worker pushed nothing: no merge, one full review of that head" \
+  eq "$(grep -c 'pr merge 50' "$FAKE/gh.log") $(grep -c -- "--key review-50" "$FAKE/worker.log") $(dlog 'passed review already')" "0 1 0"
+# a stopped merge (needs-you at merge) whose accept came from a Risk: high kept only in review_risk
+reuse_env reuse-risk-kept '[{"filename": "src/a.ts"}]' phase=needs-you ny_stage=merge "ny_at=$((NOW - 3600))" \
+  stage=fixcheck review_mode=fixcheck reviewed_sha=$HB review_risk=high
+printf '2030-11-05T11:00:00Z\t50\t%s\tfixcheck\tpass\t0\t0\t0\t-\t-\n' "$HA" > "$CANCCU_HOME/reviews.log"
+{ issue 5 in-progress,needs-you,needs-work; } | issues
+json issue5.json "$(comment 2030-11-05T11:45:00Z 'Not this way.' | jq -s '{labels: [{name: "in-progress"}, {name: "needs-work"}], comments: .}')"
+dispatch --once
+ok "needs-work with Risk: high kept only in review_risk: review_asked is set" eq "$(st 5 review_asked)" 1
+rm -f "$WORKERS_DIR/web-5.lock"; last 5 "done" 'nothing to change'
+{ issue 5 in-progress; } | issues; : > "$FAKE/worker.log"
+dispatch --once
+ok "… the worker pushed nothing: no merge, one full review of that head" \
+  eq "$(grep -c 'pr merge 50' "$FAKE/gh.log") $(grep -c -- "--key review-50" "$FAKE/worker.log")" "0 1"
 
 echo "canccu-merge tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

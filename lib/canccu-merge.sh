@@ -9,7 +9,7 @@
 # plan_back. Another merged one: merged_left.
 pr_gone() {
   local j
-  is_health "$1" && return 0
+  is_step_run "$1" && return 0
   j=$(ghj pr view "$2" -R "$REPO" --json state,title,body,closingIssuesReferences,headRefName) || return 0
   case $(jqr .state <<<"$j") in
     CLOSED) needs_you "$1" "PR #$2 was closed without merging" ;;
@@ -329,17 +329,13 @@ main_merge_only() {
 
 # postpass_full <base> <head>: why the change base..head needs a full review, not a fix-check; nothing
 # when it does not. Only the files of the PR's own diff at head count (all, when that list cannot be
-# read). With FIXCHECK_COUNT_MAIN=0 and main merged in since base, the count starts from git's own
-# merge of base with main, so main's edits drop out; on a conflict the worker's resolution is the
-# PR's own change: base..head counts.
+# read; a rename's two paths). The count starts at count_from.
 postpass_full() {
-  local base=$1 head=$2 from=$1 mb t stats total p re max=${FIXCHECK_FULL_LINES:-100} files=()
+  local base=$1 head=$2 mb stats total p re max=${FIXCHECK_FULL_LINES:-100} files=()
   [[ $max =~ ^[0-9]+$ ]] || max=100
   mb=$(guard 20 git -C "$CLONE" merge-base origin/main "$head" 2>/dev/null)
-  [ -n "$mb" ] && mapfile -t files < <(guard 20 git -C "$CLONE" diff --name-only "$mb" "$head" 2>/dev/null)
-  if [ "${FIXCHECK_COUNT_MAIN:-0}" != 1 ] && [ -n "$mb" ] && ! guard 20 git -C "$CLONE" merge-base --is-ancestor "$mb" "$base" 2>/dev/null &&
-    t=$(guard 60 git -C "$CLONE" merge-tree --write-tree "$base" "$mb" 2>/dev/null) && [ -n "$t" ]; then from=${t%%$'\n'*}; fi
-  stats=$(guard 30 git -C "$CLONE" diff --numstat "$from" "$head" -- "${files[@]}" 2>/dev/null) || { echo "the change cannot be read"; return; }
+  [ -n "$mb" ] && mapfile -t files < <(guard 20 git -C "$CLONE" diff --name-only --no-renames "$mb" "$head" 2>/dev/null)
+  stats=$(change_stats "$(count_from "$base" "$head")" "$head" "${files[@]}") || { echo "the change cannot be read"; return; }
   total=$(awk -F '\t' '{ for (i = 1; i <= 2; i++) if ($i ~ /^[0-9]+$/) t += $i } END { print t + 0 }' <<<"$stats")
   (( total > max )) && { echo "$total changed lines, over FIXCHECK_FULL_LINES=$max"; return; }
   p=$(cut -f3- <<<"$stats" | grep -m1 -E "$(gated_re)") && { echo "gated path $p"; return; }
@@ -369,11 +365,13 @@ postpass_step() {
     return 0
   fi
   base=$(st_get "$n" full_sha); base=${base:-$psha}
-  backing_off && return 0
+  { backing_off || pause_holds; } && return 0
   if [ -n "$(reviewer_token_problem)" ]; then room || return 0; else room "$n" || return 0; fi
   why=$(postpass_full "$base" "$head")
   if [ -n "$why" ]; then
-    log "#$n PR #$pr: push after the pass; full review ($why)"; start_review "$pr" "$n" "$head"
+    # asked for (review_asked), so REVIEW_LIGHT never makes it a light one: the change is big,
+    # gated or risky
+    log "#$n PR #$pr: push after the pass; full review ($why)"; st_set "$n" review_asked=1; start_review "$pr" "$n" "$head"
   else
     log "#$n PR #$pr: push after the pass; fix-check of ${base:0:7}..${head:0:7}"; start_reviewer "$pr" "$n" "$head" postpass "$base"
   fi

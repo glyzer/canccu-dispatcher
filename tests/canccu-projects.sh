@@ -555,8 +555,14 @@ ok "… they deny reading this project's reviewer token file" \
 for d in 'Bash(git push --force*)' 'Bash(git rebase*)' 'Bash(gh pr merge*)'; do
   ok "… they deny $d" jq -e --arg d "$d" '.permissions.deny | index($d) != null' "$k/.claude/settings.json" > /dev/null
 done
-for a in 'Bash(canccu-dispatcher leader brief*)' 'Bash(canccu-dispatcher wait *)' 'Bash(canccu-status*)' 'Bash(canccu-ship *)' 'Bash(gh issue comment *)'; do
+for a in 'Bash(canccu-dispatcher leader brief*)' 'Bash(canccu-dispatcher wait *)' 'Bash(canccu-dispatcher watch*)' \
+  'Bash(canccu-dispatcher stall*)' 'Bash(canccu-status*)' 'Bash(canccu-status --pace*)' 'Bash(canccu-ship *)' \
+  'Bash(canccu-dispatcher config set * PACE*)' 'Bash(canccu-dispatcher config set * STEP_DEEP_REVIEW=*)' \
+  'Bash(gh issue comment *)' 'Bash(gh issue create *)'; do
   ok "… they allow $a" jq -e --arg a "$a" '.permissions.allow | index($a) != null' "$k/.claude/settings.json" > /dev/null
+done
+for t in LEADER_ACCEPTS_HIGH_RISK=1 STEP_DEEP_REVIEW 'polish (deep review)' 'canccu-status --pace' PACE_MARGIN lead-tools.md; do
+  ok "… the role names $t (workflow v2)" grep -qF -- "$t" "$k/CLAUDE.md"
 done
 ok "… no placeholder is left" not grep -q '@[A-Z_]*@' "$k/CLAUDE.md" "$k/.claude/settings.json"
 ok "… LEADER=on in web's config" eq "$(plib web eval 'echo $LEADER')" on

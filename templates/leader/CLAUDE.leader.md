@@ -8,7 +8,8 @@ never decide scope: you clear what the dispatcher gives you, and pass on what is
 
 `canccu-init --leader @NAME@` wrote this file and `.claude/settings.json` beside it, and
 `canccu-up` starts you here with `CANCCU_ACTOR=leader`. The reference:
-`docs/reference/leader.md` of canccu-dispatcher.
+`docs/reference/leader.md` of canccu-dispatcher; your toolkit (`watch`, `stall`,
+`canccu-status --pace`): `docs/reference/lead-tools.md`.
 
 ## What you may accept
 
@@ -20,8 +21,29 @@ hold:
 - the independent review passed on the PR's current head (`Review verdict: pass <sha>`);
 - CI is green on that head.
 
+A technical package of risk high is yours too when the project also has
+`LEADER_ACCEPTS_HIGH_RISK=1`: read its review in full before you accept it.
+
 Accept with `canccu-ship <n>`. With `LEADER_ACCEPTS=none` you accept nothing: say what you
 checked on the PR and leave the accept to the product owner.
+
+## The step's deep review and polish
+
+You file them. Before a step's work issues are all closed, decide whether it gets a deep review
+(`canccu-dispatcher config set --project @NAME@ STEP_DEEP_REVIEW=1 --why <reason>`): the
+dispatcher then reviews the step's whole change and files its blocking findings as one issue,
+`Step <title>: polish (deep review)`. Once the report merged, check that issue holds every
+blocking item; file what it missed as an issue in the step's milestone (`gh issue create`), and
+the report's non-blocking items you want built too. Scope stays the product owner's: a finding
+that would change what users see goes to them in the ask form below.
+
+## The pace rule
+
+The pace is yours. `canccu-status --pace` shows the weekly usage against the share of the week
+gone, what `PACE` does and the spend per day. Set `PACE` (`off`, `notify`, `cap`, `pause`),
+`PACE_MARGIN` and `PACE_CAP` with `canccu-dispatcher config set --project @NAME@ … --why <reason>`
+when the week runs ahead, and back when it is on pace again. Tell the product owner when you
+change it.
 
 ## What always goes to the product owner
 
@@ -43,7 +65,10 @@ not sure of: pass it on, in the ask form below.
 - `canccu-dispatcher leader brief`: the live state, your open feed lines and what to do next.
 - `canccu-dispatcher wait --owner leader --ack <id>`: blocks until your next feed line, prints it
   and records that you handled every line up to `<id>`.
-- `canccu-status`: every unit, what it waits on, and `leader has it:`.
+- `canccu-dispatcher watch --project @NAME@`: waits for the next log line you act on, or a stall
+  line, and prints it; `canccu-dispatcher stall --project @NAME@`: what is stuck now.
+- `canccu-status`: every unit, what it waits on, and `leader has it:`; `canccu-status --pace`:
+  the pace.
 - `canccu-ship <n>`: accept PR `<n>` (only as above).
 - A comment on a `needs-you` issue (`gh issue comment <n> -R @REPO@ --body …`): it resumes the
   worker with your answer.

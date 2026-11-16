@@ -176,13 +176,13 @@ ok "no answerer for a blocked unit" not grep -q -- '--key answer-5' "$FAKE/worke
 # ---------------------------------------------------------------- blocked exit, finished work (#25)
 
 # the worker's permission classifier denied a call the run then worked around: the exit report says
-# `blocked`, though the PR is open and green; paused projects review too
+# `blocked`, though the PR is open and green; projects paused with --finish review too
 env_new blocked-exit-pr
 { issue 5 in-progress; } | issues
 p=$(pr 50 5 $HA); printf '%s\n' "$p" | prs
 json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z)"; route 'pr view 50 *' pr50.json
 state 5 phase=work "started=$NOW"; last 5 blocked $'PR ready.\nPR URL: https://github.com/example-org/web/pull/50'
-touch "$CANCCU_HOME/paused"
+echo finish > "$CANCCU_HOME/paused"
 dispatch --once
 ok "a blocked exit with an open PR → the review, no needs-you, paused too" eq "$(st 5 phase)" review
 ok "… no needs-you label" hasnt gh.log "needs-you"
@@ -200,7 +200,7 @@ p=$(pr 50 5 $HA); printf '%s\n' "$p" | prs
 json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z)"; route 'pr view 50 *' pr50.json
 json c5.json '{"comments": []}'; route 'issue view 5 *' c5.json
 state 5 phase=needs-you pr=50 "ny_at=$((NOW - 600))" ny_stage=work "reason=the worker stopped: blocked"
-touch "$CANCCU_HOME/paused"
+echo finish > "$CANCCU_HOME/paused"
 dispatch --once
 ok "needs-you lifted, PR open and green → the review starts" grep -q -- '--key review-50' "$FAKE/worker.log"
 ok "… the worker is not resumed" not started 5
@@ -213,6 +213,63 @@ json c5.json '{"comments": []}'; route 'issue view 5 *' c5.json
 state 5 phase=needs-you pr=50 "ny_at=$((NOW - 600))" ny_stage=work
 dispatch --once
 ok "needs-you still there → nothing happens" eq "$(st 5 phase)" needs-you
+
+# ---------------------------------------------------------------- a pause holds every new run (#215)
+
+resume_cmd() { PATH="$fb:$PATH" "$root/bin/canccu-resume" > /dev/null 2>&1; }
+# the needs-you of lifted-needs-you, paused plainly: the review waits for canccu-resume
+env_new pause-review
+{ issue 5 in-progress; } | issues
+p=$(pr 50 5 $HA); printf '%s\n' "$p" | prs
+json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z)"; route 'pr view 50 *' pr50.json
+json c5.json '{"comments": []}'; route 'issue view 5 *' c5.json
+state 5 phase=needs-you pr=50 "ny_at=$((NOW - 600))" ny_stage=work "reason=the worker stopped: blocked"
+touch "$CANCCU_HOME/paused"
+dispatch --once
+ok "paused: no review starts" eq "$(grep -c -- '--key review-50' "$FAKE/worker.log") $(st 5 phase)" "0 check"
+resume_cmd; dispatch --once
+ok "… after canccu-resume it does" eq "$(grep -c -- '--key review-50' "$FAKE/worker.log")" 1
+# the fix-check of a fix round
+env_new pause-fixcheck
+{ issue 5 in-progress; } | issues
+p=$(pr 50 5 $HB); printf '%s\n' "$p" | prs
+json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z)"; route 'pr view 50 *' pr50.json
+state 5 phase=check pr=50 "check_at=$NOW" stage=fixing reviewed_sha=$HA
+touch "$CANCCU_HOME/paused"
+dispatch --once
+ok "paused: no fix-check starts" eq "$(grep -c -- '--key review-50' "$FAKE/worker.log")" 0
+# a question for the answerer
+env_new pause-answer
+{ issue 5 in-progress; } | issues
+mkdir -p "$CANCCU_HOME/questions"; echo 'Which name?' > "$CANCCU_HOME/questions/5.txt"
+state 5 phase=question
+touch "$CANCCU_HOME/paused"
+dispatch --once
+ok "paused: no answerer starts" eq "$(grep -c -- '--key answer-5' "$FAKE/worker.log") $(st 5 phase)" "0 question"
+# a `changes` verdict of a review that ran before the pause: its fix run waits
+review_env pause-changes 'Review verdict: changes' review
+touch "$CANCCU_HOME/paused"
+dispatch --once
+ok "paused: a changes verdict starts no fix run" eq "$(wc -l < "$FAKE/worker.log") $(st 5 stage)" "0 review"
+resume_cmd; dispatch --once
+ok "… after canccu-resume the fix run starts" grep -q 'web 5 Rules for this run: .* The independent reviewer asked for changes on PR #50' "$FAKE/worker.log"
+# a review that ran before the pause and passed: the merge costs no run, it goes on
+review_env pause-pass 'Review verdict: pass' review
+touch "$CANCCU_HOME/paused"
+dispatch --once
+ok "paused: a running review's pass still merges" has gh.log "pr merge 50 -R example-org/web --auto"
+# plan-ok and needs-work wait too
+for l in plan-ok needs-work; do
+  env_new "pause-$l"
+  { issue 5 "in-progress,needs-you,$l"; } | issues
+  p=$(pr 50 5 $HA); printf '%s\n' "$p" | prs
+  json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z)"; route 'pr view 50 *' pr50.json
+  json c5.json '{"comments": []}'; route 'issue view 5 *' c5.json
+  state 5 phase=needs-you pr=50 "ny_at=$((NOW - 600))" ny_stage=work
+  touch "$CANCCU_HOME/paused"
+  dispatch --once
+  ok "paused: $l resumes no worker" eq "$(wc -l < "$FAKE/worker.log")" 0
+done
 
 echo "canccu-waits tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

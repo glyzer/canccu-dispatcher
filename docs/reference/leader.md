@@ -27,14 +27,19 @@ the leader or a run, it is refused (`LEADER` is locked) and writes nothing. The 
 
 - `CLAUDE.md`, from `templates/leader/CLAUDE.leader.md`: the role (the leader of one project; the
   product owner decides scope and accepts what users see), what it may accept (a technical PR
-  after a passed review and green CI, with `LEADER_ACCEPTS=technical`), what always goes to the
-  product owner (contracts §1, rule 4), its commands (`canccu-dispatcher leader brief`,
-  `canccu-dispatcher wait --owner leader --ack <id>`, `canccu-status`, `canccu-ship <n>`,
-  comments on needs-you issues), how it waits ([the feed](#the-feed), acking each line, the
-  60-minute hand-over), the ask form for what it passes to you, and its limits;
+  after a passed review and green CI, with `LEADER_ACCEPTS=technical`; a high-risk one too with
+  `LEADER_ACCEPTS_HIGH_RISK=1`), what always goes to the product owner (contracts §1, rule 4),
+  the step's deep review and polish it files (`STEP_DEEP_REVIEW`, the
+  [polish issue](steps.md#deep-review-and-polish) checked, what it missed filed), the pace rule it
+  owns (`PACE`, `PACE_MARGIN`, `PACE_CAP`, read with `canccu-status --pace`), its commands
+  (`canccu-dispatcher leader brief`, `canccu-dispatcher wait --owner leader --ack <id>`,
+  `canccu-dispatcher watch` and `stall` ([the toolkit](lead-tools.md)), `canccu-status`,
+  `canccu-ship <n>`, comments on needs-you issues), how it waits ([the feed](#the-feed), acking
+  each line, the 60-minute hand-over), the ask form for what it passes to you, and its limits;
 - `.claude/settings.json`, from `templates/leader/settings.json`: Claude's permissions. They deny
   reading the project's `REVIEWER_TOKEN_FILE`, `git push --force` (and `-f`), `git rebase` and
-  `gh pr merge`, and allow the commands above without a prompt.
+  `gh pr merge`, and allow the commands above without a prompt: `config set` only for `PACE*`
+  and `STEP_DEEP_REVIEW`, and `gh issue create`.
 
 The kit is yours to edit once written; to start again from the templates, remove it and run
 `canccu-init --leader` again (`LEADER` stays `on`). `canccu-up` reads `LEADER` when it creates the
@@ -147,6 +152,9 @@ ack=0; while l=$(canccu-dispatcher wait --owner leader --ack "$ack"); do ack=$(c
 | `step-done` | A step is done (class `info`) | Nothing |
 | `handover` | A leader's item went unacknowledged for 60 minutes and is now the product owner's | The product owner clears it as the item it replaces |
 | `closed` | An item no longer waits (class `info`) | Nothing: drop the item it closes |
+
+`canccu-dispatcher watch` waits for the log lines the leader acts on, `stall` names what is stuck,
+`canccu-status --pace` shows the pace: [`lead-tools.md`](lead-tools.md).
 
 `Follow-up:` and `Roadmap note:` lines from the step's PRs land in the digest and the checkpoint
 summary: the leader turns the ones you want into issues.

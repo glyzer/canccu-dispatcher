@@ -60,6 +60,17 @@ ok "plan: a bad or reserved name"       eq "$(pv bad-name | jq -r '.errors | joi
 ok "plan: an unknown dependency"        eq "$(pv unknown-dep | jq -r '.errors[0]')" "event-list depends on unknown package nope"
 ok "plan: a self dependency"            eq "$(pv self-dep | jq -r '.errors[0]')" "a depends on itself"
 ok "plan: a left-out issue is no error" eq "$(pv left-out | jq -c '[.errors, .left_out]')" "[[],[107]]"
+# a package's planned lines (#216 D10): optional, a whole number of 1 or more
+pvl() { jq --argjson l "$1" '.packages[0].lines = $l' "$root/tests/fixtures/plans/valid.json" > "$T/lines.json"
+        lib plan_validate "$T/lines.json" "$(cat "$root/tests/fixtures/plans/input.json")" 12 2 | jq -r '.errors | join("; ")'; }
+ok "plan: lines 800 validates" eq "$(pvl 800)" ""
+ok "plan: the name deep is reserved (the deep review's unit)" \
+  eq "$(jq '.packages[0].name = "deep"' "$root/tests/fixtures/plans/valid.json" > "$T/deep.json"; lib plan_validate "$T/deep.json" "$(cat "$root/tests/fixtures/plans/input.json")" 12 2 | jq -r '.errors[0]')" 'package 1: bad name "deep"'
+ok "plan: lines 0 is rejected" eq "$(pvl 0)" "auth-flow: lines is not a whole number of 1 or more"
+ok "plan: lines as a string is rejected" eq "$(pvl '"800"')" "auth-flow: lines is not a whole number of 1 or more"
+ok "plan: lines 1.5 is rejected" eq "$(pvl 1.5)" "auth-flow: lines is not a whole number of 1 or more"
+ok "the planner asks for lines with BUDGET_LINES > 0" grep -qF 'Give each package "lines": your estimate of its changed lines.' <<<"$(lib eval 'BUDGET_LINES=500; planner_prompt 12 1 "101"')"
+ok "… not with 0" not grep -qF 'Give each package "lines"' <<<"$(lib eval 'BUDGET_LINES=0; planner_prompt 12 1 "101"')"
 ok "plan: a fenced file is not JSON"    eq "$(pv fenced | jq -r '.errors[0]')" "not JSON"
 ok "plan (#54 review): a file of two plans is not one plan" \
   eq "$(cat "$root/tests/fixtures/plans/valid.json" "$root/tests/fixtures/plans/valid.json" > "$T/twice.json"
