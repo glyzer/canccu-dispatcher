@@ -873,6 +873,13 @@ ppenv pp-big $HA $HA $HB $'80\t21\tsrc/a.ts'
 dispatch --once
 ok "pass, then a push of more than FIXCHECK_FULL_LINES lines → full review" grep -q 'You are the independent reviewer' "$FAKE/worker.log"
 ok "… logged with the count" grep -qF "full review (101 changed lines, over FIXCHECK_FULL_LINES=100)" "$CANCCU_HOME/dispatch.log"
+# REVIEW_LIGHT=1, a normal package: the full review the push escalated to stays a full one
+ppenv pp-big-light $HA $HA $HB $'80\t21\tsrc/a.ts'
+echo REVIEW_LIGHT=1 >> "$CANCCU_HOME/rules"; printf 'pkg=a\nmembers=5\nrisk=normal\nrisk_reason=plain code\n' >> "$CANCCU_HOME/state/5"
+json files50.json '[{"filename": "src/a.ts", "changes": 101}]'; route 'api --paginate repos/example-org/web/pulls/50/files*' files50.json
+dispatch --once
+ok "… with REVIEW_LIGHT=1 for a normal package: still a full review, never a light one" \
+  eq "$(grep -c 'Run the code-review skill' "$FAKE/worker.log") $(grep -c 'This is a light review' "$FAKE/worker.log")" "1 0"
 ppenv pp-limit $HA $HA $HB $'80\t20\tsrc/a.ts'
 dispatch --once
 ok "… exactly FIXCHECK_FULL_LINES lines → still a fix-check" grep -qF "fixcheck#50 " "$FAKE/worker.log"

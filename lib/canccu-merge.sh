@@ -369,7 +369,9 @@ postpass_step() {
   if [ -n "$(reviewer_token_problem)" ]; then room || return 0; else room "$n" || return 0; fi
   why=$(postpass_full "$base" "$head")
   if [ -n "$why" ]; then
-    log "#$n PR #$pr: push after the pass; full review ($why)"; start_review "$pr" "$n" "$head"
+    # asked for (review_asked), so REVIEW_LIGHT never makes it a light one: the change is big,
+    # gated or risky
+    log "#$n PR #$pr: push after the pass; full review ($why)"; st_set "$n" review_asked=1; start_review "$pr" "$n" "$head"
   else
     log "#$n PR #$pr: push after the pass; fix-check of ${base:0:7}..${head:0:7}"; start_reviewer "$pr" "$n" "$head" postpass "$base"
   fi

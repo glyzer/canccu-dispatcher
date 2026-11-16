@@ -11,7 +11,8 @@
 LIGHT_REVIEW_TEXT='This is a light review: do not run the code-review skill. Check exactly this: 1. the change is sensible for its issues; 2. each issue of the package is done (every acceptance criterion of every linked issue); 3. every new behaviour has a test that would fail if it broke, and no test was skipped, emptied or weakened; 4. obvious bugs in the changed lines; 5. code and contracts agree (the names, defaults, texts and formats the issues and the repo'"'"'s docs fix); 6. no TODO, stub or debug code left, and no work outside the package; 7. tripwires: a secret or a private name is a blocking security finding; a new dependency or risky code (@HIGH_RISK_TEXT@) makes your Risk: line high.'
 
 # review_light_class <pr> <K>: prints the unit's risk class and returns 0 when its full review is
-# light: REVIEW_LIGHT=1, no full review asked for (review_asked), a package that is no step run,
+# light: REVIEW_LIGHT=1, no full review asked for (review_asked: the lead's, a light upgrade's, or
+# postpass_step's escalation of a push after a pass), a package that is no step run,
 # its effective class low or normal, and no path (a rename's old one too) gated or agent
 # configuration. A gh error reading the paths → not light.
 review_light_class() {
