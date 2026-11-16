@@ -514,12 +514,16 @@ start_reviewer() {
     # the PR's paths, read once for both light checks; a gh error makes neither light
     paths=""
     if [ -n "$REVIEW_MODEL_LIGHT" ] || [ "${REVIEW_LIGHT:-0}" = 1 ]; then paths=$(pr_files "$pr") || paths=""; fi
-    # the light model's review is a medium one, whatever the size: its paths are light by choice
-    if review_light "$pr" "$mode" "$paths"; then light=1; read -r effort capped <<<"$(effort_cap medium)"
-    else read -r effort capped <<<"$(review_effort "$pr" "$n")"; fi
+    review_light "$pr" "$mode" "$paths" && light=1
+    # review_effort reads the PR's files and comments again: only a full review that is not light needs it
     if lrisk=$(review_light_class "$pr" "$n" "$paths"); then
       read -r effort capped <<<"$(effort_cap low)"; prompt=$(light_review_prompt "$pr" "$n" "$sha" "$f")
-    else prompt=$(review_prompt "$pr" "$n" "$sha" "$f" "$effort"); fi
+    else
+      # the light model's review is a medium one, whatever the size: its paths are light by choice
+      if (( light )); then read -r effort capped <<<"$(effort_cap medium)"
+      else read -r effort capped <<<"$(review_effort "$pr" "$n")"; fi
+      prompt=$(review_prompt "$pr" "$n" "$sha" "$f" "$effort")
+    fi
   fi
   (( CANCCU_DRY )) || { mkdir -p "${f%/*}" && rm -f "$f"; } || { log "PR #$pr: cannot prepare $f"; return 1; }
   model=$(review_model "$mode" "$light")

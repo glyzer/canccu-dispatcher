@@ -66,6 +66,13 @@ pvl() { jq --argjson l "$1" '.packages[0].lines = $l' "$root/tests/fixtures/plan
 ok "plan: lines 800 validates" eq "$(pvl 800)" ""
 ok "plan: the name deep is reserved (the deep review's unit)" \
   eq "$(jq '.packages[0].name = "deep"' "$root/tests/fixtures/plans/valid.json" > "$T/deep.json"; lib plan_validate "$T/deep.json" "$(cat "$root/tests/fixtures/plans/input.json")" 12 2 | jq -r '.errors[0]')" 'package 1: bad name "deep"'
+# a cadence round's branch is pkg-<m>-deep-r<r>: a package of that name would share it
+for x in deep-r1 deep-r12; do
+  ok "plan: the reserved name $x" \
+    eq "$(jq --arg x "$x" '.packages[0].name = $x' "$root/tests/fixtures/plans/valid.json" > "$T/deep.json"; lib plan_validate "$T/deep.json" "$(cat "$root/tests/fixtures/plans/input.json")" 12 2 | jq -r '.errors[0]')" "package 1: bad name \"$x\""
+done
+ok "plan: deep-review and deep-r are no round branch, so allowed" \
+  eq "$(for x in deep-review deep-r; do jq --arg x "$x" '.packages[0].name = $x' "$root/tests/fixtures/plans/valid.json" > "$T/deep.json"; lib plan_validate "$T/deep.json" "$(cat "$root/tests/fixtures/plans/input.json")" 12 2 | jq -r '[.errors[] | select(test("bad name"))] | length'; done | paste -sd' ')" "0 0"
 ok "plan: lines 0 is rejected" eq "$(pvl 0)" "auth-flow: lines is not a whole number of 1 or more"
 ok "plan: lines as a string is rejected" eq "$(pvl '"800"')" "auth-flow: lines is not a whole number of 1 or more"
 ok "plan: lines 1.5 is rejected" eq "$(pvl 1.5)" "auth-flow: lines is not a whole number of 1 or more"
