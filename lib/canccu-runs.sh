@@ -414,13 +414,13 @@ review_light_pure() {
   done
   return 1
 }
-# review_light <pr> <mode>: 0 when the review runs on REVIEW_MODEL_LIGHT: a full review (never a
-# fix-check), the setting set, and the PR's paths (a rename's old path too) light. No gh call
-# when the setting is empty; a gh error → not light.
+# review_light <pr> <mode> [paths]: 0 when the review runs on REVIEW_MODEL_LIGHT: a full review
+# (never a fix-check), the setting set, and the PR's paths (a rename's old path too; read here
+# when not given) light. No gh call when the setting is empty; a gh error → not light.
 review_light() {
   local paths
   [ -n "$REVIEW_MODEL_LIGHT" ] && ! is_fixcheck_mode "$2" || return 1
-  paths=$(ghj api --paginate "repos/$REPO/pulls/$1/files" -q '.[] | .filename, (.previous_filename // empty)') || return 1
+  if (( $# > 2 )); then paths=$3; else paths=$(pr_files "$1") || return 1; fi
   review_light_pure "$paths"
 }
 
@@ -498,7 +498,7 @@ reviewer_refused() {
 }
 
 start_reviewer() {
-  local pr=$1 n=$2 sha=$3 mode=$4 rsha=${5:-} wt turns cost mins prompt f effort capped model name what light=0 lrisk=""
+  local pr=$1 n=$2 sha=$3 mode=$4 rsha=${5:-} wt turns cost mins prompt f effort capped model name what light=0 lrisk="" paths
   reviewer_refused && return 1
   wt=$(review_wt "$pr") f=$(review_file "$pr" "$sha")
   if is_fixcheck_mode "$mode"; then read -r turns cost mins <<<"$BUDGET_FIXCHECK"; name="fixcheck#$pr" what=fix-check
@@ -511,10 +511,13 @@ start_reviewer() {
   if is_fixcheck_mode "$mode"; then read -r effort capped <<<"$(fixcheck_effort "$rsha" "$sha")"
     prompt=$(fixcheck_prompt "$pr" "$n" "$rsha" "$sha" "$f" "$effort" "$(cat "$(findings_file "$pr" "$rsha")" 2>/dev/null)" "$mode")
   else
+    # the PR's paths, read once for both light checks; a gh error makes neither light
+    paths=""
+    if [ -n "$REVIEW_MODEL_LIGHT" ] || [ "${REVIEW_LIGHT:-0}" = 1 ]; then paths=$(pr_files "$pr") || paths=""; fi
     # the light model's review is a medium one, whatever the size: its paths are light by choice
-    if review_light "$pr" "$mode"; then light=1; read -r effort capped <<<"$(effort_cap medium)"
+    if review_light "$pr" "$mode" "$paths"; then light=1; read -r effort capped <<<"$(effort_cap medium)"
     else read -r effort capped <<<"$(review_effort "$pr" "$n")"; fi
-    if lrisk=$(review_light_class "$pr" "$n"); then
+    if lrisk=$(review_light_class "$pr" "$n" "$paths"); then
       read -r effort capped <<<"$(effort_cap low)"; prompt=$(light_review_prompt "$pr" "$n" "$sha" "$f")
     else prompt=$(review_prompt "$pr" "$n" "$sha" "$f" "$effort"); fi
   fi

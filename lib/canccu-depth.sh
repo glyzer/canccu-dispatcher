@@ -10,16 +10,16 @@
 # the checklist of a light review, word for word (issue #216); HIGH_RISK_TEXT goes in at use
 LIGHT_REVIEW_TEXT='This is a light review: do not run the code-review skill. Check exactly this: 1. the change is sensible for its issues; 2. each issue of the package is done (every acceptance criterion of every linked issue); 3. every new behaviour has a test that would fail if it broke, and no test was skipped, emptied or weakened; 4. obvious bugs in the changed lines; 5. code and contracts agree (the names, defaults, texts and formats the issues and the repo'"'"'s docs fix); 6. no TODO, stub or debug code left, and no work outside the package; 7. tripwires: a secret or a private name is a blocking security finding; a new dependency or risky code (@HIGH_RISK_TEXT@) makes your Risk: line high.'
 
-# review_light_class <pr> <K>: prints the unit's risk class and returns 0 when its full review is
+# review_light_class <pr> <K> [paths]: prints the unit's risk class and returns 0 when its full review is
 # light: REVIEW_LIGHT=1, no full review asked for (review_asked: the lead's, a light upgrade's, or
 # postpass_step's escalation of a push after a pass), a package that is no step run,
 # its effective class low or normal, and no path (a rename's old one too) gated or agent
-# configuration. A gh error reading the paths → not light.
+# configuration. The paths are read here when not given; a gh error reading them → not light.
 review_light_class() {
   local pr=$1 k=$2 paths body risk
   [ "${REVIEW_LIGHT:-0}" = 1 ] && [ -n "$k" ] && [ -z "$(st_get "$k" review_asked)" ] || return 1
   [ -n "$(st_get "$k" pkg)" ] && ! is_step_run "$k" || return 1
-  paths=$(ghj api --paginate "repos/$REPO/pulls/$pr/files" -q '.[] | .filename, (.previous_filename // empty)') || return 1
+  if (( $# > 2 )); then paths=$3; else paths=$(pr_files "$pr") || return 1; fi
   grep -q . <<<"$paths" || return 1
   # grep 2 (a bad gated regex) must not read as "nothing gated"
   grep -qE "$(gated_re)" <<<"$paths" && return 1; (( $? == 1 )) || return 1
