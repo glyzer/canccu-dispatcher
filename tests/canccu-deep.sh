@@ -106,6 +106,18 @@ dpass
 ok "the polish issue closed → the health pass starts, no second deep review" \
   eq "$(grep -c -- '--key pkg-12-health' "$FAKE/worker.log") $(grep -c -- '--key pkg-12-deep' "$FAKE/worker.log")" "1 0"
 
+# the first polish create fails: the retry files it from deep_tick, and the same pass's stale
+# snapshot (no open work) must not start the health pass with the polish issue open
+merged deep-polish-retry 'the cache is never cleared'
+echo 'fail:issue create' >> "$FAKE/routes"
+dpass
+ok "the polish create fails → read again next pass, no health pass" \
+  eq "$(sf deep) $(sf phase) $(grep -c -- '--key pkg-12-health' "$FAKE/worker.log")" "read deep 0"
+sed -i '/^fail:issue create$/d' "$FAKE/routes"
+dpass
+ok "… the retry files it; the same pass starts no health pass" \
+  eq "$(sf deep) $(sf polish) $(sf phase) $(grep -c -- '--key pkg-12-health' "$FAKE/worker.log")" "merged 900 idle 0"
+
 merged deep-clean
 dpass
 ok "a report with nothing blocking → no issue, the health pass follows" \

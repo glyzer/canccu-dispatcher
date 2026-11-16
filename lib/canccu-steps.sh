@@ -498,7 +498,9 @@ step_tick() {
       elif wave_rolls "$m"; then step_set "$m" phase=idle; log "step $(step_title "$m"): wave $(step_get "$m" wave) rolls on; planning the next one"; fi ;;
     # an accept that came after the wave was over lets a dependant start: the wave goes on
     idle) wave_can_start "$m" && { step_set "$m" phase=running; log "step $(step_title "$m"): wave $(step_get "$m" wave) goes on"; } ;;
-    deep) deep_tick "$m" ;;
+    # a polish issue filed just now is not in this pass's snapshot (work_open 0): the health
+    # pass would start with it open, so the step waits for the next pass's snapshot
+    deep) deep_tick "$m"; [ "$(step_get "$m" phase)" = idle ] && return 0 ;;
     health|checkpoint) checkpoint_tick "$m" ;;
   esac
   ph=$(step_get "$m" phase)
