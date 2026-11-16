@@ -22,9 +22,23 @@ j=$(pr_detail "$pr") || die "gh error reading PR #$pr"
 [ "$(jqr .state <<<"$j")" = OPEN ] || die "PR #$pr is not open"
 # a work package's PR (its branch names it), else the issue it is for: closed, or planned by a
 # plan-only PR ("Plan for #n"), or named by its branch
-n=$(unit_of_branch "$(jqr '.headRefName // ""' <<<"$j")")
-[ -n "$n" ] || n=$(pr_issues "$j" | head -1)
-[ -n "$n" ] || die "PR #$pr is for no issue (no Closes #n, Plan for #n or branch <n>-…)"
-why=$(pr_not_ours "$j" "$n"); [ -z "$why" ] || die "refused: not ours: $why"
+br=$(jqr '.headRefName // ""' <<<"$j")
+n=$(unit_of_branch "$br")
+if [ -n "$n" ]; then
+  why=$(pr_not_ours "$j" "$n")
+else
+  # pr_issues comes sorted, so its first is the lowest, not the PR's own (#220): the issue the
+  # branch names goes first, its refusal is the one to show; then each other in turn, as not_ours
+  issues=$(pr_issues "$j")
+  [ -n "$issues" ] || die "PR #$pr is for no issue (no Closes #n, Plan for #n or branch <n>-…)"
+  [[ $br =~ ^(issue-)?([0-9]+)(-|$) ]] && grep -qx "${BASH_REMATCH[2]}" <<<"$issues" &&
+    issues=$(printf '%s\n' "${BASH_REMATCH[2]}"; grep -vx "${BASH_REMATCH[2]}" <<<"$issues")
+  why=""
+  for k in $issues; do
+    w=$(pr_not_ours "$j" "$k"); [ -z "$w" ] && { n=$k; why=""; break; }
+    [ -n "$why" ] || why=$w
+  done
+fi
+[ -z "$why" ] || die "refused: not ours: $why"
 start_review "$pr" "$n" "$(jqr .headRefOid <<<"$j")" ||
   die "the reviewer did not start; see $CANCCU_HOME/dispatch.log"

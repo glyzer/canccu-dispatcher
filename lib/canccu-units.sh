@@ -8,6 +8,8 @@
 
 is_pkg() { [[ $1 == pkg-* ]]; }
 is_health() { is_pkg "$1" && [ "$(st_get "$1" health)" = 1 ]; }
+# is_step_run <K>: a run of the step's end (the health pass, the deep review), not a package of its issues
+is_step_run() { is_health "$1" || is_deep "$1"; }
 # _issue_open <n>: the issue is in this pass's open list
 _issue_open() { jqr --argjson n "$1" 'any(.[]; .number == $n)' <<<"$ISSUES" | grep -qx true; }
 
@@ -22,7 +24,7 @@ members_of() {
 lead_of() {
   local k=$1 m
   is_pkg "$k" || { echo "$k"; return 0; }
-  if is_health "$k"; then step_issue "$(st_get "$k" step)"; return 0; fi
+  if is_step_run "$k"; then step_issue "$(st_get "$k" step)"; return 0; fi
   for m in $(members_of "$k"); do _issue_open "$m" && { echo "$m"; return 0; }; done
   members_of "$k" | head -1
 }
@@ -40,7 +42,7 @@ unit_of_issue() {
 unit_open() {
   local k=$1 m pr
   is_pkg "$k" || { _issue_open "$k"; return; }
-  if is_health "$k"; then
+  if is_step_run "$k"; then
     [ "$(st_get "$k" skipped)" = 1 ] && return 1
     pr=$(st_get "$k" pr); [ -n "$pr" ] || return 0
     pr_is_open "$pr" && return 0
@@ -54,6 +56,7 @@ unit_branch() { st_get "$1" branch; }
 unit_window() {
   if ! is_pkg "$1"; then echo "#$1"
   elif is_health "$1"; then echo "health#$(st_get "$1" step)"
+  elif is_deep "$1"; then echo "deep#$(st_get "$1" step)"
   else echo "pkg#$(st_get "$1" pkg)"; fi
 }
 # unit_wt <K>: its worktree (the engine makes issue-<n>; the dispatcher makes a package's)
@@ -76,6 +79,7 @@ _unit_title() {
   local k=$1 l c
   is_pkg "$k" || { jqr --argjson n "$k" '.[] | select(.number == $n) | .title' <<<"$ISSUES"; return; }
   if is_health "$k"; then echo "health pass: $(step_get "$(st_get "$k" step)" title)"; return; fi
+  if is_deep "$k"; then echo "deep review: $(step_get "$(st_get "$k" step)" title)"; return; fi
   l=$(lead_of "$k"); c=$(members_of "$k" | grep -c .)
   echo "package $(st_get "$k" pkg): $(jqr --argjson n "${l:-0}" '.[] | select(.number == $n) | .title' <<<"$ISSUES")$( (( c > 1 )) && echo " (+$((c - 1)))")"
 }
@@ -90,6 +94,17 @@ pkg_budget() {
 }
 # unit_size <K>: how many issues the unit covers (1 for an issue or the health pass)
 unit_size() { local c; c=$(members_of "$1" | grep -c .); echo $(( c > 0 ? c : 1 )); }
+# budget_factor <K>: what pkg_budget multiplies the package's budgets by: its issue count, or with
+# BUDGET_LINES=N > 0 its planned changed lines (plan_lines) over N, rounded up, when that is more.
+# One big issue can be as much work as several small ones.
+budget_factor() {
+  local c l n=${BUDGET_LINES:-0}
+  c=$(unit_size "$1") l=$(st_get "$1" plan_lines)
+  if [[ $n =~ ^[0-9]+$ ]] && (( n > 0 )) && [[ $l =~ ^[1-9][0-9]{0,8}$ ]]; then
+    l=$(( (l + n - 1) / n )); (( l > c )) && c=$l
+  fi
+  echo "$c"
+}
 # unit_of_branch <branch>: the managed package whose branch it is (or its contract branch,
 # is_contract_pr), else nothing
 unit_of_branch() {

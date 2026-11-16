@@ -86,6 +86,7 @@ keeps `FIXCHECK_MODEL`; a retry of the review file keeps the model the review st
 A finding fixed or answered earlier is not raised again, and a full review after a pass blocks on
 nothing the commits since left alone, except a security bug: the history, the prompts and the
 dispatcher's check are in [`findings.md`](findings.md#no-repeats).
+A head that passed is not reviewed again: [`review-depth.md`](review-depth.md).
 
 ## Fix-check
 
@@ -122,7 +123,9 @@ one more fix round: the worker follows up (a fresh session unless `RESUME_ON` na
 fix-check's PR comment when the items were not saved), then a fix-check of `<open_sha>..<new
 head>` runs against them; each of your comments counts as a blocking item. A line in your
 comment that is just `full review` (any case; `*`, `_`, backticks and a final `.` or `!`
-allowed) asks for a new full review instead, as does a `needs-work` on a refused accept.
+allowed) asks for a new full review instead, as does a `needs-work` on a refused accept (or
+with a kept `Maintainer accept:` or `Risk: high`). Any other plain `needs-work` answered with no
+push reuses the earlier pass: that head is not reviewed again.
 
 **A push after a pass** (a new head after a review or fix-check passed, outside a fix round): if
 every commit since the passed sha is a merge of `origin/main` that git would have made the same
@@ -135,7 +138,8 @@ since that review, when they touch a gated or `RISKY_PATHS`/`FIXCHECK_RISKY` pat
 diff cannot be read. The count leaves out what a merge of main brought in: it starts from the
 merge git itself makes of that review's head with main, so only the PR's own lines are left
 (`FIXCHECK_COUNT_MAIN=1`: main's lines in the PR's files count too). When that merge conflicts,
-the worker resolved it by hand and the whole change since that review counts. A pass of that
+the worker resolved it by hand and the whole change since that review counts
+(`FIXCHECK_COUNT_RESOLVED=1`: only the resolved hunks, [`review-depth.md`](review-depth.md#the-count-after-a-merge-of-main)). A pass of that
 fix-check counts like a review's pass.
 
 ## The verdict line

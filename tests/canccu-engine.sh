@@ -288,5 +288,21 @@ ok "… its message lists them as information" \
 ok "… and no longer says blocked" not grep -q 'Blocked by the permission classifier' "$WORKERS_DIR/web-46.last"
 cp "$T/claude.orig" "$fb/claude"
 
+# ---------------------------------------------------------------- a pause holds the engine (#215)
+
+env_new pause-engine
+touch "$CANCCU_HOME/paused"
+ok "paused: engine refuses each start with 1, and the project wants no slot" \
+  eq "$(lib eval 'engine "worker #7" 7 --key 7 web x >/dev/null; a=$?; engine "worker #8" 8 --key 8 web y >/dev/null; echo "$a $? ${#WANT_KEYS[@]}"')" "1 1 0"
+ok "… logged once per pause" eq "$(grep -c 'project is paused' "$CANCCU_HOME/dispatch.log")" 1
+ok "… with the first refusal's text" grep -qF 'could not start worker #7: the project is paused (canccu-resume to continue)' "$CANCCU_HOME/dispatch.log"
+ok "… nothing ran" eq "$(wc -l < "$FAKE/worker.log")" 0
+PATH="$fb:$PATH" "$root/bin/canccu-resume" > /dev/null 2>&1; touch "$CANCCU_HOME/paused"
+lib engine "worker #9" 9 --key 9 web z
+ok "canccu-resume clears the marker: the next pause logs again" eq "$(grep -c 'project is paused' "$CANCCU_HOME/dispatch.log")" 2
+echo finish > "$CANCCU_HOME/paused"
+lib engine "worker #9" 9 --key 9 web z
+ok "paused with --finish: the engine starts runs" eq "$(grep -c -- '--key 9' "$FAKE/worker.log")" 1
+
 echo "canccu-engine tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
