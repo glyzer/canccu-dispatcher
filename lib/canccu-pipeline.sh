@@ -372,7 +372,8 @@ resume_step() {
     history_answer "$pr"; edit_issue "$n" --remove-label needs-work
     has_label "$n" awaiting-accept && edit_issue "$n" --remove-label awaiting-accept
     new_cycle "$n"
-    # kept until the review starts: it holds for the next head, even the same one (check_pr)
+    # kept until the full review's verdict is acted on: it holds for the next head, even the same
+    # one, and through a review run that ends with no verdict (check_pr)
     full_review_asked "$c" && st_set "$n" review_asked=1
   elif [ "$phase" = needs-you ]; then
     c=$(user_comments "$n" "$pr" "$(st_get "$n" ny_at)")

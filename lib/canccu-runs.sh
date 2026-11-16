@@ -541,9 +541,11 @@ start_reviewer() {
     st_set "$n" phase=review pr="$pr" review_sha="$sha" started="$(now)" posted= \
       review_mode="$mode" post_fails= post_to=
     # a full review started by hand after the findings were given does not restart the flow
-    # postpass too: its `changes` takes the fix-check's path (needs-you with the open items)
+    # postpass too: its `changes` takes the fix-check's path (needs-you with the open items).
+    # review_asked stays: a run that ends with no verdict (usage limit) must not let check_pr
+    # reuse an earlier pass of the head; act_verdict clears it on the full review's verdict
     if is_fixcheck_mode "$mode"; then st_set "$n" stage=fixcheck
-    else st_set "$n" review_asked=; case $(st_get "$n" stage) in fixing|fixcheck) ;; *) st_set "$n" stage=review ;; esac; fi
+    else case $(st_get "$n" stage) in fixing|fixcheck) ;; *) st_set "$n" stage=review ;; esac; fi
     claim_color "$n"; paint_window "$name" "$n"
   fi
   log "#$n PR #$pr: $what started at ${sha:0:7}${rsha:+ (fix diff ${rsha:0:7}..${sha:0:7})} ($effort effort, ${model:-the account default})"

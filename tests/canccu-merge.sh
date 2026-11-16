@@ -886,7 +886,12 @@ rm -f "$WORKERS_DIR/web-5.lock"; last 5 "done" 'nothing to change'
 { issue 5 in-progress; } | issues; : > "$FAKE/worker.log"
 dispatch --once
 ok "… the worker pushed nothing: one full review of that head" eq "$(grep -c -- "--key review-50" "$FAKE/worker.log") $(dlog 'passed review already')" "1 0"
-ok "… review_asked is cleared once it starts" eq "$(st 5 review_asked)" ""
+ok "… review_asked is kept while it runs" eq "$(st 5 review_asked)" 1
+# that review ends at the usage limit with no verdict: the pass in reviews.log is still not reused
+rm -f "$WORKERS_DIR/web-review-50.lock"; last review-50 error "Claude AI usage limit reached|$((NOW + 3600))"
+dispatch --once; echo $((NOW - 1)) > "$CANCCU_ROOT/backoff"; dispatch --once
+ok "… it ends at the usage limit: the full review starts again, no verdict reused" \
+  eq "$(grep -c -- "--key review-50" "$FAKE/worker.log") $(dlog 'passed review already') $(st 5 review_asked)" "2 0 1"
 
 echo "canccu-merge tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

@@ -308,8 +308,9 @@ act_verdict() {
   # before pass_sha moves: the posted verdict was decided in the same context (reap_review)
   review_ctx "$n" "$pr" "$head"
   what=review; is_fixcheck_mode "$mode" && what=fix-check
-  # a push after a pass is checked against these (postpass_step)
-  case $v in pass|changes) is_fixcheck_mode "$mode" || st_set "$n" full_sha="$head" ;; esac
+  # a push after a pass is checked against these (postpass_step); a full review's verdict is the
+  # one a `full review` ask or a light upgrade waited for (light_upgrade may ask again below)
+  case $v in pass|changes) is_fixcheck_mode "$mode" || st_set "$n" full_sha="$head" review_asked= ;; esac
   # non-blocking findings never reach the worker: they go to the wave's follow-up issue
   case $v in pass|changes) body=$(verdict_body "$j"); collect_nonblocking "$n" "$pr" "$head" "$body" "$at"
       history_record "$n" "$pr" "$head" "$body" "$at"; blocking_note "$n" "$body" "$at" "$head" ;; esac

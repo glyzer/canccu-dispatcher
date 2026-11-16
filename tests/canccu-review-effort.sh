@@ -270,12 +270,23 @@ ok "a light pass with Risk: high → logged" grep -qF "#101 PR #50: the light re
 ok "… a full review of the same head starts, not a light one" \
   eq "$(grep -c -- '--key review-50' "$FAKE/worker.log") $(grep -c 'Run the code-review skill' "$FAKE/worker.log") $(grep -c 'This is a light review' "$FAKE/worker.log") $(cat "$CANCCU_HOME/reviews/50.sha")" "1 1 0 $HA"
 ok "… no merge on the light pass" hasnt gh.log "pr merge 50"
-ok "… the light mark and the ask are gone once it runs" eq "$([ -e "$CANCCU_HOME/reviews/50.light" ] && echo light)[$(st 101 review_asked)]" "[]"
+ok "… the light mark is gone once it runs; the ask holds until its verdict" eq "$([ -e "$CANCCU_HOME/reviews/50.light" ] && echo light)[$(st 101 review_asked)]" "[1]"
 rm -f "$WORKERS_DIR/web-review-50.lock"
 jq --argjson c "$(vcomment 2030-11-05T11:30:00Z $'Risk: normal — fine\n\nReview verdict: pass '"$HA")" '.comments += [$c]' "$FAKE/pr50.json" > "$FAKE/x" && mv "$FAKE/x" "$FAKE/pr50.json"
 dispatch --once
-ok "… its pass is acted on: merge or accept, no third review" \
-  eq "$(grep -c -- '--key review-50' "$FAKE/worker.log") $(case $(st 101 phase) in accept|merging) echo acted ;; *) st 101 phase ;; esac)" "1 acted"
+ok "… its pass is acted on: merge or accept, no third review; the ask is cleared" \
+  eq "$(grep -c -- '--key review-50' "$FAKE/worker.log") $(case $(st 101 phase) in accept|merging) echo acted ;; *) st 101 phase ;; esac) [$(st 101 review_asked)]" "1 acted []"
+# the upgraded full review ends at the usage limit without a verdict: the ask holds, so the light
+# pass in reviews.log is not reused; the full review starts again after the back-off
+lightenv light-up-limit $'Risk: high — a new dependency\n\nReview verdict: pass '"$HA"
+printf '%s\nReview verdict: pass %s\n' "$VB0" "$HA" > "$E/light.md"; lib reviews_log 101 50 "$HA" "$E/light.md"
+dispatch --once
+rm -f "$WORKERS_DIR/web-review-50.lock"; last review-50 error "Claude AI usage limit reached|$((NOW + 3600))"
+dispatch --once
+ok "the asked-for full review hits the usage limit: back to check, the ask kept" eq "$(st 101 phase) $(st 101 review_asked)" "check 1"
+echo $((NOW - 1)) > "$CANCCU_ROOT/backoff"; dispatch --once
+ok "… after the back-off the full review starts again, the light pass not reused" \
+  eq "$(grep -c -- '--key review-50' "$FAKE/worker.log") $(grep -c 'This is a light review' "$FAKE/worker.log") $(grep -c 'verdict reused' "$CANCCU_HOME/dispatch.log") $(grep -c 'pr merge 50' "$FAKE/gh.log")" "2 0 0 0"
 # the full review finds no slot: no merge meanwhile; it starts once a slot is free
 lightenv light-up-slot $'Risk: high — a new dependency\n\nReview verdict: pass '"$HA"
 echo "CAP=1" >> "$CANCCU_HOME/config"; live_lock 77
