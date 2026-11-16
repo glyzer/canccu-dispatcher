@@ -9,7 +9,7 @@ packages is in [`packages.md`](packages.md).
 A step is a milestone; its work issues are the ones that are neither `epic` nor `checkpoint`.
 The **current step** is the first *pending* milestone in milestone order (the leading number of
 its title): it has open work issues, or an open checkpoint, or its step is planning, running,
-waiting for or in its health pass, at its checkpoint, or needs the lead. Earlier steps are done.
+in its deep review, waiting for or in its health pass, at its checkpoint, or needs the lead. Earlier steps are done.
 A milestone named "Parallel tracks" is a second current step whenever it is pending; its
 checkpoint gates nothing else. Only current steps run packages. An empty step with an open
 checkpoint is current and idle: later steps wait.
@@ -29,15 +29,54 @@ It is `normal` risk, `high` when its diff touches `HIGH_RISK_PATHS`. Nothing to 
 and the line `Health: nothing to do`. Once per step. It runs on `HEALTH_MODEL` at `HEALTH_EFFORT`
 (empty: `MODEL` and the account's default effort) and ends with a short report for the lead.
 
+## Deep review and polish
+
+With `STEP_DEEP_REVIEW=1`, a step whose work issues are all closed gets a deep review before its
+health pass: one worker run (`pkg-<m>-deep`, window `deep#<m>`, a fresh session on
+`DEEP_REVIEW_MODEL`, else `REVIEW_MODEL`, else `MODEL`, at `DEEP_REVIEW_EFFORT` (`high`), budget
+`BUDGET_DEEP_REVIEW`), charged to the step. The step's phase is `deep`: it stays current. The log
+says `#pkg-<m>-deep started: the deep review of step <title>`. Its prompt names the base (the
+newest tag of `STEP_TAG`'s pattern, `{n}` as `*`; else the step's merged PRs from
+`steps/<m>.packages`), the head it reads (`origin/main`'s sha, the step field `deep_head`), the
+step's issues and its follow-up issues (the `followups` keys `step-<m>-*`). It writes
+`docs/reports/step-<n>-deep-review.md` (`<n>`: the leading number of the milestone's title, else
+the milestone number) with the sections Architecture, Security, Contracts and Test quality, then
+the finding block of contracts §8 ending in `Review verdict: pass|changes <deep_head>`, and opens
+one PR with `Package: deep-review`, `Step: <title>`, `Risk: low — the step's deep-review report`
+and no `Closes` line. That PR is reviewed and merged like any other (a package name `deep` is
+reserved for it, like `health`).
+
+Once it merged, the dispatcher reads the report from `origin/main` with the review parsers:
+
+- blocking items left: one issue in the step's milestone, labelled `ready`, titled
+  `Step <title>: polish (deep review)`, with the items, the report and the PR. The step goes back
+  to `idle` and the planner plans it like any issue. Logged as
+  `step <title>: the deep review found <b> blocking finding(s); polish issue #<i> filed`;
+- none: `step <title>: the deep review found nothing blocking; the health pass follows`;
+- the PR closed without merging: `#pkg-<m>-deep: PR #<pr> was closed without merging; the health
+  pass follows`;
+- no report on `origin/main` yet: one warning, read again each pass.
+
+Once the step's work issues (the polish issue too) are closed again, the health pass and the
+checkpoint run as before.
+
 ## Checkpoint
 
 After the health pass, the step's checkpoint issue (labelled `checkpoint`) gets `needs-you` and
 one summary comment: the packages with their risk classes and PRs, the health PR, the spend
-against `STEP_BUDGET`, the roadmap notes and follow-ups. The step stays current, so no package of
+against `STEP_BUDGET`, with `STEP_DEEP_REVIEW=1` the deep review
+(`**Deep review:** PR #<pr>, <b> blocking (polish #<i> | none)`), the roadmap notes and follow-ups. The step stays current, so no package of
 the next step starts, until you label the checkpoint `checkpoint-ok` (the newest such label
 event must be by `USER_LOGIN`, after the summary) or close it; the dispatcher then closes it and
 the step is done. The fast lane runs on during the pause. A step without an open checkpoint
 skips the pause. The step's epic closes once the step is done and its sub-issues are closed.
+
+**Step tag.** With `STEP_TAG` set (locked: a tag push can start a release workflow; for example
+`step-{n}`, `{n}` as above), the checkpoint OK fetches, tags `origin/main`'s head and pushes the
+tag with the project's own login, as a merge of main is pushed. An existing tag is never moved.
+Logged: `step <title>: tagged <tag> at <sha7>`, `step <title>: tag <tag> exists already; not
+moved`, or `step <title>: tagging <tag> failed (<why>); tag it by hand`. A value without `{n}`, or
+no valid tag name after it (`git check-ref-format`): no tag, one warning.
 
 ## Stops
 

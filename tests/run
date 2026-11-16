@@ -44,7 +44,8 @@ tests_for() {
     bin/canccu-status)
       echo tests/canccu-dispatch.sh tests/canccu-dispatch2.sh tests/canccu-review-effort.sh tests/canccu-projects.sh tests/canccu-config.sh tests/canccu-cost.sh tests/canccu-compat.sh \
         tests/canccu-version.sh tests/canccu-hosts.sh tests/canccu-share.sh ;;
-    lib/canccu-units.sh|lib/canccu-packages.sh) echo tests/canccu-units.sh tests/canccu-cost.sh tests/canccu-health-review.sh tests/canccu-share.sh ;;
+    lib/canccu-deep.sh) echo tests/canccu-deep.sh tests/canccu-steps2.sh tests/canccu-health-review.sh ;;
+    lib/canccu-units.sh|lib/canccu-packages.sh) echo tests/canccu-units.sh tests/canccu-deep.sh tests/canccu-cost.sh tests/canccu-health-review.sh tests/canccu-share.sh ;;
     lib/canccu-share.sh)
       echo tests/canccu-share.sh tests/canccu-projects.sh tests/canccu-dispatch.sh tests/canccu-dispatch2.sh tests/canccu-steps.sh tests/canccu-steps2.sh tests/canccu-units.sh \
         tests/canccu-health-review.sh tests/canccu-cost.sh ;;

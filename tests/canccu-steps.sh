@@ -64,6 +64,8 @@ ok "plan: a left-out issue is no error" eq "$(pv left-out | jq -c '[.errors, .le
 pvl() { jq --argjson l "$1" '.packages[0].lines = $l' "$root/tests/fixtures/plans/valid.json" > "$T/lines.json"
         lib plan_validate "$T/lines.json" "$(cat "$root/tests/fixtures/plans/input.json")" 12 2 | jq -r '.errors | join("; ")'; }
 ok "plan: lines 800 validates" eq "$(pvl 800)" ""
+ok "plan: the name deep is reserved (the deep review's unit)" \
+  eq "$(jq '.packages[0].name = "deep"' "$root/tests/fixtures/plans/valid.json" > "$T/deep.json"; lib plan_validate "$T/deep.json" "$(cat "$root/tests/fixtures/plans/input.json")" 12 2 | jq -r '.errors[0]')" 'package 1: bad name "deep"'
 ok "plan: lines 0 is rejected" eq "$(pvl 0)" "auth-flow: lines is not a whole number of 1 or more"
 ok "plan: lines as a string is rejected" eq "$(pvl '"800"')" "auth-flow: lines is not a whole number of 1 or more"
 ok "plan: lines 1.5 is rejected" eq "$(pvl 1.5)" "auth-flow: lines is not a whole number of 1 or more"

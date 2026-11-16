@@ -9,7 +9,7 @@
 # plan_back. Another merged one: merged_left.
 pr_gone() {
   local j
-  is_health "$1" && return 0
+  is_step_run "$1" && return 0
   j=$(ghj pr view "$2" -R "$REPO" --json state,title,body,closingIssuesReferences,headRefName) || return 0
   case $(jqr .state <<<"$j") in
     CLOSED) needs_you "$1" "PR #$2 was closed without merging" ;;

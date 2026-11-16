@@ -60,6 +60,11 @@ FIXCHECK_COUNT_MAIN	enum:0|1	project	locked
 FIXCHECK_COUNT_RESOLVED	enum:0|1	project	locked
 HEALTH_MODEL	name	project	open
 HEALTH_EFFORT	enum:low|medium|high|xhigh|max|	project	open
+STEP_DEEP_REVIEW	enum:0|1	project	open
+DEEP_REVIEW_MODEL	name	project	open
+DEEP_REVIEW_EFFORT	enum:low|medium|high|xhigh|max	project	open
+BUDGET_DEEP_REVIEW	budget	project	open
+STEP_TAG	text	project	locked
 USAGE_SLOW	int:1:100	project	open
 USAGE_STOP	int:1:100	project	open
 USAGE_WEEKLY_DRAIN	int:1:100	project	open

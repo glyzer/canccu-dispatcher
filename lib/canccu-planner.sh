@@ -136,7 +136,7 @@ planner_earlier() {
   { awk -F '\t' '{ printf "%s\t%s\t%s\t%s\n", $2, $4, $7, $6 }' "$CANCCU_HOME/steps/$1.packages" 2>/dev/null
     for f in "$CANCCU_HOME"/state/*; do
       k=${f##*/}
-      [ -f "$f" ] && [ "$(st_get "$k" step)" = "$1" ] && [ -n "$(st_get "$k" pkg)" ] && ! is_health "$k" || continue
+      [ -f "$f" ] && [ "$(st_get "$k" step)" = "$1" ] && [ -n "$(st_get "$k" pkg)" ] && ! is_step_run "$k" || continue
       ph=$(st_get "$k" phase); [ "$ph" = needs-you ] || ph=running
       printf '%s\t%s\t%s\t%s\n' "$(st_get "$k" pkg)" "$(st_get "$k" members)" "$ph" "$(st_get "$k" pr)"
     done

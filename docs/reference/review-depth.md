@@ -72,5 +72,6 @@ With `FIXCHECK_COUNT_RESOLVED=1` (project config, locked) the count starts inste
 diff from it to the head holds the hand-resolved hunks and the PR's later commits; the size, gated
 and risky checks see only those. The fix-check's effort (`FIXCHECK_BIG`, `FIXCHECK_RISKY`) counts
 the same way with it, and as before without it. Any other git result counts as before: the cost
-is a full review, never a missed one. Both counts diff with `--no-renames`: a file moved out of a
-gated or risky path counts by its old path too.
+is a full review, never a missed one. The count after a pass, and the fix-check's with
+`FIXCHECK_COUNT_RESOLVED=1`, diff with `--no-renames`: a file moved out of a gated or risky path
+counts by its old path too.

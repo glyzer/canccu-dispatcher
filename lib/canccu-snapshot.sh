@@ -22,7 +22,7 @@ issue_of_pr() {
 snap_unit() {
   local k=${1:-} p="" r="" is="" l=""
   if [ -n "$k" ]; then
-    l=$(lead_of "$k"); is_health "$k" && l=""
+    l=$(lead_of "$k"); is_step_run "$k" && l=""
     [ -n "$(st_get "$k" pkg)" ] && p=$k r=$(risk_max "$(st_get "$k" risk)" "$(st_get "$k" review_risk)")
     is=$(members_of "$k" | tr '\n' ' ')
   fi
@@ -58,7 +58,7 @@ snap_running() {
       review-*) pr=${k#review-}; kind=$(review_mode_of "$pr"); n=$(issue_of_pr "$pr") ;;
       answer-*) n=${k#answer-}; kind=answer ;;
       plan-*) n="" kind=planner ;;
-      *) n=$k; kind=work; is_health "$k" && kind=health ;;
+      *) n=$k; kind=work; is_health "$k" && kind=health; is_deep "$k" && kind=deep ;;
     esac
     phase="" stage=""
     if [ -n "$n" ] && is_managed "$n"; then phase=$(st_get "$n" phase); stage=$(stage_of "$n"); [ -n "$pr" ] || pr=$(st_get "$n" pr); fi

@@ -21,7 +21,7 @@ The guides (getting started, install, upgrading, security, …) are in [`../READ
 | [`review-depth.md`](review-depth.md) | A head reviewed once, the light review and its high-risk upgrade, the count after a merge of main |
 | [`findings.md`](findings.md) | The finding block: classes, Evidence:, Pre-existing:, the count line, what the dispatcher demotes |
 | [`packages.md`](packages.md) | Work packages per step: units, the planner and its plan, package runs, risk classes, waves |
-| [`steps.md`](steps.md) | The current step, the health pass, the checkpoint, stops, notes, the step budget |
+| [`steps.md`](steps.md) | The current step, the deep review and polish, the health pass, the checkpoint and step tag, stops, notes, the step budget |
 | [`usage.md`](usage.md) | The usage throttle, the usage-limit back-off, weekly pacing |
 | [`pings.md`](pings.md) | The @mentions that tell your phone something needs you |
 | [`engine.md`](engine.md) | The run engine, untrusted runs, locks |

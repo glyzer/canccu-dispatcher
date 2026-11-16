@@ -69,9 +69,12 @@ Every write of a `state/<K>` or `steps/<m>` file goes through a temp file under 
 lock (`.<K>.lock` beside it), so the pass and a `canccu-ship`, `-stop`, `-run` or `-review` at the
 same time never lose a key. The state of an issue goes when the issue closes.
 
-`steps/<m>` holds the step's `phase` (`idle`, `planning`, `running`, `health-due`, `health`,
+`steps/<m>` holds the step's `phase` (`idle`, `planning`, `running`, `health-due`, `deep`, `health`,
 `checkpoint`, `done`, `needs-you`), `title`, `track` (`main` or `parallel`), `wave`, `plan`,
-`left_out`, the needs-you reason, `health`, `health_pr`, `checkpoint` and the summary's link.
+`left_out`, the needs-you reason, `health`, `health_pr`, `checkpoint` and the summary's link;
+with `STEP_DEEP_REVIEW=1` `deep` (`running`, `read`: merged, its report not read yet, `merged`,
+`closed`), `deep_head`, `deep_pr`, `deep_blocking` and `polish` ([`steps.md`](steps.md#deep-review-and-polish)).
+The deep review's unit adds `deep=1` and `deep_base`.
 
 ## Colour per issue
 
@@ -93,7 +96,7 @@ the rest were added after them. `-` is an unknown value.
 | 2 | repo | The repo's name |
 | 3 | key | The run's key: `<n>` or `pkg-<m>-<name>` (a worker), `review-<pr>` (a review or fix-check), `answer-<K>`, `plan-<m>` |
 | 4 | cost | The exact USD claude reported, or `?` (stopped at a budget, stalled, crashed, killed) |
-| 5 | type | `plan`, `build` (a new or resumed worker), `fix` (a worker's follow-up fixing review findings, a red CI or a `needs-work`), `merge` (a worker's follow-up bringing in main: after its contract PR merged, or a merge of main that conflicts), `review`, `fix-check`, `answer`, `health` |
+| 5 | type | `plan`, `build` (a new or resumed worker), `fix` (a worker's follow-up fixing review findings, a red CI or a `needs-work`), `merge` (a worker's follow-up bringing in main: after its contract PR merged, or a merge of main that conflicts), `review`, `fix-check`, `answer`, `health`, `deep` (the step's deep review) |
 | 6 | model | The `--model` the run got; `-`: the account's default |
 | 7 | effort | The `--effort` the run got; for a review or fix-check, the code-review skill's effort it was told; `-`: none |
 | 8 | session | `fresh` or `resumed` |

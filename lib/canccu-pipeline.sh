@@ -35,7 +35,7 @@ reap_worker() {
       q=$(worker_question "$(run_msg "$n")")
       # a run that finished with no PR is resumed afresh (resume); one nudged to stop mid-work is not
       p=$(pr_for "$n")
-      [ -n "$p" ] || is_health "$n" || b=$(worker_blocked "$(run_msg "$n")")
+      [ -n "$p" ] || is_step_run "$n" || b=$(worker_blocked "$(run_msg "$n")")
       # a PR opened after this pass read the list: read it again before parking the run as blocked
       [ -n "$b" ] && fetch_prs && p=$(pr_for "$n") && [ -n "$p" ] && b=""
       [ -n "$p" ] || st_set "$n" no_pr=1
@@ -176,9 +176,9 @@ check_pr() {
   local n=$1 pr j head at rsha fix c
   pr=$(pr_for "$n")
   if [ -z "$pr" ]; then
-    # the health pass's PR left the open list (closed or merged): health_pr_closed or finish_unit
-    # takes it from here. Still open but not ours (another branch): needs-you below.
-    is_health "$n" && pr=$(st_get "$n" pr) && [ -n "$pr" ] && ! pr_is_open "$pr" && return 0
+    # the health pass's or deep review's PR left the open list (closed or merged): health_pr_closed,
+    # deep_tick or finish_unit takes it from here. Still open but not ours (another branch): needs-you below.
+    is_step_run "$n" && pr=$(st_get "$n" pr) && [ -n "$pr" ] && ! pr_is_open "$pr" && return 0
     if is_health "$n" && grep -qE '^[[:space:]*_]*Health: nothing to do' <<<"$(run_msg "$n")"; then health_nothing "$n"; return; fi
     finish_once "$n" && return 0
     needs_you "$n" "the worker finished without an open PR" "$(run_msg "$n")" "" work; return

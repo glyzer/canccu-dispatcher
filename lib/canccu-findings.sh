@@ -38,6 +38,7 @@ followup_key() {
   local m; m=$(st_get "$1" step)
   if [ -z "$m" ]; then echo fast
   elif is_health "$1"; then echo "step-$m-health"
+  elif is_deep "$1"; then echo "step-$m-deep"
   else echo "step-$m-wave-$(st_get "$1" wave)"; fi
 }
 followup_title() {
@@ -45,6 +46,7 @@ followup_title() {
   case $(followup_key "$1") in
     fast) echo "Follow-ups: non-blocking review findings (fast lane)" ;;
     *-health) echo "Follow-ups: non-blocking review findings, step $(step_title "$m"), health pass" ;;
+    *-deep) echo "Follow-ups: non-blocking review findings, step $(step_title "$m"), deep review" ;;
     *) echo "Follow-ups: non-blocking review findings, step $(step_title "$m"), wave $(st_get "$1" wave)" ;;
   esac
 }

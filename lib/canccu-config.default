@@ -67,6 +67,11 @@ FIXCHECK_COUNT_MAIN=0       # 0: a fix's size counts only the PR's own change; 1
 FIXCHECK_COUNT_RESOLVED=0   # 1 (with FIXCHECK_COUNT_MAIN=0): after a conflicting merge of main, count only the resolved lines
 HEALTH_MODEL=               # the health pass's model (e.g. a cheaper one); empty: MODEL
 HEALTH_EFFORT=              # the health pass's --effort (low, medium, high, xhigh, max); empty: none, the account default
+STEP_DEEP_REVIEW=0          # 1: a step whose work is done gets a deep review of its whole change first; its blocking findings become a polish issue
+DEEP_REVIEW_MODEL=          # the deep review's model; empty: REVIEW_MODEL, else MODEL
+DEEP_REVIEW_EFFORT=high     # the deep review's --effort (low, medium, high, xhigh, max)
+BUDGET_DEEP_REVIEW="150 40 120"   # the deep review at the end of a step
+STEP_TAG=''                 # e.g. step-{n}: the checkpoint OK tags origin/main ({n}: the title's leading number); empty: no tag; locked
 # the usage throttle (shares of the Claude account's limits, from the rate-limit reports in the runs' output)
 USAGE_SLOW=60               # 5-hour share (%) from which one run at a time runs, over all projects
 USAGE_STOP=90               # … from which no run starts and running workers are nudged to stop

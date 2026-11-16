@@ -270,6 +270,7 @@ contract_rule() {
 pr_what() {
   local i list=""
   if is_health "$1"; then echo "(the health pass of step $(step_title "$(st_get "$1" step)"): closes no issue)"
+  elif is_deep "$1"; then echo "(the deep review of step $(step_title "$(st_get "$1" step)"): closes no issue)"
   elif is_pkg "$1"; then
     for i in $(members_of "$1"); do list+="${list:+, }#$i"; done
     echo "(package $(st_get "$1" pkg): closes $list)"
@@ -285,6 +286,9 @@ review_prompt() {
   if is_health "$n"; then
     read="Read"
     crit="Check the PR against the health checklist (files over the size limit in AGENTS.md split up; dead code for dropped features and old names removed; comments follow the comment rule in AGENTS.md; duplicated logic merged) and that it changes no behaviour"
+  elif is_deep "$n"; then
+    read="Read"
+    crit="Check that the PR adds only the step's deep-review report $(deep_report "$(st_get "$n" step)"), with its sections Architecture, Security, Contracts and Test quality and its finding block, and that its findings hold against the code"
   elif is_pkg "$n"; then
     read=""
     for i in $(members_of "$n"); do read+="${read:+; }gh issue view $i -R $REPO"; done
@@ -308,6 +312,7 @@ run_worker() {
   blocked_held "$n" "the worker" && return 1
   read -r turns cost mins <<<"$3"
   if is_health "$n"; then model=${HEALTH_MODEL:-$MODEL} effort=$(run_effort HEALTH_EFFORT) type=health; fi
+  if is_deep "$n"; then model=${DEEP_REVIEW_MODEL:-${REVIEW_MODEL:-$MODEL}} effort=$(run_effort DEEP_REVIEW_EFFORT) type=deep; fi
   local w args; w=$(unit_window "$n"); args=(--name "$w" "${@:5}")
   (( CANCCU_DRY )) || rm -f "$WORKERS_DIR/$REPO_NAME-$n.nudge"; is_managed "$n" && st_set "$n" nudged=
   # a package runs in the worktree the dispatcher made and keeps its session for the fix round
@@ -440,10 +445,10 @@ fixcheck_effort_pure() {
 }
 # fixcheck_effort <reviewed sha> <head>: the same from the main clone (the PR head is fetched)
 fixcheck_effort() {
-  local from=$1 stats
+  local stats
   # FIXCHECK_COUNT_RESOLVED=1: a conflicting merge of main in the fix counts its resolved lines only
-  [ "${FIXCHECK_COUNT_RESOLVED:-0}" = 1 ] && from=$(count_from "$1" "$2")
-  stats=$(change_stats "$from" "$2") || stats=""
+  if [ "${FIXCHECK_COUNT_RESOLVED:-0}" = 1 ]; then stats=$(change_stats "$(count_from "$1" "$2")" "$2") || stats=""
+  else stats=$(guard 30 git -C "$CLONE" diff --numstat "$1" "$2" 2>/dev/null) || stats=""; fi
   fixcheck_effort_pure "$stats"
 }
 
