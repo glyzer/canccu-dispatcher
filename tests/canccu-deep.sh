@@ -212,6 +212,12 @@ ok "… its deep review reads from the step's PRs, the step stays running" \
 ok "… the wave goes on: package b starts" grep -q -- '--name #104 ' "$FAKE/worker.log"
 ok "… the round's own branch and report path: its PR adds only its report, no force-push" \
   eq "$(st pkg-12-deep branch) $(grep -c -- '--key pkg-12-deep.*Write the report docs/reports/step-4-r1-deep-review.md .*Create the branch pkg-12-deep-r1 from origin/main' "$FAKE/worker.log")" "pkg-12-deep-r1 1"
+# the round's run stops with no PR and is resumed fresh: the whole task again, still the round's
+cp "$CANCCU_HOME/state/pkg-12-deep" "$E/deep-state"; cp "$FAKE/worker.log" "$E/deep-wlog"; rm -f "$WORKERS_DIR/web-pkg-12-deep.lock"; : > "$FAKE/worker.log"
+( PATH="$E/sbin:$fb:$PATH"; CANCCU_WORKER="$fb/worker"; . "$root/lib/canccu-common.sh"; st_set pkg-12-deep no_pr=1; resume pkg-12-deep "Go on." ) >/dev/null 2>&1
+ok "… a fresh resume of the round keeps its branch and report path" \
+  eq "$(grep -c -- '--fresh --key pkg-12-deep .*Write the report docs/reports/step-4-r1-deep-review.md .*Create the branch pkg-12-deep-r1 from origin/main' "$FAKE/worker.log")" 1
+cp "$E/deep-state" "$CANCCU_HOME/state/pkg-12-deep"; cp "$E/deep-wlog" "$FAKE/worker.log"; live_lock pkg-12-deep
 h1=$(sf round_head)
 # its report is merged with nothing blocking: the summary goes on the open checkpoint
 RPATH=docs/reports/step-4-r1-deep-review.md report
