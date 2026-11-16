@@ -111,7 +111,7 @@ no open checkpoint is skipped (one warning) and starts once one is open. Once ev
 closed no round starts; one in progress ends first (also once `CADENCE_DAYS` is 0 or the
 `Cadence: on` line is gone), then the step ends like any step (deep
 review, health pass, checkpoint). Step fields: `round`, `round_phase` (`deep`, `read`, `polish`,
-`checkpoint`), `round_head`, `round_base` (the round's base, in words), `round_pr`, `round_blocking`, `round_polish`, `round_cp`,
+`checkpoint`), `round_head`, `round_from` (the head of the last round whose report merged: the next round reads from it), `round_pr`, `round_blocking`, `round_polish`, `round_cp`,
 `round_cp_at`, `cadence_at`.
 
 ## Stops

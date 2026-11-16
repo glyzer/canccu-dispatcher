@@ -261,7 +261,7 @@ CANCCU_NOW=$((NOW + 13 * 86400)) dpass
 ok "13 days after the round: no round" eq "$(grep -c -- '--key pkg-12-deep' "$FAKE/worker.log")" 1
 CANCCU_NOW=$((NOW + 14 * 86400)) dpass
 ok "14 days after: round 2, from round 1's head" \
-  eq "$(dlog 'cadence round 2 starts') $(grep -c "from the head $h1 of cadence round 1 (git diff $h1..<head>)" "$FAKE/worker.log")" "1 1"
+  eq "$(dlog 'cadence round 2 starts') $(grep -c "from the head $h1 of an earlier cadence round (git diff $h1..<head>)" "$FAKE/worker.log")" "1 1"
 ok "… on a branch and report of its own" \
   eq "$(st pkg-12-deep branch) $(grep -c 'Write the report docs/reports/step-4-r2-deep-review.md .*Create the branch pkg-12-deep-r2 ' "$FAKE/worker.log")" "pkg-12-deep-r2 1"
 
@@ -327,28 +327,44 @@ ok "… one warning; no OK comment, log or round tag" \
 dpass
 ok "… once: the next pass warns no more" eq "$(dlog "cadence round 1's checkpoint #95 is gone")" 1
 
-# the next round's base: a round whose report never merged (its PR closed) covers nothing, so the
-# round after it reads from that round's own base, not from its head
+# the next round's base: round_from is the head of the last round whose report merged; a round
+# whose PR closed unmerged leaves it alone and a fresh base is computed
 cenv cadence-base-closed 30
+printf 'pkg-12-a\ta\t1\t101\tnormal\t50\tmerged\n' > "$CANCCU_HOME/steps/12.packages"
 printf 'round=1\nround_head=%s\nround_pr=60\nround_blocking=\ncadence_at=%s\n' "$(printf 'a%.0s' {1..40})" "$((NOW - 14 * 86400))" >> "$CANCCU_HOME/steps/12"
 dpass
 ok "after a round whose PR closed unmerged: round 2 reads from the step's base, not round 1's head" \
-  eq "$(dlog 'cadence round 2 starts') $(grep -c "from the step's merged PRs (read them" "$FAKE/worker.log") $(grep -c 'of cadence round 1' "$FAKE/worker.log")" "1 1 0"
-h2=$(sf round_head)
-# round 2's report merges: round 3 reads from its head; were round 3's PR closed, round 4 would too
-sed -i 's/^round_phase=.*/round_phase=/; s/^round_blocking=.*/round_blocking=0/' "$CANCCU_HOME/steps/12"
+  eq "$(dlog 'cadence round 2 starts') $(grep -c "from the step's merged PRs #50 (read them" "$FAKE/worker.log") $(grep -c 'of an earlier cadence round' "$FAKE/worker.log")" "1 1 0"
+# round 2's PR closes unmerged too; PR #51 merged meanwhile: round 3's base is computed fresh and names it
+sed -i 's/^round_phase=.*/round_phase=/; s/^round_blocking=.*/round_blocking=/' "$CANCCU_HOME/steps/12"
 echo "cadence_at=$((NOW - 14 * 86400))" >> "$CANCCU_HOME/steps/12"
+printf 'pkg-12-a\ta\t1\t101\tnormal\t50\tmerged\n104\tb\t1\t104\tlow\t51\tmerged\n' > "$CANCCU_HOME/steps/12.packages"
 st_clear() { rm -f "$CANCCU_HOME/state/pkg-12-deep" "$WORKERS_DIR/web-pkg-12-deep.lock"; }
 st_clear; : > "$FAKE/worker.log"
 dpass
-ok "after a round whose report merged: round 3 reads from its head" \
-  eq "$(dlog 'cadence round 3 starts') $(grep -c "from the head $h2 of cadence round 2 (git diff $h2..<head>)" "$FAKE/worker.log")" "1 1"
+ok "two closed rounds: a PR merged between them is in round 3's prompt" \
+  eq "$(dlog 'cadence round 3 starts') $(grep -c "from the step's merged PRs #50, #51 (read them" "$FAKE/worker.log")" "1 1"
+h3=$(sf round_head)
+# round 3's report merges (deep_read stores round_from): round 4 reads from its head
+sed -i 's/^round_phase=.*/round_phase=/; s/^round_blocking=.*/round_blocking=0/' "$CANCCU_HOME/steps/12"
+echo "round_from=$h3" >> "$CANCCU_HOME/steps/12"
+echo "cadence_at=$((NOW - 14 * 86400))" >> "$CANCCU_HOME/steps/12"
+st_clear; : > "$FAKE/worker.log"
+dpass
+ok "after a round whose report merged: round 4 reads from its head" \
+  eq "$(dlog 'cadence round 4 starts') $(grep -c "from the head $h3 of an earlier cadence round (git diff $h3..<head>)" "$FAKE/worker.log")" "1 1"
 sed -i 's/^round_phase=.*/round_phase=/; s/^round_blocking=.*/round_blocking=/' "$CANCCU_HOME/steps/12"
 echo "cadence_at=$((NOW - 14 * 86400))" >> "$CANCCU_HOME/steps/12"
 st_clear; : > "$FAKE/worker.log"
 dpass
-ok "… round 3's PR closed unmerged: round 4 keeps round 3's base" \
-  eq "$(dlog 'cadence round 4 starts') $(grep -c "from the head $h2 of cadence round 2 (git diff $h2..<head>)" "$FAKE/worker.log")" "1 1"
+ok "… round 4's PR closed unmerged: round 5 still reads from round_from" \
+  eq "$(dlog 'cadence round 5 starts') $(grep -c "from the head $h3 of an earlier cadence round" "$FAKE/worker.log")" "1 1"
+# deep_read on a merged report sets round_from to the round's head
+cenv cadence-from 14
+printf 'round=1\nround_phase=read\nround_head=%s\nround_pr=60\n' "$(printf 'b%.0s' {1..40})" >> "$CANCCU_HOME/steps/12"
+RPATH=docs/reports/step-4-r1-deep-review.md report
+dpass
+ok "deep_read of a round's merged report sets round_from to the round's head" eq "$(sf round_from)" "$(printf 'b%.0s' {1..40})"
 
 echo "canccu-deep tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

@@ -8,7 +8,7 @@
 # deep_blocking, polish. CADENCE_DAYS: a long-running step marked `Cadence: on` gets a round every
 # CADENCE_DAYS days while its waves go on: the deep review, its polish issue, then the checkpoint
 # summary; the fields round, round_phase (deep, read, polish, checkpoint), round_head, round_pr,
-# round_base, round_blocking, round_polish, round_cp_at, cadence_at. docs/reference/steps.md.
+# round_from, round_blocking, round_polish, round_cp_at, cadence_at. docs/reference/steps.md.
 
 # is_deep <K>: the step's deep review
 is_deep() { is_pkg "$1" && [ "$(st_get "$1" deep)" = 1 ]; }
@@ -92,7 +92,7 @@ start_deep() {
     deep_base="$(oneline 600 "$base")" round="$r"
   if ! run_worker "$k" "$(deep_prompt "$m" "$(deep_branch "$m" "$r")" "$base" "$head" "$r")" "$BUDGET_DEEP_REVIEW" deep --fresh; then st_rm "$k"; return 1; fi
   took_slot; new_cycle "$k"; step_key "$m" "$k"
-  if [ -n "$r" ]; then step_set "$m" round="$r" round_phase=deep round_head="$head" round_base="$(oneline 600 "$base")" round_pr= round_blocking= round_polish= round_cp_at=
+  if [ -n "$r" ]; then step_set "$m" round="$r" round_phase=deep round_head="$head" round_pr= round_blocking= round_polish= round_cp_at=
   else step_set "$m" phase=deep deep=running deep_head="$head" deep_pr= deep_blocking= polish=; fi
   log "#$k started: the deep review of step $(step_title "$m")"
 }
@@ -140,7 +140,7 @@ deep_read() {
   b=$(grep -cE '^[[:space:]]*[0-9]+[.)][[:space:]]' <<<"$items")
   if [ -n "${2:-}" ]; then pr=$(step_get "$m" round_pr); else pr=$(step_get "$m" deep_pr); fi
   if (( b == 0 )) && [ -n "${2:-}" ]; then
-    step_set "$m" round_blocking=0 round_phase=checkpoint
+    step_set "$m" round_blocking=0 round_phase=checkpoint round_from="$(step_get "$m" round_head)"
     log "step $t: the deep review of cadence round $(step_get "$m" round) found nothing blocking"; return 0
   fi
   if (( b == 0 )); then
@@ -153,7 +153,7 @@ deep_read() {
     { log "step $t: filing the polish issue failed (gh); retrying next pass"; return 0; }
   (( CANCCU_DRY )) && return 0
   i=$(grep -oE '/issues/[0-9]+' <<<"$MUT_OUT" | grep -oE '[0-9]+$' | tail -1)
-  if [ -n "${2:-}" ]; then step_set "$m" round_blocking="$b" round_polish="$i" round_phase=polish
+  if [ -n "${2:-}" ]; then step_set "$m" round_blocking="$b" round_polish="$i" round_phase=polish round_from="$(step_get "$m" round_head)"
   else step_set "$m" deep=merged deep_blocking="$b" polish="$i" phase=idle; fi
   log "step $t: the deep review found $b blocking finding(s); polish issue #${i:-?} filed"
 }
@@ -236,10 +236,10 @@ cadence_tick() {
   # the round needs the checkpoint for its summary; cadence_at stays, so it starts once one is open
   [ -n "$c" ] || { warn_once "cadence-$m" "step $(step_title "$m"): cadence round $r is due, but the step has no open checkpoint; skipped until one is open"; return 0; }
   if [ "${STEP_DEEP_REVIEW:-0}" = 1 ]; then
-    # only a merged report (deep_read sets round_blocking) covers its round's work: after a round
-    # whose PR closed unmerged the next one keeps that round's base
-    h=$(step_get "$m" round_head) base=$(step_get "$m" round_base)
-    if [ -n "$h" ] && [ -n "$(step_get "$m" round_blocking)" ]; then base="the head $h of cadence round $((r - 1)) (git diff $h..<head>)"; fi
+    # round_from: the head of the last round whose report merged (deep_read); a round closed
+    # unmerged leaves it, and with none the base is computed fresh
+    h=$(step_get "$m" round_from) base=
+    [ -n "$h" ] && base="the head $h of an earlier cadence round (git diff $h..<head>)"
     base=${base:-$(deep_base "$m")}
     start_deep "$m" "$base" "$r" || return 0
   else step_set "$m" round="$r" round_phase=checkpoint round_cp_at= round_pr= round_polish=; fi
