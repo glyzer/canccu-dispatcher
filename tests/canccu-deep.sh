@@ -15,7 +15,7 @@ rg() { GIT_AUTHOR_DATE=2030-11-05T10:00:00Z GIT_COMMITTER_DATE=2030-11-05T10:00:
          "$FAKE_REAL_GIT" -C "$E/code/web" -c user.name=octo -c user.email=octo@example.com "$@"; }
 # report <blocking items...>: the deep review's report of step 4 lands on origin/main
 report() {
-  local f=$E/code/web/docs/reports/step-4-deep-review.md n=$# i b=""
+  local f=$E/code/web/${RPATH:-docs/reports/step-4-deep-review.md} n=$# i b=""
   mkdir -p "${f%/*}"
   for ((i = 1; i <= n; i++)); do b+="$i. [correctness] src/a.ts:$i ${!i}"$'\n'"   Evidence: line $i"$'\n'; done
   { printf '## Architecture\nfine\n## Security\nfine\n## Contracts\nfine\n## Test quality\nfine\n\n'
@@ -202,9 +202,11 @@ ok "14 days in: round 1 starts" eq "$(dlog 'step 4 Search: cadence round 1 start
 ok "… its deep review reads from the step's PRs, the step stays running" \
   eq "$(grep -c "from the step's merged PRs (read them" "$FAKE/worker.log") $(sf phase) $(sf round) $(sf round_phase)" "1 running 1 deep"
 ok "… the wave goes on: package b starts" grep -q -- '--name #104 ' "$FAKE/worker.log"
+ok "… the round's own branch and report path: its PR adds only its report, no force-push" \
+  eq "$(st pkg-12-deep branch) $(grep -c -- '--key pkg-12-deep.*Write the report docs/reports/step-4-r1-deep-review.md .*Create the branch pkg-12-deep-r1 from origin/main' "$FAKE/worker.log")" "pkg-12-deep-r1 1"
 h1=$(sf round_head)
 # its report is merged with nothing blocking: the summary goes on the open checkpoint
-report
+RPATH=docs/reports/step-4-r1-deep-review.md report
 rm -f "$WORKERS_DIR/web-pkg-12-deep.lock"; sed -i 's/^phase=.*/phase=merging/' "$CANCCU_HOME/state/pkg-12-deep"; echo pr=60 >> "$CANCCU_HOME/state/pkg-12-deep"
 json pv60.json '{"state": "MERGED", "title": "Step 4 Search: deep review", "body": "Package: deep-review"}'; route 'pr view 60 *' pv60.json
 touch "$FAKE/comment-urls"
@@ -228,6 +230,8 @@ ok "13 days after the round: no round" eq "$(grep -c -- '--key pkg-12-deep' "$FA
 CANCCU_NOW=$((NOW + 14 * 86400)) dpass
 ok "14 days after: round 2, from round 1's head" \
   eq "$(dlog 'cadence round 2 starts') $(grep -c "from the head $h1 of cadence round 1 (git diff $h1..<head>)" "$FAKE/worker.log")" "1 1"
+ok "… on a branch and report of its own" \
+  eq "$(st pkg-12-deep branch) $(grep -c 'Write the report docs/reports/step-4-r2-deep-review.md .*Create the branch pkg-12-deep-r2 ' "$FAKE/worker.log")" "pkg-12-deep-r2 1"
 
 cenv cadence-nocp 20
 cpi 95 CLOSED "4 Search" | jq -s . > "$FAKE/cps.json"

@@ -288,7 +288,7 @@ review_prompt() {
     crit="Check the PR against the health checklist (files over the size limit in AGENTS.md split up; dead code for dropped features and old names removed; comments follow the comment rule in AGENTS.md; duplicated logic merged) and that it changes no behaviour"
   elif is_deep "$n"; then
     read="Read"
-    crit="Check that the PR adds only the step's deep-review report $(deep_report "$(st_get "$n" step)"), with its sections Architecture, Security, Contracts and Test quality and its finding block, and that its findings hold against the code"
+    crit="Check that the PR adds only the step's deep-review report $(deep_report "$(st_get "$n" step)" "$(st_get "$n" round)"), with its sections Architecture, Security, Contracts and Test quality and its finding block, and that its findings hold against the code"
   elif is_pkg "$n"; then
     read=""
     for i in $(members_of "$n"); do read+="${read:+; }gh issue view $i -R $REPO"; done

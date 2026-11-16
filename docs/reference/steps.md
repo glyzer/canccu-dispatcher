@@ -88,7 +88,9 @@ work open. Logged: `step <title>: cadence round <r> starts (every <D> days)`. A 
 
 1. with `STEP_DEEP_REVIEW=1`, the deep review of the section above, from the last round's head
    (else the newest step tag, else the step's PRs) to `origin/main`, then its polish issue until
-   that is closed;
+   that is closed. Each round has its own branch `pkg-<m>-deep-r<r>` and report
+   `docs/reports/step-<n>-r<r>-deep-review.md`, so its PR adds only its own report (the step's
+   end keeps `pkg-<m>-deep` and `step-<n>-deep-review.md`);
 2. the round's summary on the step's open checkpoint, with `needs-you` and a `checkpoint` line in
    the feed;
 3. `checkpoint-ok` by `USER_LOGIN` after the summary ends it: the label and `needs-you` go, the
