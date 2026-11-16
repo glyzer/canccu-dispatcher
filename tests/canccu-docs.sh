@@ -147,5 +147,21 @@ ok "docs explain how to merge the snippets into a repo's own files" grep -qF 'CL
 # prompts never call them "the maintainer", or workers copy it into their PR bodies (#131)
 ok "CLAUDE.md and lib/ never say \"the maintainer\"" eq "$(grep -rniw 'the maintainer' CLAUDE.md lib/)" ""
 
+# ---------------------------------------------------------------- the kickoff and gate guides (#216 D7)
+
+tname=guides
+for g in kickoff gates; do
+  ok "docs/$g.md exists with its SPDX line" eq "$(head -1 "docs/$g.md" 2>/dev/null)" "<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->"
+  ok "… linked from docs/README.md" grep -qF "]($g.md)" docs/README.md
+done
+miss=""; for h in Vision Users 'Their experiences' 'Quality bar' Constraints 'The step ladder' 'Question bank'; do
+  grep -qE "^#+ $h" docs/kickoff.md 2>/dev/null || miss+=" $h"
+done
+ok "docs/kickoff.md has the template's headings and a question bank" eq "${miss# }" ""
+miss=""; for h in 'Always: the functional gate' 'Chosen per step' UX 'API or library' 'CLI or tooling' Performance Security Operations 'Data or AI'; do
+  grep -qE "^#+ $h" docs/gates.md 2>/dev/null || miss+=" $h"
+done
+ok "docs/gates.md has the functional gate and each gate chosen per step" eq "${miss# }" ""
+
 echo "canccu-docs tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

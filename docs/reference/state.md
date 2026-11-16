@@ -29,15 +29,17 @@ Every file in `~/.canccu/projects/<name>/` is listed in [`project-dir.md`](proje
 `state.format` holds one number: the format of the project's `state/` and `steps/` files (a
 missing file is format `0`, a release before the file). `canccu-dispatch` runs `state_migrate` at
 start, under its lock and before the first pass: each migration from the file's number up to the
-release's `STATE_FORMAT` (`2`), in order, writing the new number after each and logging
-`state format <a> → <b>: <what it did>`. Migration 0 → 1 changes no field; 1 → 2 sets `owner` on each unit in `accept` or `needs-you` (`phase_at`, `ev_id` and `idle_ev` start empty). A number above
+release's `STATE_FORMAT` (`3`), in order, writing the new number after each and logging
+`state format <a> → <b>: <what it did>`. Migration 0 → 1 changes no field; 1 → 2 sets `owner` on each unit in `accept` or `needs-you` (`phase_at`, `ev_id` and `idle_ev` start empty); 2 → 3 changes no field: workflow v2's
+fields (`review_asked`, `nb_sha`, `plan_lines`, the step's `deep`, `polish`, `round` and
+`cadence_at` fields) start empty, which means the behaviour before them. A number above
 `STATE_FORMAT` (an older release after a newer one ran) stops the start with
 `state format <n> is newer than this release knows (<STATE_FORMAT>); install a newer release`.
 `--dry-run` only says which migrations it would run.
 
-A field whose empty value means the behaviour before it (as `review_asked`, `nb_sha` and the
-other fields of workflow v2) needs no new format: an older release ignores it, and a unit or
-step without it works as before. A release that adds any other state field, or changes one, raises `STATE_FORMAT`, adds the migration
+A release that adds a state field, or changes one, raises `STATE_FORMAT` (a field whose empty
+value means the behaviour before it gets a migration that changes nothing, so an older release
+refuses the state instead of dropping the field), adds the migration
 (`state_migrate_<n>` in `lib/canccu-stateformat.sh`) and a test that upgrades a project with units in
 flight (`work`, `needs-you`, `merging`) and checks the next pass handles them as before
 (contracts §6).
