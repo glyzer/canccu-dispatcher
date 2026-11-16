@@ -50,7 +50,7 @@ def overlap($a; $b): ($a | area) as $x | ($b | area) as $y
     + [ $pk | to_entries[] | .key as $i | .value
         | if type != "object" then "package \($i + 1): not an object"
           elif (.name | type) != "string" or (.name | test("^[a-z0-9]+(-[a-z0-9]+)*$") | not)
-               or (.name | length) > 30 or .name == "health" or .name == "deep"
+               or (.name | length) > 30 or .name == "health" or (.name | test("^deep(-r[0-9]+)?$"))
           then "package \($i + 1): bad name \(.name | tojson)" else empty end ]
     + [ $names | group_by(.) | .[] | select(length > 1) | "duplicate package name \(.[0])" ]
     + [ $names | unique[] | select(IN($input[0].earlier[]?.name)) | "package name \(.) was used by an earlier package" ]

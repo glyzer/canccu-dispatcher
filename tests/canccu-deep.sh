@@ -316,17 +316,16 @@ ok "… none there: nothing removed" eq "$(grep -c 'worktree remove' "$FAKE/git.
 
 # a round waiting at its checkpoint whose checkpoint is gone (label removed, issue transferred or
 # deleted): the round ends as a close ends it, else health_due would wait on it for good
-DESC=$'Search across all items.\nCadence: on' denv cadence-cp-gone CADENCE_DAYS=14 STEP_DEEP_REVIEW=1
-printf 'phase=idle\nwave=1\nstarted_at=%s\ntitle=4 Search\nepic=90\ncheckpoint=95\nround=1\nround_phase=checkpoint\nround_cp=95\nround_cp_at=%s\n' \
-  "$((NOW - 20 * 86400))" "$((NOW - 3600))" > "$CANCCU_HOME/steps/12"
+cenv cadence-cp-gone 20
+printf 'round=1\nround_phase=checkpoint\nround_cp=95\nround_cp_at=%s\ncadence_at=%s\n' "$((NOW - 3600))" "$((NOW - 3 * 86400))" >> "$CANCCU_HOME/steps/12"
 echo '[]' > "$FAKE/cps.json"
 dpass
 ok "a round whose checkpoint is gone ends: round_phase and round_cp_at cleared, cadence_at set" \
   eq "[$(sf round_phase)] [$(sf round_cp_at)] $(sf cadence_at)" "[] [] $NOW"
-ok "… one warning, no checkpoint-ok comment" \
-  eq "$(dlog "step 4 Search: cadence round 1's checkpoint #95 is gone; the round ends") $(grep -c 'Cadence round 1 OK' "$FAKE/gh.log")" "1 0"
+ok "… one warning; no OK comment, log or round tag" \
+  eq "$(dlog "step 4 Search: cadence round 1's checkpoint #95 is gone; the round ends") $(grep -c 'Cadence round 1 OK' "$FAKE/gh.log") $(dlog 'cadence round 1 OK') $(grep -c 'step-4-r1' "$FAKE/git.log")" "1 0 0 0"
 dpass
-ok "… and the step's end follows: its deep review starts" eq "$(grep -c -- '--key pkg-12-deep' "$FAKE/worker.log") $(sf deep)" "1 running"
+ok "… once: the next pass warns no more" eq "$(dlog "cadence round 1's checkpoint #95 is gone")" 1
 
 # the next round's base: a round whose report never merged (its PR closed) covers nothing, so the
 # round after it reads from that round's own base, not from its head
