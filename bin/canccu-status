@@ -13,6 +13,8 @@
 # most, across the review records (lib/canccu-findings.sh, findings_report).
 # canccu-status [--project <name>] --kpi — per day, the last 7 days: the leader's tokens, the runs'
 # test times, the pings and the feed lines by owner and class (lib/canccu-spend.sh, kpi_report).
+# canccu-status [--project <name>] --pace — the weekly usage against the week gone, what PACE does
+# and this project's spend per day, the last 7 days (lib/canccu-leadtools.sh, pace_report).
 # docs/canccu-dispatch.md
 set -uo pipefail
 self=$(realpath "$0")
@@ -23,12 +25,14 @@ self=$(realpath "$0")
 [ "${1:-}" = --spend ] && { spend_report; exit 0; }
 [ "${1:-}" = --findings ] && { findings_report; exit 0; }
 [ "${1:-}" = --kpi ] && { kpi_report; exit; }
+[ "${1:-}" = --pace ] && { pace_report; exit 0; }
 
 clip() { (( ${#1} <= $2 )) && printf '%s' "$1" || printf '%s…' "${1:0:$2-1}"; }
 cols=${COLUMNS:-$(tput cols 2>/dev/null)}; [[ $cols =~ ^[0-9]+$ ]] || cols=100
 
 state="running"
-paused && state="PAUSED (canccu-resume to continue)"
+if pause_holds; then state="PAUSED (canccu-resume to continue)"
+elif paused; then state="PAUSED, work in flight finishes (canccu-resume to continue)"; fi
 dispatcher_running || state+=" · canccu-dispatch is NOT running (canccu-up, or run it in the window dispatch)"
 backing_off && state+=" · usage limit until $(iso "$(backoff_until)")"
 free=$(disk_low) && state+=" · disk low: $free MB (DISK_MIN_MB ${DISK_MIN_MB:-200})"

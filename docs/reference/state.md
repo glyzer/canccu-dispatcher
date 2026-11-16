@@ -18,58 +18,28 @@ touches the state, and uninstall keeps it unless you pass `--purge-state --yes`.
 | `backoff` | The epoch until which nothing starts in any project (a usage limit) |
 | `.engine.lock` | Held while a run starts, so `TOTAL_CAP` holds over all projects |
 | `profiles/<template>/` | Your own project templates for `canccu-init --profile` |
-| `projects/<name>/` | One project (below) |
+| `projects/<name>/` | One project ([`project-dir.md`](project-dir.md)) |
 
 ## A project's dir
 
-In `~/.canccu/projects/<name>/`:
-
-| Path | What |
-|---|---|
-| `config`, `rules` | [`config.md`](config.md), [`rules.md`](rules.md) |
-| `gh/` | The project's own `gh` login (`hosts.yml`, mode 600) ([`projects.md`](projects.md)) |
-| `state/<K>` | One file per unit the dispatcher manages (`<n>`, `pkg-<m>-<name>`, `pkg-<m>-health`), `key=value` lines (below) |
-| `steps/<m>` | A step's state, with `steps/<m>.keys` (its run keys, for its budget), `.packages` (one line per finished package), `.notes` (follow-ups and roadmap notes), `.plan-<w>.json` (each wave's plan) and `.plan-<w>.rejected.json` |
-| `workers/` | The run engine's state: locks, logs, `.last` reports, session ids, worktrees, `usage.json`, `spend.log`, `.nudge` files ([`engine.md`](engine.md)) |
-| `reviews/<pr>/<sha>.md` | A reviewer's review of that head, which the dispatcher posts; `<sha>.findings.md` the full review's findings for the fix-check (or, after your `needs-work` on a fix-check's open items, those items and your comments, rebuilt each time from `<sha>.open.md`, the open items that fix-check left); `reviews/<pr>.sha`, `.mode`, `.effort` and `.model` what the PR's latest reviewer works on, at which effort and on which model |
-| `reviews/<pr>/history` | The PR's blocking findings, one tab-separated line per finding left after the dispatcher's demotions, for each verdict acted on: `<sha> <class> <file> <line or a-b> <open\|fixed\|answered>`. A fix-check marks each `open` line it does not raise again `fixed`; an accept, or a `needs-work` that starts a new cycle, marks every `open` line `answered`. Rewritten whole, never half ([`findings.md`](findings.md#no-repeats)) |
-| `reviews.log` | One tab-separated line per posted verdict (contracts §8), append only: `<time> <pr> <sha> <full\|fixcheck> <pass\|changes> <b> <n> <p> <demoted> <classes>`: UTC time, the kind (a post-pass check is `fixcheck`), the effective verdict, the blocking findings left, the count line's non-blocking and pre-existing numbers, the findings moved out of `Blocking:`, the blocking classes left (comma-separated, or `-`) ([`findings.md`](findings.md)) |
-| `followups` | One tab-separated line per wave (`step-<m>-wave-<w>`, `step-<m>-health`, `fast`): the issue its non-blocking review findings go to ([`reviews.md`](reviews.md)) |
-| `handoffs/<K>.md` | The handoff a run stopped by the usage limit ended with, for the fresh session after the reset ([`usage.md`](usage.md#after-the-reset)) |
-| `questions/<K>.txt` | The question a worker stopped with, for its answerer |
-| `pings/<n>` | The state issue n was last pinged for ([`pings.md`](pings.md)) |
-| `digest/<date>.md` | The daily digest |
-| `merged.log` | One line per merged PR of a managed issue: time, issue, PR, how (`auto`, `accepted`, or `by hand` when the dispatcher did not arm it), title |
-| `workers/spend.log` | One tab-separated line per run, written when it ends (below) |
-| `accepts.log` | One tab-separated line per `canccu-ship` accept, written before it merges: the epoch, the unit (`<n>` or `pkg-<m>-<name>`), the PR, the head sha it accepts, the actor (`po`, or `leader` with `CANCCU_ACTOR=leader`) ([`merging.md`](merging.md#the-accept-channels)) |
-| `answers.log` | One line per question an answerer answered, with the link to its comment |
-| `want` | The project's wait for a shared slot, rewritten by every pass: `n` (the runs it could not start for want of a slot of `TOTAL_CAP`; 0: none), `cap` (its `CAP`), `until` (the epoch the wait holds to); removed when the dispatcher exits ([`projects.md`](projects.md#fair-share-of-total_cap)) |
-| `last_start` | When the project's engine last started a run (ns since the epoch): the fair share's tie rule |
-| `state.format` | The format of `state/` and `steps/`: one number (below) |
-| `dispatch.log` | One line per action, each starting with its UTC time (`2030-11-05T12:00:00Z`; lines written by an earlier release have the host's local time, `2030-11-05 12:00:00`, and readers accept both), plus the raw output of the commands (prefixed `  │ `) |
-| `events`, `heartbeat` | The feed, one line per event a person must act on, and the file every pass touches ([`lead.md`](lead.md#the-feed)) |
-| `feed.open` | `<key>=<id>` of the open feed items no unit's state holds (holds, checkpoints, PRs labelled `needs-you`), and `leader_ack=<id>`: the highest line the leader acknowledged |
-| `.running` | Present while the dispatcher loops; one left at its start means a stop it did not plan |
-| `dispatch.pid`, `.dispatch.lock` | The running dispatcher and its lock |
-| `paused` | Present while paused (`canccu-pause`) |
-| `gh_limit` | The epoch until which passes pause for a GitHub rate limit ([`pipeline.md`](pipeline.md#one-pass)); removed when it has passed |
-| `.disk-low` | Present while free space is below `DISK_MIN_MB`, so the hold is logged once |
-| `status.json` | The status snapshot, written after every pass ([`snapshot.md`](snapshot.md)) |
-| `.warned-*` | The last recurring warning of a kind, so it is logged once |
-| `blocked/<n>` | Issue `n`'s `blocked` was set by the dispatcher (a `waiting` run): the only kind it removes |
+Every file in `~/.canccu/projects/<name>/` is listed in [`project-dir.md`](project-dir.md).
 
 ## The state format
 
 `state.format` holds one number: the format of the project's `state/` and `steps/` files (a
 missing file is format `0`, a release before the file). `canccu-dispatch` runs `state_migrate` at
 start, under its lock and before the first pass: each migration from the file's number up to the
-release's `STATE_FORMAT` (`2`), in order, writing the new number after each and logging
-`state format <a> → <b>: <what it did>`. Migration 0 → 1 changes no field; 1 → 2 sets `owner` on each unit in `accept` or `needs-you` (`phase_at`, `ev_id` and `idle_ev` start empty). A number above
+release's `STATE_FORMAT` (`3`), in order, writing the new number after each and logging
+`state format <a> → <b>: <what it did>`. Migration 0 → 1 changes no field; 1 → 2 sets `owner` on each unit in `accept` or `needs-you` (`phase_at`, `ev_id` and `idle_ev` start empty); 2 → 3 changes no field: workflow v2's
+fields (`review_asked`, `nb_sha`, `plan_lines`, the step's `deep`, `polish`, `round` and
+`cadence_at` fields) start empty, which means the behaviour before them. A number above
 `STATE_FORMAT` (an older release after a newer one ran) stops the start with
 `state format <n> is newer than this release knows (<STATE_FORMAT>); install a newer release`.
 `--dry-run` only says which migrations it would run.
 
-A release that adds or changes a state field raises `STATE_FORMAT`, adds the migration
+A release that adds a state field, or changes one, raises `STATE_FORMAT` (a field whose empty
+value means the behaviour before it gets a migration that changes nothing, so an older release
+refuses the state instead of dropping the field), adds the migration
 (`state_migrate_<n>` in `lib/canccu-stateformat.sh`) and a test that upgrades a project with units in
 flight (`work`, `needs-you`, `merging`) and checks the next pass handles them as before
 (contracts §6).
@@ -88,11 +58,11 @@ cycle), `posted` (the head whose review was posted), `file_retry` (the head whos
 asked once to write its missing review file, [`reviews.md`](reviews.md)),
 `ny_kind` (what a `needs-you` waits for: `plan`, `question` or empty), `ny_stage` (where it
 parked), `ny_wait` (`ci`: it only waited on CI), `phase_at` (when the phase last changed: the idle alarm's clock), `ev_id` (the feed line of the accept or needs-you it waits in), `ev_at` (when that line was written: the hand-over clock), `idle_ev` (its `idle` feed line), `owner` (who an `accept` or `needs-you` waits for, `po` or `leader`, set when the unit enters the phase and cleared when it leaves; [`lead.md`](lead.md#the-owner-of-a-waiting-item)), `exclusive` (of the one-at-a-time kind),
-`nb_at` (the verdict whose non-blocking findings were filed), `hist_at` (the verdict whose findings went into `reviews/<pr>/history`), `finish_tried` (its finish session after a run that left work but no PR was had), `no_pr` (its last run finished with no PR: the next resume starts a fresh session), `fixes` and `fixes_pr` (the automatic fix runs on that PR, against `FIX_ATTEMPTS`), `blocking_last`, `blocking_prev` and `blocking_at` (the blocking findings of the last verdict acted on, of the one before, and the last one's time), `extra_fix` (the cycle had its extra fix round, `FIX_EXTRA_IF_FEWER`; cleared by a new cycle), `main_merged` (the head a scripted merge of main pushed), `conflict_sha` (the head a conflict run started on), `conflict_paths` (that run's conflicting paths), `conflict_merge` (the head GitHub's conflict with main was last merged on by script), `ci_rerun` and `ci_rerun_at` (the red head whose failed jobs were rerun, and when the rerun started), `mm_err` (scripted merges failed in a row), `crash_tries` (the fresh runs a crash was given, against `CRASH_RETRY`; cleared when a run finishes), `retry_status` (the status of the run that crashed), `prev_phase` (the phase a unit in `starting` had, put back if the start fails), `started` (when its run started), `plan_ok`,
+`nb_at` (the verdict whose non-blocking findings were filed), `nb_sha` (`<pr>:<sha>:<light|full>`, the head and review kind whose non-blocking findings were filed: a later verdict of that kind on it files none), `review_asked` (`1`: a `needs-work` comment asked for a `full review`; the next head gets one even when it passed already, cleared once that review's verdict is acted on; [`review-depth.md`](review-depth.md)), `hist_at` (the verdict whose findings went into `reviews/<pr>/history`), `finish_tried` (its finish session after a run that left work but no PR was had), `no_pr` (its last run finished with no PR: the next resume starts a fresh session), `fixes` and `fixes_pr` (the automatic fix runs on that PR, against `FIX_ATTEMPTS`), `blocking_last`, `blocking_prev` and `blocking_at` (the blocking findings of the last verdict acted on, of the one before, and the last one's time), `extra_fix` (the cycle had its extra fix round, `FIX_EXTRA_IF_FEWER`; cleared by a new cycle), `main_merged` (the head a scripted merge of main pushed), `conflict_sha` (the head a conflict run started on), `conflict_paths` (that run's conflicting paths), `conflict_merge` (the head GitHub's conflict with main was last merged on by script), `ci_rerun` and `ci_rerun_at` (the red head whose failed jobs were rerun, and when the rerun started), `mm_err` (scripted merges failed in a row), `crash_tries` (the fresh runs a crash was given, against `CRASH_RETRY`; cleared when a run finishes), `retry_status` (the status of the run that crashed), `prev_phase` (the phase a unit in `starting` had, put back if the start fails), `started` (when its run started), `plan_ok`,
 `body_fix` (the contract PR whose body the worker was resumed once to correct; [`merging.md`](merging.md)),
 `merge_tries` (the merges that failed on a transient GitHub error in a row, against `MERGE_RETRY`; cleared by a merge that goes through and by lifting a needs-you at the merge; [`merging.md`](merging.md#a-github-error-on-the-merge)),
 `gone_at` (when its merged PR was first seen with an issue it closes still open; [`merging.md`](merging.md#a-merged-pr-that-leaves-its-issue-open)),
-`accept_sha`, `merge_sha` and timestamps. `branch` is the
+`plan_lines` (a package's planned changed lines, `BUDGET_LINES`; [`packages.md`](packages.md#package-runs)), `accept_sha`, `merge_sha` and timestamps. `branch` is the
 unit's branch (a single issue's `<n>-<slug>`, set at its start; an issue started before 0.2 has
 none). A package adds `pkg`, `step`, `wave`, `members`, `risk`, `risk_reason`, `review_risk` and
 `health`.
@@ -101,9 +71,14 @@ Every write of a `state/<K>` or `steps/<m>` file goes through a temp file under 
 lock (`.<K>.lock` beside it), so the pass and a `canccu-ship`, `-stop`, `-run` or `-review` at the
 same time never lose a key. The state of an issue goes when the issue closes.
 
-`steps/<m>` holds the step's `phase` (`idle`, `planning`, `running`, `health-due`, `health`,
+`steps/<m>` holds the step's `phase` (`idle`, `planning`, `running`, `health-due`, `deep`, `health`,
 `checkpoint`, `done`, `needs-you`), `title`, `track` (`main` or `parallel`), `wave`, `plan`,
-`left_out`, the needs-you reason, `health`, `health_pr`, `checkpoint` and the summary's link.
+`left_out`, the needs-you reason, `health`, `health_pr`, `checkpoint` and the summary's link;
+with `STEP_DEEP_REVIEW=1` `deep` (`running`, `read`: merged, its report not read yet, `merged`,
+`closed`), `deep_head`, `deep_pr`, `deep_blocking` and `polish` ([`steps.md`](steps.md#deep-review-and-polish)).
+The deep review's unit adds `deep=1` and `deep_base` (and `round` in a cadence round). A cadence
+step adds `round`, `round_phase`, `round_head`, `round_pr`, `round_blocking`, `round_polish`,
+`round_cp`, `round_cp_at` and `cadence_at` ([`steps.md`](steps.md#cadence-rounds)).
 
 ## Colour per issue
 
@@ -125,12 +100,12 @@ the rest were added after them. `-` is an unknown value.
 | 2 | repo | The repo's name |
 | 3 | key | The run's key: `<n>` or `pkg-<m>-<name>` (a worker), `review-<pr>` (a review or fix-check), `answer-<K>`, `plan-<m>` |
 | 4 | cost | The exact USD claude reported, or `?` (stopped at a budget, stalled, crashed, killed) |
-| 5 | type | `plan`, `build` (a new or resumed worker), `fix` (a worker's follow-up fixing review findings, a red CI or a `needs-work`), `merge` (a worker's follow-up bringing in main: after its contract PR merged, or a merge of main that conflicts), `review`, `fix-check`, `answer`, `health` |
+| 5 | type | `plan`, `build` (a new or resumed worker), `fix` (a worker's follow-up fixing review findings, a red CI or a `needs-work`), `merge` (a worker's follow-up bringing in main: after its contract PR merged, or a merge of main that conflicts), `review`, `fix-check`, `answer`, `health`, `deep` (the step's deep review) |
 | 6 | model | The `--model` the run got; `-`: the account's default |
 | 7 | effort | The `--effort` the run got; for a review or fix-check, the code-review skill's effort it was told; `-`: none |
 | 8 | session | `fresh` or `resumed` |
 | 9–12 | tokens | Input, output, cache read and cache write tokens, from the final `result` event's `usage` |
-| 13–14 | window | The 5-hour window's utilization (%) before and after the run, only with `USAGE_WINDOW_DELTA=1` ([`config.md`](config.md)); after: `-` when the run's own stream reported no reading |
+| 13–14 | window | The 5-hour window's utilization (%) before and after the run, only with `USAGE_WINDOW_DELTA=1` ([`config-steps.md`](config-steps.md)); after: `-` when the run's own stream reported no reading |
 | 15 | outcome | `k=v` fields joined by `,`, filled in by the dispatcher when it reaps the run: `pr=<n>` or `pr=none` and `ci=green`, `ci=red` or `ci=rerun-green` (a worker's run; rerun-green: green after the one rerun of its failed jobs, a flaky check) with `ci_wait=<s>`, the seconds from the check's start (`check_at`) to CI settling; `verdict=pass`, `changes`, `none` or `void`, `blocking=<n>`, `nonblocking=<n>` (a review or fix-check: its top-level list items under "Blocking" and under "Non-blocking", an estimate; in a `changes` file with no "Blocking" heading, the items before "Non-blocking" block); `answer=answered`, `escalate` or `none`; `rounds=<n>` (the unit's fix runs so far). The engine writes the first fields itself when the run ends: `test_secs=<s>` and `tests=<n>`, the seconds from each of the run's Bash calls of `TEST_CMD` ([`rules.md`](rules.md)) to its result, summed, and their count (only when it made one) |
 | 16 | secs | The run's wall seconds, start to end; `-`: unknown. Lines written before it have 15 columns, and every reader takes both |
 

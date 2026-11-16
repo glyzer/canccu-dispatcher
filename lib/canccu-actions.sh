@@ -89,7 +89,7 @@ resume() {
   if fix_kind "$kind"; then model=${FIX_MODEL:-$MODEL} effort=$(run_effort FIX_EFFORT) type=fix; fi
   # workers never review: a resumed worker is told so as well
   MODEL=$model RUN_EFFORT=$effort run_worker "$n" "$msg Do not review your own work; run the checks only." \
-    "$( [ -n "$(st_get "$n" pkg)" ] && pkg_budget "$BUDGET_RESUME" "$(unit_size "$n")" || echo "$BUDGET_RESUME")" "$type" "${fl[@]}" || return 1
+    "$( [ -n "$(st_get "$n" pkg)" ] && pkg_budget "$BUDGET_RESUME" "$(budget_factor "$n")" || echo "$BUDGET_RESUME")" "$type" "${fl[@]}" || return 1
   has_label "$n" needs-you && edit_issue "$n" --remove-label needs-you
   if [ "$how" = fresh ]; then log "#$n resumed (fresh session, $kind): $(oneline 100 "$2")"
   else log "#$n resumed: $(oneline 100 "$2")"; fi
@@ -119,6 +119,7 @@ issue_branch() { echo "$1-$(slug "$2")"; }
 # unit_prompt <K>: the whole task of a unit's worker, for a fresh session
 unit_prompt() {
   if is_health "$1"; then health_prompt "$(st_get "$1" step)" "$1"
+  elif is_deep "$1"; then deep_prompt "$(st_get "$1" step)" "$(st_get "$1" branch)" "$(st_get "$1" deep_base)" "$(deep_head_of "$1")" "$(st_get "$1" round)"
   elif is_pkg "$1"; then package_prompt "$1"
   else issue_prompt "$1"; fi
 }
@@ -307,19 +308,23 @@ act_verdict() {
   # before pass_sha moves: the posted verdict was decided in the same context (reap_review)
   review_ctx "$n" "$pr" "$head"
   what=review; is_fixcheck_mode "$mode" && what=fix-check
-  # a push after a pass is checked against these (postpass_step)
-  case $v in pass|changes) is_fixcheck_mode "$mode" || st_set "$n" full_sha="$head" ;; esac
+  # a push after a pass is checked against these (postpass_step); a full review's verdict is the
+  # one a `full review` ask or a light upgrade waited for (light_upgrade may ask again below)
+  case $v in pass|changes) is_fixcheck_mode "$mode" || st_set "$n" full_sha="$head" review_asked= ;; esac
   # non-blocking findings never reach the worker: they go to the wave's follow-up issue
   case $v in pass|changes) body=$(verdict_body "$j"); collect_nonblocking "$n" "$pr" "$head" "$body" "$at"
       history_record "$n" "$pr" "$head" "$body" "$at"; blocking_note "$n" "$body" "$at" "$head" ;; esac
   case $v in
     pass)
+      light_upgrade "$n" "$pr" "$head" "$j" "$at" && return 0
       # a post-pass check that passed leaves the fix-check stage: the next push is again
       # measured against full_sha, not taken for a fix of findings
       st_set "$n" pass_sha="$head"; [ "$mode" = postpass ] && st_set "$n" stage=review
       after_pass "$n" "$pr" "$head" "$what" || return 0
       st_set "$n" verdict_at="$at" ;;
     changes)
+      # a light review rated high gets the full review first: its verdict drives the fix round
+      light_upgrade "$n" "$pr" "$head" "$j" "$at" && return 0
       case $stage in
         fixing|fixcheck)
           save_findings "$n" "$pr" "$(open_file "$pr" "$head")" "$body"

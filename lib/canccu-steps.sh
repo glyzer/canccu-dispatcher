@@ -45,7 +45,7 @@ STEP_JQ="$MILESTONE_KEY_JQ"'
                      | if . == null then null else {issue: .number, state: (.state | ascii_downcase)} end),
         phase: ($ph[0][(.number | tostring)] // null) }
     | .pending = (.work_open > 0 or (.checkpoint.state == "open")
-                  or (.phase | IN("planning", "running", "health-due", "health", "checkpoint", "needs-you"))) ]
+                  or (.phase | IN("planning", "running", "health-due", "deep", "health", "checkpoint", "needs-you"))) ]
   | sort_by(.k, .title) | map(del(.k))'
 
 # current_steps_pure <milestones> <checkpoints> <open issues> <step phases> → the current steps:
@@ -274,6 +274,7 @@ step_unit_finished() {
     [ "$2" = MERGED ] && step_set "$m" health=merged health_pr="$3"
     return 0
   fi
+  is_deep "$k" && { deep_finished "$k" "$2" "$3"; return 0; }
   (( CANCCU_DRY )) || printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$k" "$(st_get "$k" pkg)" "$(st_get "$k" wave)" "$(st_get "$k" members)" \
     "$(st_get "$k" risk)" "$3" "$([ "$2" = MERGED ] && echo merged || echo closed)" >> "$CANCCU_HOME/steps/$m.packages"
 }
@@ -324,7 +325,8 @@ digest_notes() {
 
 # health_due <m>: every work issue of the step is closed, some work was done, no health pass yet
 health_due() {
-  [ "$(cur "$1" .work_open)" = 0 ] && (( $(cur "$1" .work_closed) > 0 )) && [ -z "$(step_get "$1" health)" ]
+  [ "$(cur "$1" .work_open)" = 0 ] && (( $(cur "$1" .work_closed) > 0 )) && [ -z "$(step_get "$1" health)" ] &&
+    [ -z "$(step_get "$1" round_phase)" ]   # a cadence round in progress ends first
 }
 # label_by_user <issue|pr> <label> <since epoch>: its newest such label event is USER_LOGIN's, after then
 label_by_user() {
@@ -347,6 +349,7 @@ checkpoint_summary() {
     "$(case $(step_get "$m" health) in skipped) echo "nothing to do" ;; closed) echo "PR #$(step_get "$m" health_pr) closed without merging" ;;
          *) echo "PR #$(step_get "$m" health_pr)" ;; esac)" \
     "$sp" "$STEP_BUDGET" "$( (( nc > 0 )) && echo " (+$nc runs without a reported cost)")"
+  deep_summary "$m"
   printf '**Roadmap notes**\n%s\n\n**Follow-ups**\n%s\n\n' \
     "$(awk -F '\t' '$2 == "roadmap" { printf "- %s (PR #%s)\n", $4, $3 }' "$CANCCU_HOME/steps/$m.notes" 2>/dev/null | grep . || echo none)" \
     "$(awk -F '\t' '$2 == "follow-up" { printf "- %s (PR #%s)\n", $4, $3 }' "$CANCCU_HOME/steps/$m.notes" 2>/dev/null | grep . || echo none)"
@@ -412,6 +415,7 @@ checkpoint_tick() {
   fi
   mut gh issue edit "$c" -R "$REPO" --remove-label needs-you
   step_done "$m" "checkpoint #$c OK"
+  local t; t=$(step_tag_name "$m") && step_tag "$m" "$t"
 }
 # step_done <m> <why>: the step is done (done_at: from now on, new open work or an open
 # checkpoint in it is the lead's, see step_stop_reason); its epic closes when its sub-issues are;
@@ -485,7 +489,7 @@ step_tick() {
     [ -n "$r" ] && step_set "$m" ny_reason="$(step_get "$m" ny_next)" ny_next=
     log "step $(step_title "$m"): the stop is resolved; it goes on"; step_ny_clear "$m"
   fi
-  xblock_tick "$m"; budget_tick "$m"; notes_tick "$m"
+  xblock_tick "$m"; budget_tick "$m"; notes_tick "$m"; cadence_tick "$m" "$go"
   ph=$(step_get "$m" phase)
   case $ph in
     needs-you) plan_retry "$m" ;;
@@ -494,6 +498,9 @@ step_tick() {
       elif wave_rolls "$m"; then step_set "$m" phase=idle; log "step $(step_title "$m"): wave $(step_get "$m" wave) rolls on; planning the next one"; fi ;;
     # an accept that came after the wave was over lets a dependant start: the wave goes on
     idle) wave_can_start "$m" && { step_set "$m" phase=running; log "step $(step_title "$m"): wave $(step_get "$m" wave) goes on"; } ;;
+    # a polish issue filed just now is not in this pass's snapshot (work_open 0): the health
+    # pass would start with it open, so the step waits for the next pass's snapshot
+    deep) deep_tick "$m"; [ "$(step_get "$m" phase)" = idle ] && return 0 ;;
     health|checkpoint) checkpoint_tick "$m" ;;
   esac
   ph=$(step_get "$m" phase)
@@ -502,7 +509,7 @@ step_tick() {
   case $ph in idle|planning|health-due) ;; *) return 0 ;; esac
   [ "$ph" = planning ] && [ -n "$(step_get "$m" planner_started)" ] && return 0
   (( go )) || return 0
-  if health_due "$m"; then start_health "$m"
+  if health_due "$m"; then if deep_due "$m"; then start_deep "$m"; else start_health "$m"; fi
   else start_planner "$m" || { [ "$ph" = planning ] && [ -z "$(planner_issues "$1" | head -1)" ] && step_set "$m" phase=idle; }; fi
   return 0
 }
