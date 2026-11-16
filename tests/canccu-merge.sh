@@ -910,5 +910,34 @@ dispatch --once
 ok "… pass_sha still on that head in a fix round: no reuse either" \
   eq "$(grep -c 'pr merge 50' "$FAKE/gh.log") $(grep -c 'pushed no fix' "$FAKE/gh.log")" "0 1"
 
+# a plain needs-work on a refused accept (no `full review` line), the worker pushes nothing: the
+# accept came from the full review's Maintainer accept line, the fix-check's pass names none; the
+# new cycle clears review_maccept, so a reused pass would merge without the product owner
+reuse_env reuse-refused-accept '[{"filename": "src/a.ts"}]' phase=accept accept_sha=$HA "accept_at=$((NOW - 3600))" \
+  stage=fixcheck review_mode=fixcheck reviewed_sha=$HB "review_maccept=breaking contract — the state file"
+printf '2030-11-05T11:00:00Z\t50\t%s\tfixcheck\tpass\t0\t0\t0\t-\t-\n' "$HA" > "$CANCCU_HOME/reviews.log"
+{ issue 5 in-progress,awaiting-accept,needs-work; } | issues
+json issue5.json "$(comment 2030-11-05T11:45:00Z 'Not this way.' | jq -s '{labels: [{name: "in-progress"}, {name: "needs-work"}], comments: .}')"
+dispatch --once
+ok "needs-work on a refused accept, no full review line: review_asked is set" eq "$(st 5 review_asked)" 1
+rm -f "$WORKERS_DIR/web-5.lock"; last 5 "done" 'nothing to change'
+{ issue 5 in-progress; } | issues; : > "$FAKE/worker.log"
+dispatch --once
+ok "… the worker pushed nothing: no merge, one full review of that head" \
+  eq "$(grep -c 'pr merge 50' "$FAKE/gh.log") $(grep -c -- "--key review-50" "$FAKE/worker.log") $(dlog 'passed review already')" "0 1 0"
+# a stopped merge (needs-you at merge) whose accept came from a Risk: high kept only in review_risk
+reuse_env reuse-risk-kept '[{"filename": "src/a.ts"}]' phase=needs-you ny_stage=merge "ny_at=$((NOW - 3600))" \
+  stage=fixcheck review_mode=fixcheck reviewed_sha=$HB review_risk=high
+printf '2030-11-05T11:00:00Z\t50\t%s\tfixcheck\tpass\t0\t0\t0\t-\t-\n' "$HA" > "$CANCCU_HOME/reviews.log"
+{ issue 5 in-progress,needs-you,needs-work; } | issues
+json issue5.json "$(comment 2030-11-05T11:45:00Z 'Not this way.' | jq -s '{labels: [{name: "in-progress"}, {name: "needs-work"}], comments: .}')"
+dispatch --once
+ok "needs-work with Risk: high kept only in review_risk: review_asked is set" eq "$(st 5 review_asked)" 1
+rm -f "$WORKERS_DIR/web-5.lock"; last 5 "done" 'nothing to change'
+{ issue 5 in-progress; } | issues; : > "$FAKE/worker.log"
+dispatch --once
+ok "… the worker pushed nothing: no merge, one full review of that head" \
+  eq "$(grep -c 'pr merge 50' "$FAKE/gh.log") $(grep -c -- "--key review-50" "$FAKE/worker.log")" "0 1"
+
 echo "canccu-merge tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

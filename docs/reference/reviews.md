@@ -117,10 +117,12 @@ one more fix round: the worker follows up (a fresh session unless `RESUME_ON` na
 fix-check's PR comment when the items were not saved), then a fix-check of `<open_sha>..<new
 head>` runs against them; each of your comments counts as a blocking item. A line in your
 comment that is just `full review` (any case; `*`, `_`, backticks and a final `.` or `!`
-allowed) asks for a new full review instead, as does a `needs-work` on a refused accept.
-A plain `needs-work` that the worker answers with no push leaves the head that passed: the
-earlier pass is reused and that head is not reviewed again; only a `full review` line asks for a
-new review of it.
+allowed) asks for a new full review instead, as does a `needs-work` on a refused accept (the
+issue had `awaiting-accept`, or the PR waited on a `Maintainer accept:` line or a `Risk: high`
+the dispatcher kept from the full review): a reused pass would be classified without them and
+could merge with no accept. Any other plain `needs-work` that the worker answers with no push
+leaves the head that passed: the earlier pass is reused and that head is not reviewed again; only
+a `full review` line asks for a new review of it.
 
 **A push after a pass** (a new head after a review or fix-check passed, outside a fix round): if
 every commit since the passed sha is a merge of `origin/main` that git would have made the same
