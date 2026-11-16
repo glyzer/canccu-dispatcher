@@ -301,5 +301,18 @@ dpass
 ok "… and once the work is closed the step's end follows: its deep review starts" \
   eq "$(grep -c -- '--key pkg-12-deep' "$FAKE/worker.log") $(sf deep)" "1 running"
 
+# the step's deep units share one worktree: a round whose PR closed unmerged left it on its branch,
+# with its report; the next deep review starts from a fresh one (removed, with that branch)
+cenv cadence-wt 14
+wt=$WORKERS_DIR/worktrees/web/pkg-12-deep
+mkdir -p "$wt/docs/reports"; echo "gitdir: x" > "$wt/.git"; echo old > "$wt/docs/reports/step-4-r1-deep-review.md"
+echo pkg-12-deep-r1 > "$FAKE/branch"
+dpass; rm -f "$FAKE/branch"
+ok "a deep review starts on the shared worktree a closed round left: removed first, with its branch" \
+  eq "$(grep -cE "worktree remove --force $wt\$" "$FAKE/git.log") $(grep -cx -- "-C $E/code/web branch -D pkg-12-deep-r1" "$FAKE/git.log") $(grep -c -- '--key pkg-12-deep' "$FAKE/worker.log")" "1 1 1"
+cenv cadence-nowt 14
+dpass
+ok "… none there: nothing removed" eq "$(grep -c 'worktree remove' "$FAKE/git.log") $(grep -c -- '--key pkg-12-deep' "$FAKE/worker.log")" "0 1"
+
 echo "canccu-deep tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
