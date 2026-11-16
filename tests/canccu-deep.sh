@@ -85,6 +85,20 @@ dpass
 ok "the base matches STEP_TAG exactly, {n} as digits: not a round tag or a longer name" \
   grep -qF "from the tag step-3 (git diff step-3..<head>) up to origin/main" "$FAKE/worker.log"
 
+# parallel tracks: a later step's tag (step-5) and an older step's (step-2) are newer than step-3;
+# step 4's base is the highest {n} below its own number
+denv deep-tag-tracks STEP_DEEP_REVIEW=1 "STEP_TAG='step-{n}'"
+rg tag step-3 HEAD; echo later >> "$E/code/web/README.md"; rg add -A
+GIT_COMMITTER_DATE=2030-11-06T10:00:00Z "$FAKE_REAL_GIT" -C "$E/code/web" -c user.name=octo -c user.email=octo@example.com commit -qm later
+rg tag step-5 HEAD; rg tag step-2 HEAD; rg push -q origin --tags 2>/dev/null
+dpass
+ok "parallel tracks: the base is the highest {n} below the step's (step-3), not the newest tag" \
+  grep -qF "from the tag step-3 (git diff step-3..<head>) up to origin/main" "$FAKE/worker.log"
+denv deep-tag-none-below STEP_DEEP_REVIEW=1 "STEP_TAG='step-{n}'"
+rg tag step-7 HEAD; rg push -q origin --tags 2>/dev/null
+dpass
+ok "… no tag below it: the newest tag of the pattern, as before" grep -qF "from the tag step-7 (git diff step-7..<head>) up to origin/main" "$FAKE/worker.log"
+
 # ---------------------------------------------------------------- its PR merged: polish or health
 
 # merged <name> [blocking items...]: the deep review's PR 60 merged with that report

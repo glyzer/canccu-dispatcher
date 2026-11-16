@@ -36,8 +36,9 @@ health pass: one worker run (`pkg-<m>-deep`, window `deep#<m>`, a fresh session 
 `DEEP_REVIEW_MODEL`, else `REVIEW_MODEL`, else `MODEL`, at `DEEP_REVIEW_EFFORT` (`high`), budget
 `BUDGET_DEEP_REVIEW`), charged to the step. The step's phase is `deep`: it stays current. The log
 says `#pkg-<m>-deep started: the deep review of step <title>`. Its prompt names the base (the
-newest tag matching `STEP_TAG` exactly, `{n}` as digits only, so no round tag; else the step's
-merged PRs from `steps/<m>.packages`), the head it reads (`origin/main`'s sha, the step field `deep_head`), the
+tag matching `STEP_TAG` exactly, `{n}` as digits only, so no round tag, with the highest `{n}`
+below the step's own number, since with parallel tracks a later step's tag can be newer; with none
+below it, the newest such tag; else the step's merged PRs from `steps/<m>.packages`), the head it reads (`origin/main`'s sha, the step field `deep_head`), the
 step's issues and its follow-up issues (the `followups` keys `step-<m>-*`). It writes
 `docs/reports/step-<n>-deep-review.md` (`<n>`: the leading number of the milestone's title, else
 the milestone number) with the sections Architecture, Security, Contracts and Test quality, then

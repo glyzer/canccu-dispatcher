@@ -22,19 +22,30 @@ deep_due() { [ "${STEP_DEEP_REVIEW:-0}" = 1 ] && [ -z "$(step_get "$1" deep)" ];
 deep_report() { echo "docs/reports/step-$(step_n "$1")${2:+-r$2}-deep-review.md"; }
 deep_branch() { echo "pkg-$1-deep${2:+-r$2}"; }
 
-# step_tag_re: STEP_TAG as an anchored regex, {n} as digits only: a glob ({n} as *) would also
-# match the round tags (step-4-r1) and, for v{n}, every release tag
+# step_tag_re: STEP_TAG as an anchored regex, {n} as digits only (its first one captured): a glob
+# ({n} as *) would also match the round tags (step-4-r1) and, for v{n}, every release tag
 step_tag_re() {
   local p=${STEP_TAG//\{n\}/$'\x01'}
   p=$(sed 's/[][\.*^$+?(){}|]/\\&/g' <<<"$p")
+  p=${p/$'\x01'/([0-9]+)}
   echo "^${p//$'\x01'/[0-9]+}\$"
 }
-# deep_base <m>: what the deep review reads from: the newest tag of STEP_TAG's pattern, else the
-# step's merged PRs
+# deep_base <m>: what the deep review reads from: the tag of STEP_TAG's pattern with the highest
+# {n} below the step's own number (with parallel tracks a later step's tag can be the newest),
+# else the newest tag of the pattern, else the step's merged PRs
 deep_base() {
-  local t prs
+  local t="" tags re sn best=-1 tn x prs
   if [[ ${STEP_TAG:-} == *'{n}'* ]]; then
-    t=$(guard 20 git -C "$CLONE" tag -l --sort=-creatordate 2>/dev/null | grep -E "$(step_tag_re)" | head -1)
+    re=$(step_tag_re) sn=$(step_n "$1")
+    tags=$(guard 20 git -C "$CLONE" tag -l --sort=-creatordate 2>/dev/null | grep -E "$re")
+    if [[ $sn =~ ^[0-9]+$ ]]; then
+      while IFS= read -r x; do
+        [[ $x =~ $re ]] || continue
+        tn=$((10#${BASH_REMATCH[1]}))
+        (( tn < sn && tn > best )) && best=$tn t=$x
+      done <<<"$tags"
+    fi
+    [ -n "$t" ] || t=$(head -1 <<<"$tags")
     [ -n "$t" ] && { echo "the tag $t (git diff $t..<head>)"; return 0; }
   fi
   prs=$(awk -F '\t' '$7 == "merged" && $6 != "" { printf "#%s, ", $6 }' "$CANCCU_HOME/steps/$1.packages" 2>/dev/null)
