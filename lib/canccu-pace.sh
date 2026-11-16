@@ -40,7 +40,9 @@ pace_effect() {
 
 # pace_tick: the pass's transitions, each logged once. $CANCCU_HOME/pace (since=<epoch>, mode=<PACE>)
 # exists while ahead; PACE=pause also keeps a hold line in the feed. PACE changed while ahead is a
-# transition too: the hold line follows the mode. An unknown reading changes nothing.
+# transition too: the hold line follows the mode. An unknown or stale reading is never ahead
+# (pace_ahead), so the state goes with it: feed, digest and canccu-status --pace say what happens,
+# and a fresh reading still ahead starts it again.
 pace_tick() {
   local f="$CANCCU_HOME/pace" r w g d m o hold
   m=$(pace_mode)
@@ -48,7 +50,13 @@ pace_tick() {
     [ -e "$f" ] && (( ! CANCCU_DRY )) && { rm -f "$f"; feed_settle hold-pace "PACE is off"; }
     return 0
   fi
-  r=$(pace_read); [ -n "$r" ] || return 0
+  r=$(pace_read)
+  if [ -z "$r" ]; then
+    [ -e "$f" ] && (( ! CANCCU_DRY )) && {
+      rm -f "$f"; log "pace: the weekly reading is stale or unknown; PACE=$m limits nothing until a fresh one"
+      feed_settle hold-pace "reading stale"; }
+    return 0
+  fi
   read -r w g d <<<"$r"
   (( CANCCU_DRY )) && return 0
   hold="pace: weekly usage $w% is ahead of the week; nothing new starts until it is back on pace"

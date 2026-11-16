@@ -263,8 +263,21 @@ env_new pace-stale PACE=cap
 puse 60 4; dispatch --once
 puse 60 4 $((7 * 3600))
 ok "a stale reading while ahead: no limit" eq "$(lib usage_cap)" 3
-dispatch --once
-ok "… and no transition: no back-on-pace line, pace kept" eq "$(plog 'back on pace') $([ -e "$CANCCU_HOME/pace" ] && echo kept)" "0 kept"
+dispatch --once; dispatch --once
+ok "… the pace state cleared, logged once, no back-on-pace line" \
+  eq "$(plog 'pace: the weekly reading is stale or unknown; PACE=cap limits nothing until a fresh one') $(plog 'back on pace') [$([ -e "$CANCCU_HOME/pace" ] && echo kept)]" "1 0 []"
+# PACE=pause: the hold line closes with the stale reading, so feed, digest and canccu-status
+# --pace say what happens (nothing held)
+env_new pace-stale-pause PACE=pause
+puse 60 4; dispatch --once
+puse 60 4 $((7 * 3600)); dispatch --once
+ok "PACE=pause, the reading goes stale while ahead: nothing held, the hold line closed (reading stale)" \
+  eq "[$(lib pace_holds && echo hold)] $(grep -cP '\tclosed\t.*: reading stale$' "$CANCCU_HOME/events")" "[] 1"
+ok "… canccu-status --pace: unknown, on pace" eq "$(PATH="$fb:$PATH" "$root/bin/canccu-status" --pace 2>&1 | head -2)" "weekly usage unknown (no fresh reading)
+PACE=pause · margin 10 · on pace"
+puse 60 4; dispatch --once
+ok "… a fresh reading still ahead: ahead again, the hold line back" \
+  eq "$(grep -c "^since=$NOW$" "$CANCCU_HOME/pace") $(grep -cP '\t-\tinfo\thold\t.*nothing new starts until it is back on pace$' "$CANCCU_HOME/events")" "1 2"
 
 env_new pace-off
 puse 60 4; dispatch --once
