@@ -371,10 +371,8 @@ resume_step() {
     c=$(user_comments "$n" "$pr" "${since:-$(st_get "$n" started)}") ||
       { log "#$n PR #$pr: gh error reading the comments for needs-work; retrying next pass"; return 0; }
     extra_round "$n" "$pr" "$c" && return 0
-    # read before the label and new_cycle clear them: a refused accept, or a pass that waited for
-    # the product owner on a Maintainer accept or Risk: high kept only in the state (the
-    # fix-check's verdict names neither), asks for a new full review. Reused, the pass would
-    # classify without them and merge with no accept.
+    # a refused accept (or a Maintainer accept or Risk: high kept only in the state, read before
+    # new_cycle clears them) asks for a full review: a reused pass would merge without the accept
     { has_label "$n" awaiting-accept || [ "$phase" = accept ] || [ -n "$(st_get "$n" review_maccept)" ] ||
       [ "$(st_get "$n" review_risk)" = high ]; } && refused=1
     resume "$n" "The user rejected PR #$pr (needs-work). Address their comments, rerun the checks, push once and stop: the dispatcher watches CI. Their comments: ${c:-none found; read the latest comments on the PR and the issue}" needs-work || return 0
