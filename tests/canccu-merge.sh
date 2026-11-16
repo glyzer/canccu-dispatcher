@@ -744,6 +744,40 @@ ok "a direct merge's 503 → retried: merging (direct), no needs-you" \
 fpass
 ok "… the next pass merges it directly" eq "$(dlog '#5 PR #50: merged directly') $(st 5 merge_mode) [$(st 5 merge_tries)]" "1 merged []"
 
+# ---------------------------------------------------------------- clean status, a fresh conflict check (#213)
+
+# --auto refused because the PR can merge right now: merged directly at the same head
+macc merge-clean-status
+flaky 1 'GraphQL: Pull request Pull request is in clean status (enablePullRequestAutoMerge)'
+fpass
+ok "--auto refused for clean status → a direct merge at the head, without --auto" \
+  grep -qx "pr merge 50 -R example-org/web --squash --match-head-commit $HA" "$FAKE/gh.log"
+ok "… logged" grep -qF "#5 PR #50: GitHub can merge it now (clean status); merging directly at ${HA:0:7}" "$CANCCU_HOME/dispatch.log"
+ok "… merged, no needs-you" eq "$(st 5 phase) $(st 5 merge_mode) $(grep -c needs-you "$FAKE/gh.log")" "merging merged 0"
+
+# offenv <name> <fresh mergeable> <fresh mergeStateStatus>: auto-merge off, not queued, the pass's
+# status UNKNOWN (main just moved); the fresh read of PR 50 says the given
+offenv() {
+  merging_off "$1" "$(jq -n --arg m "$2" --arg s "$3" '{state: "OPEN", mergeable: $m, mergeStateStatus: $s}')"
+  pr 50 5 $HA green | jq '.mergeStateStatus = "UNKNOWN"' | prs
+  mkdir -p "$WORKERS_DIR/worktrees/web/issue-5" && touch "$WORKERS_DIR/worktrees/web/issue-5/.git"
+  echo 5-thing > "$FAKE/branch"; echo 2 > "$FAKE/behind"
+}
+offenv off-conflicting CONFLICTING DIRTY
+dispatch --once
+ok "auto-merge off, the fresh read says CONFLICTING → main merged in by script" \
+  grep -qF '#5 PR #50: conflicts with main; merged main into the branch by script (no AI run)' "$CANCCU_HOME/dispatch.log"
+ok "… no needs-you" hasnt gh.log "needs-you"
+offenv off-unknown UNKNOWN UNKNOWN
+dispatch --once
+ok "auto-merge off, the fresh read says UNKNOWN → no needs-you this pass" hasnt gh.log "needs-you"
+ok "… nothing merged" not grep -qs 'merge --no-edit' "$FAKE/git.log"
+ok "… still merging" eq "$(st 5 phase)" merging
+offenv off-mergeable MERGEABLE CLEAN
+dispatch --once
+ok "auto-merge off, the fresh read says MERGEABLE, no queue removal → needs-you as before" \
+  has gh.log "auto-merge was disabled or the merge queue rejected PR #50"
+
 ok "gh_transient: 5xx, timeouts and dropped connections" lib gh_transient $'x\nPost "https://api.github.com/graphql": net/http: TLS handshake timeout'
 ok "gh_transient: any case" lib gh_transient 'non-200 OK status code: 504 GATEWAY TIMEOUT'
 ok "gh_transient: a refusal is not" not lib gh_transient 'GraphQL: Head branch was modified. Review and try the merge again.'
