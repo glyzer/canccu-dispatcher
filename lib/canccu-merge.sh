@@ -151,13 +151,14 @@ accept_step() {
   return 0
 }
 
-# conflict_merge <n> <pr> <head> [disarm|queue]: GitHub says the PR conflicts with main (DIRTY; queue: the merge queue said so): merge
+# conflict_merge <n> <pr> <head> [disarm|queue] [dirty]: GitHub says the PR conflicts with main (DIRTY; queue: the merge
+# queue said so; dirty: a fresh read did, where the pass's status is stale): merge
 # main in by script (main_merge), once per head, so a merge that leaves it conflicting never loops. Its push is a new head:
 # no new review (postpass_step), CI waits start now (check_at), the old head's red is not its own (main_merged, as in ci_red).
 # A real conflict: one worker merge run; it pushed nothing (same head) → needs-you. disarm: auto-merge off first. BEHIND: the queue's. 1: nothing done.
 conflict_merge() {
   local n=$1 pr=$2 head=$3
-  [ "${4:-}" = queue ] || [ "$(pr_get "$pr" '.mergeStateStatus // ""')" = DIRTY ] || return 1
+  [ "${4:-}" = queue ] || [ "${5:-}" = dirty ] || [ "$(pr_get "$pr" '.mergeStateStatus // ""')" = DIRTY ] || return 1
   if [ "$(st_get "$n" conflict_merge)" = "$head" ]; then
     [ "$(st_get "$n" conflict_sha)" = "$head" ] || return 1
     needs_you "$n" "PR #$pr conflicts with main in: $(st_get "$n" conflict_paths), and the worker's merge run pushed no resolution"; return 0
@@ -196,7 +197,7 @@ in_merge_queue() {
 # merging_step <n>: auto-merge is armed (merge_mode empty), or, without auto-merge, the PR waits to
 # merge directly (merge_mode direct; merged once done). A push disarms auto-merge (armed: by the
 # state or by GitHub) and reviews again; auto-merge switched off (by GitHub, or the queue rejected
-# the PR), or a merge that takes longer than MERGE_WAIT_MIN (direct: CI not green by then, no
+# the PR; a fresh conflict goes to conflict_merge first), or a merge that takes longer than MERGE_WAIT_MIN (direct: CI not green by then, no
 # checks after NO_CHECKS_MIN, or the PR still open after the direct merge) → needs-you, so no PR
 # waits here forever.
 merging_step() {
@@ -234,12 +235,19 @@ merging_step() {
     needs_you "$n" "PR #$pr has not merged $MERGE_WAIT_MIN min after auto-merge was enabled; auto-merge disabled (check the merge queue)"
   elif [ "$(pr_get "$pr" '.autoMergeRequest != null')" = false ] && (( $(now) - at > 120 )) && ! in_merge_queue "$pr"; then
     # merged meanwhile (the queue's reason `merged`, or this pass's list is older): no rejection
-    j=$(ghj pr view "$pr" -R "$REPO" --json state,body,closingIssuesReferences,headRefName 2>/dev/null)
+    j=$(ghj pr view "$pr" -R "$REPO" --json state,body,closingIssuesReferences,headRefName,mergeable,mergeStateStatus 2>/dev/null)
     if [ "$(jqr '.state // ""' <<<"$j" 2>/dev/null)" = MERGED ]; then
       if plan_pr_merged "$n" "$j"; then plan_back "$n" "$pr" "$(jqr '.headRefName // ""' <<<"$j")"
       else st_set "$n" merge_mode=merged merge_at="$(now)"; log "#$n PR #$pr: merged (auto-merge is off because it is done)"; fi
       return 0
     fi
+    # GitHub turns auto-merge off when main moves and the PR conflicts, while the pass's status
+    # still says UNKNOWN: the fresh read decides. UNKNOWN there too: the next pass looks again
+    # (MERGE_WAIT_MIN still bounds it).
+    case $(jqr '"\(.mergeable // "")/\(.mergeStateStatus // "")"' <<<"$j" 2>/dev/null) in
+      CONFLICTING/*|*/DIRTY) conflict_merge "$n" "$pr" "$head" "" dirty; return 0 ;;
+      UNKNOWN/*) return 0 ;;
+    esac
     queue_removed "$n" "$pr" "$head" "$at" || needs_you "$n" "auto-merge was disabled or the merge queue rejected PR #$pr"
   elif [ "$(st_get "$n" queue_kick)" != "$head" ] && (( $(now) - at > ${NO_CHECKS_MIN:-10} * 60 )); then
     queue_kick "$n" "$pr" "$head"
