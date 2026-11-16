@@ -38,6 +38,7 @@ IDLE_ALARM_MIN	int:1:10080	project	open
 MERGE_WAIT_MIN	int:1:10080	project	open
 MERGE_CLOSE_MIN	int:0:1440	project	open
 MERGE_RETRY	int:0:20	project	open
+ACCEPT_CHANNELS	words:all|label|ship|reply|leader	project	locked
 KEEP_ACCEPT_ON_MAIN_MERGE	enum:0|1	project	locked
 MERGE_MAIN_ANY_PHASE	enum:0|1	project	open
 POST_WAIT	int:10:86400	project	open
@@ -70,6 +71,7 @@ FIXCHECK_RISKY	regex	rules	locked
 GATED_PATHS	regex	rules	locked
 USER_VISIBLE_PATHS	regex	rules	locked
 TEST_PATHS	regex	rules	open
+TEST_CMD	text	rules	open
 LIGHT_REVIEW_PATHS	regex	rules	locked
 SECURITY_REVIEW_WHEN	text	rules	locked
 PLANNER_EXTRA	text	rules	open

@@ -134,7 +134,7 @@ printf '%s\t%s\t%s\n' "${GH_CONFIG_DIR:-<default>}" "${GIT_CONFIG_COUNT:-<unset>
 # still answers diff --numstat
 if [ -e "$FAKE/realgit" ]; then
   case " $a " in
-    *" merge-tree "*|*" merge-base "*|*" rev-list --parents "*|*" diff --name-only "*) exec "$FAKE_REAL_GIT" "$@" ;;
+    *" merge-tree "*|*" merge-base "*|*" rev-list --parents "*|*" diff --name-only "*|*" diff -U0 "*) exec "$FAKE_REAL_GIT" "$@" ;;
     *" rev-parse HEAD "*) ;;
     *" rev-parse "*) exec "$FAKE_REAL_GIT" "$@" ;;
     *" show origin/main:"*) exec "$FAKE_REAL_GIT" "$@" ;;
@@ -142,6 +142,8 @@ if [ -e "$FAKE/realgit" ]; then
   esac
 fi
 case " $a " in *" diff --numstat "*) cat "$FAKE/numstat" 2>/dev/null || exit 128 ;; esac
+# the lines changed since a pass (diff -U0): only the real repo answers; else git fails, so no pass rule
+case " $a " in *" diff -U0 "*) exit 128 ;; esac
 # a worktree's branch (branch --show-current: $FAKE/branch), how far main is ahead (rev-list
 # --count: $FAKE/behind), its commits (log --oneline: $FAKE/gitlog) and their diff stat (diff --stat:
 # $FAKE/diffstat); $FAKE/merge-conflict: a merge
