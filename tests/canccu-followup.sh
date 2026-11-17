@@ -135,6 +135,9 @@ dispatch --once
 ok "a merge of main that conflicts is aborted" has git.log "merge --abort"
 ok "… nothing pushed" hasnt git.log "push"
 ok "… a fresh session resolves it, told the files" grep -q -- '--fresh .*web 5 Rules for this run: .* Merging origin/main into the branch of PR #50 conflicts in: src/a.ts src/b.ts' <<<"$(wline)"
+# #209: a merge run that spent its time on tests left the resolved merge committed but unpushed
+ok "… told to push the merge before any test" grep -qF 'commit the merge and push it at once (a normal push, never a rebase or force-push), then run only the tests of the files that conflicted and push a fix if one fails' <<<"$(wline)"
+ok "… and not to rerun the checks first" not grep -qF 'what both sides meant, rerun the checks' <<<"$(wline)"
 ok "… not a fix attempt" eq "$(st 5 fixes)" ""
 
 redenv red-no-worktree
