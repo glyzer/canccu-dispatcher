@@ -21,12 +21,11 @@ and merges nothing.
 The repo's `REVIEW.md`, from `origin/main`, joins both prompts:
 [`repo-contract.md`](../repo-contract.md).
 
-It writes its review to the project's `reviews/<pr>/<sha>.md`: a line `Change:` and three `- `
-lines on what the PR changes for its users ([the ask form](pings.md#the-ask-form)'s summary; never
-affects the verdict); any prose of its own, then the finding block below; `Maintainer accept:
-<what>` only when the PR breaks a contract or holds a destructive migration; for a package,
-`Risk: <low|normal|high> — <why>` (it confirms or raises the plan's class); and last, exactly
-`Review verdict: pass <sha>` or
+It writes its review to the project's `reviews/<pr>/<sha>.md`: `Change:` and three `- ` lines
+on what the PR changes for users ([the ask form](pings.md#the-ask-form)'s summary, not the
+verdict's); its prose, then the finding block; `Maintainer accept: <what>` only when the PR
+breaks a contract or holds a destructive migration; for a package, `Risk: <low|normal|high> —
+<why>` (it confirms or raises the plan's class); and last, exactly `Review verdict: pass <sha>` or
 `Review verdict: changes <sha>`. The dispatcher checks the file and posts it as `REVIEWER_LOGIN`.
 
 ### The finding block
