@@ -231,7 +231,7 @@ env_new() {
   printf '%s\n' "$FAKE_TOKEN" > "$E/reviewer-token"; chmod 600 "$E/reviewer-token"
   jq -n --arg l "$BOT" '{login: $l}' > "$FAKE/user.json"
   printf '%s\t%s\n' \
-    'api repos/example-org/web/milestones*' ms.json  'issue list -R example-org/web -s all -l checkpoint*' cps.json \
+    'api repos/example-org/web/milestones*' ms.json  'issue list -R example-org/web -s * -l checkpoint*' cps.json \
     'issue list*' issues.json  'pr list -R example-org/web -s open*' prs.json  'label list*' labels.json \
     'api repos/example-org/web/issues/*/dependencies/blocked_by' empty.json \
     'api repos/example-org/web/issues/*/dependencies/blocking' empty.json \

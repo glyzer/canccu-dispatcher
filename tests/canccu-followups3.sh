@@ -146,4 +146,15 @@ for ci in green red; do
   fi
 done
 
+# ---------------------------------------------------------------- #226: an open checkpoint behind many closed
+
+env_new cps-open-apart
+issues </dev/null
+json cps-open.json '[{"number": 7, "title": "Checkpoint old", "state": "OPEN", "milestone": null, "labels": [{"name": "checkpoint"}]}]'
+json cps-closed.json "$(jq -n '[range(300; 100; -1) | {number: ., title: "C \(.)", state: "CLOSED", milestone: null, labels: [{name: "checkpoint"}]}]')"
+route 'issue list -R example-org/web -s open -l checkpoint*' cps-open.json
+route 'issue list -R example-org/web -s closed -l checkpoint*' cps-closed.json
+cp_read() { fetch_steps && jq -r '[.[] | select(.number == 7) | .state] + [length | tostring] | join(" ")' <<<"$CHECKPOINTS"; }
+ok "an open checkpoint behind 200 closed ones is read (its own list), with the closed" eq "$(lib cp_read)" "OPEN 201"
+
 echo "canccu-followups3 tests: $npass passed, $nfail failed"; (( nfail == 0 ))
