@@ -62,6 +62,7 @@ opts() {
   done
 }
 case $cmd in
+  --help|help) sed -n '3,16s/^# \{0,1\}//p' "$self" ;;
   --version|version)
     c=$(canccu_commit "$here")
     echo "canccu-dispatcher $(canccu_version "$here")${c:+ (commit $c)}" ;;

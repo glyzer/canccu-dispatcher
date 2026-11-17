@@ -12,6 +12,9 @@ CANCCU_VERSION=$(canccu_version "$_canccu_lib/..")
 # shellcheck source=canccu-projects.sh
 . "$_canccu_lib/canccu-projects.sh"
 _canccu_die() { echo "$(basename "$0"): $*" >&2; exit 1; }
+# --help as the command's first argument: its header comment (the usage), and nothing runs
+canccu_help() { sed -n '3,/^[^#]/{/^#/s/^# \{0,1\}//p}' "$1"; exit 0; }
+[ "${1:-}" = --help ] && canccu_help "$0"
 # The calling command's leading --project <name> (or --project=<name>) picks the project; it is
 # taken off the command's arguments (a sourced file shifts its caller's). Else CANCCU_PROJECT,
 # else default-project, else the only project; otherwise refuse with the list.

@@ -19,6 +19,7 @@ die() { echo "canccu-init: $*" >&2; exit 1; }
 . "$here/lib/canccu-projects.sh"
 
 usage() { sed -n '3,13s/^# \{0,1\}//p' "$self" >&2; exit 2; }
+[ "${1:-}" = --help ] && { sed -n '3,13s/^# \{0,1\}//p' "$self"; exit 0; }
 
 if [ "${1:-}" = --leader ]; then
   [ $# -eq 2 ] || usage

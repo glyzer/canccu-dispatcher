@@ -194,4 +194,16 @@ failgh "issue edit" 'HTTP 502: Bad Gateway'
 PATH="$E/sbin:$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-stop" --forget 21 > "$E/out" 2>&1
 ok "canccu-stop: the label edit failed → the blocked marker is kept" test -e "$CANCCU_HOME/blocked/21"
 
+# ---------------------------------------------------------------- --help
+
+env_new help
+touch "$CANCCU_HOME/paused"
+bad=""
+for c in classify dispatch dispatcher init pause resume review run ship status stop up; do
+  out=$(PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-$c" --help 2>/dev/null); rc=$?
+  [ "$rc" = 0 ] && [[ $out == canccu-$c* ]] || bad+=" $c($rc)"
+done
+ok "every command answers --help with its usage, exit 0" eq "[${bad# }]" "[]"
+ok "… canccu-resume --help resumes nothing" test -e "$CANCCU_HOME/paused"
+
 echo "canccu-followups tests: $npass passed, $nfail failed"; (( nfail == 0 ))
