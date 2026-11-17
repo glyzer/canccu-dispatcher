@@ -63,8 +63,10 @@ Every `INTERVAL` seconds, under the project's lock:
        log tail, at most `FIX_ATTEMPTS` automatic fix runs per PR (review fix rounds included),
        then `needs-you`. Checks in `REVIEW_CHECKS` are ignored here. A `needs-you`
        that only waited on CI goes back to `check` by itself once CI is green or red;
-     - CI green, no verdict, body lacking `Testing:`/`Revert:` (not contract or plan) → worker
-       resumed once for the body (`body_lines`, no fix round), then the review;
+     - CI green, no verdict, body lacking `Testing:`/`Revert:` (not a contract PR, nor a plan PR
+       by its `Tier: plan` body line) → worker resumed once for the body (`body_lines`, no fix
+       round; not during a usage back-off or a pause, nor in a fix round that pushed nothing:
+       that is its `needs-you`), then the review;
      - CI green and no verdict for this head → the review (or, after a fix round, the
        fix-check) starts; it checks both lines against the diff.
    - A reviewer that finished: its review file, if valid for the reviewed head, is posted as

@@ -235,7 +235,8 @@ check_pr() {
     log "#$n PR #$pr: head ${head:0:7} passed review already; no new review (verdict reused)"
     after_pass "$n" "$pr" "$head" "earlier"; return
   fi
-  body_lines_missing "$n" "$pr" "$j" && return
+  # a fix round that pushed nothing is the needs-you below: no body send-back first
+  { (( fix )) && [ "$head" = "$rsha" ]; } || ! body_lines_missing "$n" "$pr" "$j" || return
   postpass_step "$n" "$pr" "$head" && return
   # the worker fixed the full review's findings: the fix-check of reviewed_sha..head, never a
   # second full review. A push after a fix-check voids it (its verdict names the old head): a
