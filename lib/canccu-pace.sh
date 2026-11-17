@@ -27,7 +27,7 @@ pace_ahead() {
   read -r _ _ d <<<"$(pace_read)"
   [[ $d =~ ^-?[0-9]+$ ]] && (( d > $(pace_margin) ))
 }
-# pace_holds: PACE=pause and ahead: nothing new starts, a resume neither
+# pace_holds: PACE=pause and ahead: nothing new starts; resumes and fix runs of started work go on
 pace_holds() { [ "$(pace_mode)" = pause ] && pace_ahead; }
 # pace_cap: the runs PACE=cap allows over all projects while ahead (PACE_CAP, at least 1)
 pace_cap() { [[ ${PACE_CAP:-1} =~ ^[1-9][0-9]*$ ]] && echo "${PACE_CAP:-1}" || echo 1; }

@@ -40,7 +40,7 @@ change a setting and the settings table are in [`config.md`](config.md); the rul
 | `USAGE_STOP` | `90` | 5-hour usage share (%) from which no run starts and running workers are asked to stop at a safe point |
 | `USAGE_WINDOW_DELTA` | `0` | `1`: each run's spend-log line records the 5-hour window's utilization before and after it ([`state.md`](state.md#the-spend-log)). Off by default: it means something only with one run at a time on a plan with a 5-hour window |
 | `USAGE_WEEKLY_DRAIN` | `90` | Weekly usage share (%) from which nothing new starts; work already started finishes |
-| `PACE` | `off` | Weekly pacing against the share of the week gone ([`usage.md`](usage.md#pacing)): `notify` (a log line only), `cap` (at most `PACE_CAP` runs over all projects while ahead) or `pause` (while ahead no new issue or package starts and stopped runs are not resumed; fix runs of started work go on); `off`: none |
+| `PACE` | `off` | Weekly pacing against the share of the week gone ([`usage.md`](usage.md#pacing)): `notify` (a log line only), `cap` (at most `PACE_CAP` runs over all projects while ahead) or `pause` (while ahead no new issue or package starts; resumes and fix runs of started work go on); `off`: none |
 | `PACE_MARGIN` | `10` | Points the weekly share may be above the share of the week gone before the project counts as ahead |
 | `PACE_CAP` | `1` | `PACE=cap`: the runs at once over all projects while ahead |
 | `USAGE_MAX_AGE_MIN` | `360` | A usage reading older than this (minutes), or older than the dispatcher's start, counts as unknown: nothing is throttled until a run writes a fresh one ([`usage.md`](usage.md)); `0`: no age limit |

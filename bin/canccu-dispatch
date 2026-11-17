@@ -150,8 +150,9 @@ pass() {
     for m in $(current_step_ids); do reap_planner "$m"; step_tick "$m" "$go"; done
     (( go )) && for m in $(current_step_ids); do start_packages "$m"; done
   fi
-  # 4. resume: a resume is a new run, so the pause, the disk and PACE=pause hold it too (#215)
-  backing_off || pause_holds || disk_low >/dev/null || pace_holds || for n in "${open[@]}"; do resume_step "$n"; done
+  # 4. resume: a resume is a new run, so the pause holds it too (#215); the disk and PACE=pause hold
+  # new work only, as the weekly drain does: started work finishes (#222)
+  backing_off || pause_holds || for n in "${open[@]}"; do resume_step "$n"; done
   # 5. accept
   for n in "${open[@]}"; do
     case $(st_get "$n" phase) in accept) accept_step "$n" ;; merging) merging_step "$n" ;; esac

@@ -234,7 +234,8 @@ state 5 phase=limited
 puse 60 4
 ok "PACE=pause ahead: draining, usage_cap unchanged" eq "$(lib draining && echo drain) $(lib usage_cap)" "drain 3"
 dispatch --once
-ok "… nothing new starts, nothing resumes" eq "$(wc -l < "$FAKE/worker.log")" 0
+ok "… nothing new starts" not started 6
+ok "… the stopped run resumes, as under the weekly drain: started work finishes" eq "$(st 5 phase)" work
 ok "… a hold line (info) in the feed" grep -qP '\t-\tinfo\thold\t.*pace: weekly usage 60% is ahead of the week; nothing new starts until it is back on pace$' "$CANCCU_HOME/events"
 puse 45 4
 dispatch --once

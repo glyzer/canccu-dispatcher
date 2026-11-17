@@ -175,11 +175,11 @@ ok "docs/gates.md has the functional gate and each gate chosen per step" eq "${m
 
 # ---------------------------------------------------------------- PACE=pause drains (#216 D6)
 
-# may_start holds no fix run for PACE (only pace_holds in step 4 and draining): the docs say so,
-# not "resumes nothing"
-ok "usage.md: PACE=pause holds the resumes of stopped runs, the fix runs of started work go on" \
-  eq "$(grep -c 'resumes nothing' $R/usage.md) $(tr '\n' ' ' < $R/usage.md | grep -c 'the fix runs of work already *started')" "0 1"
-ok "… config-steps.md's PACE row too" grep -qF 'stopped runs are not resumed; fix runs of started work go on' $R/config-steps.md
+# PACE=pause holds new work only (draining), as the weekly drain: the docs say so, not "resumes
+# nothing" or "not resumed" (#222)
+ok "usage.md: PACE=pause lets the resumes and fix runs of started work go on" \
+  eq "$(grep -c 'resumes nothing' $R/usage.md) $(tr '\n' ' ' < $R/usage.md | grep -c 'the resumes of *stopped runs .* and the fix runs of work already *started')" "0 1"
+ok "… config-steps.md's PACE row too" grep -qF 'resumes and fix runs of started work go on' $R/config-steps.md
 
 echo "canccu-docs tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
