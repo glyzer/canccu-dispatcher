@@ -170,6 +170,8 @@ def banners(snap, now, width):
     if at is None or now - at > 3 * pass_period(snap):
         out.append(Text("dispatcher not running? " + ("last pass %s ago" % ago(now, at) if at is not None else "no pass time"),
                         style="bold white on red"))
+    if isinstance(p.get("brake"), str):
+        out.append(Text("brake: %s" % p["brake"], style="bold yellow"))
     if p.get("ok") is False:
         out.append(Text("the last pass failed: %s" % txt(p, "error", "unknown error"), style="bold red"))
     if num(snap, "schema") is not None and num(snap, "schema") > SCHEMA:

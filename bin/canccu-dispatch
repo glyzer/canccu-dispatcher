@@ -98,7 +98,7 @@ pass() {
   fi
   (( CANCCU_DRY )) || rm -f "$CANCCU_HOME/.warned-user-login"
   fetch || { log "gh error reading issues or PRs; skipping this pass"; want_write; write_status "gh error reading issues or PRs"; return 1; }
-  usage_tick; pace_tick
+  usage_tick; pace_tick; brake_tick
   if fetch_steps; then (( CANCCU_DRY )) || rm -f "$CANCCU_HOME/.warned-steps"
   else warn_once steps "gh error reading the milestones: no step acts this pass (the fast lane and the runs go on)"; fi
   adopt

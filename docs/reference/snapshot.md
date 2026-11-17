@@ -18,7 +18,7 @@ dispatcher; `tests/canccu-snapshot2.sh` checks that it has every field the dispa
 |---|---|
 | `schema`, `version` | The schema number; the release that wrote it |
 | `project`, `repo`, `repo_name`, `pid`, `interval` | The project, its repo, the clone's dir name, the dispatcher's pid, `INTERVAL` |
-| `pass` | `at`, `started`, `duration`, `durations` (the last 5), `ok` (false: GitHub could not be read, or the pass ended early), `error`, `paused`, `backoff_until` |
+| `pass` | `at`, `started`, `duration`, `durations` (the last 5), `ok` (false: GitHub could not be read, or the pass ended early), `error`, `paused`, `backoff_until`, `brake` (the review brake's `on since <time> (<trigger>)`, or null) |
 | `caps` | `running` and `cap` (this project), `total_running` and `total_cap` (all projects) |
 | `spend` | `today_usd` (exact costs of today's finished runs, UTC), `runs_without_cost` (while above 0, `today_usd` is a lower bound), `day`, `freeze` (`AUTO_MERGE_UNTIL` or null) |
 | `running[]` | Each live run, then each managed unit in `check` or `merging` without one: `key`, `issue` (the lead issue), `issues`, `pr`, `package`, `risk`, `kind` (`work`, `review`, `fix-check`, `answer`, `planner`, `health`, `deep`, `waiting`), `phase`, `stage`, `pipeline` (`plan`, `work`, `ci`, `no-checks`, `review`, `fix`, `fix-check`, `merge`), `ci` (`green`, `red`, `pending`, `none`, or null), `review_verdict` (`changes` once the full review asked for changes), `title`, `started`, `minutes`, `min_cap`, `turns`, `turn_cap`, `last_line`, `color` |
