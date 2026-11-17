@@ -372,6 +372,8 @@ ok "agent config: .claude/" eq "$(c $'src/a.ts\n.claude/settings.json' "" "" "" 
 ok "agent config: .mcp.json" eq "$(c '.mcp.json' "" "" "" example-org/web 0)" "manual: changes agent config (.mcp.json)"
 ok "agent config: a nested CLAUDE.md" eq "$(c 'apps/web/CLAUDE.md' "" "" "" example-org/web 0)" "manual: changes agent config (apps/web/CLAUDE.md)"
 ok "agent config: AGENTS.md" eq "$(c 'AGENTS.md' "" "" "" example-org/web 0)" "manual: changes agent config (AGENTS.md)"
+ok "agent config: the repo's REVIEW.md (#193)" eq "$(c $'src/a.ts\nREVIEW.md' "" "" "" example-org/web 0)" "manual: changes agent config (REVIEW.md)"
+ok "… a REVIEW.md below the root is no agent config: only the root's is read" eq "$(c 'docs/REVIEW.md' "" "" "" example-org/web 0)" auto
 ok "a file merely named like it is not" eq "$(c 'docs/CLAUDE.md.txt' "" "" "" example-org/web 0)" auto
 ok "freeze date not YYYY-MM-DD → manual" eq "$(lib eval 'AUTO_MERGE_UNTIL=2031-3-1; classify_pure src/a.ts "" "" "" example-org/web 0')" "manual: AUTO_MERGE_UNTIL (2031-3-1) is not a YYYY-MM-DD date"
 ok "freeze date that is no date → manual" eq "$(lib eval 'AUTO_MERGE_UNTIL=2031-02-30; classify_pure src/a.ts "" "" "" example-org/web 0')" "manual: AUTO_MERGE_UNTIL (2031-02-30) is not a YYYY-MM-DD date"
@@ -865,7 +867,21 @@ ok "back-off: nothing starts" eq "$(wc -l < "$FAKE/worker.log")" 0
 echo $((NOW - 1)) > "$CANCCU_ROOT/backoff"; touch "$CANCCU_HOME/paused"
 dispatch --once
 ok "paused: no new issue" not started 6
-ok "paused: a limited worker resumes after the back-off" grep -q 'web 5 Rules for this run: .* The usage limit has reset' "$FAKE/worker.log"
+ok "paused: a limited worker past its back-off is not resumed (#215)" eq "$(wc -l < "$FAKE/worker.log") $(st 5 phase)" "0 limited"
+ok "canccu-status: PAUSED" grep -qF 'PAUSED (canccu-resume to continue)' <<<"$(PATH="$fb:$PATH" "$root/bin/canccu-status" 2>&1)"
+PATH="$fb:$PATH" "$root/bin/canccu-resume" > /dev/null 2>&1
+dispatch --once
+ok "… after canccu-resume it is" grep -q 'web 5 Rules for this run: .* The usage limit has reset' "$FAKE/worker.log"
+env_new pause-finish
+{ issue 5 in-progress; issue 6 ready; } | issues
+state 5 phase=limited
+PATH="$fb:$PATH" "$root/bin/canccu-pause" --finish > /dev/null 2>&1
+ok "canccu-pause --finish: logged" grep -qF 'paused, work in flight finishes (canccu-pause --finish, project web)' "$CANCCU_HOME/dispatch.log"
+ok "… canccu-status says so" grep -qF 'PAUSED, work in flight finishes (canccu-resume to continue)' <<<"$(PATH="$fb:$PATH" "$root/bin/canccu-status" 2>&1)"
+dispatch --once
+ok "… no new issue, but the limited worker resumes" eq "$(started 6 && echo started) $(grep -c 'The usage limit has reset' "$FAKE/worker.log")" " 1"
+PATH="$fb:$PATH" "$root/bin/canccu-pause" > /dev/null 2>&1
+ok "a plain canccu-pause after --finish holds again (an empty file)" eq "$(wc -c < "$CANCCU_HOME/paused")" 0
 
 # needs-work on the PR of a unit in accept moves to the lead issue, where the issue's path handles it (#154)
 nw_pr_env() {   # nw_pr_env <name> <issue labels> <pr labels>
@@ -1197,6 +1213,17 @@ echo 'fail:pr edit' >> "$FAKE/routes"
 toacc $HB
 ok "… a gh error is logged and the accept goes on" \
   eq "$(grep -c '#5 PR #50: gh error writing the ask block; tried again next pass' "$CANCCU_HOME/dispatch.log") $(st 5 phase)" "1 accept"
+# the digest's Pace section (#216 D6): only with PACE on
+for m in cap off; do
+  env_new "digest-pace-$m" DIGEST_HOUR_UTC=0 "PACE=$m"
+  mkdir -p "$WORKERS_DIR"
+  jq -n --argjson at "$((NOW - 60))" --argjson wr "$((NOW + 4 * 86400))" \
+    '{at: $at, info: {unifiedWindows: {five_hour: {utilization: 0.1, resetsAt: ($at + 3600)}, seven_day: {utilization: 0.6, resetsAt: $wr}}}}' > "$WORKERS_DIR/usage.json"
+  dispatch --once
+done
+ok "the digest has a Pace section with PACE=cap" grep -qxF "**Pace:** ahead by 17 points since 2030-11-05T12:00:00Z (PACE=cap); weekly 60%, 43% of the week gone" "$T/digest-pace-cap/root/projects/web/digest/2030-11-05.md"
+ok "… none with PACE=off" not grep -q 'Pace' "$T/digest-pace-off/root/projects/web/digest/2030-11-05.md"
+ok "… the off one is written" test -s "$T/digest-pace-off/root/projects/web/digest/2030-11-05.md"
 
 echo "canccu-dispatch tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

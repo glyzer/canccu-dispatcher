@@ -54,6 +54,7 @@ BUDGET_PLAN="60 10 30"      # the planner of a step's wave
 BUDGET_HEALTH="250 60 150"  # the health pass at the end of a step
 BUDGET_PACKAGE_MAX="600 200 360"   # cap on a package's budget (work, resume, review times its issue count)
 PACKAGE_LINES=1500          # the planner's size guide: changed lines per package
+BUDGET_LINES=0              # above 0: a package's budgets scale with its planned changed lines over this, when more than its issue count
 PACKAGE_MIN_ISSUES=3        # above 1: the planner aims for at least this many issues per package (where they fit together)
 PACKAGE_HOLD_SMALL=0        # 1: the planner may leave a lone small leftover out for a later wave's package of its area
 PLAN_MODEL=                 # the planner's model; empty: MODEL
@@ -63,13 +64,23 @@ REVIEW_MODEL_LIGHT=         # the full reviewer's model for a light PR (docs, te
 FIXCHECK_MODEL=             # the fix-check's model (e.g. a cheaper one); empty: MODEL
 FIXCHECK_FULL_LINES=100     # a push after a passed review changing more lines than this gets a full review, not a fix-check
 FIXCHECK_COUNT_MAIN=0       # 0: a fix's size counts only the PR's own change; 1: main's lines merged into the PR's files count too
+FIXCHECK_COUNT_RESOLVED=0   # 1 (with FIXCHECK_COUNT_MAIN=0): after a conflicting merge of main, count only the resolved lines
 HEALTH_MODEL=               # the health pass's model (e.g. a cheaper one); empty: MODEL
 HEALTH_EFFORT=              # the health pass's --effort (low, medium, high, xhigh, max); empty: none, the account default
+STEP_DEEP_REVIEW=0          # 1: a step whose work is done gets a deep review of its whole change first; its blocking findings become a polish issue
+DEEP_REVIEW_MODEL=          # the deep review's model; empty: REVIEW_MODEL, else MODEL
+DEEP_REVIEW_EFFORT=high     # the deep review's --effort (low, medium, high, xhigh, max)
+BUDGET_DEEP_REVIEW="150 40 120"   # the deep review at the end of a step
+CADENCE_DAYS=0              # above 0: a step whose milestone description has the line "Cadence: on" gets a review round every this many days
+STEP_TAG=''                 # e.g. step-{n}: the checkpoint OK tags origin/main ({n}: the title's leading number); empty: no tag; locked
 # the usage throttle (shares of the Claude account's limits, from the rate-limit reports in the runs' output)
 USAGE_SLOW=60               # 5-hour share (%) from which one run at a time runs, over all projects
 USAGE_STOP=90               # … from which no run starts and running workers are nudged to stop
 USAGE_WEEKLY_DRAIN=90       # weekly share (%) from which nothing new starts; started work finishes
 USAGE_WINDOW_DELTA=0        # 1: each run's spend.log line has the 5-hour share before and after it (one run at a time only)
+PACE=off                    # weekly pacing against the time gone: off, notify, cap (at most PACE_CAP runs) or pause (nothing new starts)
+PACE_MARGIN=10              # points the weekly share may be ahead of the share of the week gone
+PACE_CAP=1                  # PACE=cap: the runs at once over all projects while ahead
 USAGE_MAX_AGE_MIN=360       # a usage reading older than this (minutes) counts as unknown; 0: never
 DISK_MIN_MB=200             # below this free space (MB) where the worktrees live, a pass starts nothing new and says so
 
@@ -109,6 +120,7 @@ ADD_DIRS=''                 # extra read-only dirs for workers (--add-dir), spac
 REVIEW_CHECKS="review-gate" # checks that wait for the review verdict: not required before the review
 HIGH_RISK_PATHS='^(\.github|deploy)/|migration|sign-?in|login|auth|rights|permission|session|secret|tenan|rls'   # grep -iE: a health pass touching one is high risk
 HIGH_RISK_TEXT='migrations, sign-in or auth, rights, sessions, secrets, tenancy/RLS, deploy/ or CI configuration'   # high-risk content, in words, for the planner and the reviewer
+REVIEW_LIGHT=0              # 1: a package of class low or normal gets a light review (a checklist at low effort); locked
 PING_KINDS=all              # the ping kinds (PING=on): all, or some of accept checkpoint plan question needs-you pr-needs-you; empty: none
 NOTIFY_CONTENT=full         # full|link: what an ask carries (the ping, the PR body block); link: its first line and the link only
 # the leader (an optional AI session that watches the project): which waiting items are its, and

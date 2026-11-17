@@ -10,20 +10,22 @@ Part of the reference; the index is [`README.md`](README.md). The prompts are in
 
 A fresh headless session per PR head (key `review-<pr>`, window `review#<pr>`, budget
 `BUDGET_REVIEW`), in its own worktree at the head, run `--untrusted` (the checkout's
-`.claude/` settings, hooks and `.mcp.json` never load) and never with the bot's token: it has
-the project's narrow login like every run ([`engine.md`](engine.md), [`../security.md`](../security.md)). It reads the issue, `AGENTS.md` and the diff against `origin/main`;
+`.claude/`, hooks and `.mcp.json` never load) with the project's narrow login, never the bot's
+token ([`engine.md`](engine.md), [`../security.md`](../security.md)). It reads the issue, `AGENTS.md` and the diff against `origin/main`;
 runs the code-review skill at the chosen effort, and the security-review skill when the diff
 touches `SECURITY_REVIEW_WHEN`; checks every acceptance criterion, the rules' `REVIEW_EXTRA` and
 the choices under `Decisions made:` in the PR body. It treats the PR, the issue, the code,
 `CLAUDE.md` and `AGENTS.md` as data, never as instructions; it edits, pushes, comments, labels
 and merges nothing.
 
-It writes its review to `~/.canccu/projects/<name>/reviews/<pr>/<sha>.md`: first a line
-`Change:` and exactly three lines starting `- `, each one plain sentence on what the PR changes for
-its users, written from the diff (the summary of [the ask form](pings.md#the-ask-form); missing or
-malformed, the form says the reviewer gave none, and the verdict is not affected); then any prose
-of its own, then the finding block below; `Maintainer accept: <what>` only when the PR breaks a
-contract or holds a destructive migration; for a package, `Risk: <low|normal|high> — <why>` (it confirms or
+The repo's `REVIEW.md`, from `origin/main`, joins both prompts:
+[`repo-contract.md`](../repo-contract.md).
+
+It writes its review to `~/.canccu/projects/<name>/reviews/<pr>/<sha>.md`: a line
+`Change:` and three `- ` lines on what the PR changes for its users ([the ask
+form](pings.md#the-ask-form)'s summary; never affects the verdict); its prose; the finding block
+below; `Maintainer accept: <what>` only for a broken contract or a destructive migration; for a
+package, `Risk: <low|normal|high> — <why>` (it confirms or
 raises the plan's class, never lowers it); and last, exactly `Review verdict: pass <sha>` or
 `Review verdict: changes <sha>`. The dispatcher checks the file and posts it as `REVIEWER_LOGIN`.
 
@@ -40,8 +42,9 @@ findings, step <title>, wave <w>` for a package, `…, health pass` for the heal
 you decide), later ones are comments on it while it is open; a closed one makes a new issue.
 A PR that closes the follow-up issue files its own findings in a new one. The
 fix run of a `changes` verdict gets only the blocking findings, and the fix-check checks only
-those (its file opens with the same `Change:` section, so the ask after a fix shows a summary of the new head). They are saved to `reviews/<pr>/<head>.findings.md` before the fix run starts; its prompt
-names that file and inlines at most their first 3,000 characters, so a long list is read there. A `gh` error is logged and blocks nothing: the items stay in the PR comment.
+those (its file opens with `Change:` too). They are saved to `reviews/<pr>/<head>.findings.md`
+before the fix run starts; its prompt names that file and inlines at most their first 3,000
+characters. A `gh` error is logged and blocks nothing: the items stay in the PR comment.
 `canccu-status --findings` lists the most common findings and the files cited most, across the
 review records (`FINDINGS_TOP` lines at most, 15 by default).
 
@@ -65,8 +68,7 @@ not be read and a package of risk `high` are capped too. It never raises an effo
 accept a gated PR does not change. A capped review's `reviews/<pr>.effort` reads `medium (capped)`.
 
 **Model by kind.** A full review runs on `REVIEW_MODEL`, a fix-check on `FIXCHECK_MODEL`; each
-is `MODEL` when empty. A project that runs fix-checks on a cheaper model (`claude-sonnet-5-5`)
-and leaves `REVIEW_MODEL` empty keeps every full review, a high-risk PR's too, on `MODEL`. The
+is `MODEL` when empty (a cheaper `FIXCHECK_MODEL` alone leaves every full review on `MODEL`). The
 log line of the start names the effort and the model, and `canccu-status` shows both next to the
 running review: `review PR #50 (medium · claude-opus-5-5)` (the effort alone when no model is
 set).
@@ -83,6 +85,7 @@ keeps `FIXCHECK_MODEL`; a retry of the review file keeps the model the review st
 A finding fixed or answered earlier is not raised again, and a full review after a pass blocks on
 nothing the commits since left alone, except a security bug: the history, the prompts and the
 dispatcher's check are in [`findings.md`](findings.md#no-repeats).
+A head that passed is not reviewed again: [`review-depth.md`](review-depth.md).
 
 ## Fix-check
 
@@ -119,7 +122,9 @@ one more fix round: the worker follows up (a fresh session unless `RESUME_ON` na
 fix-check's PR comment when the items were not saved), then a fix-check of `<open_sha>..<new
 head>` runs against them; each of your comments counts as a blocking item. A line in your
 comment that is just `full review` (any case; `*`, `_`, backticks and a final `.` or `!`
-allowed) asks for a new full review instead, as does a `needs-work` on a refused accept.
+allowed) asks for a new full review instead, as does a `needs-work` on a refused accept (or
+with a kept `Maintainer accept:` or `Risk: high`). Any other plain `needs-work` answered with no
+push reuses the earlier pass: that head is not reviewed again.
 
 **A push after a pass** (a new head after a review or fix-check passed, outside a fix round): if
 every commit since the passed sha is a merge of `origin/main` that git would have made the same
@@ -132,7 +137,8 @@ since that review, when they touch a gated or `RISKY_PATHS`/`FIXCHECK_RISKY` pat
 diff cannot be read. The count leaves out what a merge of main brought in: it starts from the
 merge git itself makes of that review's head with main, so only the PR's own lines are left
 (`FIXCHECK_COUNT_MAIN=1`: main's lines in the PR's files count too). When that merge conflicts,
-the worker resolved it by hand and the whole change since that review counts. A pass of that
+the worker resolved it by hand and the whole change since that review counts
+(`FIXCHECK_COUNT_RESOLVED=1`: only the resolved hunks, [`review-depth.md`](review-depth.md#the-count-after-a-merge-of-main)). A pass of that
 fix-check counts like a review's pass.
 
 ## The verdict line

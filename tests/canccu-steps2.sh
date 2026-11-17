@@ -33,6 +33,15 @@ planned() {
   rm -f "$WORKERS_DIR/web-plan-12.lock"; last plan-12 done "$2"
 }
 
+# ---------------------------------------------------------------- budgets by size (#216 D10)
+
+senv budget-lines 0 BUDGET_LINES=500
+{ issue 90 epic "" "3 Events"; issue 104 ready "" "3 Events"; } | issues
+wave 1 '{"schema":1,"step":12,"wave":1,"packages":[{"name":"b","issues":[104],"risk":"low","risk_reason":"y","areas":[],"depends_on":[],"lines":2000}]}'
+dispatch --once
+ok "a package's planned lines go to its state" eq "$(st 104 plan_lines)" 2000
+ok "… its work budget is 4 times BUDGET_WORK, capped by BUDGET_PACKAGE_MAX" grep -qE -- '^--quiet --name #104 .* turns=600 cost=200 min=360$' "$FAKE/worker.log"
+
 # ---------------------------------------------------------------- waves (task 8)
 
 senv waves 0
