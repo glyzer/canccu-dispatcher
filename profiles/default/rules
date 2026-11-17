@@ -18,6 +18,8 @@
 # USER_VISIBLE_PATHS=''
 # test files (grep -E): never user-visible
 # TEST_PATHS='(^|/)(tests?|__tests__|spec)/|\.(test|spec)\.[a-z]+$'
+# the repo's test command: each run's calls of it are counted and timed (canccu-status --kpi); empty: not measured
+# TEST_CMD='tests/run'
 # LIGHT_REVIEW_PATHS: grep -E on the PR's paths; a PR whose every path is docs, a test (TEST_PATHS) or matches this is reviewed with REVIEW_MODEL_LIGHT
 # LIGHT_REVIEW_PATHS=''
 # the reviewer also runs the security-review skill when the diff touches these
@@ -51,6 +53,9 @@
 # Risk: line for it
 # HIGH_RISK_PATHS='^(\.github|deploy)/|migration|sign-?in|login|auth|rights|permission|session|secret|tenan|rls'
 # HIGH_RISK_TEXT='migrations, sign-in or auth, rights, sessions, secrets, tenancy/RLS, deploy/ or CI configuration'
+# REVIEW_LIGHT: 1 gives a package of class low or normal a light review (a checklist at low
+# effort, no code-review skill); one that rates the PR high is followed by a full review
+# REVIEW_LIGHT=0
 # which states ping USER_LOGIN (PING=on): all, or some of accept checkpoint plan question
 # needs-you pr-needs-you. The rest stays in needs-you, the status and the monitor, unpinged.
 # PING_KINDS=all

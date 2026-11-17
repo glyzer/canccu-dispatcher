@@ -72,6 +72,42 @@ ok "the health pass, plain code → medium" eq "$(reff)" medium
 pkgenv eff-single 101 '[{"filename": "src/auth/session.ts", "changes": 3}]' 'Tier: fix'
 ok "a single issue (no class): by the paths → high" eq "$(reff)" high
 
+# REVIEW_LIGHT (#216 D3): a package of class low or normal gets a light review
+lrc() { lib eval "fetch; REVIEW_LIGHT=${1:-1}; review_light_class 50 $U && echo light || echo full"; }
+pkgenv light-normal 101 '[{"filename": "src/a.ts", "changes": 40}]' 'Tier: feature' pkg=a risk=normal
+ok "REVIEW_LIGHT=1, a normal package → light, its class printed" eq "$(lrc)" "normal
+light"
+ok "… REVIEW_LIGHT=0 → full" eq "$(lrc 0)" full
+pkgenv light-asked 101 '[{"filename": "src/a.ts", "changes": 40}]' 'Tier: feature' pkg=a risk=normal review_asked=1
+ok "… a full review asked for → full" eq "$(lrc)" full
+pkgenv light-high 101 '[{"filename": "src/a.ts", "changes": 40}]' 'Tier: feature' pkg=a risk=high
+ok "… a high package → full" eq "$(lrc)" full
+pkgenv light-gated 101 '[{"filename": ".github/workflows/ci.yml", "changes": 3}]' 'Tier: fix' pkg=a risk=low
+ok "… a gated path → full" eq "$(lrc)" full
+pkgenv light-agent 101 '[{"filename": "src/a.ts", "changes": 3}, {"filename": "src/CLAUDE.md", "changes": 3}]' 'Tier: fix' pkg=a risk=low
+ok "… agent configuration → full" eq "$(lrc)" full
+pkgenv light-health pkg-12-health '[{"filename": "src/a.ts", "changes": 300}]' 'Tier: feature' pkg=health health=1 members= risk=normal
+ok "… the health pass → full" eq "$(lrc)" full
+pkgenv light-single 101 '[{"filename": "src/a.ts", "changes": 3}]' 'Tier: fix'
+ok "… a single issue (the fast lane) → full" eq "$(lrc)" full
+pkgenv light-dispatch 101 '[{"filename": "src/auth/session.ts", "changes": 40}]' 'Tier: feature' pkg=a risk=normal "check_at=$NOW"
+json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z)"; route 'pr view 50 *' pr50.json
+echo "REVIEW_LIGHT=1" >> "$CANCCU_HOME/rules"; echo "HIGH_RISK_TEXT='auth & sessions'" >> "$CANCCU_HOME/rules"
+dispatch --once
+ok "a light review runs at low effort" eq "$(cat "$CANCCU_HOME/reviews/50.effort") $(cat "$CANCCU_HOME/reviews/50.light")" "low $HA"
+ok "… logged" grep -qF 'PR #50: light review (REVIEW_LIGHT=1, normal risk, low effort)' "$CANCCU_HOME/dispatch.log"
+ok "… on the light prompt" grep -q 'review#50 .*This is a light review: do not run the code-review skill' "$FAKE/worker.log"
+# bash 5.2's patsub_replacement would turn an unquoted replacement's & into the pattern
+ok "… HIGH_RISK_TEXT with an & goes into the checklist as written" grep -qF 'or risky code (auth & sessions) makes your Risk: line high' "$FAKE/worker.log"
+# the PR's files are read once for both light checks (REVIEW_MODEL_LIGHT's and REVIEW_LIGHT's);
+# a light review needs no review_effort, so not once more for its sizes
+pkgenv light-files-once 101 '[{"filename": "src/auth/session.ts", "changes": 40}]' 'Tier: feature' pkg=a risk=normal "check_at=$NOW"
+json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z)"; route 'pr view 50 *' pr50.json
+echo "REVIEW_LIGHT=1" >> "$CANCCU_HOME/rules"; echo "REVIEW_MODEL_LIGHT=claude-light-x" >> "$CANCCU_HOME/config"
+dispatch --once
+ok "… the PR's files read once for both light checks" \
+  eq "$(grep -c 'This is a light review' "$FAKE/worker.log") $(grep -c '^api --paginate repos/example-org/web/pulls/50/files' "$FAKE/gh.log")" "1 1"
+
 # through a pass: a package rated normal gets a medium review although it touches a risky path
 pkgenv eff-pkg-dispatch 101 '[{"filename": "src/auth/session.ts", "changes": 40}]' 'Tier: feature' pkg=a risk=normal "check_at=$NOW"
 json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z)"; route 'pr view 50 *' pr50.json
@@ -211,6 +247,78 @@ printf '[t1] %s\n' "$(printf 'x%.0s' {1..150})" > "$WORKERS_DIR/web-review-60.lo
 COLUMNS=80 PATH="$fb:$PATH" "$root/bin/canccu-status" > "$E/status" 2>&1
 ok "canccu-status: a long label does not push the line past the terminal width" \
   eq "$(l=$(grep -m1 '^  review PR #60' "$E/status"); (( ${#l} > 50 && ${#l} <= 80 )) && echo fits)" fits
+
+# ---------------------------------------------------------------- the light review (#216 D3)
+
+# lightenv <name> <verdict comment>: package 101 (rated normal) has PR 50 at HA; its light review
+# of HA is posted with that comment
+lightenv() {
+  env_new "$1"; echo "REVIEW_LIGHT=1" >> "$CANCCU_HOME/rules"
+  { issue 101 in-progress; } | issues
+  p=$(PR_BRANCH=101-issue-101 pr 50 101 "$HA" green "" false 'Tier: feature'); printf '%s\n' "$p" | prs
+  json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z "$(vcomment 2030-11-05T11:00:00Z "$2")")"; route 'pr view 50 *' pr50.json
+  json files50.json '[{"filename": "src/a.ts", "changes": 40}]'; route 'api --paginate repos/example-org/web/pulls/50/files*' files50.json
+  json issue101.json '{"labels": [{"name": "in-progress"}], "comments": []}'; route 'issue view 101 *' issue101.json
+  state 101 pkg=a step=12 wave=1 members=101 branch=101-issue-101 risk=normal "risk_reason=plain code" phase=review pr=50 \
+    review_sha=$HA stage=review review_mode=review "started=$NOW"
+  mkdir -p "$CANCCU_HOME/reviews"; echo "$HA" > "$CANCCU_HOME/reviews/50.light"
+}
+lightenv light-prompt "Review verdict: pass $HA"
+out=$(lib eval "fetch; light_review_prompt 50 101 $HA /tmp/review.md")
+hrt='migrations, sign-in or auth, rights, sessions, secrets, tenancy/RLS, deploy/, setup/, contract changes or CI configuration'
+ok "the light prompt holds the checklist word for word" grep -qF "This is a light review: do not run the code-review skill. Check exactly this: 1. the change is sensible for its issues; 2. each issue of the package is done (every acceptance criterion of every linked issue); 3. every new behaviour has a test that would fail if it broke, and no test was skipped, emptied or weakened; 4. obvious bugs in the changed lines; 5. code and contracts agree (the names, defaults, texts and formats the issues and the repo's docs fix); 6. no TODO, stub or debug code left, and no work outside the package; 7. tripwires: a secret or a private name is a blocking security finding; a new dependency or risky code ($hrt) makes your Risk: line high." <<<"$out"
+ok "… the security-review sentence" grep -qF 'Also run the security-review skill if it touches sign-in, rights, sessions, secrets, tenancy/RLS or deploy/.' <<<"$out"
+ok "… REVIEW_EXTRA and Decisions made:" grep -qF "Check the no-personal-data rule (no real names, hostnames, IPs or personal paths), that contract changes are additive and migrations non-destructive and the implementation choices listed under 'Decisions made:' in the PR body." <<<"$out"
+ok "… the risk and no-repeat sentences" eq "$(grep -cF "The plan rated the package normal (plain code)" <<<"$out") $(grep -cF 'is not raised again: the dispatcher demotes it' <<<"$out")" "1 1"
+ok "… the block and the verdict line" eq "$(grep -cF 'Findings: <b> blocking' <<<"$out") $(grep -cF "Review verdict: pass $HA" <<<"$out")" "1 1"
+ok "… and no code-review skill run" not grep -qF 'Run the code-review skill' <<<"$out"
+
+# a light pass rated high: one full review of the same head, then no more
+lightenv light-up $'Risk: high — a new dependency\n\nReview verdict: pass '"$HA"
+dispatch --once
+ok "a light pass with Risk: high → logged" grep -qF "#101 PR #50: the light review rated it high risk; full review of ${HA:0:7}" "$CANCCU_HOME/dispatch.log"
+ok "… a full review of the same head starts, not a light one" \
+  eq "$(grep -c -- '--key review-50' "$FAKE/worker.log") $(grep -c 'Run the code-review skill' "$FAKE/worker.log") $(grep -c 'This is a light review' "$FAKE/worker.log") $(cat "$CANCCU_HOME/reviews/50.sha")" "1 1 0 $HA"
+ok "… no merge on the light pass" hasnt gh.log "pr merge 50"
+ok "… the light mark is gone once it runs; the ask holds until its verdict" eq "$([ -e "$CANCCU_HOME/reviews/50.light" ] && echo light)[$(st 101 review_asked)]" "[1]"
+rm -f "$WORKERS_DIR/web-review-50.lock"
+jq --argjson c "$(vcomment 2030-11-05T11:30:00Z $'Risk: normal — fine\n\nReview verdict: pass '"$HA")" '.comments += [$c]' "$FAKE/pr50.json" > "$FAKE/x" && mv "$FAKE/x" "$FAKE/pr50.json"
+dispatch --once
+ok "… its pass is acted on: merge or accept, no third review; the ask is cleared" \
+  eq "$(grep -c -- '--key review-50' "$FAKE/worker.log") $(case $(st 101 phase) in accept|merging) echo acted ;; *) st 101 phase ;; esac) [$(st 101 review_asked)]" "1 acted []"
+# the upgraded full review ends at the usage limit without a verdict: the ask holds, so the light
+# pass in reviews.log is not reused; the full review starts again after the back-off
+lightenv light-up-limit $'Risk: high — a new dependency\n\nReview verdict: pass '"$HA"
+printf '%s\nReview verdict: pass %s\n' "$VB0" "$HA" > "$E/light.md"; lib reviews_log 101 50 "$HA" "$E/light.md"
+dispatch --once
+rm -f "$WORKERS_DIR/web-review-50.lock"; last review-50 error "Claude AI usage limit reached|$((NOW + 3600))"
+dispatch --once
+ok "the asked-for full review hits the usage limit: back to check, the ask kept" eq "$(st 101 phase) $(st 101 review_asked)" "check 1"
+echo $((NOW - 1)) > "$CANCCU_ROOT/backoff"; dispatch --once
+ok "… after the back-off the full review starts again, the light pass not reused" \
+  eq "$(grep -c -- '--key review-50' "$FAKE/worker.log") $(grep -c 'This is a light review' "$FAKE/worker.log") $(grep -c 'verdict reused' "$CANCCU_HOME/dispatch.log") $(grep -c 'pr merge 50' "$FAKE/gh.log")" "2 0 0 0"
+# the full review finds no slot: no merge meanwhile; it starts once a slot is free
+lightenv light-up-slot $'Risk: high — a new dependency\n\nReview verdict: pass '"$HA"
+echo "CAP=1" >> "$CANCCU_HOME/config"; live_lock 77
+dispatch --once; dispatch --once
+ok "the full review refused for a slot: no merge over two passes" \
+  eq "$(grep -c -- '--key review-50' "$FAKE/worker.log") $(grep -c 'pr merge 50' "$FAKE/gh.log") $(st 101 phase) $(st 101 review_asked)" "0 0 check 1"
+rm -f "$WORKERS_DIR/web-77.lock"; dispatch --once
+ok "… a slot frees: the full review starts" eq "$(grep -c -- '--key review-50' "$FAKE/worker.log") $(grep -c 'This is a light review' "$FAKE/worker.log")" "1 0"
+# a light `changes` rated high: no fix run on it; the full review of the same head comes first,
+# and its verdict drives the fix round
+lightenv light-up-changes "$VB1"$'Risk: high — a new dependency\n\nReview verdict: changes '"$HA"
+dispatch --once
+ok "a light changes with Risk: high → the full review of that head, no fix run" \
+  eq "$(grep -cF 'the light review rated it high risk' "$CANCCU_HOME/dispatch.log") $(grep -c -- '--key review-50' "$FAKE/worker.log") $(grep -c 'Run the code-review skill' "$FAKE/worker.log") $(grep -c 'asked for changes on PR #50' "$FAKE/worker.log") $(st 101 stage) $(st 101 review_asked)" "1 1 1 0 review 1"
+rm -f "$WORKERS_DIR/web-review-50.lock"
+jq --argjson c "$(vcomment 2030-11-05T11:30:00Z "$VB1"$'Risk: normal — fine\n\nReview verdict: changes '"$HA")" '.comments += [$c]' "$FAKE/pr50.json" > "$FAKE/x" && mv "$FAKE/x" "$FAKE/pr50.json"
+dispatch --once
+ok "… the full review's changes starts the fix round" \
+  eq "$(grep -c 'asked for changes on PR #50' "$FAKE/worker.log") $(st 101 stage) $(st 101 reviewed_sha) [$(st 101 review_asked)]" "1 fixing $HA []"
+
+printf '%s\nReview verdict: pass %s\n' "$VB0" "$HA" > "$E/light.md"; lib reviews_log 101 50 "$HA" "$E/light.md"
+ok "reviews.log keeps kind full for a light review" grep -qP "^\S+\t50\t$HA\tfull\tpass\t" "$CANCCU_HOME/reviews.log"
 
 echo "canccu-review-effort tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

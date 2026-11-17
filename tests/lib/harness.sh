@@ -129,17 +129,21 @@ cat > "$fb/git" <<'EOF'
 # fake git: records the call; `diff --numstat` prints $FAKE/numstat (fails without it)
 a="$*"; printf '%s\n' "$a" >> "$FAKE/git.log"
 printf '%s\t%s\t%s\n' "${GH_CONFIG_DIR:-<default>}" "${GIT_CONFIG_COUNT:-<unset>}" "$a" >> "$FAKE/git.cfg"
-# $FAKE/realgit: the reads of the commit graph (main_merge_only, the change after a pass) go to the
-# real git, on the repo mmrepo built in CLONE; $FAKE/numstat still answers diff --numstat
+# $FAKE/realgit: the reads of the commit graph (main_merge_only, the change after a pass) and of a
+# file on main (REVIEW.md) go to the real git, on the repo mmrepo or rvrepo built; $FAKE/numstat
+# still answers diff --numstat
 if [ -e "$FAKE/realgit" ]; then
   case " $a " in
-    *" merge-tree "*|*" merge-base "*|*" rev-list --parents "*|*" diff --name-only "*) exec "$FAKE_REAL_GIT" "$@" ;;
+    *" merge-tree "*|*" merge-base "*|*" rev-list --parents "*|*" diff --name-only "*|*" diff -U0 "*) exec "$FAKE_REAL_GIT" "$@" ;;
     *" rev-parse HEAD "*) ;;
     *" rev-parse "*) exec "$FAKE_REAL_GIT" "$@" ;;
+    *" show origin/main:"*) exec "$FAKE_REAL_GIT" "$@" ;;
     *" diff --numstat "*) [ -e "$FAKE/numstat" ] || exec "$FAKE_REAL_GIT" "$@" ;;
   esac
 fi
 case " $a " in *" diff --numstat "*) cat "$FAKE/numstat" 2>/dev/null || exit 128 ;; esac
+# the lines changed since a pass (diff -U0): only the real repo answers; else git fails, so no pass rule
+case " $a " in *" diff -U0 "*) exit 128 ;; esac
 # a worktree's branch (branch --show-current: $FAKE/branch), how far main is ahead (rev-list
 # --count: $FAKE/behind), its commits (log --oneline: $FAKE/gitlog) and their diff stat (diff --stat:
 # $FAKE/diffstat); $FAKE/merge-conflict: a merge

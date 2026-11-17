@@ -13,7 +13,8 @@ of which host runs which repo.
 
 To move a project to another host:
 
-1. On the old host, pause it and let every managed issue finish, or stop the ones that must wait
+1. On the old host, pause it with `canccu-pause --finish` (a plain pause would hold the work in
+   flight too) and let every managed issue finish, or stop the ones that must wait
    (the [upgrade sequence](upgrading.md#the-sequence) up to "wait"). Leave no issue `in-progress`
    without a PR.
 2. Stop its dispatcher for good, and end its tmux session. Keep or remove

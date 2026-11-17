@@ -27,7 +27,8 @@ Each change, and each refusal of a locked key, adds a line to `config.history` b
 ## Keys
 
 Budgets are three numbers: turns, USD and minutes for one run. A run that reaches any of them
-is stopped and its issue goes to `needs-you`.
+is stopped and its issue goes to `needs-you`. The keys of steps, packages, reviews, usage and
+pacing are in [`config-steps.md`](config-steps.md).
 
 | Key | Default | Meaning |
 |---|---|---|
@@ -69,33 +70,10 @@ is stopped and its issue goes to `needs-you`.
 | `MERGE_WAIT_MIN` | `240` | Auto-merge armed this long without a merge is disarmed, and the PR goes to `needs-you` |
 | `MERGE_CLOSE_MIN` | `2` | An issue a merged PR names as closing that GitHub left open this many minutes is closed by the dispatcher |
 | `MERGE_RETRY` | `3` | A merge that fails on an error that looks transient (a GitHub 5xx, a timeout, a dropped connection) is tried again on this many later passes before it goes to `needs-you`; `0`: never ([`merging.md`](merging.md#a-github-error-on-the-merge)) |
+| `ACCEPT_CHANNELS` | `all` | The accepts that count, space-separated: `label` (the `accepted` label), `ship` (`canccu-ship`), `reply` (an answer comment), `leader` (the leader's `canccu-ship`), or `all`. Locked. `canccu-status` shows it ([`merging.md`](merging.md#the-accept-channels)) |
 | `KEEP_ACCEPT_ON_MAIN_MERGE` | `0` | `1`: your `accepted` on the PR carries over a push that is only a clean merge of main, and the PR merges without a new accept; one more changed line drops it. Until the hardened setup (package S2) a run can forge it as easily as the label: keep it `0` |
 | `MERGE_MAIN_ANY_PHASE` | `1` | `1`: a PR that conflicts with main gets main merged in by script in every phase (CI, a fix round, after its contract PR merged), not only at the accept and merge steps ([`merging.md`](merging.md#a-pr-that-conflicts-with-main)); `0`: only at the accept and merge steps |
 | `POST_WAIT` | `600` | Seconds a posted review may take to show up on GitHub before it counts as missing |
-| `STEP_BUDGET` | `400` | USD per step: its planner, package, review, fix-check, answerer and health runs ([`steps.md`](steps.md)) |
-| `BUDGET_PLAN` | `60 10 30` | The planner of a step's wave |
-| `BUDGET_HEALTH` | `250 60 150` | The health pass at the end of a step |
-| `BUDGET_PACKAGE_MAX` | `600 200 360` | A package's work, resume and review budgets are the issue's times its issue count, each part capped by this |
-| `PACKAGE_LINES` | `1500` | The planner's size guide: changed lines per package |
-| `PACKAGE_MIN_ISSUES` | `3` | Above 1, the planner aims for at least this many issues per package, where they fit together (never unrelated ones); `1`: no nudge |
-| `PACKAGE_HOLD_SMALL` | `0` | `1`: the planner may leave a lone small leftover (under about 300 changed lines) out of a wave while an earlier package of its area runs or other issues of its area wait, so it joins a later wave's package of its area ([`packages.md`](packages.md#the-planner)) |
-| `PLAN_MODEL` | empty | The planner's model; empty: `MODEL` |
-| `WAVE_ROLLING` | `0` | `1`: the next wave is planned while this one runs, once no package of it waits to start and a run slot is free (`CAP`); `0`: the planner waits for the wave to be over ([`packages.md`](packages.md#waves)). Locked |
-| `REVIEW_MODEL` | empty | The full reviewer's model; empty: `MODEL` ([`reviews.md`](reviews.md), "Model by kind") |
-| `REVIEW_MODEL_LIGHT` | empty | The full reviewer's model for a light PR: every path docs, a test (`TEST_PATHS`) or a `LIGHT_REVIEW_PATHS` match, none gated; empty: `REVIEW_MODEL` ([`reviews.md`](reviews.md), "Model by kind") |
-| `FIXCHECK_MODEL` | empty | The fix-check's model, for example a cheaper one (`claude-sonnet-5-5`); empty: `MODEL` |
-| `FIXCHECK_FULL_LINES` | `100` | A push after a passed review that changes more of the PR's own lines than this since the last full review gets a full review, not a fix-check |
-| `FIXCHECK_COUNT_MAIN` | `0` | `0`: that count leaves out what a clean merge of main brought into the PR's files; `1`: those lines count too. A merge of main that conflicted counts in full: its resolution is the PR's own change ([`reviews.md`](reviews.md)) |
-| `FINDINGS_RECUR` | `3` | Merged PRs with findings of the same key (class + file) within `FINDINGS_RECUR_DAYS` days before the dispatcher files one issue `Recurring finding: <class> in <file>`, not `ready` ([`reviews.md`](reviews.md#recurring-findings)); `0`: never, and nothing is counted |
-| `FINDINGS_RECUR_DAYS` | `30` | The window, in days, `FINDINGS_RECUR` counts over |
-| `REVIEW_EFFORT_MAX` | empty | The highest effort of a full review and a fix-check on this machine: `low`, `medium` or `high`. It lowers, never raises, and has no exceptions: gated paths and agent configuration are capped too. `reviews/<pr>.effort` then says `(capped)`. Another value is said once in the log and ignored ([`reviews.md`](reviews.md), "Effort by risk") |
-| `HEALTH_MODEL` | empty | The health pass's model (its resumes too), for example a cheaper one; empty: `MODEL` ([`steps.md`](steps.md)) |
-| `HEALTH_EFFORT` | empty | The health pass's `--effort` (`low`, `medium`, `high`, `xhigh`, `max`); empty: none, the account's default effort, as for every other run. Another value is said once in the log and not passed |
-| `USAGE_SLOW` | `60` | 5-hour usage share (%) from which one run at a time runs, over all projects ([`usage.md`](usage.md)) |
-| `USAGE_STOP` | `90` | 5-hour usage share (%) from which no run starts and running workers are asked to stop at a safe point |
-| `USAGE_WINDOW_DELTA` | `0` | `1`: each run's spend-log line records the 5-hour window's utilization before and after it ([`state.md`](state.md#the-spend-log)). Off by default: it means something only with one run at a time on a plan with a 5-hour window |
-| `USAGE_WEEKLY_DRAIN` | `90` | Weekly usage share (%) from which nothing new starts; work already started finishes |
-| `USAGE_MAX_AGE_MIN` | `360` | A usage reading older than this (minutes), or older than the dispatcher's start, counts as unknown: nothing is throttled until a run writes a fresh one ([`usage.md`](usage.md)); `0`: no age limit |
 | `DISK_MIN_MB` | `200` | Free MB on the worktrees' file system (`workers/`) below which a pass starts nothing new; reaping, reviews and merges go on. Logged once; `canccu-status` shows `disk low` ([`pipeline.md`](pipeline.md)) |
 
 ## The settings table

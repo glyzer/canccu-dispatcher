@@ -27,6 +27,7 @@ old path too).
 | `GATED_PATHS` | `^\.github/` | `grep -E`: a PR touching one waits for your accept ([`merging.md`](merging.md)). Agent configuration (`.claude/`, `.mcp.json`, `CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md`, at any depth) is always gated on top |
 | `USER_VISIBLE_PATHS` | empty | `grep -E`: a PR touching one always waits for the product owner, with the reason `users see it: <path>` (below, "User-visible paths"). Locked |
 | `TEST_PATHS` | `(^\|/)(tests?\|__tests__\|spec)/\|\.(test\|spec)\.[a-z]+$` | `grep -E`: test files. A path it matches never counts as user-visible |
+| `TEST_CMD` | `tests/run` | The repo's test command: every Bash call of a run whose command starts with it is counted and timed, as `tests=` and `test_secs=` in the run's spend-log outcome ([`state.md`](state.md#the-spend-log)), for `canccu-status --kpi`. Empty: not measured |
 | `LIGHT_REVIEW_PATHS` | empty | `grep -E` on the PR's paths: a PR whose every path is docs, a test (`TEST_PATHS`) or matches this is reviewed with `REVIEW_MODEL_LIGHT` (for example `'^docs/contracts/'`). Never a gated path or agent configuration; a bad regex matches nothing. Locked |
 | `SECURITY_REVIEW_WHEN` | sign-in, rights, sessions, secrets, tenancy/RLS or `deploy/` | Words in the reviewer's prompt: it also runs the security-review skill when the diff touches these |
 | `PLANNER_EXTRA` | empty | The project's guidance for the planner, for example "aim for 2-4 issues per package" |
@@ -42,6 +43,7 @@ old path too).
 | `REVIEW_CHECKS` | `review-gate` | Checks that wait for the review verdict themselves: left out of "CI green" before the review. The merge queue and the ruleset still require them |
 | `HIGH_RISK_PATHS` | the same as `RISKY_PATHS` | `grep -iE` on the health pass's diff: it is high risk (manual accept) when it touches one |
 | `HIGH_RISK_TEXT` | migrations, sign-in or auth, rights, sessions, secrets, tenancy/RLS, `deploy/` or CI configuration | High-risk content in words: the planner keeps it apart from normal and low work, the high-risk issues of one area in one high-risk package; the reviewer raises a package's `Risk:` line for it |
+| `REVIEW_LIGHT` | `0` | `1`: a package of class low or normal gets a light review: a checklist at low effort instead of the code-review skill ([`review-depth.md`](review-depth.md#the-light-review)). Not the health pass, a deep review, a single issue, or a PR with a gated path or agent configuration. Locked: it weakens a check. Separate from `REVIEW_MODEL_LIGHT`, which picks a model by paths |
 | `PING_KINDS` | `all` | Which states ping `USER_LOGIN` ([`pings.md`](pings.md)): `all`, or some of `accept checkpoint plan question needs-you pr-needs-you`; empty: none. An unknown word pings nothing and is logged once |
 
 ## User-visible paths

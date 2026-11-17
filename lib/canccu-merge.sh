@@ -9,7 +9,7 @@
 # plan_back. Another merged one: merged_left.
 pr_gone() {
   local j
-  is_health "$1" && return 0
+  is_step_run "$1" && return 0
   j=$(ghj pr view "$2" -R "$REPO" --json state,title,body,closingIssuesReferences,headRefName) || return 0
   case $(jqr .state <<<"$j") in
     CLOSED) needs_you "$1" "PR #$2 was closed without merging" ;;
@@ -124,27 +124,6 @@ requeue() {
   esac
 }
 
-# accepted_by_user <pr|issue> <since epoch>: its newest `accepted` label event is by USER_LOGIN
-# (never the reviewer bot) and came after the accept request
-accepted_by_user() { label_by_user "$1" accepted "${2:-0}"; }
-
-# keep_accept <n> <pr> <old> <head>: with KEEP_ACCEPT_ON_MAIN_MERGE=1, an accept of old carries over
-# to head when head adds nothing to old but merges of main (main_merge_only) and the PR's own
-# `accepted` is still the user's, since the accept request: auto-merge on head. Only the PR's label
-# counts: an accept taken off an issue of the unit has left no label to check again. Off by
-# default: until package S2 a run can forge such a merge as easily as the label. 1: today's path.
-keep_accept() {
-  local n=$1 pr=$2 old=$3 head=$4
-  [ "${KEEP_ACCEPT_ON_MAIN_MERGE:-0}" = 1 ] && [ -n "$old" ] || return 1
-  pr_has_label "$pr" accepted && accepted_by_user "$pr" "$(st_get "$n" accept_at)" || return 1
-  pr_fetch "$pr"
-  main_merge_only "$old" "$head" || return 1
-  st_set "$n" accept_sha="$head"
-  log "#$n PR #$pr: \`accepted\` carried over from ${old:0:7} to ${head:0:7}: a merge of main only (KEEP_ACCEPT_ON_MAIN_MERGE=1)"
-  merge_auto "$n" "$pr" accepted "$head"
-  return 0
-}
-
 accept_step() {
   local n=$1 pr head i on=""
   pr=$(st_get "$n" pr)
@@ -155,28 +134,31 @@ accept_step() {
     return 0
   fi
   conflict_merge "$n" "$pr" "$head" && return 0
+  ship_armed "$n" "$pr" "$head" && return 0
   # the label on an issue of the unit is tolerated too, under the same checks as on the PR
   if pr_has_label "$pr" accepted; then on=$pr
   else for i in $(members_of "$n"); do has_label "$i" accepted && { on=$i; break; }; done; fi
   [ -n "$on" ] || return 0
+  accept_channel label || { warn_once "accept-label-$pr" "#$n PR #$pr: \`accepted\` label ignored: ACCEPT_CHANNELS does not list label"; return 0; }
   if accepted_by_user "$on" "$(st_get "$n" accept_at)"; then
     if [ "$on" != "$pr" ]; then
       # taken off, so it can never count again for a later head
       mut gh issue edit "$on" -R "$REPO" --remove-label accepted
       log "#$n PR #$pr: \`accepted\` was on issue #$on; taken as the accept"
     fi
-    merge_auto "$n" "$pr" accepted "$head"
+    history_answer "$pr"; merge_auto "$n" "$pr" accepted "$head"
   else warn_once "accept-$pr" "#$n PR #$pr: \`accepted\` on #$on was not added by $USER_LOGIN after the accept request; ignored"; fi
   return 0
 }
 
-# conflict_merge <n> <pr> <head> [disarm|queue]: GitHub says the PR conflicts with main (DIRTY; queue: the merge queue said so): merge
+# conflict_merge <n> <pr> <head> [disarm|queue] [dirty]: GitHub says the PR conflicts with main (DIRTY; queue: the merge
+# queue said so; dirty: a fresh read did, where the pass's status is stale): merge
 # main in by script (main_merge), once per head, so a merge that leaves it conflicting never loops. Its push is a new head:
 # no new review (postpass_step), CI waits start now (check_at), the old head's red is not its own (main_merged, as in ci_red).
 # A real conflict: one worker merge run; it pushed nothing (same head) → needs-you. disarm: auto-merge off first. BEHIND: the queue's. 1: nothing done.
 conflict_merge() {
   local n=$1 pr=$2 head=$3
-  [ "${4:-}" = queue ] || [ "$(pr_get "$pr" '.mergeStateStatus // ""')" = DIRTY ] || return 1
+  [ "${4:-}" = queue ] || [ "${5:-}" = dirty ] || [ "$(pr_get "$pr" '.mergeStateStatus // ""')" = DIRTY ] || return 1
   if [ "$(st_get "$n" conflict_merge)" = "$head" ]; then
     [ "$(st_get "$n" conflict_sha)" = "$head" ] || return 1
     needs_you "$n" "PR #$pr conflicts with main in: $(st_get "$n" conflict_paths), and the worker's merge run pushed no resolution"; return 0
@@ -215,7 +197,7 @@ in_merge_queue() {
 # merging_step <n>: auto-merge is armed (merge_mode empty), or, without auto-merge, the PR waits to
 # merge directly (merge_mode direct; merged once done). A push disarms auto-merge (armed: by the
 # state or by GitHub) and reviews again; auto-merge switched off (by GitHub, or the queue rejected
-# the PR), or a merge that takes longer than MERGE_WAIT_MIN (direct: CI not green by then, no
+# the PR; a fresh conflict goes to conflict_merge first), or a merge that takes longer than MERGE_WAIT_MIN (direct: CI not green by then, no
 # checks after NO_CHECKS_MIN, or the PR still open after the direct merge) → needs-you, so no PR
 # waits here forever.
 merging_step() {
@@ -253,12 +235,19 @@ merging_step() {
     needs_you "$n" "PR #$pr has not merged $MERGE_WAIT_MIN min after auto-merge was enabled; auto-merge disabled (check the merge queue)"
   elif [ "$(pr_get "$pr" '.autoMergeRequest != null')" = false ] && (( $(now) - at > 120 )) && ! in_merge_queue "$pr"; then
     # merged meanwhile (the queue's reason `merged`, or this pass's list is older): no rejection
-    j=$(ghj pr view "$pr" -R "$REPO" --json state,body,closingIssuesReferences,headRefName 2>/dev/null)
+    j=$(ghj pr view "$pr" -R "$REPO" --json state,body,closingIssuesReferences,headRefName,mergeable,mergeStateStatus 2>/dev/null)
     if [ "$(jqr '.state // ""' <<<"$j" 2>/dev/null)" = MERGED ]; then
       if plan_pr_merged "$n" "$j"; then plan_back "$n" "$pr" "$(jqr '.headRefName // ""' <<<"$j")"
       else st_set "$n" merge_mode=merged merge_at="$(now)"; log "#$n PR #$pr: merged (auto-merge is off because it is done)"; fi
       return 0
     fi
+    # GitHub turns auto-merge off when main moves and the PR conflicts, while the pass's status
+    # still says UNKNOWN: the fresh read decides. UNKNOWN there too: the next pass looks again
+    # (MERGE_WAIT_MIN still bounds it).
+    case $(jqr '"\(.mergeable // "")/\(.mergeStateStatus // "")"' <<<"$j" 2>/dev/null) in
+      CONFLICTING/*|*/DIRTY) conflict_merge "$n" "$pr" "$head" "" dirty; return 0 ;;
+      UNKNOWN/*) return 0 ;;
+    esac
     queue_removed "$n" "$pr" "$head" "$at" || needs_you "$n" "auto-merge was disabled or the merge queue rejected PR #$pr"
   elif [ "$(st_get "$n" queue_kick)" != "$head" ] && (( $(now) - at > ${NO_CHECKS_MIN:-10} * 60 )); then
     queue_kick "$n" "$pr" "$head"
@@ -348,17 +337,13 @@ main_merge_only() {
 
 # postpass_full <base> <head>: why the change base..head needs a full review, not a fix-check; nothing
 # when it does not. Only the files of the PR's own diff at head count (all, when that list cannot be
-# read). With FIXCHECK_COUNT_MAIN=0 and main merged in since base, the count starts from git's own
-# merge of base with main, so main's edits drop out; on a conflict the worker's resolution is the
-# PR's own change: base..head counts.
+# read; a rename's two paths). The count starts at count_from.
 postpass_full() {
-  local base=$1 head=$2 from=$1 mb t stats total p re max=${FIXCHECK_FULL_LINES:-100} files=()
+  local base=$1 head=$2 mb stats total p re max=${FIXCHECK_FULL_LINES:-100} files=()
   [[ $max =~ ^[0-9]+$ ]] || max=100
   mb=$(guard 20 git -C "$CLONE" merge-base origin/main "$head" 2>/dev/null)
-  [ -n "$mb" ] && mapfile -t files < <(guard 20 git -C "$CLONE" diff --name-only "$mb" "$head" 2>/dev/null)
-  if [ "${FIXCHECK_COUNT_MAIN:-0}" != 1 ] && [ -n "$mb" ] && ! guard 20 git -C "$CLONE" merge-base --is-ancestor "$mb" "$base" 2>/dev/null &&
-    t=$(guard 60 git -C "$CLONE" merge-tree --write-tree "$base" "$mb" 2>/dev/null) && [ -n "$t" ]; then from=${t%%$'\n'*}; fi
-  stats=$(guard 30 git -C "$CLONE" diff --numstat "$from" "$head" -- "${files[@]}" 2>/dev/null) || { echo "the change cannot be read"; return; }
+  [ -n "$mb" ] && mapfile -t files < <(guard 20 git -C "$CLONE" diff --name-only --no-renames "$mb" "$head" 2>/dev/null)
+  stats=$(change_stats "$(count_from "$base" "$head")" "$head" "${files[@]}") || { echo "the change cannot be read"; return; }
   total=$(awk -F '\t' '{ for (i = 1; i <= 2; i++) if ($i ~ /^[0-9]+$/) t += $i } END { print t + 0 }' <<<"$stats")
   (( total > max )) && { echo "$total changed lines, over FIXCHECK_FULL_LINES=$max"; return; }
   p=$(cut -f3- <<<"$stats" | grep -m1 -E "$(gated_re)") && { echo "gated path $p"; return; }
@@ -388,11 +373,13 @@ postpass_step() {
     return 0
   fi
   base=$(st_get "$n" full_sha); base=${base:-$psha}
-  backing_off && return 0
+  { backing_off || pause_holds; } && return 0
   if [ -n "$(reviewer_token_problem)" ]; then room || return 0; else room "$n" || return 0; fi
   why=$(postpass_full "$base" "$head")
   if [ -n "$why" ]; then
-    log "#$n PR #$pr: push after the pass; full review ($why)"; start_review "$pr" "$n" "$head"
+    # asked for (review_asked), so REVIEW_LIGHT never makes it a light one: the change is big,
+    # gated or risky
+    log "#$n PR #$pr: push after the pass; full review ($why)"; st_set "$n" review_asked=1; start_review "$pr" "$n" "$head"
   else
     log "#$n PR #$pr: push after the pass; fix-check of ${base:0:7}..${head:0:7}"; start_reviewer "$pr" "$n" "$head" postpass "$base"
   fi

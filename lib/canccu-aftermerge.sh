@@ -139,7 +139,7 @@ finish_unit() {
     log "#$n closed without a merged PR; its worktree is kept"
     mut rm -f "$(qfile "$n")"
   fi
-  is_health "$n" && health_labels_clear "$n"
+  is_step_run "$n" && health_labels_clear "$n"
   step_unit_finished "$n" "$state" "$pr" "$body"
   while read -r m l; do
     [ -n "$m" ] || continue

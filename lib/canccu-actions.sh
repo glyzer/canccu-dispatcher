@@ -89,7 +89,7 @@ resume() {
   if fix_kind "$kind"; then model=${FIX_MODEL:-$MODEL} effort=$(run_effort FIX_EFFORT) type=fix; fi
   # workers never review: a resumed worker is told so as well
   MODEL=$model RUN_EFFORT=$effort run_worker "$n" "$msg Do not review your own work; run the checks only." \
-    "$( [ -n "$(st_get "$n" pkg)" ] && pkg_budget "$BUDGET_RESUME" "$(unit_size "$n")" || echo "$BUDGET_RESUME")" "$type" "${fl[@]}" || return 1
+    "$( [ -n "$(st_get "$n" pkg)" ] && pkg_budget "$BUDGET_RESUME" "$(budget_factor "$n")" || echo "$BUDGET_RESUME")" "$type" "${fl[@]}" || return 1
   has_label "$n" needs-you && edit_issue "$n" --remove-label needs-you
   if [ "$how" = fresh ]; then log "#$n resumed (fresh session, $kind): $(oneline 100 "$2")"
   else log "#$n resumed: $(oneline 100 "$2")"; fi
@@ -119,6 +119,7 @@ issue_branch() { echo "$1-$(slug "$2")"; }
 # unit_prompt <K>: the whole task of a unit's worker, for a fresh session
 unit_prompt() {
   if is_health "$1"; then health_prompt "$(st_get "$1" step)" "$1"
+  elif is_deep "$1"; then deep_prompt "$(st_get "$1" step)" "$(st_get "$1" branch)" "$(st_get "$1" deep_base)" "$(deep_head_of "$1")" "$(st_get "$1" round)"
   elif is_pkg "$1"; then package_prompt "$1"
   else issue_prompt "$1"; fi
 }
@@ -156,7 +157,8 @@ merge_flags() {
 
 # merge_auto <n> <pr> <how> <head>: merge exactly that head. Where the repo allows auto-merge (or
 # the setting is unknown): arm it; a push in between fails it. Where it does not (the setting, or
-# --auto's "not allowed" error): merge_direct, now or on a later pass (merge_mode=direct).
+# --auto's "not allowed" error), or where GitHub refuses --auto for a PR in clean status:
+# merge_direct, now or on a later pass (merge_mode=direct).
 merge_auto() {
   local n=$1 pr=$2 how=$3 head=$4
   is_full_sha "$head" || { needs_you "$n" "the head of PR #$pr ($head) is not a full commit sha; not merged"; return 1; }
@@ -166,6 +168,13 @@ merge_auto() {
     if mut_out gh pr merge "$pr" -R "$REPO" --auto "${MF[@]}" --match-head-commit "$head"; then
       st_set "$n" phase=merging how="$how" merge_sha="$head" merge_at="$(now)" merge_mode= merge_tries=
       log "#$n PR #$pr: auto-merge enabled ($how)"; return 0
+    fi
+    # GitHub refuses to arm a PR it can merge right now: merging that same head directly is what
+    # auto-merge would have done a moment later. AUTO_MERGE_ALLOWED stays: the next PR arms again.
+    if grep -qi 'clean status' <<<"$MUT_OUT"; then
+      log "#$n PR #$pr: GitHub can merge it now (clean status); merging directly at ${head:0:7}"
+      st_set "$n" phase=merging how="$how" merge_sha="$head" merge_at="$(now)" merge_mode=direct
+      merge_direct "$n" "$pr"; return
     fi
     if ! grep -qiE 'auto.?merge is not allowed' <<<"$MUT_OUT"; then
       merge_retry "$n" "$pr" && return 1
@@ -301,22 +310,29 @@ save_findings() {
 # verdict counts as acted on (verdict_at) only once the merge, the accept request or the resume has
 # happened: a failed step sees it again next pass.
 act_verdict() {
-  local n=$1 pr=$2 j=$3 v head at stage what body="" b ff ma mo mode rc
+  local n=$1 pr=$2 j=$3 v head at stage what body="" b ff ma mo mode rc REVIEW_SETTLED REVIEW_PASSRULE REVIEW_CHANGED
   v=$(verdict_of "$j" "$(st_get "$n" verdict_at)"); head=$(jqr .headRefOid <<<"$j"); at=$(verdict_at "$j")
   stage=$(st_get "$n" stage) mode=$(st_get "$n" review_mode)
+  # before pass_sha moves: the posted verdict was decided in the same context (reap_review)
+  review_ctx "$n" "$pr" "$head"
   what=review; is_fixcheck_mode "$mode" && what=fix-check
-  # a push after a pass is checked against these (postpass_step)
-  case $v in pass|changes) is_fixcheck_mode "$mode" || st_set "$n" full_sha="$head" ;; esac
+  # a push after a pass is checked against these (postpass_step); a full review's verdict is the
+  # one a `full review` ask or a light upgrade waited for (light_upgrade may ask again below)
+  case $v in pass|changes) is_fixcheck_mode "$mode" || st_set "$n" full_sha="$head" review_asked= ;; esac
   # non-blocking findings never reach the worker: they go to the wave's follow-up issue
-  case $v in pass|changes) body=$(verdict_body "$j"); collect_nonblocking "$n" "$pr" "$head" "$body" "$at"; blocking_note "$n" "$body" "$at" "$head" ;; esac
+  case $v in pass|changes) body=$(verdict_body "$j"); collect_nonblocking "$n" "$pr" "$head" "$body" "$at"
+      history_record "$n" "$pr" "$head" "$body" "$at"; blocking_note "$n" "$body" "$at" "$head" ;; esac
   case $v in
     pass)
+      light_upgrade "$n" "$pr" "$head" "$j" "$at" && return 0
       # a post-pass check that passed leaves the fix-check stage: the next push is again
       # measured against full_sha, not taken for a fix of findings
       st_set "$n" pass_sha="$head"; [ "$mode" = postpass ] && st_set "$n" stage=review
       after_pass "$n" "$pr" "$head" "$what" || return 0
       st_set "$n" verdict_at="$at" ;;
     changes)
+      # a light review rated high gets the full review first: its verdict drives the fix round
+      light_upgrade "$n" "$pr" "$head" "$j" "$at" && return 0
       case $stage in
         fixing|fixcheck)
           save_findings "$n" "$pr" "$(open_file "$pr" "$head")" "$body"

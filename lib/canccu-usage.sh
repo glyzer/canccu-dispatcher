@@ -42,16 +42,19 @@ usage_state() {
   else echo normal; fi
 }
 # usage_cap: how many runs may run over all projects: 0 at the stop, 1 when slow, else TOTAL_CAP
-# from the 5-hour share alone: drain mode (weekly) keeps the slow cap too
+# from the 5-hour share alone: drain mode (weekly) keeps the slow cap too. PACE=cap ahead of the
+# week lowers it to PACE_CAP.
 usage_cap() {
-  local f; read -r f _ <<<"${USAGE_NOW:-$(usage_read)}"
-  if [[ $f =~ ^[0-9]+$ ]] && (( f >= USAGE_STOP )); then echo 0
-  elif [[ $f =~ ^[0-9]+$ ]] && (( f >= USAGE_SLOW )); then echo $(( TOTAL_CAP < 1 ? TOTAL_CAP : 1 ))
-  else echo "$TOTAL_CAP"; fi
+  local f c; read -r f _ <<<"${USAGE_NOW:-$(usage_read)}"
+  if [[ $f =~ ^[0-9]+$ ]] && (( f >= USAGE_STOP )); then c=0
+  elif [[ $f =~ ^[0-9]+$ ]] && (( f >= USAGE_SLOW )); then c=$(( TOTAL_CAP < 1 ? TOTAL_CAP : 1 ))
+  else c=$TOTAL_CAP; fi
+  [ "$(pace_mode)" = cap ] && pace_ahead && (( $(pace_cap) < c )) && c=$(pace_cap)
+  echo "$c"
 }
-# draining: weekly drain mode: nothing new starts (packages, planner waves, health, the fast
-# lane); started work finishes its whole pipeline
-draining() { [ "$(usage_state)" = drain ]; }
+# draining: weekly drain mode, or PACE=pause ahead of the week: nothing new starts (packages,
+# planner waves, health, the fast lane); started work finishes its whole pipeline
+draining() { [ "$(usage_state)" = drain ] || pace_holds; }
 # usage_text: "5-hour 42% · weekly 50% (12 min old)" and the throttle, e.g. "draining (weekly 92%)
 # (12 min old)"; "usage unknown (last reading 7 h old)" for a stale reading
 usage_text() {

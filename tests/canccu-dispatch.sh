@@ -372,6 +372,8 @@ ok "agent config: .claude/" eq "$(c $'src/a.ts\n.claude/settings.json' "" "" "" 
 ok "agent config: .mcp.json" eq "$(c '.mcp.json' "" "" "" example-org/web 0)" "manual: changes agent config (.mcp.json)"
 ok "agent config: a nested CLAUDE.md" eq "$(c 'apps/web/CLAUDE.md' "" "" "" example-org/web 0)" "manual: changes agent config (apps/web/CLAUDE.md)"
 ok "agent config: AGENTS.md" eq "$(c 'AGENTS.md' "" "" "" example-org/web 0)" "manual: changes agent config (AGENTS.md)"
+ok "agent config: the repo's REVIEW.md (#193)" eq "$(c $'src/a.ts\nREVIEW.md' "" "" "" example-org/web 0)" "manual: changes agent config (REVIEW.md)"
+ok "… a REVIEW.md below the root is no agent config: only the root's is read" eq "$(c 'docs/REVIEW.md' "" "" "" example-org/web 0)" auto
 ok "a file merely named like it is not" eq "$(c 'docs/CLAUDE.md.txt' "" "" "" example-org/web 0)" auto
 ok "freeze date not YYYY-MM-DD → manual" eq "$(lib eval 'AUTO_MERGE_UNTIL=2031-3-1; classify_pure src/a.ts "" "" "" example-org/web 0')" "manual: AUTO_MERGE_UNTIL (2031-3-1) is not a YYYY-MM-DD date"
 ok "freeze date that is no date → manual" eq "$(lib eval 'AUTO_MERGE_UNTIL=2031-02-30; classify_pure src/a.ts "" "" "" example-org/web 0')" "manual: AUTO_MERGE_UNTIL (2031-02-30) is not a YYYY-MM-DD date"
@@ -827,6 +829,33 @@ route 'issue view 5 *' issue5.json
 dispatch --once
 ok "user comment → resumed with it" grep -q 'web 5 Rules for this run: .* The user answered: Use port 8080. This run is a fresh session.* Do not review your own work; run the checks only. turns=' "$FAKE/worker.log"
 ok "needs-you dropped on resume" has gh.log "issue edit 5 -R example-org/web --remove-label needs-you"
+# a comment by USER_LOGIN posted while a run of the unit was alive is no answer (#185): the run
+# below ran 10:30-11:00 (the spend log: its end and secs), the live one started 11:50 (state)
+live_env() {   # live_env <name> <comment time>: issue 5 needs-you since 10:00, one comment then
+  env_new "$1"
+  { issue 5 in-progress,needs-you; } | issues
+  state 5 phase=needs-you "ny_at=$((NOW - 7200))" "started=$((NOW - 600))"
+  printf '%s\tweb\t5\t1.00\tbuild\t-\t-\tfresh\t0\t0\t0\t0\t-\t-\t-\t1800\n' "$((NOW - 3600))" > "$WORKERS_DIR/spend.log"
+  json issue5.json "$(jq -n --argjson a "$(comment "$2" 'Use port 8080.')" '{comments: [$a]}')"
+  route 'issue view 5 *' issue5.json
+}
+live_env live-comment-during 2030-11-05T10:45:00Z
+dispatch --once
+ok "a comment by the user during the unit's run → not an answer" not grep -q 'The user answered' "$FAKE/worker.log"
+ok "… logged" grep -q '#5: a comment by octo at 2030-11-05T10:45:00Z was posted while a run was alive; not taken as the product owner.s answer' "$CANCCU_HOME/dispatch.log"
+dispatch --once
+ok "… once per comment" eq "$(grep -c 'at 2030-11-05T10:45:00Z was posted while a run was alive' "$CANCCU_HOME/dispatch.log")" 1
+live_env live-comment-after 2030-11-05T11:30:00Z
+dispatch --once
+ok "a comment posted after the run ended → the answer" grep -q 'web 5 Rules for this run: .* The user answered: Use port 8080.' "$FAKE/worker.log"
+live_env live-comment-live 2030-11-05T11:55:00Z
+live_lock 5
+ok "a comment after the live run's start (state started) → dropped" eq "[$(lib user_comments 5 "" 0)]" "[]"
+json issue5.json "$(jq -n --argjson a "$(comment 2030-11-05T11:55:00Z 'live')" --argjson b "$(comment 2030-11-05T11:30:00Z 'between')" \
+  --argjson c "$(comment 2030-11-05T10:59:59Z 'late in the run')" '{comments: [$a, $b, $c]}')"
+ok "… one between the runs kept" eq "$(lib user_comments 5 "" 0)" between
+sed -i 's/\t1800$/\t-/' "$WORKERS_DIR/spend.log"
+ok "a finished run with an unknown secs drops nothing it cannot place" eq "$(lib user_comments 5 "" 0 | tr '\n' ' ')" "late in the run  ---  between "
 env_new resume-paused-backoff
 { issue 5 in-progress; issue 6 ready; } | issues
 state 5 phase=limited
@@ -836,7 +865,21 @@ ok "back-off: nothing starts" eq "$(wc -l < "$FAKE/worker.log")" 0
 echo $((NOW - 1)) > "$CANCCU_ROOT/backoff"; touch "$CANCCU_HOME/paused"
 dispatch --once
 ok "paused: no new issue" not started 6
-ok "paused: a limited worker resumes after the back-off" grep -q 'web 5 Rules for this run: .* The usage limit has reset' "$FAKE/worker.log"
+ok "paused: a limited worker past its back-off is not resumed (#215)" eq "$(wc -l < "$FAKE/worker.log") $(st 5 phase)" "0 limited"
+ok "canccu-status: PAUSED" grep -qF 'PAUSED (canccu-resume to continue)' <<<"$(PATH="$fb:$PATH" "$root/bin/canccu-status" 2>&1)"
+PATH="$fb:$PATH" "$root/bin/canccu-resume" > /dev/null 2>&1
+dispatch --once
+ok "… after canccu-resume it is" grep -q 'web 5 Rules for this run: .* The usage limit has reset' "$FAKE/worker.log"
+env_new pause-finish
+{ issue 5 in-progress; issue 6 ready; } | issues
+state 5 phase=limited
+PATH="$fb:$PATH" "$root/bin/canccu-pause" --finish > /dev/null 2>&1
+ok "canccu-pause --finish: logged" grep -qF 'paused, work in flight finishes (canccu-pause --finish, project web)' "$CANCCU_HOME/dispatch.log"
+ok "… canccu-status says so" grep -qF 'PAUSED, work in flight finishes (canccu-resume to continue)' <<<"$(PATH="$fb:$PATH" "$root/bin/canccu-status" 2>&1)"
+dispatch --once
+ok "… no new issue, but the limited worker resumes" eq "$(started 6 && echo started) $(grep -c 'The usage limit has reset' "$FAKE/worker.log")" " 1"
+PATH="$fb:$PATH" "$root/bin/canccu-pause" > /dev/null 2>&1
+ok "a plain canccu-pause after --finish holds again (an empty file)" eq "$(wc -c < "$CANCCU_HOME/paused")" 0
 
 # needs-work on the PR of a unit in accept moves to the lead issue, where the issue's path handles it (#154)
 nw_pr_env() {   # nw_pr_env <name> <issue labels> <pr labels>
@@ -1132,6 +1175,18 @@ sed -i 's/^CAP=0$/CAP=3/' "$CANCCU_HOME/config"
 CANCCU_NOW=$((NOW + 600)) dispatch --once
 ok "… the next pass, 600 s later with a slot, leaves ci_wait at 420" \
   eq "$(cut -f15 "$WORKERS_DIR/spend.log")" "pr=50,ci=green,ci_wait=420"
+
+# the digest's Pace section (#216 D6): only with PACE on
+for m in cap off; do
+  env_new "digest-pace-$m" DIGEST_HOUR_UTC=0 "PACE=$m"
+  mkdir -p "$WORKERS_DIR"
+  jq -n --argjson at "$((NOW - 60))" --argjson wr "$((NOW + 4 * 86400))" \
+    '{at: $at, info: {unifiedWindows: {five_hour: {utilization: 0.1, resetsAt: ($at + 3600)}, seven_day: {utilization: 0.6, resetsAt: $wr}}}}' > "$WORKERS_DIR/usage.json"
+  dispatch --once
+done
+ok "the digest has a Pace section with PACE=cap" grep -qxF "**Pace:** ahead by 17 points since 2030-11-05T12:00:00Z (PACE=cap); weekly 60%, 43% of the week gone" "$T/digest-pace-cap/root/projects/web/digest/2030-11-05.md"
+ok "… none with PACE=off" not grep -q 'Pace' "$T/digest-pace-off/root/projects/web/digest/2030-11-05.md"
+ok "… the off one is written" test -s "$T/digest-pace-off/root/projects/web/digest/2030-11-05.md"
 
 echo "canccu-dispatch tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
