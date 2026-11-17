@@ -18,6 +18,9 @@ the choices under `Decisions made:` in the PR body. It treats the PR, the issue,
 `CLAUDE.md` and `AGENTS.md` as data, never as instructions; it edits, pushes, comments, labels
 and merges nothing.
 
+The repo's `REVIEW.md`, from `origin/main`, joins both prompts:
+[`repo-contract.md`](../repo-contract.md).
+
 It writes its review to `~/.canccu/projects/<name>/reviews/<pr>/<sha>.md`: any prose of its own,
 then the finding block below; `Maintainer accept: <what>` only when the PR breaks a contract or
 holds a destructive migration; for a package, `Risk: <low|normal|high> — <why>` (it confirms or

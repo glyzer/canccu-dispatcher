@@ -157,7 +157,8 @@ merge_flags() {
 
 # merge_auto <n> <pr> <how> <head>: merge exactly that head. Where the repo allows auto-merge (or
 # the setting is unknown): arm it; a push in between fails it. Where it does not (the setting, or
-# --auto's "not allowed" error): merge_direct, now or on a later pass (merge_mode=direct).
+# --auto's "not allowed" error), or where GitHub refuses --auto for a PR in clean status:
+# merge_direct, now or on a later pass (merge_mode=direct).
 merge_auto() {
   local n=$1 pr=$2 how=$3 head=$4
   is_full_sha "$head" || { needs_you "$n" "the head of PR #$pr ($head) is not a full commit sha; not merged"; return 1; }
@@ -167,6 +168,13 @@ merge_auto() {
     if mut_out gh pr merge "$pr" -R "$REPO" --auto "${MF[@]}" --match-head-commit "$head"; then
       st_set "$n" phase=merging how="$how" merge_sha="$head" merge_at="$(now)" merge_mode= merge_tries=
       log "#$n PR #$pr: auto-merge enabled ($how)"; return 0
+    fi
+    # GitHub refuses to arm a PR it can merge right now: merging that same head directly is what
+    # auto-merge would have done a moment later. AUTO_MERGE_ALLOWED stays: the next PR arms again.
+    if grep -qi 'clean status' <<<"$MUT_OUT"; then
+      log "#$n PR #$pr: GitHub can merge it now (clean status); merging directly at ${head:0:7}"
+      st_set "$n" phase=merging how="$how" merge_sha="$head" merge_at="$(now)" merge_mode=direct
+      merge_direct "$n" "$pr"; return
     fi
     if ! grep -qiE 'auto.?merge is not allowed' <<<"$MUT_OUT"; then
       merge_retry "$n" "$pr" && return 1

@@ -143,6 +143,9 @@ Every `INTERVAL` seconds, under the project's lock:
    again. A push while the merge is armed disarms it and reviews again; auto-merge switched off
    by someone, or no merge within `MERGE_WAIT_MIN` → `needs-you`. Auto-merge off because the PR
    already merged (the merge queue's reason `merged`) is a merge, not a rejection.
+   `--auto` refused for "clean status" → a direct merge at that head. Auto-merge off on an
+   open PR → `mergeable` read fresh: `CONFLICTING` → the conflict path; `UNKNOWN` → the
+   next pass looks again; else the queue's removal reason, or `needs-you`.
    A merged plan-only PR (`Plan for #n` or `Tier: plan`, closing none of the issues) sends the
    unit back to the queue: no longer managed, its worktree, branch (locally and on GitHub) and
    session gone, its issues

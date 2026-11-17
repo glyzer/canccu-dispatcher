@@ -6,7 +6,7 @@
 # state.format holds the format of state/ and steps/ (a missing file: 0, a release before it).
 # A release that adds or changes a state field raises STATE_FORMAT and adds state_migrate_<new>,
 # which prints what it did (docs/reference/state.md).
-STATE_FORMAT=3
+STATE_FORMAT=4
 state_migrate_1() { echo "no field changes (the format file is new)"; }
 # 2: owner (who a waiting unit is for), ev_id and idle_ev (its open feed lines; none before)
 state_migrate_2() {
@@ -23,6 +23,9 @@ state_migrate_2() {
 # round*, cadence_at. Empty means the behaviour before them, so no file changes; the number still
 # moves, so a release before them refuses this state instead of dropping fields it does not know.
 state_migrate_3() { echo "no field changes (workflow v2's new fields start empty)"; }
+# 4: the step field round_from (the head of the last cadence round whose report merged); empty
+# means a fresh base each round
+state_migrate_4() { echo "no field changes (round_from starts empty)"; }
 # state_migrate: run by canccu-dispatch under its lock before the first pass. An older release
 # after a newer one would misread fields it does not know: it stops instead. Under --dry-run it
 # only checks.

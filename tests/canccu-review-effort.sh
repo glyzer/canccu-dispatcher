@@ -92,19 +92,21 @@ pkgenv light-single 101 '[{"filename": "src/a.ts", "changes": 3}]' 'Tier: fix'
 ok "… a single issue (the fast lane) → full" eq "$(lrc)" full
 pkgenv light-dispatch 101 '[{"filename": "src/auth/session.ts", "changes": 40}]' 'Tier: feature' pkg=a risk=normal "check_at=$NOW"
 json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z)"; route 'pr view 50 *' pr50.json
-echo "REVIEW_LIGHT=1" >> "$CANCCU_HOME/rules"
+echo "REVIEW_LIGHT=1" >> "$CANCCU_HOME/rules"; echo "HIGH_RISK_TEXT='auth & sessions'" >> "$CANCCU_HOME/rules"
 dispatch --once
 ok "a light review runs at low effort" eq "$(cat "$CANCCU_HOME/reviews/50.effort") $(cat "$CANCCU_HOME/reviews/50.light")" "low $HA"
 ok "… logged" grep -qF 'PR #50: light review (REVIEW_LIGHT=1, normal risk, low effort)' "$CANCCU_HOME/dispatch.log"
 ok "… on the light prompt" grep -q 'review#50 .*This is a light review: do not run the code-review skill' "$FAKE/worker.log"
-# the PR's files are read once for both light checks (REVIEW_MODEL_LIGHT's and REVIEW_LIGHT's),
-# once more for review_effort's sizes
+# bash 5.2's patsub_replacement would turn an unquoted replacement's & into the pattern
+ok "… HIGH_RISK_TEXT with an & goes into the checklist as written" grep -qF 'or risky code (auth & sessions) makes your Risk: line high' "$FAKE/worker.log"
+# the PR's files are read once for both light checks (REVIEW_MODEL_LIGHT's and REVIEW_LIGHT's);
+# a light review needs no review_effort, so not once more for its sizes
 pkgenv light-files-once 101 '[{"filename": "src/auth/session.ts", "changes": 40}]' 'Tier: feature' pkg=a risk=normal "check_at=$NOW"
 json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z)"; route 'pr view 50 *' pr50.json
 echo "REVIEW_LIGHT=1" >> "$CANCCU_HOME/rules"; echo "REVIEW_MODEL_LIGHT=claude-light-x" >> "$CANCCU_HOME/config"
 dispatch --once
 ok "… the PR's files read once for both light checks" \
-  eq "$(grep -c 'This is a light review' "$FAKE/worker.log") $(grep -c '^api --paginate repos/example-org/web/pulls/50/files' "$FAKE/gh.log")" "1 2"
+  eq "$(grep -c 'This is a light review' "$FAKE/worker.log") $(grep -c '^api --paginate repos/example-org/web/pulls/50/files' "$FAKE/gh.log")" "1 1"
 
 # through a pass: a package rated normal gets a medium review although it touches a risky path
 pkgenv eff-pkg-dispatch 101 '[{"filename": "src/auth/session.ts", "changes": 40}]' 'Tier: feature' pkg=a risk=normal "check_at=$NOW"

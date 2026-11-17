@@ -8,7 +8,7 @@
 # deep_blocking, polish. CADENCE_DAYS: a long-running step marked `Cadence: on` gets a round every
 # CADENCE_DAYS days while its waves go on: the deep review, its polish issue, then the checkpoint
 # summary; the fields round, round_phase (deep, read, polish, checkpoint), round_head, round_pr,
-# round_blocking, round_polish, round_cp_at, cadence_at. docs/reference/steps.md.
+# round_from, round_blocking, round_polish, round_cp_at, cadence_at. docs/reference/steps.md.
 
 # is_deep <K>: the step's deep review
 is_deep() { is_pkg "$1" && [ "$(st_get "$1" deep)" = 1 ]; }
@@ -140,7 +140,7 @@ deep_read() {
   b=$(grep -cE '^[[:space:]]*[0-9]+[.)][[:space:]]' <<<"$items")
   if [ -n "${2:-}" ]; then pr=$(step_get "$m" round_pr); else pr=$(step_get "$m" deep_pr); fi
   if (( b == 0 )) && [ -n "${2:-}" ]; then
-    step_set "$m" round_blocking=0 round_phase=checkpoint
+    step_set "$m" round_blocking=0 round_phase=checkpoint round_from="$(step_get "$m" round_head)"
     log "step $t: the deep review of cadence round $(step_get "$m" round) found nothing blocking"; return 0
   fi
   if (( b == 0 )); then
@@ -153,18 +153,22 @@ deep_read() {
     { log "step $t: filing the polish issue failed (gh); retrying next pass"; return 0; }
   (( CANCCU_DRY )) && return 0
   i=$(grep -oE '/issues/[0-9]+' <<<"$MUT_OUT" | grep -oE '[0-9]+$' | tail -1)
-  if [ -n "${2:-}" ]; then step_set "$m" round_blocking="$b" round_polish="$i" round_phase=polish
+  if [ -n "${2:-}" ]; then step_set "$m" round_blocking="$b" round_polish="$i" round_phase=polish round_from="$(step_get "$m" round_head)"
   else step_set "$m" deep=merged deep_blocking="$b" polish="$i" phase=idle; fi
   log "step $t: the deep review found $b blocking finding(s); polish issue #${i:-?} filed"
 }
+# deep_line <pr> <blocking> <polish>: a summary's deep-review line; no blocking count: closed unmerged
+deep_line() {
+  if [ -z "$2" ]; then printf '**Deep review:** PR #%s, closed without merging\n\n' "$1"
+  else printf '**Deep review:** PR #%s, %s blocking (%s)\n\n' "$1" "$2" "$( [ -n "${3:-}" ] && echo "polish #$3" || echo none)"; fi
+}
 # deep_summary <m>: the checkpoint summary's line, only with STEP_DEEP_REVIEW=1
 deep_summary() {
-  local m=$1 p
+  local m=$1
   [ "${STEP_DEEP_REVIEW:-0}" = 1 ] || return 0
-  p=$(step_get "$m" polish)
   case $(step_get "$m" deep) in
-    merged) printf '**Deep review:** PR #%s, %s blocking (%s)\n\n' "$(step_get "$m" deep_pr)" "$(step_get "$m" deep_blocking)" "$( [ -n "$p" ] && echo "polish #$p" || echo none)" ;;
-    closed) printf '**Deep review:** PR #%s, closed without merging\n\n' "$(step_get "$m" deep_pr)" ;;
+    merged) deep_line "$(step_get "$m" deep_pr)" "$(step_get "$m" deep_blocking)" "$(step_get "$m" polish)" ;;
+    closed) deep_line "$(step_get "$m" deep_pr)" "" ;;
     *) printf '**Deep review:** none\n\n' ;;
   esac
 }
@@ -232,8 +236,11 @@ cadence_tick() {
   # the round needs the checkpoint for its summary; cadence_at stays, so it starts once one is open
   [ -n "$c" ] || { warn_once "cadence-$m" "step $(step_title "$m"): cadence round $r is due, but the step has no open checkpoint; skipped until one is open"; return 0; }
   if [ "${STEP_DEEP_REVIEW:-0}" = 1 ]; then
-    h=$(step_get "$m" round_head)
-    base=$(deep_base "$m"); [ -n "$h" ] && base="the head $h of cadence round $((r - 1)) (git diff $h..<head>)"
+    # round_from: the head of the last round whose report merged (deep_read); a round closed
+    # unmerged leaves it, and with none the base is computed fresh
+    h=$(step_get "$m" round_from) base=
+    [ -n "$h" ] && base="the head $h of an earlier cadence round (git diff $h..<head>)"
+    base=${base:-$(deep_base "$m")}
     start_deep "$m" "$base" "$r" || return 0
   else step_set "$m" round="$r" round_phase=checkpoint round_cp_at= round_pr= round_polish=; fi
   log "step $(step_title "$m"): cadence round $r starts (every $CADENCE_DAYS days)"
@@ -257,15 +264,11 @@ round_step() {
 }
 # round_summary <m>: the round's checkpoint comment
 round_summary() {
-  local m=$1 sp nc p
+  local m=$1 sp nc
   read -r sp nc <<<"$(step_spend "$m")"
   printf '**Cadence round %s** of step %s (canccu-dispatch)\n\n' "$(step_get "$m" round)" "$(step_title "$m")"
-  if [ "${STEP_DEEP_REVIEW:-0}" = 1 ]; then
-    p=$(step_get "$m" round_polish)
-    # deep_read always sets round_blocking; a round PR without it was closed unmerged (deep_finished)
-    if [ -z "$(step_get "$m" round_blocking)" ]; then printf '**Deep review:** PR #%s, closed without merging\n\n' "$(step_get "$m" round_pr)"
-    else printf '**Deep review:** PR #%s, %s blocking (%s)\n\n' "$(step_get "$m" round_pr)" "$(step_get "$m" round_blocking)" "$( [ -n "$p" ] && echo "polish #$p" || echo none)"; fi
-  fi
+  # deep_read always sets round_blocking; a round PR without it was closed unmerged (deep_finished)
+  [ "${STEP_DEEP_REVIEW:-0}" = 1 ] && deep_line "$(step_get "$m" round_pr)" "$(step_get "$m" round_blocking)" "$(step_get "$m" round_polish)"
   printf '**Spend:** $%s of STEP_BUDGET $%s%s\n\n' "$sp" "$STEP_BUDGET" "$( (( nc > 0 )) && echo " (+$nc runs without a reported cost)")"
   echo "Label this issue \`checkpoint-ok\` to end the round (the step goes on), or close it to end the rounds."
 }
@@ -282,8 +285,9 @@ round_post() {
   log "step $(step_title "$m"): cadence round $r: checkpoint #$c waits for checkpoint-ok$(its_url "${u:-$(issue_url "$c")}")"
   feed_open "checkpoint-$m" po ask checkpoint - - "${u:-$(issue_url "$c")}" "step $(step_title "$m"): cadence round $r: checkpoint #$c waits for checkpoint-ok"
 }
-# round_wait <m>: checkpoint-ok by USER_LOGIN after the summary, or a close, ends the round. The
-# checkpoint stays open (the step's own end needs it); a close ends the rounds until one is open.
+# round_wait <m>: checkpoint-ok by USER_LOGIN after the summary, a close, or the checkpoint gone
+# ends the round. The checkpoint stays open (the step's own end needs it); a close ends the rounds
+# until one is open.
 round_wait() {
   local m=$1 c r t st; c=$(step_get "$m" round_cp) r=$(step_get "$m" round) t=$(step_title "$m")
   st=$(jqr --argjson c "$c" '.[] | select(.number == $c) | .state' <<<"$CHECKPOINTS")
@@ -295,7 +299,13 @@ round_wait() {
       { log "step $t: clearing checkpoint #$c failed; retrying next pass"; return 0; }
     mut gh issue comment "$c" -R "$REPO" --body "Cadence round $r OK. $CANCCU_MARK"
   elif [ -n "$st" ]; then mut gh issue edit "$c" -R "$REPO" --remove-label needs-you
-  else return 0; fi
+  else
+    # its label removed, or transferred or deleted: nothing could ever end the round, and
+    # health_due waits on round_phase, so it ends as a close does (checkpoint_tick's pause too)
+    warn_once "round-cp-$m" "step $t: cadence round $r's checkpoint #$c is gone; the round ends"
+    step_set "$m" round_phase= round_cp_at= cadence_at="$(now)"; feed_settle "checkpoint-$m" "round $r: checkpoint gone"
+    return 0
+  fi
   step_set "$m" round_phase= round_cp_at= cadence_at="$(now)"
   feed_settle "checkpoint-$m" "round $r OK"
   log "step $t: cadence round $r OK"

@@ -131,13 +131,15 @@ cat > "$fb/git" <<'EOF'
 # fake git: records the call; `diff --numstat` prints $FAKE/numstat (fails without it)
 a="$*"; printf '%s\n' "$a" >> "$FAKE/git.log"
 printf '%s\t%s\t%s\n' "${GH_CONFIG_DIR:-<default>}" "${GIT_CONFIG_COUNT:-<unset>}" "$a" >> "$FAKE/git.cfg"
-# $FAKE/realgit: the reads of the commit graph (main_merge_only, the change after a pass) go to the
-# real git, on the repo mmrepo built in CLONE; $FAKE/numstat still answers diff --numstat
+# $FAKE/realgit: the reads of the commit graph (main_merge_only, the change after a pass) and of a
+# file on main (REVIEW.md) go to the real git, on the repo mmrepo or rvrepo built; $FAKE/numstat
+# still answers diff --numstat
 if [ -e "$FAKE/realgit" ]; then
   case " $a " in
     *" merge-tree "*|*" merge-base "*|*" rev-list --parents "*|*" diff --name-only "*|*" diff -U0 "*) exec "$FAKE_REAL_GIT" "$@" ;;
     *" rev-parse HEAD "*) ;;
     *" rev-parse "*) exec "$FAKE_REAL_GIT" "$@" ;;
+    *" show origin/main:"*) exec "$FAKE_REAL_GIT" "$@" ;;
     *" diff --numstat "*) [ -e "$FAKE/numstat" ] || exec "$FAKE_REAL_GIT" "$@" ;;
   esac
 fi
