@@ -114,6 +114,44 @@ out=$(waitcmd --ack 3); rc=$?
 ok "wait: a heartbeat 11 minutes old → exit 3" eq "$rc" 3
 ok "… saying so" eq "$out" "heartbeat stale: 11 min; the dispatcher may be down"
 
+# ---------------------------------------------------------------- the actions log's other writers (#186)
+
+env_new actions-cmds
+{ issue 5 in-progress; } | issues
+cmd() { PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/$1" "${@:2}" > "$E/out" 2>&1; }
+cmd canccu-pause; cmd canccu-resume --usage; cmd canccu-stop 5; cmd canccu-run x
+ok "canccu-pause, -resume, -stop and -run each write one line: actor, command, unit, result" eq "$(cut -f2- "$CANCCU_HOME/actions.log")" "po	canccu-pause	-	ok
+po	canccu-resume --usage	-	ok
+po	canccu-stop	5	ok
+po	canccu-run	-	exit 2"
+ok "… the time as the feed has it" eq "$(cut -f1 "$CANCCU_HOME/actions.log" | sort -u)" "$(date -u -d "@$NOW" +%Y-%m-%dT%H:%M:%SZ)"
+rm -f "$CANCCU_HOME/actions.log"; mkdir "$CANCCU_HOME/actions.log"
+cmd canccu-pause; rc=$?
+ok "a failed actions-log write never fails the command" eq "$rc $(test -e "$CANCCU_HOME/paused" && echo paused)" "0 paused"
+
+# ---------------------------------------------------------------- leader brief (#186)
+
+env_new feed-brief LEADER=on
+lib feed leader ask accept 5 50 https://example.invalid/50 "#5 accept: lead line" >/dev/null
+lib feed po ask needs-you 6 - - "#6 needs-you: po line" >/dev/null
+lib feed leader ask idle 7 - - "#7 sits in work" >/dev/null
+lib feed_closed 3 work 7
+for i in $(seq 12); do printf '2030-11-05T11:%02d:00Z\tpo\tcanccu-pause\t-\tok%s\n' "$i" "$i"; done > "$CANCCU_HOME/actions.log"
+cp "$(EV)" "$E/ev.before"
+out=$(PATH="$fb:$PATH" "$root/bin/canccu-dispatcher" leader brief --project web 2>&1); rc=$?
+ok "leader brief: exit 0, the status header first" eq "$rc $(head -1 <<<"$out" | cut -d' ' -f1)" "0 canccu-dispatcher"
+ok "… the leader's open line under its heading" eq "$(sed -n '/^open for the leader:/,/^open for the product owner:/p' <<<"$out" | sed '1d;$d')" \
+  "  1 · accept · 5 · PR 50 · #5 accept: lead line"
+ok "… the product owner's under its own" eq "$(sed -n '/^open for the product owner:/,/^next:/p' <<<"$out" | sed '1d;$d')" \
+  "  2 · needs-you · 6 · no PR · #6 needs-you: po line"
+ok "… next: the queue as canccu-status lists it" grep -q '^  queue (fast lane, next 5 runnable): ' <<<"$out"
+ok "… the last 10 actions-log lines, the newest last" eq "$(sed -n '/^actions (last 10):/,$p' <<<"$out" | sed '1d' | awk -F '\t' '{ print $5 }' | tr '\n' ' ')" \
+  "ok3 ok4 ok5 ok6 ok7 ok8 ok9 ok10 ok11 ok12 "
+ok "… and changes nothing: the feed as it was, no actions-log line" eq "$(cmp -s "$(EV)" "$E/ev.before"; echo $?) $(wc -l < "$CANCCU_HOME/actions.log")" "0 12"
+env_new feed-brief-empty
+out=$(PATH="$fb:$PATH" "$root/bin/canccu-dispatcher" leader brief 2>&1); rc=$?
+ok "leader brief with no feed and no actions log: none under each heading" eq "$rc $(grep -c '^  none$' <<<"$out")" "0 3"
+
 # ---------------------------------------------------------------- the hand-over (#183)
 
 pings() { grep -cE -- "$1" <(paste <(cut -f2 "$FAKE/gh.env") "$FAKE/gh.log" | grep -P '^reviewer\t' | cut -f2-); }
@@ -131,15 +169,19 @@ env_new feed-handover LEADER=on LEADER_ACCEPTS=technical PING_KINDS=all
 ho_unit 61
 dispatch --once
 ok "hand-over: a leader's accept unacked for 61 min → owner po" eq "$(st 5 owner)" po
-ok "… one handover line for po" eq "$(lines) $(field 2 3) $(field 2 4) $(field 2 5) $(field 2 6) $(field 2 7) $(field 2 8)" \
-  "2 po ask handover 5 50 https://github.com/example-org/web/pull/50"
-ok "… saying why" eq "$(field 2 9)" "$HO"
-ok "… stored as the unit's item" eq "$(st 5 ev_id)" 2
+ok "… the leader's line closed first" eq "$(field 2 5) $(field 2 6) $(field 2 9)" "closed 5 closes 1: passed to the product owner"
+ok "… then one handover line for po" eq "$(lines) $(field 3 3) $(field 3 4) $(field 3 5) $(field 3 6) $(field 3 7) $(field 3 8)" \
+  "3 po ask handover 5 50 https://github.com/example-org/web/pull/50"
+ok "… saying why" eq "$(field 3 9)" "$HO"
+ok "… stored as the unit's item" eq "$(st 5 ev_id)" 3
+ok "… leader brief no longer lists the leader's line" \
+  eq "$(lib eval '. "$root/lib/canccu-brief.sh"; brief_open leader; brief_open po' | cut -d' ' -f3-5)" "none
+3 · handover"
 ok "… and logged" eq "$(grep -cF "$HO" "$CANCCU_HOME/dispatch.log")" 1
 ok "… not pinged in the pass that hands it over" eq "$(pings '^issue comment 5 ')" 0
 dispatch --once
 ok "… the next ping pass pings it" eq "$(pings '^issue comment 5 -R example-org/web --body @octo PR #50 waits for your accept')" 1
-ok "… and a second pass writes nothing new" eq "$(lines) $(st 5 owner)" "2 po"
+ok "… and a second pass writes nothing new" eq "$(lines) $(st 5 owner)" "3 po"
 
 env_new feed-handover-acked LEADER=on LEADER_ACCEPTS=technical PING_KINDS=all
 ho_unit 61

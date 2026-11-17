@@ -11,6 +11,21 @@ does not start, wake or watch it: it is your own session, used to turn ideas int
 pipeline can run and to clear what waits for you. Nothing the lead does bypasses the pipeline:
 its PRs, if any, are reviewed and gated like a worker's.
 
+## The leader's brief
+
+A fresh leader session starts with `canccu-dispatcher leader brief` ([`commands.md`](commands.md)):
+the `canccu-status` header (version, model, usage, project, runs), the open feed lines for the
+leader and for the product owner under their own headings, the current step and the next 5
+runnable issues, and the last 10 lines of `actions.log` (what a person or a leader did last,
+[`state.md`](state.md#a-projects-dir)). It is built from the same functions as `canccu-status`
+and is read only: it starts and changes nothing. The leader then follows the feed with
+`canccu-dispatcher wait --owner leader` ([below](#the-feed)).
+
+The leader ships with `canccu-ship <n>` only what the owner rule gave it: a unit in `accept`
+whose stored `owner` is `leader`, while `LEADER_ACCEPTS=technical`. Anything else is refused and
+the refusal is logged. The `CANCCU_ACTOR` marker that tells the leader apart is not a security
+boundary.
+
 ## Writing issues
 
 An issue is the worker's spec and the reviewer's checklist, so write it for both:
@@ -76,7 +91,8 @@ and stores it as the unit's `owner` when the unit enters `accept` or `needs-you`
 ([`monitor.md`](monitor.md), [`pings.md`](pings.md)).
 
 An item of the leader's that the leader has not acknowledged within 60 minutes of its feed line
-being written passes to you (contracts §1, rule 7): its owner becomes `po`, one feed line of
+being written passes to you (contracts §1, rule 7): its owner becomes `po`, the leader's line is closed
+(`closes <id>: passed to the product owner`, so `leader brief` no longer lists it), one feed line of
 kind `handover` says `#<n> passed to the product owner: the leader did not acknowledge it in 60
 min`, the log says the same, and the next pass pings it like any of yours. The leader acknowledges
 an item with `canccu-dispatcher wait --owner leader --ack <id>`, `<id>` at or above the item's
