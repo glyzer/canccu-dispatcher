@@ -38,8 +38,8 @@ the leader or a run, it is refused (`LEADER` is locked) and writes nothing. The 
   each line, the 60-minute hand-over), the ask form for what it passes to you, and its limits;
 - `.claude/settings.json`, from `templates/leader/settings.json`: Claude's permissions. They deny
   reading the project's `REVIEWER_TOKEN_FILE`, `git push --force` (and `-f`), `git rebase` and
-  `gh pr merge`, and allow the commands above without a prompt: `config set` only for `PACE*`
-  and `STEP_DEEP_REVIEW`, and `gh issue create`.
+  `gh pr merge`, and allow the commands above without a prompt: `config set --project <name>` only for
+  `PACE`, `PACE_MARGIN`, `PACE_CAP` and `STEP_DEEP_REVIEW` (the key right after the project), and `gh issue create`.
 
 The kit is yours to edit once written; to start again from the templates, remove it and run
 `canccu-init --leader` again (`LEADER` stays `on`). `canccu-up` reads `LEADER` when it creates the

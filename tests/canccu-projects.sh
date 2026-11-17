@@ -557,10 +557,13 @@ for d in 'Bash(git push --force*)' 'Bash(git rebase*)' 'Bash(gh pr merge*)'; do
 done
 for a in 'Bash(canccu-dispatcher leader brief*)' 'Bash(canccu-dispatcher wait *)' 'Bash(canccu-dispatcher watch*)' \
   'Bash(canccu-dispatcher stall*)' 'Bash(canccu-status*)' 'Bash(canccu-status --pace*)' 'Bash(canccu-ship *)' \
-  'Bash(canccu-dispatcher config set * PACE*)' 'Bash(canccu-dispatcher config set * STEP_DEEP_REVIEW=*)' \
+  'Bash(canccu-dispatcher config set --project web PACE=*)' 'Bash(canccu-dispatcher config set --project web PACE_MARGIN=*)' \
+  'Bash(canccu-dispatcher config set --project web PACE_CAP=*)' 'Bash(canccu-dispatcher config set --project web STEP_DEEP_REVIEW=*)' \
   'Bash(gh issue comment *)' 'Bash(gh issue create *)'; do
   ok "… they allow $a" jq -e --arg a "$a" '.permissions.allow | index($a) != null' "$k/.claude/settings.json" > /dev/null
 done
+ok "… no allow rule is a config set with a leading *" \
+  jq -e '[.permissions.allow[] | select(test("config set \\*"))] | length == 0' "$k/.claude/settings.json" > /dev/null
 for t in LEADER_ACCEPTS_HIGH_RISK=1 STEP_DEEP_REVIEW 'polish (deep review)' 'canccu-status --pace' PACE_MARGIN lead-tools.md; do
   ok "… the role names $t (workflow v2)" grep -qF -- "$t" "$k/CLAUDE.md"
 done
