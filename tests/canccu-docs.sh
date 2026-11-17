@@ -112,6 +112,9 @@ for f in README.md CONTRIBUTING.md SECURITY.md CHANGELOG.md docs/*.md "$R"/*.md 
   done < <(grep -oE '\]\([^) ]+\)' "$f" | sed -E 's/^\]\((.*)\)$/\1/')
 done
 ok "every relative link in the docs resolves, anchors included" eq "${broken# }" ""
+# the role is the leader (#187): its topic is leader.md, and nothing points at the old name
+ok "docs/reference/leader.md is the leader's topic" grep -qx '# The leader' docs/reference/leader.md
+ok "no link or pointer to lead.md is left" eq "$(grep -rlE '(^|[^a-z_-])lead\.md' --exclude-dir=.git --exclude-dir=plan --exclude=canccu-docs.sh . | sort | tr '\n' ' ')" ""
 
 # ---------------------------------------------------------------- the README
 

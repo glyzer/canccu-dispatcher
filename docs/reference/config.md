@@ -61,13 +61,13 @@ pacing are in [`config-steps.md`](config-steps.md).
 | `DIGEST_ISSUE` | empty | The issue the digest is posted on as a comment; empty: the digest is only written to `digest/<date>.md` |
 | `PING` | `on` | `on`: when something needs you, one comment as `REVIEWER_LOGIN` @mentions `USER_LOGIN` ([`pings.md`](pings.md)); `off`: never |
 | `NOTIFY_CONTENT` | `full` | What an ask carries, the ping and the PR body block ([`pings.md`](pings.md#the-ask-form)): `full`, the whole form; `link`, its first line, its last line and the link. Locked |
-| `LEADER` | `off` | `on`: the owner rule gives a leader the waiting items that are not the product owner's ([`lead.md`](lead.md#the-owner-of-a-waiting-item)). Locked |
+| `LEADER` | `off` | `on`: the owner rule gives a leader the waiting items that are not the product owner's ([`leader.md`](leader.md#the-owner-of-a-waiting-item)); `canccu-init --leader` sets it with the kit. Locked |
 | `LEADER_ACCEPTS` | `none` | `technical`: the leader owns the accepts the rule does not give the product owner. Locked |
 | `LEADER_ACCEPTS_HIGH_RISK` | `0` | `1`: … a high-risk one too. Locked |
 | `REVIEW_BRAKE` | `auto` | `auto`: the escaped-defect trigger engages the review brake ([`reviews.md`](review-depth.md#the-review-brake)); `off`: it never engages by itself. Locked |
 | `BRAKE_WINDOW` | `20` | The merged PRs the brake's trigger, its baseline and `canccu-status --kpi-review` count. Locked |
 | `INTERVAL` | `60` | Seconds between passes |
-| `IDLE_ALARM_MIN` | `60` | A managed unit with no run, not waiting for a person, whose phase has not changed for this many minutes writes one `idle` line in the feed ([`lead.md`](lead.md#the-feed)) |
+| `IDLE_ALARM_MIN` | `60` | A managed unit with no run, not waiting for a person, whose phase has not changed for this many minutes writes one `idle` line in the feed ([`leader.md`](leader.md#the-feed)) |
 | `CI_WAIT_MIN` | `90` | A finished worker's PR whose CI is still pending after this many minutes goes to `needs-you` |
 | `NO_CHECKS_MIN` | `10` | A finished worker's PR with no CI check reported at all after this many minutes goes to `needs-you` ("is CI set up for this repo, or did a path filter skip it?"; for a PR that conflicts with main, which GitHub runs no checks on: "it conflicts with main, so GitHub runs no checks; merge main into it or say how") |
 | `MERGE_WAIT_MIN` | `240` | Auto-merge armed this long without a merge is disarmed, and the PR goes to `needs-you` |

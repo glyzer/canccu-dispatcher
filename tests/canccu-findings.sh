@@ -142,5 +142,79 @@ ok "… the review records only (not the saved findings)" not grep -q 'not a rev
 env_new report-empty
 ok "… no review records: says so" grep -q 'no review records' <<<"$(PATH="$fb:$PATH" "$root/bin/canccu-status" --findings 2>&1)"
 
+# ---------------------------------------------------------------- recurring findings (Q1, #194)
+
+DAY=86400
+# rmerged <pr> <age in days> [item...]: PR pr's acted-on review (reviews.log) lists the items (default:
+# a non-blocking [correctness] in lib/a.sh), and the PR merges that many days before NOW
+rmerged() {
+  local pr=$1 t=$((NOW - $2 * DAY)) sha body nb=0 b=0 p=0 i; shift 2
+  (( $# )) || set -- "N- [correctness] lib/a.sh:$pr — the guard is off by one"
+  sha=$(printf '%040d' "$pr"); body=$'Blocking:'
+  for i; do [ "${i:0:1}" = B ] && { body+=$'\n'"${i:1}"$'\n   Evidence: x gives y'; b=$((b + 1)); }; done
+  body+=$'\nNon-blocking:'; for i; do [ "${i:0:1}" = N ] && { body+=$'\n'"${i:1}"; nb=$((nb + 1)); }; done
+  body+=$'\nPre-existing:'; for i; do [ "${i:0:1}" = P ] && { body+=$'\n'"${i:1}"; p=$((p + 1)); }; done
+  body+=$'\n'"Findings: $b blocking, $nb non-blocking, $p pre-existing"$'\n'"Review verdict: $( (( b )) && echo changes || echo pass) $sha"
+  mkdir -p "$CANCCU_HOME/reviews/$pr"; printf '%s\n' "$body" > "$CANCCU_HOME/reviews/$pr/$sha.md"
+  printf '%s\t%s\t%s\tfull\tpass\t0\t1\t0\t0\t-\n' "$(lib iso "$t")" "$pr" "$sha" >> "$CANCCU_HOME/reviews.log"
+  CANCCU_NOW=$t mlib unit_merged "$pr" "$pr" "Issue $pr" > /dev/null
+}
+# mlib: lib with the after-merge part (unit_merged), which canccu-dispatch sources
+mlib() { ( PATH="$fb:$PATH"; . "$root/lib/canccu-common.sh"; . "$root/lib/canccu-aftermerge.sh"; "$@" ) 2>/dev/null; }
+creates() { grep -c '^issue create' "$FAKE/gh.log"; }
+
+env_new recur-3
+json open900.json '{"state": "OPEN"}'; route 'issue view 900 *' open900.json
+rmerged 51 20; rmerged 52 10
+ok "two merged PRs with [correctness] lib/a.sh: no issue yet" eq "$(creates)" 0
+ok "… their keys are in findings.log, one line per key per PR" \
+  eq "$(cut -f2- "$CANCCU_HOME/findings.log")" $'51\tcorrectness\tlib/a.sh\n52\tcorrectness\tlib/a.sh'
+rmerged 53 0
+ok "the third in 30 days files one issue" grep -qx 'issue create -R example-org/web --title Recurring finding: correctness in lib/a.sh .*' "$FAKE/gh.log"
+ok "… once" eq "$(creates)" 1
+ok "… not ready" not grep -q 'issue create.*--label' "$FAKE/gh.log"
+ok "… its body lists the three PRs with their findings' lines" \
+  grep -q 'issue create.*#51.*lib/a.sh:51 — the guard is off by one.*#52.*lib/a.sh:52.*#53.*lib/a.sh:53' "$FAKE/gh.log"
+ok "… the proposal to fix it at the source" grep -q 'issue create.*AGENTS.md.*REVIEW.md.*worker prompt.*lint.*test' "$FAKE/gh.log"
+ok "… the product owner decides with LEADER=off" grep -q 'issue create.*the product owner decides' "$FAKE/gh.log"
+ok "… recorded in recurring" eq "$(cat "$CANCCU_HOME/recurring")" $'correctness\tlib/a.sh\t900'
+ok "… logged" grep -q 'recurring finding correctness in lib/a.sh: #900$' "$CANCCU_HOME/dispatch.log"
+rmerged 54 0
+ok "a fourth comments on the open issue, no new one" eq "$(creates) $(grep -c '^issue comment 900 .*PR #54.*lib/a.sh:54' "$FAKE/gh.log")" "1 1"
+rmerged 54 0
+ok "… a merge recorded again comments no second time" eq "$(grep -c '^issue comment 900 ' "$FAKE/gh.log")" 1
+issue 900 "" | issues
+out=$(cd "$E" && PATH="$fb:$PATH" "$root/bin/canccu-status" 2>&1)
+ok "canccu-status lists the open recurring-finding issues on one line" \
+  grep -qx 'recurring findings (a person decides): #900 correctness in lib/a.sh' <<<"$out"
+
+env_new recur-40
+json open900.json '{"state": "OPEN"}'; route 'issue view 900 *' open900.json
+rmerged 51 40; rmerged 52 20; rmerged 53 0
+ok "three such PRs over 40 days: no issue" eq "$(creates)" 0
+
+env_new recur-off FINDINGS_RECUR=0
+rmerged 51 2; rmerged 52 1; rmerged 53 0
+ok "FINDINGS_RECUR=0: no issue" eq "$(creates)" 0
+ok "… nothing counted" test ! -e "$CANCCU_HOME/findings.log"
+
+env_new recur-keys
+rmerged 51 0 "B1. [correctness] lib/b.sh:3 — wrong" "N- [style] lib/b.sh:4 — a name" "P- [security] lib/c.sh:9 — old" \
+  "N- [style] lib/b.sh:8 — another name" "N- lib/d.sh:1 — no class"
+ok "the keys: Blocking:, Non-blocking: and Pre-existing: items, each key once per PR, none without a class" \
+  eq "$(cut -f3- "$CANCCU_HOME/findings.log")" $'correctness\tlib/b.sh\nstyle\tlib/b.sh\nsecurity\tlib/c.sh'
+
+env_new recur-closed
+json closed900.json '{"state": "CLOSED"}'; route 'issue view 900 *' closed900.json
+printf 'correctness\tlib/a.sh\t900\n' > "$CANCCU_HOME/recurring"
+rmerged 51 2; rmerged 52 1; rmerged 53 0
+ok "a recorded issue that is closed: a new one, recorded" eq "$(creates) $(cat "$CANCCU_HOME/recurring")" $'1 correctness\tlib/a.sh\t900'
+
+env_new recur-gh-error
+echo 'fail:issue create' >> "$FAKE/routes"
+rmerged 51 2; rmerged 52 1; rmerged 53 0
+ok "a gh error is logged; the merge goes on" \
+  eq "$(grep -c 'recurring finding correctness in lib/a.sh: creating the issue failed (gh)' "$CANCCU_HOME/dispatch.log") $(grep -c '53 merged' "$CANCCU_HOME/dispatch.log")" "1 1"
+
 echo "canccu-findings tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

@@ -542,5 +542,63 @@ out=$( export HOME=$E/h GIT_CONFIG_NOSYSTEM=1; . "$root/lib/canccu-common.sh"; .
 ok "… set once, even when the lib is read twice" eq "$out" 4
 
 
+# ---------------------------------------------------------------- the leader kit (#187)
+
+penv leader-kit web tools
+k=$CANCCU_ROOT/projects/web/leader kt=$CANCCU_ROOT/projects/web/leader; kt=${kt/#$HOME/\~}
+out=$(PATH="$fb:$PATH" "$root/bin/canccu-init" --leader web 2>&1); rc=$?
+ok "canccu-init --leader web: succeeds, says where the kit is" eq "$rc $out" "0 leader kit written to $kt; canccu-up starts the leader there"
+ok "… the leader's instructions, the template's for web" eq "$(cat "$k/CLAUDE.md")" "$(sed 's|@NAME@|web|g; s|@REPO@|example-org/web|g' "$root/templates/leader/CLAUDE.leader.md")"
+ok "… its permissions where claude loads them, valid JSON" jq -e .permissions "$k/.claude/settings.json" > /dev/null
+ok "… they deny reading this project's reviewer token file" \
+  jq -e --arg t "Read(/$E/reviewer-token)" '.permissions.deny | index($t) != null' "$k/.claude/settings.json" > /dev/null
+for d in 'Bash(git push --force*)' 'Bash(git rebase*)' 'Bash(gh pr merge*)'; do
+  ok "… they deny $d" jq -e --arg d "$d" '.permissions.deny | index($d) != null' "$k/.claude/settings.json" > /dev/null
+done
+for a in 'Bash(canccu-dispatcher leader brief*)' 'Bash(canccu-dispatcher wait *)' 'Bash(canccu-dispatcher watch*)' \
+  'Bash(canccu-dispatcher stall*)' 'Bash(canccu-status*)' 'Bash(canccu-status --pace*)' 'Bash(canccu-ship *)' \
+  'Bash(canccu-dispatcher config set --project web PACE=*)' 'Bash(canccu-dispatcher config set --project web PACE_MARGIN=*)' \
+  'Bash(canccu-dispatcher config set --project web PACE_CAP=*)' 'Bash(canccu-dispatcher config set --project web STEP_DEEP_REVIEW=*)' \
+  'Bash(gh issue comment *)' 'Bash(gh issue create *)'; do
+  ok "… they allow $a" jq -e --arg a "$a" '.permissions.allow | index($a) != null' "$k/.claude/settings.json" > /dev/null
+done
+ok "… no allow rule is a config set with a leading *" \
+  jq -e '[.permissions.allow[] | select(test("config set \\*"))] | length == 0' "$k/.claude/settings.json" > /dev/null
+for t in LEADER_ACCEPTS_HIGH_RISK=1 STEP_DEEP_REVIEW 'polish (deep review)' 'canccu-status --pace' PACE_MARGIN lead-tools.md; do
+  ok "… the role names $t (workflow v2)" grep -qF -- "$t" "$k/CLAUDE.md"
+done
+ok "… no placeholder is left" not grep -q '@[A-Z_]*@' "$k/CLAUDE.md" "$k/.claude/settings.json"
+ok "… LEADER=on in web's config" eq "$(plib web eval 'echo $LEADER')" on
+ok "… and in no other project's" eq "$(plib tools eval 'echo $LEADER')" off
+ok "… the change is in the config history, by the product owner" grep -q $'\tpo\tset\tLEADER\t' "$CANCCU_ROOT/projects/web/config.history"
+echo "# mine" >> "$k/CLAUDE.md"
+out=$(PATH="$fb:$PATH" "$root/bin/canccu-init" --leader web 2>&1); rc=$?
+ok "canccu-init --leader web again: refused, the kit kept" \
+  eq "$rc $out $(tail -1 "$k/CLAUDE.md")" "1 canccu-init: leader files exist in $kt; remove them first # mine"
+out=$(PATH="$fb:$PATH" "$root/bin/canccu-init" --leader shop 2>&1); rc=$?
+ok "canccu-init --leader on an unknown project: refused, nothing made" \
+  eq "$rc $(grep -c "no project 'shop'" <<<"$out") $(test -e "$CANCCU_ROOT/projects/shop" && echo made)" "1 1 "
+out=$(PATH="$fb:$PATH" "$root/bin/canccu-init" --leader 2>&1); rc=$?
+ok "canccu-init --leader without a project: the usage" eq "$rc" 2
+rm -rf "$CANCCU_ROOT/projects/tools/leader"
+out=$(CANCCU_ACTOR=leader PATH="$fb:$PATH" "$root/bin/canccu-init" --leader tools 2>&1); rc=$?
+ok "canccu-init --leader as the leader: LEADER is locked, refused, no kit left behind" \
+  eq "$rc $(grep -c 'LEADER is locked' <<<"$out") $(plib tools eval 'echo $LEADER') $(test -e "$CANCCU_ROOT/projects/tools/leader/CLAUDE.md" && echo kit)" "1 1 off "
+
+# canccu-up: with LEADER=on the left pane is the leader, started in its kit
+mkdir -p "$E/home"; : > "$FAKE/tmux.log"; rm -f "$FAKE/panes" "$FAKE/has-session"
+HOME=$E/home PATH="$T/tmuxup:$fb:$PATH" "$root/bin/canccu-up" --project web > "$E/out" 2>&1
+ok "canccu-up, LEADER=on: the left pane is titled leader" grep -qxF 'select-pane -t %0 -T leader' "$FAKE/tmux.log"
+ok "… its claude starts in the kit dir, marked as the leader" grep -qxF "send-keys -t %0 cd $(printf %q "$k") && CANCCU_ACTOR=leader claude C-m" "$FAKE/tmux.log"
+ok "… the other panes as before" grep -qxF 'send-keys -t %1 canccu-monitor --project web C-m' "$FAKE/tmux.log"
+: > "$FAKE/tmux.log"; rm -f "$FAKE/panes"
+HOME=$E/home PATH="$T/tmuxup:$fb:$PATH" "$root/bin/canccu-up" --project tools > "$E/out" 2>&1
+ok "canccu-up, LEADER=off: the left pane as today, titled lead, claude in ~/code" \
+  eq "$(grep -cxF 'select-pane -t %0 -T lead' "$FAKE/tmux.log") $(grep -cxF 'send-keys -t %0 claude C-m' "$FAKE/tmux.log")" "1 1"
+penv leader-nokit web; mkdir -p "$E/home"; echo LEADER=on >> "$CANCCU_ROOT/projects/web/config"
+HOME=$E/home PATH="$T/tmuxup:$fb:$PATH" "$root/bin/canccu-up" --project web > "$E/out" 2>&1
+ok "canccu-up, LEADER=on without a kit: the leader pane in ~/code, and says how to write the kit" \
+  eq "$(grep -cxF 'select-pane -t %0 -T leader' "$FAKE/tmux.log") $(grep -cxF 'send-keys -t %0 CANCCU_ACTOR=leader claude C-m' "$FAKE/tmux.log") $(grep -c 'no leader kit in .*: canccu-init --leader web' "$E/out")" "1 1 1"
+
 echo "canccu-projects tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

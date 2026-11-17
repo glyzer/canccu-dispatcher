@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # canccu-up [--project <name>] — create the project's tmux session if it is missing: "canccu" for the
-# default project, "canccu-<name>" for the others. Window main: the lead (claude) on the left,
-# canccu-monitor --project <name> on the right; window dispatch: canccu-dispatch --project <name>;
+# default project, "canccu-<name>" for the others. Window main: claude on the left (with LEADER=on
+# the leader, in its kit dir; else your own session, pane "lead"), canccu-monitor --project <name>
+# on the right; window dispatch: canccu-dispatch --project <name>;
 # window shell. Every pane has CANCCU_PROJECT=<name> and the project's gh login (GH_CONFIG_DIR, with
 # git's credential helper for it), when it has one. Then attach. Never kills or rearranges an
 # existing session (docs/canccu-dispatch.md, "Moving to the command-center layout").
@@ -19,7 +20,7 @@ if ! tmux has-session -t "=$S" 2>/dev/null; then
   # canccu-stop typed in canccu-<name> never falls back to the default project
   P="CANCCU_PROJECT=$CANCCU_PROJECT"
   # … and with the project's own gh login (tmux_gh_env: GH_CONFIG_DIR, its owner and git's
-  # credential helper for it; sent empty without one), so the lead's gh and git use it too. With
+  # credential helper for it; sent empty without one), so the left pane's gh and git use it too. With
   # one, the token variables go empty as well: gh prefers a token the server inherited. The
   # client that may start the server runs without them (without_gh_env): never the global
   # environment of every later session. -e on new-session sets the session environment too.
@@ -29,11 +30,20 @@ if ! tmux has-session -t "=$S" 2>/dev/null; then
   mon=$(tmux split-window -h -l 40% -P -F '#{pane_id}' -e "$P" "${GE[@]}" -t "$lead" -c ~/code) || die "tmux split-window failed"
   disp=$(tmux new-window -d -P -F '#{pane_id}' -e "$P" "${GE[@]}" -t "=$S:" -n dispatch -c ~/code) || die "tmux new-window dispatch failed"
   tmux new-window -d -e "$P" "${GE[@]}" -t "=$S:" -n shell -c ~/code || die "tmux new-window shell failed"
-  tmux select-pane -t "$lead" -T lead
+  # the leader runs in its kit, so claude loads its CLAUDE.md and .claude/settings.json; the
+  # marker makes config set refuse it a locked setting (not a boundary: docs/security.md)
+  title=lead start=claude kit=$H/leader
+  if [ "${LEADER:-off}" = on ]; then
+    title=leader start="CANCCU_ACTOR=leader claude"
+    if [ -f "$kit/CLAUDE.md" ]; then start="cd $(printf %q "$kit") && $start"
+    else echo "canccu-up: no leader kit in $(canccu_tilde "$kit"): canccu-init --leader $CANCCU_PROJECT writes it; the leader starts in ~/code without it" >&2
+    fi
+  fi
+  tmux select-pane -t "$lead" -T "$title"
   tmux select-pane -t "$mon" -T monitor
   tmux send-keys -t "$disp" "canccu-dispatch --project $CANCCU_PROJECT" C-m
   tmux send-keys -t "$mon" "canccu-monitor --project $CANCCU_PROJECT" C-m
-  tmux send-keys -t "$lead" 'claude' C-m
+  tmux send-keys -t "$lead" "$start" C-m
   tmux select-pane -t "$lead"
 elif ! dispatcher_running; then
   echo "canccu-up: session $S exists but canccu-dispatch is not running for project $CANCCU_PROJECT; start it in its window dispatch (or any window): canccu-dispatch --project $CANCCU_PROJECT" >&2

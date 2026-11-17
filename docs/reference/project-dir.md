@@ -19,7 +19,9 @@ fields are in [`state.md`](state.md). Every file in `~/.canccu/projects/<name>/`
 | `questions/<K>.txt` | The question a worker stopped with, for its answerer |
 | `pings/<n>` | The state issue n was last pinged for ([`pings.md`](pings.md)) |
 | `digest/<date>.md` | The daily digest |
+| `findings.log` | One tab-separated line per key (class + file) of a merged PR's posted verdicts, written once per PR when it merges, append only: `<time> <pr> <class> <file>` (epoch seconds); `FINDINGS_RECUR=0` writes nothing ([`findings.md`](findings.md#recurring-findings)) |
 | `merged.log` | One line per merged PR of a managed issue: time, issue, PR, how (`auto`, `accepted`, or `by hand` when the dispatcher did not arm it), title |
+| `recurring` | One tab-separated line per key with a recurring-finding issue: `<class> <file> <issue>` ([`findings.md`](findings.md#recurring-findings)) |
 | `brake` | While the review brake is on: `<time> <trigger>` ([`reviews.md`](review-depth.md#the-review-brake)); removed only by `canccu-dispatcher brake release` |
 | `brake-baseline` | The brake's baseline, written once: `<time> <escaped/PR> <rounds/PR> <PRs counted>` |
 | `regressions` | The brake's cache of escaped defects, rewritten at most once an hour: `at <epoch>`, then one tab-separated `<issue or PR> <the PR it names>` line per `Regression of:` |
@@ -30,7 +32,7 @@ fields are in [`state.md`](state.md). Every file in `~/.canccu/projects/<name>/`
 | `last_start` | When the project's engine last started a run (ns since the epoch): the fair share's tie rule |
 | `state.format` | The format of `state/` and `steps/`: one number ([`state.md`](state.md#the-state-format)) |
 | `dispatch.log` | One line per action, each starting with its UTC time (`2030-11-05T12:00:00Z`; lines written by an earlier release have the host's local time, `2030-11-05 12:00:00`, and readers accept both), plus the raw output of the commands (prefixed `  │ `) |
-| `events`, `heartbeat` | The feed, one line per event a person must act on, and the file every pass touches ([`lead.md`](lead.md#the-feed)) |
+| `events`, `heartbeat` | The feed, one line per event a person must act on, and the file every pass touches ([`leader.md`](leader.md#the-feed)) |
 | `watch.offsets`, `stall.seen` | Where `canccu-dispatcher watch` stopped reading each file, and when `stall` last printed each item ([`lead-tools.md`](lead-tools.md)) |
 | `actions.log` | One line per command a person or the leader ran (contracts §7), tab-separated: `<time> <actor> <command> <unit or -> <result>`. The actor is `po`, `leader` or `run` (the `CANCCU_ACTOR` marker; not a boundary); the command is `canccu-ship`, `canccu-pause [--finish]`, `canccu-resume [--usage]`, `canccu-stop [--forget]`, `canccu-run`, or `config set <KEY>` / `config unset <KEY>` (the key, never the value); the result is `ok` or the refusal's first line. Append only; `canccu-dispatcher leader brief` shows the last 10 ([`commands.md`](commands.md#commands)) |
 | `feed.open` | `<key>=<id>` of the open feed items no unit's state holds (holds, checkpoints, PRs labelled `needs-you`), and `leader_ack=<id>`: the highest line the leader acknowledged |

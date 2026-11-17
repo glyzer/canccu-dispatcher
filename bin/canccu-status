@@ -110,6 +110,7 @@ if fetch; then
             done)
   echo "not ours (never reviewed, merged or commented on):"
   echo "${foreign:-  none}"
+  rl=$(recurring_open_line); [ -n "$rl" ] && echo "$rl"
   status_queue
   # the steps: the current one(s), the package plan, the spend, the checkpoint, the notes
   if fetch_steps; then

@@ -144,12 +144,19 @@ canccu-up --project web
 ```
 
 This creates the tmux session (`canccu` for the first project) and attaches: window `main` holds
-the lead (an interactive `claude`) on the left and the monitor on the right, window `dispatch`
-runs the dispatcher, window `shell` is yours. Detach with `Ctrl-b d`; `canccu-up` attaches again.
+an interactive `claude` on the left (your own session; the leader with `LEADER=on`) and the
+monitor on the right, window `dispatch` runs the dispatcher, window `shell` is yours. Detach with
+`Ctrl-b d`; `canccu-up` attaches again.
+
+A leader is optional. `canccu-init --leader web` writes the leader kit (its instructions and
+Claude permissions) to `~/.canccu/projects/web/leader/` and sets `LEADER=on`; the next time
+`canccu-up` creates the session, the left pane, titled `leader`, runs `claude` in that kit. The
+leader clears the technical items the owner rule gives it and passes everything else to you
+([`reference/leader.md`](reference/leader.md#the-leader-kit)).
 
 ## 7. A first issue
 
-Write a small issue, alone or with the lead ([`reference/lead.md`](reference/lead.md)):
+Write a small issue, alone or with the leader ([`reference/leader.md`](reference/leader.md)):
 
 ```markdown
 ## Goal
@@ -183,6 +190,6 @@ explains each message.
 
 ## Next
 
-- Roadmap steps and work packages: [`reference/lead.md`](reference/lead.md),
+- Roadmap steps and work packages: [`reference/leader.md`](reference/leader.md),
   [`reference/packages.md`](reference/packages.md).
 - Upgrading: [`upgrading.md`](upgrading.md). Every setting: [`reference/config.md`](reference/config.md).

@@ -59,7 +59,7 @@ digest() {
     return 0
   fi
   mkdir -p "${f%/*}"
-  printf '## Daily digest %s\n\n**Merged in the last 24 h**\n%s\n\n**Questions answered by the answerer** (overrule on the issue)\n%s\n\n**Awaiting your accept** (label the PR `accepted`, or `canccu-ship <n>`)\n%s\n\n**Needs you**\n%s\n\n**CI on main:** %s\n\n**Running**\n%s\n\n**Steps**\n%s\n\n%s**Notes for the lead** (from package PRs, last 24 h; sort them into issues or the plan)\n%s\n\n%s\n' \
+  printf '## Daily digest %s\n\n**Merged in the last 24 h**\n%s\n\n**Questions answered by the answerer** (overrule on the issue)\n%s\n\n**Awaiting your accept** (label the PR `accepted`, or `canccu-ship <n>`)\n%s\n\n**Needs you**\n%s\n\n**CI on main:** %s\n\n**Running**\n%s\n\n**Steps**\n%s\n\n%s**Notes for the leader** (from package PRs, last 24 h; sort them into issues or the plan)\n%s\n\n%s\n' \
     "$t" "${merges:-none}" "${answered:-none}" "${awaiting:-none}" "${ny:-none}" "$ci" "${running:-none}" "${steps:-none}" "$pace" "${notes:-none}" "$CANCCU_MARK" |
     home_tilde_stream > "$f"
   if (( ! active )); then log "digest written, no activity: no comment"
