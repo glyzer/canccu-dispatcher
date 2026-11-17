@@ -276,7 +276,7 @@ write_status() {
   # Linux allows one command-line argument, and jq would not start
   jq -n --argjson schema "$STATUS_SCHEMA" --arg version "$CANCCU_VERSION" --arg project "$CANCCU_PROJECT" --arg repo "$REPO" --arg repo_name "$REPO_NAME" --arg pid "$$" \
     --arg interval "$INTERVAL" --arg now "$(now)" --argjson ok "$ok" --arg err "$err" \
-    --argjson paused "$(paused && echo true || echo false)" --arg bu "$bu" \
+    --argjson paused "$(paused && echo true || echo false)" --arg bu "$bu" --arg brake "$(brake_text)" \
     --arg running_n "$(running_count)" --arg cap "$CAP" --arg total "$(total_running)" --arg tcap "$TOTAL_CAP" \
     --arg spend "$spend" --arg nocost "$nocost" --arg started "$started" --argjson durs "$durs" --arg day "$(date -u -d "@$(now)" +%F)" --arg freeze "${AUTO_MERGE_UNTIL:-}" \
     --slurpfile running <(printf '%s' "$running") --slurpfile needs <(printf '%s' "$needs") --slurpfile queue <(printf '%s' "$queue") \
@@ -285,7 +285,7 @@ write_status() {
     --slurpfile overview <(printf '%s' "${overview:-[]}") --slurpfile others <(printf '%s' "$others") '
     { schema: $schema, version: $version, project: $project, repo: $repo, repo_name: $repo_name, pid: ($pid | tonumber), interval: ($interval | tonumber),
       pass: { at: ($now | tonumber), started: ($started | tonumber), duration: $durs[-1], durations: $durs, ok: $ok, error: (if $err == "" then null else $err end), paused: $paused,
-              backoff_until: ($bu | tonumber? // null) },
+              backoff_until: ($bu | tonumber? // null), brake: (if $brake == "" then null else $brake end) },
       caps: { running: ($running_n | tonumber), cap: ($cap | tonumber), total_running: ($total | tonumber),
               total_cap: ($tcap | tonumber) },
       spend: { today_usd: (($spend | tonumber) * 100 | round / 100), runs_without_cost: ($nocost | tonumber), day: $day, freeze: (if $freeze == "" then null else $freeze end) },

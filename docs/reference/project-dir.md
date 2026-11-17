@@ -22,6 +22,9 @@ fields are in [`state.md`](state.md). Every file in `~/.canccu/projects/<name>/`
 | `findings.log` | One tab-separated line per key (class + file) of a merged PR's posted verdicts, written once per PR when it merges, append only: `<time> <pr> <class> <file>` (epoch seconds); `FINDINGS_RECUR=0` writes nothing ([`findings.md`](findings.md#recurring-findings)) |
 | `merged.log` | One line per merged PR of a managed issue: time, issue, PR, how (`auto`, `accepted`, or `by hand` when the dispatcher did not arm it), title |
 | `recurring` | One tab-separated line per key with a recurring-finding issue: `<class> <file> <issue>` ([`findings.md`](findings.md#recurring-findings)) |
+| `brake` | While the review brake is on: `<time> <trigger>` ([`reviews.md`](review-depth.md#the-review-brake)); removed only by `canccu-dispatcher brake release` |
+| `brake-baseline` | The brake's baseline, written once: `<time> <escaped/PR> <rounds/PR> <PRs counted>` |
+| `regressions` | The brake's cache of escaped defects, rewritten at most once an hour: `at <epoch>`, then one tab-separated `<issue or PR> <the PR it names>` line per `Regression of:` |
 | `workers/spend.log` | One tab-separated line per run, written when it ends ([`state.md`](state.md#the-spend-log)) |
 | `accepts.log` | One tab-separated line per `canccu-ship` accept, written before it merges: the epoch, the unit (`<n>` or `pkg-<m>-<name>`), the PR, the head sha it accepts, the actor (`po`, or `leader` with `CANCCU_ACTOR=leader`) ([`merging.md`](merging.md#the-accept-channels)) |
 | `answers.log` | One line per question an answerer answered, with the link to its comment |

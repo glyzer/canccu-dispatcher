@@ -42,11 +42,13 @@ review_format_text() {
 # The no-repeat context (review_ctx) comes in the environment, never by -v: awk would read the
 # backslashes of a path as escapes. RV_SETTLED: "<class> <file> <line>" lines that are settled;
 # RV_PASS 1: the pass rule is on, RV_CHANGED its "<file> <lo> <hi>" lines changed since the pass.
+# RV_BRAKE 1: the review brake is on (#195): reviews block as before Q1, so an item under Blocking:
+# or Pre-existing: with no class or a blocking one blocks, Evidence: or not, settled or not.
 _REVIEW_AWK='
   BEGIN {
     ns = split(ENVIRON["RV_SETTLED"], L, "\n")
     for (k = 1; k <= ns; k++) { split(L[k], q, "\t"); sc[k] = q[1]; sf[k] = q[2]; slo[k] = lo(q[3]); shi[k] = hi(q[3]) }
-    pass = ENVIRON["RV_PASS"] == 1
+    pass = ENVIRON["RV_PASS"] == 1; brake = ENVIRON["RV_BRAKE"] == 1
     nc = split(ENVIRON["RV_CHANGED"], L, "\n")
     for (k = 1; k <= nc; k++) { split(L[k], q, "\t"); cf[k] = q[1]; clo[k] = q[2] + 0; chi[k] = q[3] + 0 }
   }
@@ -85,9 +87,12 @@ _REVIEW_AWK='
       c = substr(s, RSTART, RLENGTH); iln = c; sub(/.*:/, "", iln); ifl = c; sub(/:[0-9-]+$/, "", ifl); sub(/^\.\//, "", ifl)
     }
   }
-  function plain(i) { return sec[i] == "blocking" && ev[i] && index(blk, " " cl[i] " ") }
+  function plain(i) {
+    if (brake) return (sec[i] == "blocking" || sec[i] == "preexisting") && (cl[i] == "-" || index(blk, " " cl[i] " "))
+    return sec[i] == "blocking" && ev[i] && index(blk, " " cl[i] " ")
+  }
   # 0 not blocking, 1 kept, 2 settled, 3 unchanged since the pass
-  function why(i) { if (!plain(i)) return 0; if (settled(i)) return 2; if (unchanged(i)) return 3; return 1 }
+  function why(i) { if (!plain(i)) return 0; if (brake) return 1; if (settled(i)) return 2; if (unchanged(i)) return 3; return 1 }
   {
     sub(/\r$/, ""); t = tolower($0); c = t; gsub(/[*_`]/, "", c)
     if (c ~ /^[[:space:]>]*findings:[[:space:]]*[0-9]+ blocking,[[:space:]]*[0-9]+ non-blocking,[[:space:]]*[0-9]+ pre-existing[[:space:].]*$/) {
@@ -124,12 +129,14 @@ _REVIEW_AWK='
       y = why(i); k = y == 1; w[sec[i]]++
       if (sec[i] == "blocking" && !k) dw[y]++
       if (mode == "keys" && k) printf "%s\t%s\t%s\n", cl[i], fl[i], ln[i]
-      if (k) { nk++; if (!(cl[i] in seen)) { seen[cl[i]] = 1; cls = cls (cls == "" ? "" : ",") cl[i] } }
+      c = cl[i] == "-" ? "unclassed" : cl[i]
+      if (k) { nk++; if (!(c in seen)) { seen[c] = 1; cls = cls (cls == "" ? "" : ",") c } }
       else if (sec[i] == "blocking") nd++
       if (mode == "kept" && k) out = out (out == "" ? "" : "\n") tx[i]
       # a settled item was fixed or answered already: the follow-up issue would only repeat it
       if (mode == "moved" && !k && y != 2) out = out (out == "" ? "" : "\n") tx[i]
-      if (sec[i] == "preexisting" && cl[i] == "security") psec = 1
+      # a pre-existing security item the brake keeps blocks this PR: no follow-up issue for it
+      if (sec[i] == "preexisting" && cl[i] == "security" && !k) psec = 1
     }
     if (mode == "kept" || mode == "moved") { if (out != "") print out; exit }
     if (mode == "presec") { if (psec) print 1; exit }
@@ -140,7 +147,7 @@ _REVIEW_AWK='
   }'
 # _review_awk <mode>: the parser on stdin
 _review_awk() {
-  RV_SETTLED=${REVIEW_SETTLED:-} RV_PASS=${REVIEW_PASSRULE:-0} RV_CHANGED=${REVIEW_CHANGED:-} \
+  RV_SETTLED=${REVIEW_SETTLED:-} RV_PASS=${REVIEW_PASSRULE:-0} RV_CHANGED=${REVIEW_CHANGED:-} RV_BRAKE=$(brake_on && echo 1) \
     awk -v mode="$1" -v blk=" $REVIEW_BLOCKING_CLASSES " "$_REVIEW_AWK"
 }
 
