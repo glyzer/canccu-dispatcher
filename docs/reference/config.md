@@ -63,6 +63,8 @@ pacing are in [`config-steps.md`](config-steps.md).
 | `LEADER` | `off` | `on`: the owner rule gives a leader the waiting items that are not the product owner's ([`lead.md`](lead.md#the-owner-of-a-waiting-item)). Locked |
 | `LEADER_ACCEPTS` | `none` | `technical`: the leader owns the accepts the rule does not give the product owner. Locked |
 | `LEADER_ACCEPTS_HIGH_RISK` | `0` | `1`: … a high-risk one too. Locked |
+| `REVIEW_BRAKE` | `auto` | `auto`: the escaped-defect trigger engages the review brake ([`reviews.md`](review-depth.md#the-review-brake)); `off`: it never engages by itself. Locked |
+| `BRAKE_WINDOW` | `20` | The merged PRs the brake's trigger, its baseline and `canccu-status --kpi-review` count. Locked |
 | `INTERVAL` | `60` | Seconds between passes |
 | `IDLE_ALARM_MIN` | `60` | A managed unit with no run, not waiting for a person, whose phase has not changed for this many minutes writes one `idle` line in the feed ([`lead.md`](lead.md#the-feed)) |
 | `CI_WAIT_MIN` | `90` | A finished worker's PR whose CI is still pending after this many minutes goes to `needs-you` |

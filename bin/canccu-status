@@ -15,6 +15,9 @@
 # test times, the pings and the feed lines by owner and class (lib/canccu-spend.sh, kpi_report).
 # canccu-status [--project <name>] --pace — the weekly usage against the week gone, what PACE does
 # and this project's spend per day, the last 7 days (lib/canccu-leadtools.sh, pace_report).
+# canccu-status [--project <name>] --kpi-review — the review numbers (rounds, blocking classes,
+# demoted, escaped defects per merged PR) for the last BRAKE_WINDOW merged PRs, since the baseline and
+# at the baseline (lib/canccu-brake.sh, kpi_review_report).
 # docs/canccu-dispatch.md
 set -uo pipefail
 self=$(realpath "$0")
@@ -28,6 +31,7 @@ self=$(realpath "$0")
 [ "${1:-}" = --findings ] && { findings_report; exit 0; }
 [ "${1:-}" = --kpi ] && { kpi_report; exit; }
 [ "${1:-}" = --pace ] && { pace_report; exit 0; }
+[ "${1:-}" = --kpi-review ] && { kpi_review_report; exit 0; }
 
 clip() { (( ${#1} <= $2 )) && printf '%s' "$1" || printf '%s…' "${1:0:$2-1}"; }
 cols=${COLUMNS:-$(tput cols 2>/dev/null)}; [[ $cols =~ ^[0-9]+$ ]] || cols=100
@@ -41,6 +45,7 @@ tp=$(reviewer_token_problem)
 [ -n "$tp" ] && echo "REVIEWS BLOCKED: $tp (canccu-review refuses to start)"
 fp=$(automerge_until_problem)
 [ -n "$fp" ] && echo "AUTO-MERGE OFF: $fp; every PR waits for your accept"
+brake_status
 
 # the runs the dispatcher did not start (a worker started by hand) are listed apart
 others=$(other_runs)

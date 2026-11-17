@@ -345,6 +345,10 @@ run_progress() {
 . "$_canccu_lib/canccu-norepeat.sh"
 # shellcheck source=canccu-depth.sh
 . "$_canccu_lib/canccu-depth.sh"
+# shellcheck source=canccu-brakestate.sh
+. "$_canccu_lib/canccu-brakestate.sh"
+# shellcheck source=canccu-brake.sh
+. "$_canccu_lib/canccu-brake.sh"
 # shellcheck source=canccu-spend.sh
 . "$_canccu_lib/canccu-spend.sh"
 # shellcheck source=canccu-accepts.sh

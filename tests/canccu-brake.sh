@@ -133,35 +133,38 @@ env_new brake-norepeat
 mkdir -p "$CANCCU_HOME/reviews/50"
 printf '%s\tcorrectness\tsrc/c.ts\t5\tfixed\n' "$HB" > "$CANCCU_HOME/reviews/50/history"
 state 5 phase=review pr=50 review_mode=review "pass_sha=$HB"
-ctx() { lib eval 'review_ctx 5 50 '"$HA"'; printf "%s|%s" "$REVIEW_SETTLED" "$REVIEW_PASSRULE"'; }
+ctx() { lib eval 'review_ctx 5 50 '"$HA"' >/dev/null 2>&1; printf "%s|%s" "$REVIEW_SETTLED" "$REVIEW_PASSRULE"'; }
 ok "outside the brake: the settled findings are the no-repeat context" eq "$(ctx)" "$(printf 'correctness\tsrc/c.ts\t5|0')"
 echo "2030-11-05T11:00:00Z escaped defects" > "$CANCCU_HOME/brake"
 ok "in the brake: no-repeat is off (no settled findings, no pass rule)" eq "$(ctx)" "|0"
 ok "… and the prompts do not promise it" eq "$(lib norepeat_prompt 50)" ""
 ok "… nor the pass rule" not grep -qF 'raise nothing new on lines' <<<"$(lib review_prompt 50 5 "$HA" /f high)"
 
-env_new brake-effort REVIEW_LIGHT=1
+env_new brake-effort
+lrc() { lib eval "REVIEW_LIGHT=1; review_light_class 50 5 src/a.ts >/dev/null && echo light || echo full"; }
+state 5 phase=check pkg=p1 risk=low
 ok "outside the brake: high stays high" eq "$(lib brake_effort high)" "high"
+ok "… and a low package gets REVIEW_LIGHT's light review" eq "$(lrc)" light
 echo "2030-11-05T11:00:00Z escaped defects" > "$CANCCU_HOME/brake"
 ok "in the brake: the full review's effort is one step higher" eq "$(lib brake_effort medium) / $(lib brake_effort high)" "high / xhigh"
-ok "… still capped at REVIEW_EFFORT_MAX" eq "$(REVIEW_EFFORT_MAX=high lib brake_effort high)" "high capped"
-state 5 phase=check pkg=p1 risk=low
-ok "… and REVIEW_LIGHT is off" not lib review_light_class 50 5 "src/a.ts"
+echo "REVIEW_EFFORT_MAX=high" >> "$CANCCU_HOME/config"
+ok "… still capped at REVIEW_EFFORT_MAX" eq "$(lib brake_effort high)" "high capped"
+ok "… and REVIEW_LIGHT is off" eq "$(lrc)" full
 
 # ---------------------------------------------------------------- the release
 
 env_new brake-release
 echo "2030-11-05T11:00:00Z escaped defects 0.20/PR" > "$CANCCU_HOME/brake"
-bk() { out=$(PATH="$fb:$PATH" "$root/bin/canccu-dispatcher" brake "$@" 2>&1); rc=$?; }
+bk() { out=$(CANCCU_ACTOR=${actor:-} PATH="$fb:$PATH" "$root/bin/canccu-dispatcher" brake "$@" 2>&1); rc=$?; }
 bk
 ok "brake with no argument prints the state" eq "$rc $out" "0 brake: on since 2030-11-05T11:00:00Z (escaped defects 0.20/PR)"
 for a in leader run; do
-  CANCCU_ACTOR=$a bk release
+  actor=$a; bk release
   ok "brake release as $a is refused, as a locked setting" eq "$rc $out" "3 canccu-dispatcher: refused: only the product owner releases the review brake"
   ok "… the brake stays" test -e "$CANCCU_HOME/brake"
 done
 ok "… the refusals are in the actions log" eq "$(cut -f2- "$CANCCU_HOME/actions.log")" "$(printf 'leader\tbrake release\t-\trefused\nrun\tbrake release\t-\trefused')"
-bk release
+actor=""; bk release
 ok "as po it releases" eq "$rc $out" "0 review brake released"
 ok "… the file goes" not test -e "$CANCCU_HOME/brake"
 ok "… the actions-log line" eq "$(tail -1 "$CANCCU_HOME/actions.log")" "$(printf '2030-11-05T12:00:00Z\tpo\tbrake release\t-\treleased')"
