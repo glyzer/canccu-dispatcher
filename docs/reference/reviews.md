@@ -78,26 +78,6 @@ and the log says `PR #<pr>: light review (<model>): docs, tests or light paths o
 paths decide, never the PR body. A gated path or agent configuration is never light; a fix-check
 keeps `FIXCHECK_MODEL`; a retry of the review file keeps the model the review started on.
 
-### Recurring findings
-
-A finding that comes back PR after PR is fixed where it comes from, not once more in each PR.
-When a managed PR merges, the dispatcher reads its posted verdicts (the `reviews.log` lines of
-the PR, their review files) and writes one line per key to `findings.log`. The key is the
-item's class and file (`[correctness] lib/a.sh:12 …` gives `correctness lib/a.sh`), never its
-wording; an item without a class or a file has none. Every heading counts: `Blocking:`,
-`Non-blocking:` and `Pre-existing:`. A merge seen again records nothing, and a dry run nothing.
-
-When a key was raised on `FINDINGS_RECUR` merged PRs (3) within `FINDINGS_RECUR_DAYS` days (30),
-the dispatcher files one issue `Recurring finding: <class> in <file>`, not `ready`: the PRs with
-the first line of each finding (200 characters at most), the proposal to fix it at the source (a
-rule in `AGENTS.md` or `REVIEW.md`, a line in the worker prompt, a lint or a test), and who
-decides what is built of it (the leader, or the product owner with `LEADER=off`). The issue is
-recorded in `recurring`; a later PR that raises the key again comments on it while it is open, and
-a closed one makes a new issue. A `gh` error is logged and the merge goes on; the key is tried
-again by the next PR that raises it. `FINDINGS_RECUR=0` files and counts nothing.
-`canccu-status` lists the open ones on one line: `recurring findings (a person decides): #900
-correctness in lib/a.sh`.
-
 ### No repeats
 
 A finding fixed or answered earlier is not raised again, and a full review after a pass blocks on

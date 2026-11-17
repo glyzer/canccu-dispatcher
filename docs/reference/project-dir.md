@@ -19,9 +19,9 @@ fields are in [`state.md`](state.md). Every file in `~/.canccu/projects/<name>/`
 | `questions/<K>.txt` | The question a worker stopped with, for its answerer |
 | `pings/<n>` | The state issue n was last pinged for ([`pings.md`](pings.md)) |
 | `digest/<date>.md` | The daily digest |
-| `findings.log` | One tab-separated line per key (class + file) of a merged PR's posted verdicts, written once per PR when it merges, append only: `<time> <pr> <class> <file>` (epoch seconds); `FINDINGS_RECUR=0` writes nothing ([`reviews.md`](reviews.md#recurring-findings)) |
+| `findings.log` | One tab-separated line per key (class + file) of a merged PR's posted verdicts, written once per PR when it merges, append only: `<time> <pr> <class> <file>` (epoch seconds); `FINDINGS_RECUR=0` writes nothing ([`findings.md`](findings.md#recurring-findings)) |
 | `merged.log` | One line per merged PR of a managed issue: time, issue, PR, how (`auto`, `accepted`, or `by hand` when the dispatcher did not arm it), title |
-| `recurring` | One tab-separated line per key with a recurring-finding issue: `<class> <file> <issue>` ([`reviews.md`](reviews.md#recurring-findings)) |
+| `recurring` | One tab-separated line per key with a recurring-finding issue: `<class> <file> <issue>` ([`findings.md`](findings.md#recurring-findings)) |
 | `workers/spend.log` | One tab-separated line per run, written when it ends ([`state.md`](state.md#the-spend-log)) |
 | `accepts.log` | One tab-separated line per `canccu-ship` accept, written before it merges: the epoch, the unit (`<n>` or `pkg-<m>-<name>`), the PR, the head sha it accepts, the actor (`po`, or `leader` with `CANCCU_ACTOR=leader`) ([`merging.md`](merging.md#the-accept-channels)) |
 | `answers.log` | One line per question an answerer answered, with the link to its comment |
