@@ -354,7 +354,7 @@ postpass_full() {
   local base=$1 head=$2 mb stats total p re max=${FIXCHECK_FULL_LINES:-100} files=()
   [[ $max =~ ^[0-9]+$ ]] || max=100
   mb=$(guard 20 git -C "$CLONE" merge-base origin/main "$head" 2>/dev/null)
-  [ -n "$mb" ] && mapfile -t files < <(guard 20 git -C "$CLONE" diff --name-only --no-renames "$mb" "$head" 2>/dev/null)
+  [ -n "$mb" ] && mapfile -t files < <(guard 20 git -C "$CLONE" -c core.quotePath=off diff --name-only --no-renames "$mb" "$head" 2>/dev/null)
   stats=$(change_stats "$(count_from "$base" "$head")" "$head" "${files[@]}") || { echo "the change cannot be read"; return; }
   total=$(awk -F '\t' '{ for (i = 1; i <= 2; i++) if ($i ~ /^[0-9]+$/) t += $i } END { print t + 0 }' <<<"$stats")
   (( total > max )) && { echo "$total changed lines, over FIXCHECK_FULL_LINES=$max"; return; }

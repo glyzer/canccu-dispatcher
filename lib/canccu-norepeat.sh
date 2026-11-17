@@ -84,11 +84,12 @@ history_answer() {
 # side; a deletion counts the two lines around it. Fails when git does.
 changed_lines() {
   local d
-  d=$(guard 30 git -C "$CLONE" diff -U0 --no-color --no-ext-diff "$1" "$2" 2>/dev/null) || return 1
-  # a "+++" line inside a hunk is an added line that starts with "++", not a file header
+  d=$(guard 30 git -C "$CLONE" -c core.quotePath=off diff -U0 --no-color --no-ext-diff "$1" "$2" 2>/dev/null) || return 1
+  # a "+++" line inside a hunk is an added line that starts with "++", not a file header; git ends
+  # the header of a path with a space with a tab
   awk 'function out(lo, c) { print f "\t" lo "\t" (c > 0 ? lo + c - 1 : lo + 1) }
     /^diff --git / { hdr = 1; f = ""; next }
-    hdr && /^\+\+\+ / { f = substr($0, 5); if (f == "/dev/null") f = ""; else sub(/^b\//, "", f); next }
+    hdr && /^\+\+\+ / { f = substr($0, 5); if (f == "/dev/null") f = ""; else { sub(/^b\//, "", f); sub(/\t$/, "", f) }; next }
     /^@@ / { hdr = 0; if (f != "" && match($0, /\+[0-9]+(,[0-9]+)?/)) {
       h = substr($0, RSTART + 1, RLENGTH - 1); m = split(h, a, ","); out(a[1] + 0, m > 1 ? a[2] + 0 : 1) } }' <<<"$d"
 }

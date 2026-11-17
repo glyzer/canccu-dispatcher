@@ -109,4 +109,26 @@ ok "a scripted merge of main that fails (conflict) → no needs-you on the first
 lib eval ". '$root/lib/canccu-merge.sh'; "'main_merge() { MERGED=error MERGE_WHY="git push: HTTP 502"; }; fetch; conflict_merge 5 50 '"$HA"'; conflict_merge 5 50 '"$HA"
 ok "… needs-you once MERGE_TRIES errors came in a row" eq "$(st 5 phase) [$(st 5 mm_err)]" "needs-you []"
 
+# ---------------------------------------------------------------- gating
+
+# a fix-check's pass leaves the fix round: a later push takes the post-pass path again
+review_env fixcheck-pass-stage 'Review verdict: pass' fixcheck
+echo review_mode=fixcheck >> "$CANCCU_HOME/state/5"
+dispatch --once
+ok "a fix-check pass → stage review" eq "$(st 5 stage) $(st 5 pass_sha)" "review $HA"
+
+# a path with a non-ASCII letter and a space comes back as it is, not C-quoted: the risky-path
+# check and the no-repeat match see it
+env_new quote-path
+d=$E/code/web
+_qg() { GIT_AUTHOR_DATE=2030-11-05T10:00:00Z GIT_COMMITTER_DATE=2030-11-05T10:00:00Z \
+        "$FAKE_REAL_GIT" -C "$d" -c user.name=octo -c user.email=octo@example.com -c init.defaultBranch=main "$@" >/dev/null 2>&1; }
+rm -rf "$d"; mkdir -p "$d"; _qg init; echo a > "$d/a.txt"; _qg add .; _qg commit -m root; _qg update-ref refs/remotes/origin/main main
+QP_B=$("$FAKE_REAL_GIT" -C "$d" rev-parse HEAD)
+_qg checkout -b pr; echo x > "$d/café menu.txt"; _qg add .; _qg commit -m "the PR"; QP_H=$("$FAKE_REAL_GIT" -C "$d" rev-parse HEAD)
+touch "$FAKE/realgit"
+ok "postpass_full names a risky path with a non-ASCII letter" \
+  eq "$(lib eval ". '$root/lib/canccu-merge.sh'; FIXCHECK_RISKY='café'; postpass_full $QP_B $QP_H")" "risky path café menu.txt"
+ok "changed_lines keeps the path as it is" eq "$(lib eval "changed_lines $QP_B $QP_H")" "café menu.txt	1	1"
+
 echo "canccu-followups tests: $npass passed, $nfail failed"; (( nfail == 0 ))

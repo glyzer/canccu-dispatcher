@@ -213,9 +213,9 @@ act_verdict() {
   case $v in
     pass)
       light_upgrade "$n" "$pr" "$head" "$j" "$at" && return 0
-      # a post-pass check that passed leaves the fix-check stage: the next push is again
-      # measured against full_sha, not taken for a fix of findings
-      st_set "$n" pass_sha="$head"; [ "$mode" = postpass ] && st_set "$n" stage=review
+      # any pass leaves the fix round: the next push is again measured against full_sha
+      # (postpass_step), not taken for a fix of findings
+      st_set "$n" pass_sha="$head" stage=review
       after_pass "$n" "$pr" "$head" "$what" || return 0
       st_set "$n" verdict_at="$at" ;;
     changes)

@@ -75,4 +75,4 @@ count_from() {
 }
 # change_stats <from> <head> [paths...]: git diff --numstat of the change. --no-renames: a file moved
 # out of a gated or risky path counts by its old path too
-change_stats() { guard 30 git -C "$CLONE" diff --numstat --no-renames "$1" "$2" -- "${@:3}" 2>/dev/null; }
+change_stats() { guard 30 git -C "$CLONE" -c core.quotePath=off diff --numstat --no-renames "$1" "$2" -- "${@:3}" 2>/dev/null; }
