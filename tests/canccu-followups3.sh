@@ -207,4 +207,30 @@ route 'issue list -R example-org/web -s all *Regression of*' regi.json
 route 'pr list -R example-org/web -s all *Regression of*' regp.json
 ok "the baseline counts the review runs with a verdict (or no outcome): 3 of 5 lines" eq "$(lib brake_baseline | cut -d' ' -f3)" 0.60
 
+# ---------------------------------------------------------------- #235: the review set's runner
+
+# a fake engine: a pass on every case (FAKE/rsf-fail: it fails on the named case instead)
+cat > "$fb/rsf" <<'EOF'
+#!/usr/bin/env bash
+cat > /dev/null; c=${3%/}; c=${c##*/}
+grep -qx "$c" "$FAKE/rsf-fail" 2>/dev/null && { echo "claude: not logged in" >&2; exit 1; }
+printf 'Blocking:\nnone\nNon-blocking:\nnone\nPre-existing:\nnone\nFindings: 0 blocking, 0 non-blocking, 0 pre-existing\nReview verdict: pass %s\n' "$2" > "$1"
+EOF
+chmod +x "$fb/rsf"
+rsf() { REVIEW_SET_ENGINE=$fb/rsf "$root/tests/review-set/run" "$@" > "$E/out" 2>&1; rc=$?; }
+env_new rs-engine-fail
+echo defect-test > "$FAKE/rsf-fail"
+rsf
+ok "review set: an engine failure is an error, exit 2" eq "$rc $(grep -c '^defect-test error' "$E/out")" "2 1"
+ok "… no baseline, no log line, no brake" \
+  eq "$(find "$CANCCU_HOME" -maxdepth 1 \( -name 'review-set*' -o -name brake \) | grep -c .)" 0
+echo "2030-11-01T00:00:00Z 0 default high 0 defect-test" > "$CANCCU_HOME/review-set-baseline"
+rsf
+ok "… with a baseline: still exit 2, no brake" eq "$rc $(test -e "$CANCCU_HOME/brake" && echo on)" "2 "
+env_new rs-model REVIEW_MODEL=rev-model REVIEW_MODEL_LIGHT=light-model
+rsf
+ok "review set without --model: the project's review model" eq "$(cut -d' ' -f3 "$CANCCU_HOME/review-set-baseline")" rev-model
+rsf --light
+ok "… --light: its light model" eq "$(cut -d' ' -f3 "$CANCCU_HOME/review-set-baseline-light")" light-model
+
 echo "canccu-followups3 tests: $npass passed, $nfail failed"; (( nfail == 0 ))

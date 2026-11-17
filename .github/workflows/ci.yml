@@ -72,7 +72,7 @@ jobs:
         run: |
           git fetch -q --depth=1 origin "$BASE_SHA"
           if git diff --quiet "$BASE_SHA" HEAD -- VERSION; then echo "VERSION unchanged: not a release PR"; exit 0; fi
-          git fetch -q --depth=1 origin 'refs/tags/v*:refs/tags/v*'
+          git fetch -q --depth=1 origin 'refs/tags/v*:refs/tags/v*' || true   # no tag yet: the first release
           printf '%s\n' "$PR_BODY" > "$RUNNER_TEMP/pr-body.md"
           .github/scripts/release check "v$(cat VERSION)" --body "$RUNNER_TEMP/pr-body.md"
 

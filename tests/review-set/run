@@ -3,14 +3,16 @@
 # tests/review-set/run — the reviewer's test set (docs/reference/review-set.md): the real review
 # prompt, on the real model, against fixed cases with a planted defect or none.
 #   tests/review-set/run [--model <m>] [--effort <e>] [--light]
-# Per case: "<case> found|missed|clean|blocked", then the totals. Appends a line to review-set.log
+# Per case: "<case> found|missed|clean|blocked|error", then the totals. Appends a line to review-set.log
 # in the project's home; the first run writes the baseline (review-set-baseline, with --light
 # review-set-baseline-light), each later one is judged against it, and a red one engages the
-# review brake with REVIEW_BRAKE=auto. Exit 0 green (or the baseline written), 1 red, 2 a usage
-# error. It costs model tokens: not part of tests/run, nor CI. REVIEW_SET_ENGINE replaces claude.
+# review brake with REVIEW_BRAKE=auto. Without --model: the project's review model (REVIEW_MODEL,
+# else MODEL; --light: REVIEW_MODEL_LIGHT). Exit 0 green (or the baseline written), 1 red, 2 a
+# usage error or an engine that failed (no log line, baseline or brake). It costs model tokens:
+# not part of tests/run, nor CI. REVIEW_SET_ENGINE replaces claude.
 set -uo pipefail
 root=$(cd "$(dirname "$0")/../.." && pwd); here=$root/tests/review-set
-usage() { sed -n '3,10s/^# \{0,1\}//p' "$0" >&2; exit 2; }
+usage() { sed -n '3,12s/^# \{0,1\}//p' "$0" >&2; exit 2; }
 
 model="" effort="" light=0
 while (( $# )); do
@@ -30,6 +32,8 @@ mapfile -t cases < <(cd "$here" && for d in */; do [ -f "$d/expect" ] && echo "$
 
 # the project the result is for: its home holds the log, the baseline and the brake
 home=$(. "$root/lib/canccu-common.sh" >/dev/null && echo "$CANCCU_HOME") || exit 2
+# what the dispatcher's own reviewer would run on: a change of REVIEW_MODEL's default is tested
+[ -n "$model" ] || model=$(. "$root/lib/canccu-common.sh" >/dev/null && review_model review "$light") || exit 2
 W=$(mktemp -d); trap 'rm -rf "$W"' EXIT
 user_root=${CANCCU_ROOT:-} user_project=${CANCCU_PROJECT:-}
 
@@ -84,7 +88,8 @@ one() (
   f=$(review_file "$pr" "$sha"); mkdir -p "${f%/*}"
   if (( light )); then prompt=$(light_review_prompt "$pr" "$n" "$sha" "$f")
   else prompt=$(review_prompt "$pr" "$n" "$sha" "$f" "${effort:-high}"); fi
-  reviewer "$wt" "$f" "$sha" "$d" "$prompt"
+  # a failed engine (not logged in, a timeout) reviewed nothing: never a missed case
+  reviewer "$wt" "$f" "$sha" "$d" "$prompt" || { echo "error (the engine exited $?)"; exit 0; }
   # judged as the dispatcher judges a verdict: the no-repeat context, then its demotions
   local REVIEW_SETTLED REVIEW_PASSRULE REVIEW_CHANGED
   review_ctx "$n" "$pr" "$sha"
@@ -102,12 +107,15 @@ one() (
   echo found
 )
 
-found=() missed=() blocked=() clean=() red=()
+found=() missed=() blocked=() clean=() red=() errors=()
 for c in "${cases[@]}"; do
   r=$(one "$c"); echo "$c $r"
-  case ${r%% *} in found) found+=("$c") ;; clean) clean+=("$c") ;; blocked) blocked+=("$c") ;; *) missed+=("$c") ;; esac
+  case ${r%% *} in found) found+=("$c") ;; clean) clean+=("$c") ;; blocked) blocked+=("$c") ;; error) errors+=("$c") ;; *) missed+=("$c") ;; esac
 done
 echo "found ${#found[@]} · missed ${#missed[@]} · clean ${#clean[@]} · blocked ${#blocked[@]}"
+if (( ${#errors[@]} )); then
+  echo "review-set: the engine failed on ${errors[*]}: no log line, no baseline, no brake" >&2; exit 2
+fi
 
 list() { local IFS=,; echo "${*:--}"; }
 # both kinds of miss are named: a blocked clean case missed its result as much as a missed defect

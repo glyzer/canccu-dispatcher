@@ -119,6 +119,15 @@ ok "… another default changed: no line needed" eq "$rc" 0
 gate g-notag; git -C "$T/g-notag" tag -d v1.2.0 >/dev/null
 rel "$T/g-notag" check v1.3.0 --body "$T/body-ok"
 ok "no earlier tag to compare with: the line is needed" eq "$rc $(grep -cF "$rsgate" "$T/out")" "1 1"
+gate g-renamed lib/canccu-runs.sh 's/^review_prompt()/reviewer_prompt()/'
+rel "$T/g-renamed" check v1.3.0 --body "$T/body-rs"
+ok "a gated name renamed at HEAD: fails naming it, even with the line (#235)" \
+  eq "$rc $(grep -c 'names HEAD lacks.*lib/canccu-runs.sh review_prompt' "$T/out")" "1 1"
+gate g-renamed-var lib/canccu-depth.sh 's/^LIGHT_REVIEW_TEXT=/LIGHT_TEXT=/'
+rel "$T/g-renamed-var" check v1.3.0 --body "$T/body-rs"
+ok "… a gated variable too" eq "$rc $(grep -c 'lib/canccu-depth.sh LIGHT_REVIEW_TEXT' "$T/out")" "1 1"
+ok "this repo's HEAD has every name the gate lists" \
+  eq "$(cd "$(dirname "$REL")/../.." && bash -c '. <(sed -n "/^review_gate()/,/^}/p;/^review_gate_missing()/,/^}/p" .github/scripts/release); review_gate_missing')" ""
 
 # ---------------------------------------------------------------- notes: the section's body
 
