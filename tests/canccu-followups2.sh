@@ -5,6 +5,9 @@
 # shellcheck source=lib/harness.sh
 . "$(dirname "$0")/lib/harness.sh"
 
+# a worker running the tests exports its WORKER_* settings: the harness drops them
+ok "no WORKER_* variable of the caller reaches a test" eq "$(compgen -v WORKER_ | tr '\n' ' ')" ""
+
 # ---------------------------------------------------------------- reviews and findings
 
 env_new nonelist
@@ -50,5 +53,15 @@ ok "an idle line of the leader's unacked for 61 min → closed, a handover line 
   eq "$(field 2 5) $(field 2 9)|$(field 3 3) $(field 3 5)|$(st 5 idle_ev)" "closed closes 1: passed to the product owner|po handover|3"
 dispatch --once
 ok "… once" eq "$(lines)" 3
+
+# ---------------------------------------------------------------- config
+
+env_new cfg-words
+ok "PING_KINDS=plan,question: both kinds ping, others not" \
+  eq "$(lib eval '. "$root/lib/canccu-ping.sh"; PING_KINDS=plan,question; for k in plan question accept; do ping_kind_on $k && echo -n "$k "; done')" "plan question "
+env_new cfg-stamp
+touch -d "@$NOW.1" "$CANCCU_HOME/config"; a=$(lib canccu_cfg_stamp)
+touch -d "@$NOW.2" "$CANCCU_HOME/config"
+ok "the reload stamp sees a change in the same second" not eq "$(lib canccu_cfg_stamp)" "$a"
 
 echo "canccu-followups2 tests: $npass passed, $nfail failed"; (( nfail == 0 ))

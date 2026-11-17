@@ -58,7 +58,8 @@ tab-separated table with a header: the value, the default, the layer it comes fr
 `host:<profile>`, `global`, `rules` or `project`) and `locked` for a setting a run or the leader
 cannot change ([`config.md`](config.md#the-settings-table)). Keys after the options show only
 those; an unknown key ends with status 2. The reviewer token and the gh login are shown as paths:
-their files are never opened.
+their files are never opened. A layer that is not valid shell ends it with status 1 and a line
+naming the file.
 
 ```
 canccu-dispatcher config show                          # every setting of the only project

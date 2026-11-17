@@ -46,6 +46,10 @@ cfg_values() {
     if [ -n "$1" ]; then CANCCU_PROJECT=$1 CANCCU_HOME=$CANCCU_ROOT/projects/$1; else unset CANCCU_PROJECT CANCCU_HOME; fi
     while IFS=$'\t' read -r _cv_o _cv_f; do
       _cv_total=$TOTAL_CAP
+      # a layer that is not valid shell would end the subshell with no word: name it
+      if [ -f "$_cv_f" ] && ! _cv_e=$(bash -n "$_cv_f" 2>&1); then
+        echo "canccu-dispatcher config: $(canccu_tilde "$_cv_f") is not valid shell: ${_cv_e##*: }" >&2; exit 1
+      fi
       # shellcheck source=/dev/null
       [ ! -f "$_cv_f" ] || . "$_cv_f" </dev/null >/dev/null 2>&1
       # TOTAL_CAP is the global config's only (lib/canccu-config.sh puts it back the same way)

@@ -44,7 +44,7 @@ old path too).
 | `HIGH_RISK_PATHS` | the same as `RISKY_PATHS` | `grep -iE` on the health pass's diff: it is high risk (manual accept) when it touches one |
 | `HIGH_RISK_TEXT` | migrations, sign-in or auth, rights, sessions, secrets, tenancy/RLS, `deploy/` or CI configuration | High-risk content in words: the planner keeps it apart from normal and low work, the high-risk issues of one area in one high-risk package; the reviewer raises a package's `Risk:` line for it |
 | `REVIEW_LIGHT` | `0` | `1`: a package of class low or normal gets a light review: a checklist at low effort instead of the code-review skill ([`review-depth.md`](review-depth.md#the-light-review)). Not the health pass, a deep review, a single issue, or a PR with a gated path or agent configuration. Locked: it weakens a check. Separate from `REVIEW_MODEL_LIGHT`, which picks a model by paths |
-| `PING_KINDS` | `all` | Which states ping `USER_LOGIN` ([`pings.md`](pings.md)): `all`, or some of `accept checkpoint plan question needs-you pr-needs-you`; empty: none. An unknown word pings nothing and is logged once |
+| `PING_KINDS` | `all` | Which states ping `USER_LOGIN` ([`pings.md`](pings.md)): `all`, or some of `accept checkpoint plan question needs-you pr-needs-you`, separated by spaces or commas; empty: none. An unknown word pings nothing and is logged once |
 
 ## User-visible paths
 

@@ -28,11 +28,12 @@ canccu_load_config() {
 # canccu_cfg_files: the four files a user edits (the defaults change only with an update, which
 # restarts the dispatcher anyway)
 canccu_cfg_files() { printf '%s\n' "$_canccu_hpf" "$CANCCU_ROOT/config" "$CANCCU_HOME/rules" "$CANCCU_HOME/config"; }
-# canccu_cfg_stamp: their modification times, 0 for a file that is not there
+# canccu_cfg_stamp: their inodes and modification times to the nanosecond, 0 for a file that is
+# not there: whole seconds missed a `config set` in the second of the last read
 canccu_cfg_stamp() {
   local f
   while IFS= read -r f; do
-    if [ -n "$f" ] && [ -f "$f" ]; then stat -c %Y "$f"; else echo 0; fi
+    if [ -n "$f" ] && [ -f "$f" ]; then stat -c '%i:%y' "$f" | tr ' ' _; else echo 0; fi
   done < <(canccu_cfg_files) | tr '\n' ' '
 }
 # canccu_reload_config: read the files again when one changed since the last read, between two

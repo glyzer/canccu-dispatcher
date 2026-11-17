@@ -28,6 +28,9 @@ MON_VENV=${CANCCU_VENV:-$HOME/.local/share/canccu/venv}; unset CANCCU_VENV
 unset GH_CONFIG_DIR CANCCU_GH_OWNER GH_TOKEN GITHUB_TOKEN "${!GIT_CONFIG_@}"
 # … nor the caller's actor marker: a worker running the tests carries CANCCU_ACTOR=run
 unset CANCCU_ACTOR
+# … nor a worker's own settings (WORKER_STALL_MIN, WORKER_CAP, …), which the engine and the
+# dispatcher read before their defaults; a test sets the ones it needs
+unset "${!WORKER_@}"
 # the caller's locale never reaches a test (ls, sort and [a-z] order by it); a test that needs
 # another locale sets its own
 export LC_ALL=C
