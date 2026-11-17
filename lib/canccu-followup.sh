@@ -30,7 +30,8 @@ blocking_note() {
 # fewer blocking findings than the one before but at least one (none left is a parse miss, not progress)
 extra_fix_due() {
   local p l
-  [ "${FIX_EXTRA_IF_FEWER:-1}" = 1 ] && [ -z "$(st_get "$1" extra_fix)" ] || return 1
+  # FIX_ATTEMPTS=0 means no automatic fix run at all, this one included
+  [ "${FIX_EXTRA_IF_FEWER:-1}" = 1 ] && [ -z "$(st_get "$1" extra_fix)" ] && (( $(fix_max) > 0 )) || return 1
   p=$(st_get "$1" blocking_prev) l=$(st_get "$1" blocking_last)
   [[ $p =~ ^[0-9]+$ && $l =~ ^[0-9]+$ ]] && (( l >= 1 && l < p ))
 }
@@ -186,9 +187,12 @@ ci_log_tail() {
 }
 
 # ci_failed <pr>: the failed checks of the PR's head in $PRS, one per line: "<run id>\t<name>"; the
-# run id empty for a check that is not a GitHub Actions run
+# run id empty for a check that is not a GitHub Actions run. REVIEW_CHECKS are left out, as in
+# ci_state: they wait for the verdict, no rerun or fix makes them pass.
 ci_failed() {
-  jqr --argjson p "$1" '.[] | select(.number == $p) | .statusCheckRollup[]?
+  jqr --argjson p "$1" --arg ign "${REVIEW_CHECKS:-}" '($ign | split(" ") | map(select(. != ""))) as $ig
+      | .[] | select(.number == $p) | .statusCheckRollup[]?
+      | select((.name // .context) as $x | $ig | index($x) | not)
       | select(((.conclusion // .state // "") | ascii_upcase) | IN("FAILURE", "TIMED_OUT", "ERROR", "STARTUP_FAILURE"))
       | "\((.detailsUrl // .targetUrl // "") | capture("/actions/runs/(?<id>[0-9]+)/").id // "")\t\(.name // .context // "?")"' <<<"$PRS"
 }
@@ -203,14 +207,27 @@ ci_fresh() {
       | select((.completedAt // "") > $t)] | length' <<<"$PRS")" != 0 ]
 }
 
+# ci_run_busy <pr> <run id>: a check of that Actions run on the PR's head has not completed
+ci_run_busy() {
+  [ "$(jqr --argjson p "$1" --arg id "$2" '[.[] | select(.number == $p) | .statusCheckRollup[]?
+      | select(((.detailsUrl // .targetUrl // "") | capture("/actions/runs/(?<id>[0-9]+)/").id // "") == $id)
+      | select(((.status // "COMPLETED") | ascii_upcase) != "COMPLETED")] | length' <<<"$PRS")" != 0 ]
+}
+
 # ci_rerun <K> <pr> <head>: the failed GitHub Actions runs of a red head rerun (--failed), once per
-# head, before any fix run: a flaky check costs no AI run. 1: none rerun (none to rerun, done for
+# head, before any fix run: a flaky check costs no AI run. 0 also while a job of such a run still
+# runs (it waits, spending nothing). 1: none rerun (none to rerun, done for
 # this head, or every rerun call failed), the fix run goes on in this pass.
 ci_rerun() {
   local k=$1 pr=$2 head=$3 id ids done=0
   [ "$(st_get "$k" ci_rerun)" != "$head" ] || return 1
   ids=$(ci_failed "$pr" | cut -f1 | grep -E '^[0-9]+$' | sort -u)
   [ -n "$ids" ] || return 1
+  # GitHub refuses `rerun --failed` while a job of the run still runs: waiting spends no rerun
+  for id in $ids; do
+    ci_run_busy "$pr" "$id" || continue
+    warn_once "rerun-wait-$pr" "#$k PR #$pr: CI red; run $id still has jobs running: the rerun waits for them"; return 0
+  done
   st_set "$k" ci_rerun="$head" ci_rerun_at= check_at="$(now)"
   for id in $ids; do
     if mut_out gh run rerun "$id" --failed -R "$REPO"; then done=1

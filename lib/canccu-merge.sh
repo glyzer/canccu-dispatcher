@@ -24,7 +24,7 @@ pr_gone() {
 # merged_left <K> <pr> <pr view json>: the unit's PR merged with a member still open. One its
 # `Closes` names is closed by GitHub a moment later: wait for that (gone_at), MERGE_CLOSE_MIN, then
 # close it ourselves (GitHub sometimes leaves it open, as after a 5xx on the merge call). A close
-# that keeps failing falls to the MERGE_WAIT_MIN bound. A member it does not name (or a named one
+# refused for good is left at once; one that keeps failing transiently, at the MERGE_WAIT_MIN bound. A member it does not name (or a named one
 # still open after that) never closes on its own; parking the unit would block the `ready` that
 # restarts it, so the unit is released and the member waits for a person with needs-you. The open
 # list is capped: a member missing from it is confirmed with gh, and a gh error decides nothing
@@ -45,12 +45,13 @@ merged_left() {
     [ -n "$at" ] || { st_set "$k" gone_at="$(now)"; return 0; }
     (( $(now) - at > MERGE_CLOSE_MIN * 60 )) || return 0
     for m in "${named[@]}"; do
-      if mut gh issue close "$m" -R "$REPO" --reason completed --comment "Closed by canccu-dispatch: PR #$pr merged and names this issue as closing, but GitHub left it open."$'\n\n'"$CANCCU_MARK"; then
+      if mut_out gh issue close "$m" -R "$REPO" --reason completed --comment "Closed by canccu-dispatch: PR #$pr merged and names this issue as closing, but GitHub left it open."$'\n\n'"$CANCCU_MARK"; then
         closed+=("$m")
         log "#$k PR #$pr merged; closed #$m (GitHub left it open)"
         r=(); for l in in-progress awaiting-accept needs-you; do has_label "$m" "$l" && r+=(--remove-label "$l"); done
         (( ${#r[@]} )) && mut gh issue edit "$m" -R "$REPO" "${r[@]}"
-      elif (( $(now) - at > MERGE_WAIT_MIN * 60 )); then left+=("$m")
+      # a refusal (a locked issue, no rights) stays one: only a transient error is waited out
+      elif ! mut_transient || (( $(now) - at > MERGE_WAIT_MIN * 60 )); then left+=("$m")
       else log "#$k: gh error closing issue #$m; retrying next pass"; return 0
       fi
     done

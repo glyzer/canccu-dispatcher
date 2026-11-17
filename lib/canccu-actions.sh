@@ -31,7 +31,8 @@ edit_issue() { local n; n=$(lead_of "$1"); shift; [ -n "$n" ] || return 0; mut g
 needs_work_from_pr() {
   local n=$1 pr=$2 l
   [ -n "$pr" ] && pr_has_label "$pr" needs-work || return 0
-  l=$(lead_of "$n")
+  # no lead issue (a health unit whose step issue is gone): nowhere to move it
+  l=$(lead_of "$n"); [ -n "$l" ] || return 0
   # added before removed: an error between the two leaves the label on both, never on neither
   if ! { mut gh issue edit "$l" -R "$REPO" --add-label needs-work && mut gh pr edit "$pr" -R "$REPO" --remove-label needs-work; }; then
     log "#$n PR #$pr: gh error moving \`needs-work\`; retrying next pass"; return 1

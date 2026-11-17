@@ -205,6 +205,9 @@ mut_out() {
   (( rc == 0 )) || gh_limit_seen "$MUT_OUT"
   return $rc
 }
+# mut_transient: the last mut_out failed in a way a later try may not: killed by its timeout, or
+# a gh_transient error
+mut_transient() { [[ ${MUT_RC:-} =~ ^(124|137)$ ]] || gh_transient "${MUT_OUT:-}"; }
 # mut_show <output>: a write's captured output: in the dispatcher to dispatch.log, each line
 # prefixed "  │ "; else to stderr (stdout and stderr were captured together)
 mut_show() {

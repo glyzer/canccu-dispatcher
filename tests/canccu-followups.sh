@@ -152,4 +152,46 @@ ok "ACCEPT_CHANNELS=ship: an ignored label does not stop the ping, which offers 
 lib eval "fetch; to_accept 5 50 'manual: changes .github/' $HA"
 ok "… the accept request offers canccu-ship only" eq "$(grep -c 'Accept: `canccu-ship 5`\.' "$FAKE/gh.log") $(grep -c 'Accept: add the label' "$FAKE/gh.log")" "1 0"
 
+# ---------------------------------------------------------------- a named close refused
+
+# failgh <"cmd sub"> <error>: every such gh call fails with that error (fpass runs the pass)
+failgh() {
+  mkdir -p "$E/sbin"
+  cat > "$E/sbin/gh" <<SH
+#!/usr/bin/env bash
+[ "\$1 \$2" = "$1" ] && { echo "$2" >&2; exit 1; }
+exec "$fb/gh" "\$@"
+SH
+  chmod +x "$E/sbin/gh"
+}
+env_new close-refused
+json pr50.json '{"state": "MERGED", "title": "Add a thing", "body": "Closes #5", "closingIssuesReferences": [{"number": 5}], "headRefName": "5-thing"}'
+route 'pr view 50 *' pr50.json
+state 5 phase=merging pr=50 merge_sha=$HA how=auto "merge_at=$((NOW - 600))" "gone_at=$((NOW - 3 * 60))"
+{ issue 5 in-progress; } | issues
+failgh "issue close" 'GraphQL: Resource not accessible by integration (closeIssue)'
+fpass
+ok "a named close refused for good → needs-you at once, not after MERGE_WAIT_MIN" \
+  eq "$(grep -c 'issue edit 5 -R example-org/web --add-label needs-you' "$FAKE/gh.log") [$(st 5 phase)]" "1 []"
+
+# ---------------------------------------------------------------- small guards
+
+env_new nw-no-lead
+pr 50 5 $HA green needs-work | prs
+lib eval 'lead_of() { :; }; fetch; needs_work_from_pr 5 50; echo "rc=$?"' > "$E/out" 2>&1
+ok "needs_work_from_pr with no lead issue → no gh call" eq "$(grep -c '^issue edit' "$FAKE/gh.log") $(grep -c 'rc=0' "$E/out")" "0 1"
+
+env_new fix-zero FIX_ATTEMPTS=0
+state 5 phase=review pr=50 blocking_prev=4 blocking_last=2
+ok "FIX_ATTEMPTS=0: no extra fix round" eq "$(lib eval 'extra_fix_due 5 && echo due || echo none')" none
+
+# canccu-stop --forget: the blocked marker stays while the label could not be removed
+env_new stop-label-fails
+{ issue 21 needs-you,blocked; } | issues
+state 21 phase=needs-you pr=70 branch=21-thing
+mkdir -p "$CANCCU_HOME/blocked"; : > "$CANCCU_HOME/blocked/21"
+failgh "issue edit" 'HTTP 502: Bad Gateway'
+PATH="$E/sbin:$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-stop" --forget 21 > "$E/out" 2>&1
+ok "canccu-stop: the label edit failed → the blocked marker is kept" test -e "$CANCCU_HOME/blocked/21"
+
 echo "canccu-followups tests: $npass passed, $nfail failed"; (( nfail == 0 ))

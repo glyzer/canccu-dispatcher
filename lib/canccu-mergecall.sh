@@ -64,7 +64,7 @@ armed_on() {
 merge_retry() {
   local n=$1 pr=$2 k max=${MERGE_RETRY:-3}
   MERGE_AFTER=""
-  [[ ${MUT_RC:-} =~ ^(124|137)$ ]] || gh_transient "$MUT_OUT" || return 1
+  mut_transient || return 1
   k=$(st_get "$n" merge_tries); k=${k:-0}
   (( k >= max )) && { MERGE_AFTER=" (after $max tries)"; return 1; }
   st_set "$n" merge_tries=$(( k + 1 ))
