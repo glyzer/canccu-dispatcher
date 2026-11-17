@@ -78,7 +78,9 @@ tool's repo loads them as its own instructions.
 holds its three headings: `Also check`, `Never blocks` and `Known false positives`. Copy it to a
 `REVIEW.md` at the repo's root and fill it in, through a PR; `canccu-init` does not install it. The
 reviewer and the fix-check read it from `origin/main` only, as data, and only those three sections,
-cut at 4000 characters. It can add checks and name what never blocks; it cannot make a blocking
+cut at 4000 characters; `<!-- … -->` comment lines are dropped, a `#` line inside a code fence
+starts no section, and CRLF line endings read as LF. A git error reading it (no `origin/main`) is
+logged, and the review goes on without it. It can add checks and name what never blocks; it cannot make a blocking
 class non-blocking, change the verdict line, or ask the reviewer to edit, push, comment or label. A
 PR that changes it waits for your accept, like `AGENTS.md`.
 

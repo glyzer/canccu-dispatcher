@@ -38,8 +38,8 @@ Every `INTERVAL` seconds, under the project's lock:
      nothing is uncommitted, it is treated as finished, like any other (next item); otherwise
      (no PR, a head that differs, uncommitted files, a worktree gone) → `needs-you` with the
      denials. An older worker whose report says `blocked` with an open PR is still finished. A `needs-you` of a
-     finished worker whose label the leader removes, with no comment and a PR waiting for review
-     (open, not a draft, CI green), goes back to `check` and the review starts.
+     finished worker or of a red CI whose label the leader removes with no comment, its PR open,
+     not a draft and green (a re-run), goes back to `check` and the review starts.
    - A worker that stopped with a question (a line starting `Question:`) → the answerer.
    - A worker that finished → phase `check`, then its PR decides (a PR for issue `n`: one that
      closes it, a plan-only PR with a `Plan for #n` line, or one on its branch `<n>-…`):

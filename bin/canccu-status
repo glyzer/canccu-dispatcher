@@ -105,6 +105,16 @@ if fetch; then
   other=$(jqr '.[] | select(any(.labels[]; .name == "needs-you")) | .number' <<<"$ISSUES" |
           while read -r n; do is_managed "$n" || echo "  #$n · $(title_of "$n") (labelled needs-you)"; done)
   [ -n "$other" ] && echo "$other"
+  # a unit in check whose PR conflicts with auto-merge off sits in no list above (#222)
+  for n in $(managed); do
+    [ "$(st_get "$n" phase)" = check ] && pr=$(st_get "$n" pr) && [ -n "$pr" ] || continue
+    h=$(jqr --argjson p "$pr" '.[] | select(.number == $p and .mergeStateStatus == "DIRTY" and .autoMergeRequest == null) | .headRefOid' <<<"$PRS")
+    [ -n "$h" ] || continue
+    if [ "$(st_get "$n" conflict_sha)" = "$h" ]; then m="the worker resolves $(st_get "$n" conflict_paths)"
+    elif [ "$(st_get "$n" conflict_merge)" = "$h" ]; then m="the merge of main by script ran on this head; it waits for a new one"
+    else m="the dispatcher merges main in on its next pass"; fi
+    echo "  #$n · PR #$pr conflicts with main, auto-merge off: $m"
+  done
   foreign=$(for pr in $(jqr '.[].number' <<<"$PRS"); do
               why=$(not_ours "$pr"); [ -n "$why" ] && echo "  PR #$pr · $(clip "$why" $(( cols > 40 ? cols - 14 : 26 )))"
             done)

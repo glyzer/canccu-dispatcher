@@ -254,13 +254,20 @@ preexisting_security() { review_valid "$1" && [ -n "$(_review_awk presec <<<"$1"
 # review_md <pr>: the sections Also check, Never blocks and Known false positives of the repo's
 # REVIEW.md (contracts §8), cut at 4000 characters; empty without one. Read from origin/main in the
 # review worktree (start_reviewer fetched main), never from the PR head: a PR must not relax its
-# own review. Any other section is dropped: §8 gives the file these three and nothing else.
+# own review. Any other section is dropped: §8 gives the file these three and nothing else. CRLF
+# lines count as LF; a # line inside a ``` or ~~~ fence is no heading; the <!-- … --> comment lines
+# (the snippet's guidance) are dropped. A git error other than a missing file is logged (stderr).
 review_md() {
-  local s
-  s=$(git -C "$(review_wt "$1")" show origin/main:REVIEW.md 2>/dev/null |
-    awk '/^#+[ \t]/ { t = $0; sub(/^#+[ \t]+/, "", t); sub(/[ \t#]+$/, "", t)
+  local s e ef; ef=$(mktemp)
+  s=$(git -C "$(review_wt "$1")" show origin/main:REVIEW.md 2>"$ef" | tr -d '\r' |
+    awk '/^ ? ? ?(```|~~~)/ { fence = !fence }
+         !fence && /^#+[ \t]/ { t = $0; sub(/^#+[ \t]+/, "", t); sub(/[ \t#]+$/, "", t)
                       keep = (t == "Also check" || t == "Never blocks" || t == "Known false positives") }
+         !fence && !cmt && /^[ \t]*<!--/ { cmt = 1 }
+         cmt { if ($0 ~ /-->[ \t]*$/) cmt = 0; next }
          keep')
+  e=$(cat "$ef"); rm -f "$ef"
+  case $e in ''|*"does not exist in"*) ;; *) log "PR #$1 REVIEW.md: git show origin/main failed, read as none: $(oneline 200 "$e")" >&2 ;; esac
   (( ${#s} > 4000 )) && s="${s:0:4000}"$'\n'"(REVIEW.md cut at 4000 characters)"
   printf '%s' "$s"
 }

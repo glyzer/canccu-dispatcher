@@ -269,12 +269,14 @@ ci_unpark() {
 }
 
 # ready_unpark <n>: a needs-you of a finished worker (ny_stage work: it stopped, not a review or a
-# fix round) whose label the lead removed with no comment, and whose PR waits for review (open,
-# not a draft, CI green), goes back to check; check_pr (called next) starts the review. A comment
+# fix round) or of a red CI (ny_stage ci: a flaky run re-run green costs no worker run) whose label
+# the lead removed with no comment, and whose PR waits for review (open, not a draft, CI green),
+# goes back to check; check_pr (called next) starts the review. A comment
 # since it parked leaves it to resume_step. 0 when it is back in check.
 ready_unpark() {
   local n=$1 pr c
-  [ "$(st_get "$n" ny_stage)" = work ] && ! has_label "$n" needs-you || return 1
+  case $(st_get "$n" ny_stage) in work|ci) ;; *) return 1 ;; esac
+  ! has_label "$n" needs-you || return 1
   pr=$(st_get "$n" pr); [ -n "$pr" ] && pr_is_open "$pr" || return 1
   [ "$(pr_get "$pr" .isDraft)" = false ] && [ "$(ci_state "$pr")" = green ] || return 1
   c=$(user_comments "$n" "$pr" "$(st_get "$n" ny_at)") || return 1
