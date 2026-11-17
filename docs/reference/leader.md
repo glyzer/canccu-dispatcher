@@ -44,7 +44,8 @@ the leader or a run, it is refused (`LEADER` is locked) and writes nothing. The 
 The kit is yours to edit once written; to start again from the templates, remove it and run
 `canccu-init --leader` again (`LEADER` stays `on`). `canccu-up` reads `LEADER` when it creates the
 session: restart the session for a change to show. With `LEADER=on` and no kit, it says so and
-starts the leader in `~/code`.
+starts no leader: the pane stays `lead`, a plain `claude` in `~/code` (your own session, no
+`CANCCU_ACTOR=leader`), until `canccu-init --leader` writes the kit.
 
 ## The leader's brief
 

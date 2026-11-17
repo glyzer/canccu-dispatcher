@@ -25,7 +25,7 @@ Every command but `canccu-init` and `canccu-dispatcher` takes `--project <name>`
 |---|---|
 | `canccu-init [--profile <t>] <name> <owner/repo> [clone]` | Adds a project ([`projects.md`](projects.md)) |
 | `canccu-init --leader <name>` | Writes the project's leader kit and sets `LEADER=on` ([`leader.md`](leader.md#the-leader-kit)) |
-| `canccu-up` | Creates the project's tmux session if it is missing: window `main` with `claude` (the leader in its kit with `LEADER=on`) and the monitor, window `dispatch` with `canccu-dispatch`, window `shell`; then attaches. Never kills or rearranges a session that exists |
+| `canccu-up` | Creates the project's tmux session if it is missing: window `main` with `claude` (the leader in its kit with `LEADER=on`; without the kit, your own session) and the monitor, window `dispatch` with `canccu-dispatch`, window `shell`; then attaches. Never kills or rearranges a session that exists |
 | `canccu-dispatch` | The loop: one pass every `INTERVAL` seconds, one instance per project ([`pipeline.md`](pipeline.md)) |
 | `canccu-dispatch --once` | One pass |
 | `canccu-dispatch --dry-run` | The runnable queue, every open PR's classification and what one pass would do. Writes nothing: no labels, comments, merges, state, log or snapshot |

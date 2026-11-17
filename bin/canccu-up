@@ -33,10 +33,10 @@ if ! tmux has-session -t "=$S" 2>/dev/null; then
   # the leader runs in its kit, so claude loads its CLAUDE.md and .claude/settings.json; the
   # marker makes config set refuse it a locked setting (not a boundary: docs/security.md)
   title=lead start=claude kit=$H/leader
+  # no kit: no leader either (its denies are in the kit): the pane is your own session
   if [ "${LEADER:-off}" = on ]; then
-    title=leader start="CANCCU_ACTOR=leader claude"
-    if [ -f "$kit/CLAUDE.md" ]; then start="cd $(printf %q "$kit") && $start"
-    else echo "canccu-up: no leader kit in $(canccu_tilde "$kit"): canccu-init --leader $CANCCU_PROJECT writes it; the leader starts in ~/code without it" >&2
+    if [ -f "$kit/CLAUDE.md" ]; then title=leader start="cd $(printf %q "$kit") && CANCCU_ACTOR=leader claude"
+    else echo "canccu-up: no leader kit in $(canccu_tilde "$kit"): canccu-init --leader $CANCCU_PROJECT writes it; until then the left pane is your own session, not the leader" >&2
     fi
   fi
   tmux select-pane -t "$lead" -T "$title"
