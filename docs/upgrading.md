@@ -43,3 +43,9 @@ found` (it names a process left on an older release).
 `canccu-dispatcher rollback` points `current` at the previous release; run the same sequence
 around it. The last three releases are kept, and a release a live dispatcher or run uses is never
 pruned.
+
+A release older than the state format stops with "state format <n> is newer than this release
+knows" (0.1.4 after 0.2.0: format 3). Going back from 3 (or 4) to 2 is safe by hand, as
+migrations 3 and 4 change no field: stop the dispatcher, write the older release's format (`2` for
+0.1.4) to the project's `state.format` ([`reference/state.md`](reference/state.md)), then roll
+back. Releases before 0.1.3 have no format check: they read any state as it is.

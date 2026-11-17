@@ -181,7 +181,7 @@ deep_summary() {
   esac
 }
 
-# step_tag_name <m> [suffix]: STEP_TAG with {n} as the step's number, plus the suffix; nothing (and
+# step_tag_name <m> [suffix]: STEP_TAG with {n} as step_n (the title's leading number), plus the suffix; nothing (and
 # one warning) when STEP_TAG has no {n} or the name is no valid tag. 1 when there is none.
 step_tag_name() {
   local t

@@ -35,7 +35,7 @@ change a setting and the settings table are in [`config.md`](config.md); the rul
 | `DEEP_REVIEW_EFFORT` | `high` | The deep review's `--effort` (`low`, `medium`, `high`, `xhigh`, `max`) |
 | `BUDGET_DEEP_REVIEW` | `150 40 120` | The deep review at the end of a step |
 | `CADENCE_DAYS` | `0` | Above 0: a step whose milestone description has the line `Cadence: on` gets a round every this many days while it runs: its deep review, polish and checkpoint summary ([`steps.md`](steps.md#cadence-rounds)). `0`: no rounds |
-| `STEP_TAG` | empty | The step tag the checkpoint OK pushes, with `{n}` for the step's number (for example `step-{n}`); empty: none. Locked |
+| `STEP_TAG` | empty | The step tag the checkpoint OK pushes, with `{n}` for the step title's leading number, else the milestone's (for example `step-{n}`); empty: none. Locked |
 | `USAGE_SLOW` | `60` | 5-hour usage share (%) from which one run at a time runs, over all projects ([`usage.md`](usage.md)) |
 | `USAGE_STOP` | `90` | 5-hour usage share (%) from which no run starts and running workers are asked to stop at a safe point |
 | `USAGE_WINDOW_DELTA` | `0` | `1`: each run's spend-log line records the 5-hour window's utilization before and after it ([`state.md`](state.md#the-spend-log)). Off by default: it means something only with one run at a time on a plan with a 5-hour window |

@@ -34,6 +34,8 @@ Release 0.2 ends here; its remaining packages move to 0.3 (#105).
   config sets `ALLOW_DEFAULT_GH_LOGIN=1` (new, default `0`, locked). `canccu-dispatcher doctor`
   names such projects with the steps (#173).
 
+**New:**
+
 - A head that passed review is never reviewed again: a `needs-work` answered with no push, or a
   pass read again, reuses the verdict; a `full review` line asks for a new one (#214).
 - Workflow v2, every feature opt-in (off with the defaults) (#216):
@@ -53,7 +55,7 @@ Release 0.2 ends here; its remaining packages move to 0.3 (#105).
     effort and budget: `DEEP_REVIEW_MODEL` (default empty: `REVIEW_MODEL`, else `MODEL`),
     `DEEP_REVIEW_EFFORT` (default `high`), `BUDGET_DEEP_REVIEW` (default `150 40 120`).
   - `STEP_TAG` (locked, default empty: no tag): the checkpoint OK tags `origin/main`, `{n}` for
-    the step's number (for example `step-{n}`); the next deep review starts from that tag.
+    the step title's leading number, else the milestone's (for example `step-{n}`); the next deep review starts from that tag.
   - `CADENCE_DAYS` (default `0`: no rounds): a step whose milestone description has the line
     `Cadence: on` gets a round every this many days while it runs: its deep review, polish and
     checkpoint summary.
