@@ -187,10 +187,12 @@ conflict_merge() {
     current)  # GitHub's merge state is stale: said only; the next head gets its own try
       log "#$n PR #$pr: conflicts with main; the merge by script did not run (main is in already)"; return 1 ;;
     *) # an error (a push refused, a fetch timed out) is often gone a pass later: retried, so only
-       # MERGE_TRIES in a row reach the user
-       local k; k=$(st_get "$n" mm_err); k=$(( ${k:-0} + 1 ))
-       log "#$n PR #$pr: conflicts with main; the merge by script did not run ($MERGE_WHY; error $k of ${MERGE_TRIES:-3})"
-       if (( k < ${MERGE_TRIES:-3} )); then st_set "$n" conflict_merge= mm_err="$k"; return 0; fi
+       # MERGE_TRIES in a row reach the user. Skipped (uncommitted changes, another branch): at once
+       if [ "$MERGED" = error ]; then
+         local k; k=$(st_get "$n" mm_err); k=$(( ${k:-0} + 1 ))
+         log "#$n PR #$pr: conflicts with main; the merge by script did not run ($MERGE_WHY; error $k of ${MERGE_TRIES:-3})"
+         if (( k < ${MERGE_TRIES:-3} )); then st_set "$n" conflict_merge= mm_err="$k"; return 0; fi
+       fi
        st_set "$n" mm_err=
        needs_you "$n" "PR #$pr conflicts with main; the merge by script did not run ($MERGE_WHY)" ;;
   esac

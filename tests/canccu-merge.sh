@@ -266,9 +266,9 @@ ok "named members open within MERGE_CLOSE_MIN → nothing closed, the unit kept"
 
 gone_env merged-close-fail pkg-1-a "$CLOSES56" pkg=a "members=5 6" branch=pkg-1-a "gone_at=$((NOW - 3 * 60))"
 { issue 5 in-progress; issue 6 in-progress; } | issues
-echo 'fail:issue close' >> "$FAKE/routes"
+echo 'fail124:issue close' >> "$FAKE/routes"
 dispatch --once
-ok "gh issue close failing → logged to retry, the unit kept" \
+ok "gh issue close timing out → logged to retry, the unit kept" \
   eq "$(grep -cF '#pkg-1-a: gh error closing issue #5; retrying next pass' "$CANCCU_HOME/dispatch.log") $(st pkg-1-a phase) $(grep -c needs-you "$FAKE/gh.log")" "1 merging 0"
 : > "$FAKE/routes"; : > "$FAKE/gh.log"; route 'pr view 50 *' pr50.json
 dispatch --once

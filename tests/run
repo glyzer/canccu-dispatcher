@@ -62,15 +62,15 @@ tests_for() {
     lib/canccu-ping.sh) echo tests/canccu-pings.sh tests/canccu-steps2.sh ;;
     lib/canccu-runs.sh|lib/canccu-answer.sh|lib/canccu-github.sh|lib/canccu-merge.sh|lib/canccu-accepts.sh|bin/canccu-ship|lib/canccu-aftermerge.sh|lib/canccu-pipeline.sh|lib/canccu-prbody.sh|lib/canccu-actions.sh|lib/canccu-mergecall.sh|lib/canccu-queue.sh|lib/canccu-followup.sh|lib/canccu-findings.sh|lib/canccu-verdict.sh|lib/canccu-norepeat.sh|lib/canccu-spend.sh|lib/canccu-depth.sh|lib/canccu-brake.sh|lib/canccu-brakestate.sh)
       echo tests/canccu-verdict.sh tests/canccu-findings.sh tests/canccu-followup.sh tests/canccu-spend.sh tests/canccu-dispatch.sh tests/canccu-dispatch2.sh tests/canccu-waits.sh tests/canccu-merge.sh tests/canccu-review.sh tests/canccu-review2.sh tests/canccu-review-effort.sh tests/canccu-cost.sh tests/canccu-health-review.sh tests/canccu-config.sh \
-        tests/canccu-compat.sh tests/canccu-share.sh tests/canccu-brake.sh tests/canccu-followups.sh tests/canccu-followups2.sh ;;
+        tests/canccu-compat.sh tests/canccu-share.sh tests/canccu-brake.sh tests/canccu-followups.sh tests/canccu-followups2.sh tests/canccu-followups3.sh ;;
     bin/canccu-init)
       echo tests/canccu-dispatch.sh tests/canccu-dispatch2.sh tests/canccu-projects.sh tests/canccu-config.sh tests/canccu-cost.sh tests/canccu-compat.sh tests/canccu-ci.sh ;;
     lib/canccu-*|bin/canccu-*|profiles/*)
       echo tests/canccu-dispatch.sh tests/canccu-dispatch2.sh tests/canccu-review-effort.sh tests/canccu-projects.sh tests/canccu-config.sh tests/canccu-cost.sh tests/canccu-compat.sh tests/canccu-docs.sh \
-        tests/canccu-share.sh tests/canccu-followups.sh tests/canccu-followups2.sh ;;
+        tests/canccu-share.sh tests/canccu-followups.sh tests/canccu-followups2.sh tests/canccu-followups3.sh ;;
     .github/scripts/release*|tests/fixtures/home/*) echo tests/canccu-release.sh tests/canccu-ci.sh tests/canccu-repo.sh ;;
     .github/*) echo tests/canccu-ci.sh tests/canccu-repo.sh ;;
-    templates/*) echo tests/canccu-ci.sh tests/canccu-repo.sh tests/canccu-docs.sh ;;
+    templates/*) echo tests/canccu-ci.sh tests/canccu-repo.sh tests/canccu-docs.sh tests/canccu-followups3.sh ;;
     README.md) echo tests/canccu-repo.sh tests/canccu-docs.sh ;;
     REUSE.toml|.file-size-exemptions|.gitignore) echo tests/canccu-repo.sh ;;
     docs/*|*.md) echo tests/canccu-docs.sh ;;   # the docs test checks keys, sections and links
