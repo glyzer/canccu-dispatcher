@@ -118,10 +118,10 @@ run() {
   sed -i -e "s/^pid=.*/pid=$$/" -e '/^pstart=/d' "$lock"
   echo "pstart=$(proc_start $$)" >> "$lock"
   trap '[ -n "$wpid" ] && kill "$wpid" 2>/dev/null; rm -f "$lock" "$errf" "$sumf" "$stallf"; rm_tree "$run_tmp"' EXIT
-  # the spend line and the temp dir first: kill_tree (canccu-stop, worker --kill) sends KILL 3 s
-  # after TERM. A tool still running may write to the dir again; the EXIT trap, else the
-  # dispatcher's sweep at its start (run_tmp_sweep), removes that.
-  trap 'spend_unknown; rm_tree "$run_tmp"; [ -n "$cpid" ] && kill_tree "$cpid"; exit 143' TERM HUP INT
+  # the spend line first: kill_tree (canccu-stop, worker --kill) sends KILL 3 s after TERM. Then
+  # claude and its tools stop (1 s to end, well inside those 3 s) before their temp dir goes: the
+  # EXIT trap removes it, else (the run killed first) the dispatcher's sweep at its start (run_tmp_sweep)
+  trap 'spend_unknown; [ -n "$cpid" ] && kill_tree "$cpid" 1; exit 143' TERM HUP INT
   # disk: a temp dir of the run's own on disk, after the pid is in the lock (the sweep keeps a dir
   # its lock names). A RAM /tmp filled up with the venvs and caches runs left there (#155).
   if [ "${WORKER_TMPDIR_MODE:-disk}" = disk ]; then

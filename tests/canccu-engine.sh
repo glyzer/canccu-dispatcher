@@ -246,6 +246,19 @@ for _ in $(seq 100); do [ -s "$FAKE/tmp.seen" ] && grep -q web-52 "$FAKE/tmp.see
 td=$(cat "$FAKE/tmp.seen")
 { lib kill_tree "$wk"; wait "$wk"; } 2>/dev/null
 ok "tmp: a killed run's temp dir is gone too" eq "$(test -d "$td" && echo left)|$td" "|$WORKERS_DIR/tmp/web-52.$wk"
+# a HUP: claude is stopped before its temp dir goes, which the EXIT trap removes
+printf 'trap '\''test -d "$TMPDIR" && echo had > "$FAKE/tmp.term"; exit 0'\'' TERM; echo "$TMPDIR" > "$FAKE/tmp.seen"; sleep 30 & wait\n' > "$FAKE/claude.do"
+printf 'repo=web\nkey=54\nkind=worker\npid=\nwindow=\n' > "$WORKERS_DIR/web-54.lock"
+(PATH="$fb:$PATH" CODE_ROOT="$E/code" exec "$root/libexec/canccu-worker" __run web 54 5 1 2 "" "a prompt" "$E" "" >/dev/null 2>&1) &
+wk=$!
+for _ in $(seq 100); do [ -s "$FAKE/tmp.seen" ] && grep -q web-54 "$FAKE/tmp.seen" && break; sleep 0.1; done
+td=$(cat "$FAKE/tmp.seen")
+# a hangup reaches the run and its stream reader; this claude outlives it
+sr=$(pgrep -f "canccu-stream.py .*/web-54.log")
+# shellcheck disable=SC2086
+{ kill -HUP "$wk" $sr; wait "$wk"; } 2>/dev/null
+ok "tmp: a HUP stops claude while its temp dir is still there" eq "$(cat "$FAKE/tmp.term" 2>/dev/null)" had
+ok "… and the dir goes after" eq "$(test -d "$td" && echo left)" ""
 # system: today's behaviour, the inherited TMPDIR
 printf 'echo "${TMPDIR:-<unset>}" > "$FAKE/tmp.seen"\n' > "$FAKE/claude.do"
 eng 53 "$E" "" WORKER_TMPDIR_MODE=system TMPDIR="$E/inherited" > /dev/null
