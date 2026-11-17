@@ -30,6 +30,7 @@ The guides (getting started, install, upgrading, security, …) are in [`../READ
 | [`project-dir.md`](project-dir.md) | Every file in a project's dir |
 | [`snapshot.md`](snapshot.md) | The status snapshot's schema |
 | [`monitor.md`](monitor.md) | canccu-monitor's layout and self-test |
+| [`review-set.md`](review-set.md) | The reviewer's test set: the cases, running it, the log and baseline, the brake, the release gate |
 | [`scenarios.md`](scenarios.md) | The scenario suite: the sandbox, running it, what a FAIL prints, the release gate |
 | [`release.md`](release.md) | The release steps and their checks |
 

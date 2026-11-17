@@ -9,6 +9,10 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 - The scenario suite: `tests/scenarios/run --repo <owner/sandbox>` runs the real dispatcher
   against a sandbox repo with a fake engine (no model tokens). A release PR (one that changes
   `VERSION`) needs the body line `Scenarios: pass at <short sha>` (#189).
+- The reviewer's test set: `tests/review-set/run [--model m] [--effort e] [--light]` runs the
+  real review prompt on 12 fixed cases and logs the result to `review-set.log`. A red run against
+  its baseline engages the review brake. A release PR whose diff since the last tag touches the
+  review prompt or the verdict handling needs `Review set: pass at <short sha>` (#196).
 
 ## [0.2.0] — 2026-11-16
 
