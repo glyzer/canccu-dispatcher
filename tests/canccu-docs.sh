@@ -142,6 +142,9 @@ for w in 'Closes #' 'Package:' 'Risk:' 'Tier:' 'Decisions made:' 'Follow-up:' 'R
 done
 ok "… and the PR body lines the prompts and the classifier read" eq "${miss# }" ""
 ok "docs explain how to merge the snippets into a repo's own files" grep -qF 'CLAUDE.snippet.md' docs/repo-contract.md
+ok "the REVIEW.md snippet holds the three headings review_md keeps (#193)" \
+  eq "$(grep -E '^#+ ' "$S/REVIEW.snippet.md" 2>/dev/null | tr '\n' '|')" "## Also check|## Never blocks|## Known false positives|"
+ok "… and docs name it" grep -qF 'REVIEW.snippet.md' docs/repo-contract.md
 
 # the person who accepts is the product owner (contracts §1): the agent instructions and the
 # prompts never call them "the maintainer", or workers copy it into their PR bodies (#131)

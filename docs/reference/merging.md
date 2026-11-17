@@ -85,7 +85,8 @@ applies:
 5. a plan-tier PR (`docs/plans/issue-<n>.md` in the diff, or `Tier: plan`) before `plan-ok`;
    after `plan-ok`, a PR that does not close exactly the unit's issues (the build must close them);
 6. a path the rules' `GATED_PATHS` match, or agent configuration at any depth: `.claude/`,
-   `.mcp.json`, `CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md`. A rename counts by its old path too;
+   `.mcp.json`, `CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md`; and the root's `REVIEW.md` (the only
+   one the reviewer reads, [`reviews.md`](reviews.md)). A rename counts by its old path too;
 7. an issue (any issue of a package) labelled `manual-accept`;
 8. a package's risk class is `high`: from the plan, the PR's `Risk:` line or the reviewer,
    whichever is highest; for the health pass, a diff that touches `HIGH_RISK_PATHS`
