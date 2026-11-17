@@ -65,7 +65,8 @@ ping_states() {
         echo "$n $kind -" ;;
       accept)
         pr=$(st_get "$k" pr); [ -n "$pr" ] && pr_is_open "$pr" || continue
-        pr_has_label "$pr" accepted && continue
+        # a counting label on the PR or an issue: this pass acts on it
+        accept_channel label && accept_label_held "$k" "$pr" && continue
         [ "$(need_owner "$k" accept)" = po ] || continue
         n=$(lead_of "$k"); [ -n "$n" ] && echo "$n accept $pr" ;;
     esac
@@ -134,7 +135,7 @@ ping_line() {
       echo "$u this checkpoint waits for your \`checkpoint-ok\`: read the summary $url, then label this issue \`checkpoint-ok\`, or close it." ;;
     plan) echo "$u the plan here waits for your OK: label this issue \`plan-ok\`, or comment." ;;
     question) echo "$u the worker's question here needs the product owner: answer it in a comment." ;;
-    accept) echo "$u PR #$3 waits for your accept: label it \`accepted\`, or \`canccu-ship $1\`." ;;
+    accept) echo "$u PR #$3 waits for your accept: $(accept_ways "$1")." ;;
     pr-needs-you) echo "$u PR #$3 needs you (\`needs-you\`): its latest comments say why." ;;
     *) echo "$u this issue needs you (\`needs-you\`): the latest comments say why." ;;
   esac

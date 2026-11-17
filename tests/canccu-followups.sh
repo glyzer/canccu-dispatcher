@@ -131,4 +131,25 @@ ok "postpass_full names a risky path with a non-ASCII letter" \
   eq "$(lib eval ". '$root/lib/canccu-merge.sh'; FIXCHECK_RISKY='café'; postpass_full $QP_B $QP_H")" "risky path café menu.txt"
 ok "changed_lines keeps the path as it is" eq "$(lib eval "changed_lines $QP_B $QP_H")" "café menu.txt	1	1"
 
+# ---------------------------------------------------------------- accept pings and channels
+
+# pings <glob>: the comments posted as the reviewer bot whose gh.log line matches (one per line)
+pings() { grep -cE -- "$1" <(paste <(cut -f2 "$FAKE/gh.env") "$FAKE/gh.log" | grep -P '^reviewer\t' | cut -f2-); }
+env_new ping-accepted-issue
+{ issue 5 in-progress,awaiting-accept,accepted; } | issues
+pr 50 5 $HA green | prs
+state 5 phase=accept pr=50 accept_sha=$HA "accept_at=$((NOW - 60))" "reason=manual: changes .github/ (.github/workflows/ci.yml)"
+dispatch --once
+ok "\`accepted\` on the issue only: no accept ping" eq "$(pings '^issue comment 5 -R example-org/web --body @octo PR #50 waits')" 0
+
+env_new ping-ship-only ACCEPT_CHANNELS=ship
+{ issue 5 in-progress,awaiting-accept; } | issues
+pr 50 5 $HA green accepted | prs
+state 5 phase=accept pr=50 accept_sha=$HA "accept_at=$((NOW - 60))" "reason=manual: changes .github/ (.github/workflows/ci.yml)"
+dispatch --once
+ok "ACCEPT_CHANNELS=ship: an ignored label does not stop the ping, which offers canccu-ship only" \
+  has gh.log 'issue comment 5 -R example-org/web --body @octo PR #50 waits for your accept: `canccu-ship 5`.'
+lib eval "fetch; to_accept 5 50 'manual: changes .github/' $HA"
+ok "… the accept request offers canccu-ship only" eq "$(grep -c 'Accept: `canccu-ship 5`\.' "$FAKE/gh.log") $(grep -c 'Accept: add the label' "$FAKE/gh.log")" "1 0"
+
 echo "canccu-followups tests: $npass passed, $nfail failed"; (( nfail == 0 ))

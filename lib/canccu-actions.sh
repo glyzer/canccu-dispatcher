@@ -149,15 +149,18 @@ plan_merged_text() { echo "The plan $1 is approved and merged on main: execute i
 # to_accept <n> <pr> <reason> <head>: wait for the user's accept of this head. An `accepted` label
 # from before (an older head, or not the user's) is removed first: it never counts for this one.
 to_accept() {
-  local n=$1 pr=$2 reason=$3 head=$4 ship
+  local n=$1 pr=$2 reason=$3 head=$4 how=""
   drop_accepted "$n" "$pr"
-  # canccu-ship arms auto-merge: not offered in a repo without it
-  auto_merge_read; ship=", or \`canccu-ship $(lead_of "$n")\`"; [ "$AUTO_MERGE_ALLOWED" = false ] && ship=""
+  # only the channels that count are offered; canccu-ship arms auto-merge: not in a repo without it
+  accept_channel label && how="add the label \`accepted\` to this PR"
+  auto_merge_read
+  accept_channel ship && [ "$AUTO_MERGE_ALLOWED" != false ] && how="${how:+$how, or }\`canccu-ship $(lead_of "$n")\`"
+  [ -n "$how" ] || how="as ACCEPT_CHANNELS ($ACCEPT_CHANNELS) allows"
   # armed by someone else (a worker acting as the user): a manual PR never merges on its own
   [ "$(pr_get "$pr" '.autoMergeRequest != null')" = true ] && mut gh pr merge "$pr" -R "$REPO" --disable-auto
   edit_issue "$n" --add-label awaiting-accept
   comment_pr "$pr" "Review passed; this PR waits for your accept: ${reason#manual: }.
-Accept: add the label \`accepted\` to this PR$ship.
+Accept: $how.
 Reject: comment here and label issue #$(lead_of "$n") \`needs-work\`."
   st_set "$n" phase=accept accept_sha="$head" accept_at="$(now)" reason="$(oneline 200 "$reason")" accept_reason="$(oneline 200 "$reason")"
   log "#$n PR #$pr: awaiting accept ($reason)$(its_url "$(pr_url "$pr")")"
