@@ -1179,9 +1179,10 @@ ok "… the next pass, 600 s later with a slot, leaves ci_wait at 420" \
   eq "$(cut -f15 "$WORKERS_DIR/spend.log")" "pr=50,ci=green,ci_wait=420"
 
 # the ask block at the top of the PR body (#181)
+# (PR_LINES=0: the bodies are exactly the fixtures below)
 env_new accept-block
 { issue 5 in-progress; } | issues
-pr 50 5 $HA green "" false "The worker's body." | prs
+PR_LINES=0 pr 50 5 $HA green "" false "The worker's body." | prs
 state 5 phase=check pr=50 pass_sha=$HA
 toacc() { lib eval "PRS=\$(cat '$FAKE/prs.json'); ISSUES=\$(cat '$FAKE/issues.json'); to_accept 5 50 'manual: plan tier' $1"; }
 toacc $HA
@@ -1203,18 +1204,18 @@ https://github.com/example-org/web/pull/50 · head ${HA:0:7}
 
 The worker's body."
 ok "… and no PR comment" hasnt gh.log "pr comment 50"
-pr 50 5 $HB green "" false "$(cat "$FAKE/prbody-50")" | prs
+PR_LINES=0 pr 50 5 $HB green "" false "$(cat "$FAKE/prbody-50")" | prs
 state 5 phase=check pr=50 pass_sha=$HB
 toacc $HB
 ok "… a new head replaces the block, the rest kept" \
   eq "$(grep -c 'canccu:ask' "$FAKE/prbody-50") $(grep -c "head ${HB:0:7}" "$FAKE/prbody-50") $(grep -c "${HA:0:7}" "$FAKE/prbody-50") $(tail -1 "$FAKE/prbody-50")" \
   "2 1 0 The worker's body."
-pr 50 5 $HB green "" false "$(sed 's/$/\r/' "$FAKE/prbody-50")" | prs
+PR_LINES=0 pr 50 5 $HB green "" false "$(sed 's/$/\r/' "$FAKE/prbody-50")" | prs
 toacc $HB
 ok "… a CRLF body (edited on the web): the old block goes, the rest kept" \
   eq "$(grep -c 'canccu:ask' "$FAKE/prbody-50") $(grep -c $'\r' "$FAKE/prbody-50") $(tail -1 "$FAKE/prbody-50")" \
   "2 0 The worker's body."
-pr 50 5 $HB green "" false "<!-- canccu:ask -->
+PR_LINES=0 pr 50 5 $HB green "" false "<!-- canccu:ask -->
 The worker's body." | prs
 toacc $HB
 ok "… an opening marker with no closing one: the body is kept as it is" \
