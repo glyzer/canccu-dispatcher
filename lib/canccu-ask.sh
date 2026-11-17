@@ -124,13 +124,15 @@ ask_form() {
 
 # ask_block <n> <pr> <lines after "If you accept:">: the accept's form at the top of the PR body,
 # between the markers; what was between them before (an older head's form) goes, the rest of the
-# body stays. Written, the head is kept as ask_sha; accept_step writes it again while ask_sha is not
+# body stays. Carriage returns go first (a body edited on the web ends lines in CRLF); an opening
+# marker with no closing one strips nothing, so the body is kept as it is. Written, the head is kept as ask_sha; accept_step writes it again while ask_sha is not
 # the accept's head (a gh error: logged, the accept goes on; a head kept by keep_accept).
 ask_block() {
   local form rest f
   form=$(ask_form "$1" accept "$2" - "$3")
-  rest=$(pr_get "$2" '.body // ""' | awk '/^<!-- canccu:ask -->$/ { s = 1; next }
-    s && /^<!-- \/canccu:ask -->$/ { s = 0; next } !s' | sed '/./,$!d')
+  rest=$(pr_get "$2" '.body // ""' | tr -d '\r' | awk '{ l[NR] = $0 }
+    !o && /^<!-- canccu:ask -->$/ { o = NR } o && !c && NR > o && /^<!-- \/canccu:ask -->$/ { c = NR }
+    END { for (i = 1; i <= NR; i++) if (!c || i < o || i > c) print l[i] }' | sed '/./,$!d')
   if (( CANCCU_DRY )); then mut gh pr edit "$2" -R "$REPO" --body-file "<the PR body with the ask form>"; return 0; fi
   f=$(mktemp) || { log "#$1 PR #$2: gh error writing the ask block; tried again next pass"; return 0; }
   printf '%s\n%s\n%s\n' '<!-- canccu:ask -->' "$form" '<!-- /canccu:ask -->' > "$f"

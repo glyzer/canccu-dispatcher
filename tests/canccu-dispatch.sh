@@ -1209,6 +1209,17 @@ toacc $HB
 ok "… a new head replaces the block, the rest kept" \
   eq "$(grep -c 'canccu:ask' "$FAKE/prbody-50") $(grep -c "head ${HB:0:7}" "$FAKE/prbody-50") $(grep -c "${HA:0:7}" "$FAKE/prbody-50") $(tail -1 "$FAKE/prbody-50")" \
   "2 1 0 The worker's body."
+pr 50 5 $HB green "" false "$(sed 's/$/\r/' "$FAKE/prbody-50")" | prs
+toacc $HB
+ok "… a CRLF body (edited on the web): the old block goes, the rest kept" \
+  eq "$(grep -c 'canccu:ask' "$FAKE/prbody-50") $(grep -c $'\r' "$FAKE/prbody-50") $(tail -1 "$FAKE/prbody-50")" \
+  "2 0 The worker's body."
+pr 50 5 $HB green "" false "<!-- canccu:ask -->
+The worker's body." | prs
+toacc $HB
+ok "… an opening marker with no closing one: the body is kept as it is" \
+  eq "$(grep -c 'canccu:ask' "$FAKE/prbody-50") $(tail -2 "$FAKE/prbody-50" | head -1) $(tail -1 "$FAKE/prbody-50")" \
+  "3 <!-- canccu:ask --> The worker's body."
 echo 'fail:pr edit' >> "$FAKE/routes"
 toacc $HB
 ok "… a gh error is logged and the accept goes on" \
