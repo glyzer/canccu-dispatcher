@@ -138,6 +138,11 @@ ok "cap medium: a fix-check with no lines stays medium" eq "$(cap medium "fixche
 ok "an invalid cap is ignored: high stays high" eq "$(cap fast "review_effort_pure \$'src/a.ts\t500' 'Tier: feature'")" high
 ok "… and a fix-check's medium stays medium" eq "$(cap fast "fixcheck_effort_pure \$'400\t1\tsrc/a.ts'")" medium
 ok "… with one warning in the log" eq "$(grep -c 'REVIEW_EFFORT_MAX is not low, medium, high, xhigh or max (fast): ignored' "$CANCCU_HOME/dispatch.log")" 1
+env_new effort-cap-top
+ok "cap xhigh: max → xhigh capped" eq "$(cap xhigh "effort_cap max")" "xhigh capped"
+ok "cap xhigh: high stays high, not capped" eq "$(cap xhigh "effort_cap high")" high
+ok "cap max: xhigh stays xhigh, not capped" eq "$(cap max "effort_cap xhigh")" xhigh
+ok "… and neither cap warns" eq "$(cat "$CANCCU_HOME/dispatch.log" 2>/dev/null | grep -c "REVIEW_EFFORT_MAX is not")" 0
 ok "REVIEW_EFFORT_MAX defaults to empty" eq "$( . "$root/lib/canccu-config.default"; echo "[$REVIEW_EFFORT_MAX]")" "[]"
 
 # a reviewer started under the cap: the effort file says so, the prompt names the effort only
