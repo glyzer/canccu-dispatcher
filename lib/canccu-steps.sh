@@ -223,8 +223,12 @@ wave_can_start() { plan_states "$1" | cut -f2 | grep -qx pending; }
 # wave_rolls <m>: WAVE_ROLLING=1, nothing of the wave waits to start and a run slot is free (the
 # count CAP uses): the next wave is planned now. Its plan carries the running packages, and a
 # blocked one behind them (carried_packages); a new package overlapping one waits for it
-# (plan_validate's running areas)
-wave_rolls() { [ "${WAVE_ROLLING:-0}" = 1 ] && ! wave_can_start "$1" && (( $(running_count) < CAP )); }
+# (plan_validate's running areas). Nothing left to plan: the wave just runs on (no idle step that
+# claims to plan)
+wave_rolls() {
+  [ "${WAVE_ROLLING:-0}" = 1 ] && ! wave_can_start "$1" && (( $(running_count) < CAP )) &&
+    [ -n "$(planner_issues "$1" | head -1)" ]
+}
 # plan_states <m>: "<name>\t<status>\t<live 1|0>\t<issues>\t<unit key>" per package of the current plan, one
 # package_status each. Live: unfinished and able to run still: running (an accept or needs-you
 # included), pending, or blocked while every dependency not merged is live too. A package behind

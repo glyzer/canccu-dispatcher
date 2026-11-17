@@ -64,4 +64,24 @@ touch -d "@$NOW.1" "$CANCCU_HOME/config"; a=$(lib canccu_cfg_stamp)
 touch -d "@$NOW.2" "$CANCCU_HOME/config"
 ok "the reload stamp sees a change in the same second" not eq "$(lib canccu_cfg_stamp)" "$a"
 
+# ---------------------------------------------------------------- planner and packages
+
+env_new plan-areas
+pvo() {
+  printf '%s\n' "$1" > "$E/ov.json"
+  lib plan_validate "$E/ov.json" "$(jq -c '.carried = [{name: "r"}]' "$root/tests/fixtures/plans/input.json")" 12 2 "$2" | jq -c .errors
+}
+ovp() { jq -nc --argjson a "$1" '{schema: 1, step: 12, wave: 2, packages: [{name: "n", issues: [101], risk: "low", risk_reason: "x", areas: $a, depends_on: []}]}'; }
+for a in . ./ /; do
+  ok "a running package's root area '$a' overlaps every new area" \
+    eq "$(pvo "$(ovp '["lib/x.sh"]')" "[{\"name\":\"r\",\"areas\":[\"$a\"]}]")" '["n overlaps running r in lib/x.sh"]'
+done
+ok "… a new package's root area overlaps a running one's" \
+  eq "$(pvo "$(ovp '["."]')" '[{"name":"r","areas":["lib/a"]}]')" '["n overlaps running r in lib/a"]'
+printf '%s\n' '{"packages":[{"name":"a","areas":["lib/a"]},{"name":"b","areas":["lib/b"]},{"name":"c","areas":["lib/c"]}]}' > "$E/plan.json"
+ok "running_areas: the live carried packages (blocked, pending) count, a dead one not" \
+  eq "$(lib eval "step_get() { echo '$E/plan.json'; }
+    plan_states() { printf 'a\trunning\t1\t101\tk1\nb\tblocked\t1\t102\tk2\nc\tclosed\t0\t103\tk3\n'; }
+    running_areas 12")" '[{"name":"a","areas":["lib/a"]},{"name":"b","areas":["lib/b"]}]'
+
 echo "canccu-followups2 tests: $npass passed, $nfail failed"; (( nfail == 0 ))

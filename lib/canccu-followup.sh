@@ -86,11 +86,18 @@ handoff() {
   [ -n "$dirty" ] && printf ' Uncommitted in the worktree: %s.' "$(oneline 400 "$dirty")"
   [ -n "$rep" ] && printf ' Your last report: %s' "$(oneline 1200 "$rep")"
   br=$(st_get "$k" branch); [ -n "$br" ] || [ ! -e "$wt/.git" ] || br=$(guard 20 git -C "$wt" branch --show-current 2>/dev/null)
-  if [ -n "$(st_get "$k" pkg)" ]; then
+  # the health pass has no members, and its limits are in no repo file
+  if is_health "$k"; then
+    unit="the health pass of step $(step_title "$(st_get "$k" step)") (cleanups only: change no behaviour; the PR has no \`Closes\` line)"
+  elif [ -n "$(st_get "$k" pkg)" ]; then
     unit="work package \"$(st_get "$k" pkg)\" (issues"; for m in $(members_of "$k"); do unit+=" #$m,"; done; unit="${unit%,})"
   else unit="issue #$k"; fi
   printf ' This run is on %s, branch %s. The repo'"'"'s AGENTS.md and CLAUDE.md hold the full rules.' "$unit" "${br:-$k}"
+  # the first prompt's test rule (RUN_RULES) is the dispatcher's, not the repo's: it goes again
+  printf ' %s' "$HANDOFF_TEST_RULE"
 }
+HANDOFF_TEST_RULE='Tests: run only the tests of the files you change, in the foreground; CI runs the full suite on every push. Never paste whole test logs; never run a command in the background.'
+
 
 # handoff_file <K>: the handoff a run nudged at the usage stop ended with (its final message); kept
 # apart from .last, which the next run of the unit overwrites
