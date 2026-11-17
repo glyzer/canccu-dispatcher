@@ -1,0 +1,22 @@
+diff --git a/bin/tally b/bin/tally
+index a31f65b..340bb0e 100755
+--- a/bin/tally
++++ b/bin/tally
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env bash
+ # SPDX-License-Identifier: AGPL-3.0-or-later
+ # tally — named counters in a file (docs/format.md)
+-#   tally add <name> [n]   add n (default 1) to the counter
++#   tally add <name> [n]   add n (default $TALLY_STEP, else 1) to the counter
+ #   tally show [name]      every counter, or one
+ #   tally reset <name>     remove a counter
+ set -euo pipefail
+@@ -12,7 +12,7 @@ here=$(cd "$(dirname "$0")/.." && pwd)
+ cmd=${1:-}; shift || true
+ case $cmd in
+   add)
+-    name=${1:?tally add <name> [n]} n=${2:-1}
++    name=${1:?tally add <name> [n]} n=${2:-${TALLY_STEP:-1}}
+     valid_name "$name" || { echo "tally: bad name $name" >&2; exit 2; }
+     [[ $n =~ ^[0-9]+$ ]] || { echo "tally: bad count $n" >&2; exit 2; }
+     store_set "$name" $(( $(store_get "$name") + n )) ;;

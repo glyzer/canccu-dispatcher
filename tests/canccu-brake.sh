@@ -196,5 +196,88 @@ ok "… at the baseline" grep -qxF \
   "at the baseline (5 merged PRs, 2030-10-15T00:00:00Z): rounds 2.00/PR · blocking by class: - · demoted - · escaped 0.20/PR" <<<"$out"
 ok "… three lines" eq "$(grep -c . <<<"$out")" 3
 
+# ---------------------------------------------------------------- the reviewer's test set (#196)
+
+# a fake reviewer for tests/review-set/run (REVIEW_SET_ENGINE): the prompt on stdin, the review
+# file, the head and the case dir as arguments. It finds every planted defect at its line and
+# passes every clean case; a case named in $FAKE/rs-miss passes instead, one in $FAKE/rs-block gets
+# a blocking finding. A case with a history raises its settled finding again: the set must demote it.
+cat > "$fb/rs-reviewer" <<'EOF'
+#!/usr/bin/env bash
+f=$1 sha=$2 d=${3%/}; c=${d##*/}
+cat > "$FAKE/rs-prompt-$c"
+items=$(sed -n 's/^defect //p' "$d/expect")
+grep -qx "$c" "$FAKE/rs-miss" 2>/dev/null && items=""
+grep -qx "$c" "$FAKE/rs-block" 2>/dev/null && items="correctness bin/tally:3"
+[ -f "$d/history" ] && items=$(awk -F '\t' '{ print $2 " " $3 ":" $4 }' "$d/history")
+n=0
+{ echo "Blocking:"
+  while read -r cl loc; do
+    [ -n "$cl" ] || continue; n=$((n + 1))
+    printf '%d. [%s] %s — planted\n   Evidence: the case plants it\n   Fix: take it out\n' "$n" "$cl" "$loc"
+  done <<<"$items"
+  printf 'Non-blocking:\nPre-existing:\nFindings: %d blocking, 0 non-blocking, 0 pre-existing\n' "$n"
+  if (( n )); then echo "Review verdict: changes $sha"; else echo "Review verdict: pass $sha"; fi; } > "$f"
+EOF
+chmod +x "$fb/rs-reviewer"
+rs() { PATH="$fb:$PATH" REVIEW_SET_ENGINE=$fb/rs-reviewer "$root/tests/review-set/run" "$@" > "$E/out" 2>&1; rc=$?; }
+RS_DEFECTS="defect-contract defect-correctness defect-criterion defect-data-loss defect-security defect-test"
+RS_SHA=$(git -C "$root" rev-parse --short HEAD)
+
+env_new review-set
+rs
+ok "the review set: one result line per case, 12 cases" \
+  eq "$(grep -cE '^[a-z-]+ (found|missed|clean|blocked)$' "$E/out")" 12
+ok "… every planted defect found" eq "$(grep ' found$' "$E/out" | cut -d' ' -f1 | tr '\n' ' ')" "$RS_DEFECTS "
+ok "… every clean case clean, the settled finding raised again among them" \
+  eq "$(grep -c ' clean$' "$E/out") $(grep -c '^settled-add-output clean$' "$E/out")" "6 1"
+ok "… then the totals" grep -qxF "found 6 · missed 0 · clean 6 · blocked 0" "$E/out"
+ok "… exit 0" eq "$rc" 0
+ok "… the real review prompt, at high effort without --effort" \
+  grep -qF "Run the code-review skill at high effort on the diff" "$FAKE/rs-prompt-defect-test"
+ok "… with the case's issue" grep -qF "gh issue view 7 -R example-user/tools" "$FAKE/rs-prompt-defect-test"
+ok "… and the settled case's history" grep -qF "[contract] bin/tally:" "$FAKE/rs-prompt-settled-add-output"
+ok "the first run writes the baseline: the cases it found" \
+  eq "$(cat "$CANCCU_HOME/review-set-baseline")" "2030-11-05T12:00:00Z $RS_SHA default high 0 ${RS_DEFECTS// /,}"
+ok "… and its line in review-set.log" \
+  eq "$(cat "$CANCCU_HOME/review-set.log")" "2030-11-05T12:00:00Z $RS_SHA default high 6 0 0 -"
+echo defect-security > "$FAKE/rs-miss"
+rs --model some-model --effort medium
+ok "a fake reviewer that misses a case the baseline found: a red run, exit 1" eq "$rc" 1
+ok "… the case missed" grep -qx 'defect-security missed' "$E/out"
+ok "… the log line names it, with the model and effort" \
+  eq "$(tail -n 1 "$CANCCU_HOME/review-set.log")" "2030-11-05T12:00:00Z $RS_SHA some-model medium 5 1 0 defect-security"
+ok "… the baseline stays the first run's" grep -q ' default high 0 ' "$CANCCU_HOME/review-set-baseline"
+ok "… and the brake engages (REVIEW_BRAKE=auto), with the trigger" \
+  eq "$(cat "$CANCCU_HOME/brake" 2>/dev/null)" "2030-11-05T12:00:00Z review set missed defect-security"
+ok "… one feed line for the product owner" \
+  eq "$(tail -1 "$CANCCU_HOME/events" | cut -f3-)" "$(printf 'po\task\tneeds-you\t-\t-\t-\tReview brake on: review set missed defect-security. %s' "$TRIGGER_TEXT")"
+n=$(grep -c . "$CANCCU_HOME/events")
+rs
+ok "… a second red run while it is on: still red, the brake and its trigger unchanged" \
+  eq "$rc $(cat "$CANCCU_HOME/brake") $(grep -c . "$CANCCU_HOME/events")" "1 2030-11-05T12:00:00Z review set missed defect-security $n"
+
+env_new review-set-block
+rs; echo clean-help > "$FAKE/rs-block"; rs
+ok "a clean case blocked, more than at the baseline: red, and the brake names it" \
+  eq "$rc $(grep -c '^clean-help blocked$' "$E/out") $(cut -d' ' -f2- "$CANCCU_HOME/brake" 2>/dev/null)" "1 1 review set missed clean-help"
+ok "… the log counts it as clean-blocked" eq "$(tail -n 1 "$CANCCU_HOME/review-set.log" | cut -d' ' -f5-)" "6 0 1 clean-help"
+
+env_new review-set-off REVIEW_BRAKE=off
+rs; echo defect-test > "$FAKE/rs-miss"; rs
+ok "REVIEW_BRAKE=off: a red run engages no brake" eq "$rc $(test -e "$CANCCU_HOME/brake" && echo on)" "1 "
+
+env_new review-set-light
+rs --light
+ok "--light: the light review's prompt (#216)" grep -qF "This is a light review: do not run the code-review skill" "$FAKE/rs-prompt-defect-test"
+ok "… a baseline of its own, its effort low" eq "$(cut -d' ' -f3-5 "$CANCCU_HOME/review-set-baseline-light" 2>/dev/null) $(test -e "$CANCCU_HOME/review-set-baseline" && echo both)" "default light 0 "
+ok "… marked light in the log" eq "$(cut -d' ' -f3-4 "$CANCCU_HOME/review-set.log")" "default light"
+echo defect-contract > "$FAKE/rs-miss"; rs --light
+ok "… judged against its own baseline: red" eq "$rc $(cut -d' ' -f2- "$CANCCU_HOME/brake" 2>/dev/null)" "1 review set missed defect-contract"
+rs --light --effort high
+ok "--light with --effort: a usage error (the light review runs at low)" eq "$rc" 2
+rs --effort extreme
+ok "an effort claude does not know: a usage error" eq "$rc" 2
+
 echo "canccu-brake tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

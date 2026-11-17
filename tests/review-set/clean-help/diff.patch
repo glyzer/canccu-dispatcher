@@ -1,0 +1,39 @@
+diff --git a/bin/tally b/bin/tally
+index a31f65b..191ba85 100755
+--- a/bin/tally
++++ b/bin/tally
+@@ -4,11 +4,14 @@
+ #   tally add <name> [n]   add n (default 1) to the counter
+ #   tally show [name]      every counter, or one
+ #   tally reset <name>     remove a counter
++#   tally help             this usage
+ set -euo pipefail
+ here=$(cd "$(dirname "$0")/.." && pwd)
+ # shellcheck source=../lib/store.sh
+ . "$here/lib/store.sh"
+ 
++usage() { echo "usage: tally add|show|reset|help"; }
++
+ cmd=${1:-}; shift || true
+ case $cmd in
+   add)
+@@ -22,5 +25,6 @@ case $cmd in
+     name=${1:?tally reset <name>}
+     valid_name "$name" || { echo "tally: bad name $name" >&2; exit 2; }
+     store_del "$name" ;;
+-  *) echo "usage: tally add|show|reset" >&2; exit 2 ;;
++  help) usage ;;
++  *) usage >&2; exit 2 ;;
+ esac
+diff --git a/tests/store.sh b/tests/store.sh
+index 81b42bb..1d30217 100644
+--- a/tests/store.sh
++++ b/tests/store.sh
+@@ -15,5 +15,7 @@ check "the file is sorted" "$(t show)" "$(printf 'apples\t3\npears\t1')"
+ t reset apples
+ check "reset removes the counter" "$(t show)" "$(printf 'pears\t1')"
+ check "an unknown name counts 0" "$(t show plums)" "$(printf 'plums\t0')"
++check "help prints the usage" "$(t help)" "usage: tally add|show|reset|help"
++check "an unknown command: the usage on stderr, exit 2" "$(t frob 2>&1 >/dev/null; echo "rc=$?")" "$(printf 'usage: tally add|show|reset|help\nrc=2')"
+ # --- new checks above this line
+ exit "$fail"

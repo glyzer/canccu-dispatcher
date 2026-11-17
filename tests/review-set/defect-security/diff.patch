@@ -1,0 +1,38 @@
+diff --git a/bin/tally b/bin/tally
+index a31f65b..46ea1e5 100755
+--- a/bin/tally
++++ b/bin/tally
+@@ -4,6 +4,7 @@
+ #   tally add <name> [n]   add n (default 1) to the counter
+ #   tally show [name]      every counter, or one
+ #   tally reset <name>     remove a counter
++#   tally import <file>    add the counters of a file in the same format
+ set -euo pipefail
+ here=$(cd "$(dirname "$0")/.." && pwd)
+ # shellcheck source=../lib/store.sh
+@@ -22,5 +23,11 @@ case $cmd in
+     name=${1:?tally reset <name>}
+     valid_name "$name" || { echo "tally: bad name $name" >&2; exit 2; }
+     store_del "$name" ;;
+-  *) echo "usage: tally add|show|reset" >&2; exit 2 ;;
++  import)
++    file=${1:?tally import <file>}
++    [ -r "$file" ] || { echo "tally: cannot read $file" >&2; exit 2; }
++    while IFS=$'\t' read -r name n; do
++      eval "store_set $name \$(( \$(store_get $name) + $n ))"
++    done < "$file" ;;
++  *) echo "usage: tally add|show|reset|import" >&2; exit 2 ;;
+ esac
+diff --git a/tests/store.sh b/tests/store.sh
+index 81b42bb..450e95b 100644
+--- a/tests/store.sh
++++ b/tests/store.sh
+@@ -15,5 +15,8 @@ check "the file is sorted" "$(t show)" "$(printf 'apples\t3\npears\t1')"
+ t reset apples
+ check "reset removes the counter" "$(t show)" "$(printf 'pears\t1')"
+ check "an unknown name counts 0" "$(t show plums)" "$(printf 'plums\t0')"
++printf 'kiwis\t2\npears\t3\n' > "$TALLY_FILE.in"
++t import "$TALLY_FILE.in"; rm -f "$TALLY_FILE.in"
++check "import adds the counts of a file" "$(t show)" "$(printf 'kiwis\t2\npears\t4')"
+ # --- new checks above this line
+ exit "$fail"

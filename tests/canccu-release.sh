@@ -61,6 +61,65 @@ ok "check --body: the tag check still runs first" eq "$rc $(grep -c VERSION "$T/
 rel "$T/chk" check v1.2.3 --body
 ok "check --body without a file: a usage error" eq "$rc" 2
 
+# ---------------------------------------------------------------- check --body: the review set's line (#196)
+
+# a repo at the tag v1.2.0, then a commit for 1.3.0 that changes one thing (gate <dir> <sed on a file>)
+gate() {
+  local d=$T/$1; shift
+  mkdir -p "$d/lib"; echo 1.2.0 > "$d/VERSION"; changelog "$d" '## [1.2.0] — 2030-11-01'
+  printf '%s\n' '# the prompt' 'review_prompt() {' '  echo "review the diff"' '}' 'other() {' '  echo other' '}' > "$d/lib/canccu-runs.sh"
+  printf '%s\n' 'LIGHT_REVIEW_TEXT='"'"'check this'"'" 'light_review_prompt() {' '  echo "$LIGHT_REVIEW_TEXT"' '}' > "$d/lib/canccu-depth.sh"
+  printf '%s\n' 'norepeat_prompt() {' '  echo "no repeats"' '}' > "$d/lib/canccu-norepeat.sh"
+  printf '%s\n' 'review_md() { :; }' > "$d/lib/canccu-verdict.sh"
+  printf '%s\n' 'MODEL=' 'REVIEW_MODEL=               # the full reviewer' 'FIX_MODEL=' > "$d/lib/canccu-config.default"
+  git -C "$d" init -q && git -C "$d" add -A && git -C "$d" -c user.name=octo -c user.email=octo@users.noreply.github.com commit -qm 1.2.0 &&
+    git -C "$d" tag v1.2.0
+  echo 1.3.0 > "$d/VERSION"; changelog "$d" '## [1.3.0] — 2030-11-05'
+  [ $# -eq 0 ] || sed -i "$2" "$d/$1"
+  git -C "$d" add -A && git -C "$d" -c user.name=octo -c user.email=octo@users.noreply.github.com commit -qm 1.3.0
+}
+printf '%s\n' 'Scenarios: pass at 1a2b3c4' 'Review set: pass at 5e6f7a8' > "$T/body-rs"
+rsgate='the release PR body has no "Review set: pass at <sha>" line'
+
+gate g-none
+rel "$T/g-none" check v1.3.0 --body "$T/body-ok"
+ok "review set: nothing of the reviewer changed since the last tag: no line needed" eq "$rc" 0
+gate g-other lib/canccu-runs.sh 's/echo other/echo another/'
+rel "$T/g-other" check v1.3.0 --body "$T/body-ok"
+ok "… another function of the same file changed: no line needed" eq "$rc" 0
+gate g-comment lib/canccu-runs.sh 's/# the prompt/# the reviewer'"'"'s prompt/'
+rel "$T/g-comment" check v1.3.0 --body "$T/body-ok"
+ok "… a comment above the prompt changed: no line needed" eq "$rc" 0
+gate g-prompt lib/canccu-runs.sh 's/review the diff/review the whole diff/'
+rel "$T/g-prompt" check v1.3.0 --body "$T/body-ok"
+ok "the review prompt changed since the tag, no line: fails, naming the tag" \
+  eq "$rc $(grep -cF "$rsgate" "$T/out") $(grep -c 'since v1.2.0' "$T/out")" "1 1 1"
+rel "$T/g-prompt" check v1.3.0 --body "$T/body-rs"
+ok "… with the line: ok" eq "$rc" 0
+printf '%s\n' 'Scenarios: pass at 1a2b3c4' 'Review set: pass at nope' > "$T/body-rs-bad"
+rel "$T/g-prompt" check v1.3.0 --body "$T/body-rs-bad"
+ok "… a line whose sha is no sha: fails" eq "$rc" 1
+rel "$T/g-prompt" check v1.3.0
+ok "… the tag check alone (no --body) asks for no line" eq "$rc" 0
+gate g-light lib/canccu-depth.sh 's/check this/check that/'
+rel "$T/g-light" check v1.3.0 --body "$T/body-ok"
+ok "the light review's text changed: fails" eq "$rc $(grep -cF "$rsgate" "$T/out")" "1 1"
+gate g-norepeat lib/canccu-norepeat.sh 's/no repeats/no repeats, ever/'
+rel "$T/g-norepeat" check v1.3.0 --body "$T/body-ok"
+ok "the no-repeat part of the prompt changed: fails" eq "$rc" 1
+gate g-verdict lib/canccu-verdict.sh 's/:; }/echo x; }/'
+rel "$T/g-verdict" check v1.3.0 --body "$T/body-ok"
+ok "lib/canccu-verdict.sh (the block, REVIEW.md handling) changed: fails" eq "$rc" 1
+gate g-model lib/canccu-config.default 's/^REVIEW_MODEL=  /REVIEW_MODEL=m /'
+rel "$T/g-model" check v1.3.0 --body "$T/body-ok"
+ok "REVIEW_MODEL's default changed: fails" eq "$rc" 1
+gate g-fixmodel lib/canccu-config.default 's/^FIX_MODEL=/FIX_MODEL=m/'
+rel "$T/g-fixmodel" check v1.3.0 --body "$T/body-ok"
+ok "… another default changed: no line needed" eq "$rc" 0
+gate g-notag; git -C "$T/g-notag" tag -d v1.2.0 >/dev/null
+rel "$T/g-notag" check v1.3.0 --body "$T/body-ok"
+ok "no earlier tag to compare with: the line is needed" eq "$rc $(grep -cF "$rsgate" "$T/out")" "1 1"
+
 # ---------------------------------------------------------------- notes: the section's body
 
 changelog "$T/chk" '## [1.2.4] — 2030-11-05'
