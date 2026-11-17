@@ -97,6 +97,7 @@ def self_test():
     version_checks(mock, check)
     owner_checks(mock, check)
     title_checks(mock, check)
+    brake_checks(mock, check)
     for f in fails:
         print("FAIL " + f)
     print("canccu-monitor self-test: %d checks failed" % len(fails) if fails else "canccu-monitor self-test: ok")
@@ -105,6 +106,18 @@ def self_test():
 
 def mock_frame(mock, w, h, no_color=False, own=None):
     return frame(own or mock["tools"], None, w, h, [("web", mock["web"])], no_color, MOCK_NOW, "tools")
+
+
+def brake_checks(mock, check):
+    """The review brake's banner (#195): shown while pass.brake is set, never otherwise."""
+    snap = copy.deepcopy(mock["web"])
+    text = "on since 2030-11-05T12:00:00Z (escaped defects 0.20/PR over the last 10 merged PRs, baseline 0.10/PR)"
+    snap.setdefault("pass", {})["brake"] = text
+    plain, _ = frame(snap, None, 120, 40, (), False, MOCK_NOW, "web")
+    check(flat("brake: " + text) in flat(plain), "brake: no banner while the brake is on")
+    snap["pass"]["brake"] = None
+    plain, _ = frame(snap, None, 120, 40, (), False, MOCK_NOW, "web")
+    check("brake:onsince" not in flat(plain), "brake: a banner while the brake is off")
 
 
 def title_checks(mock, check):

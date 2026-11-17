@@ -24,6 +24,18 @@ touches the state, and uninstall keeps it unless you pass `--purge-state --yes`.
 
 Every file in `~/.canccu/projects/<name>/` is listed in [`project-dir.md`](project-dir.md).
 
+## The review brake
+
+Two files in the project's dir ([`review-depth.md`](review-depth.md#the-review-brake)):
+
+- `brake`: while the brake is on, one line, `<time> <trigger>`: the UTC time it engaged and why,
+  for example `2030-11-05T12:00:00Z escaped defects 0.20/PR over the last 10 merged PRs, baseline
+  0.10/PR`. Every review decision checks that the file exists. Only `canccu-dispatcher brake
+  release` removes it.
+- `brake-baseline`: one line, `<time> <escaped/PR> <rounds/PR> <PRs counted>`, written once when
+  the first pass with enough PRs before Q1 finds it missing. Delete it to compute the baseline
+  again.
+
 ## The state format
 
 `state.format` holds one number: the format of the project's `state/` and `steps/` files (a

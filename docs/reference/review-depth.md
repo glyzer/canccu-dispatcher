@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
-# Review depth: a head reviewed once, the light review, the count
+# Review depth: a head reviewed once, the light review, the count, the brake
 
 Part of the reference; the index is [`README.md`](README.md). How much review a PR head gets:
 the reviewer itself, the fix-check and the verdict line are in [`reviews.md`](reviews.md).
@@ -77,3 +77,38 @@ the same way with it, and as before without it. Any other git result counts as b
 is a full review, never a missed one. The count after a pass, and the fix-check's with
 `FIXCHECK_COUNT_RESOLVED=1`, diff with `--no-renames`: a file moved out of a gated or risky path
 counts by its old path too.
+
+## The review brake
+
+Q1 relaxed the reviews (demotions, no repeats, light reviews). The brake takes that back by
+itself when escaped defects rise. An escaped defect is an issue or PR, open or closed, with a
+`Regression of: #<pr>` line. Bug issues carry one, and the reviewer asks for one on a fix PR.
+
+- **The baseline.** It covers the last `BRAKE_WINDOW` PRs merged before the first `reviews.log`
+  line: their escaped defects per merged PR, and their review rounds per merged PR (the
+  `review-<pr>` runs of the spend log up to the merge). It is written once, to `brake-baseline`.
+  With fewer than 5 such PRs there is no baseline, the trigger is off, and `canccu-status` says so.
+- **The trigger.** With `REVIEW_BRAKE=auto`, each pass compares the escaped defects per merged PR
+  of the last `BRAKE_WINDOW` merged PRs with the baseline. Above it, the brake engages: the file
+  `brake` (`<time> <trigger>`), one `ask` feed line for the product owner (kind `needs-you`), and
+  the same text in `dispatch.log`: "Review brake on: <trigger>. Reviews block as before Q1 until
+  you run canccu-dispatcher brake release". GitHub is searched at most once an hour; the result
+  is kept in `regressions`.
+- **While it is on**, reviews block as before Q1:
+  - the dispatcher demotes nothing for pre-existing, no class or no `Evidence:`. An item under
+    `Blocking:` or `Pre-existing:` blocks unless its class is one that never blocks (`style` and
+    the like). An item with no class is listed as `unclassed`.
+  - the no-repeat rules are off: no settled findings, no pass rule, no history in the prompt.
+  - the full review runs one effort step higher (low, medium, high, xhigh, max), still capped at
+    `REVIEW_EFFORT_MAX`.
+  - `REVIEW_LIGHT` is off.
+- **The release.** `canccu-dispatcher brake release` is the product owner's only. The leader and
+  runs are refused, as with a locked setting (exit 3). The release removes `brake` and writes
+  `<time> po brake release - released` to `actions.log`. Nothing else releases the brake. A
+  release while the rate is still above the baseline engages the brake again on the next pass.
+  `canccu-dispatcher brake` prints the state.
+- **Where it shows.** `canccu-status` and the monitor show `brake: on since <time> (<trigger>)`.
+  `canccu-status --kpi-review` prints one line each for the last `BRAKE_WINDOW` merged PRs,
+  since the baseline (the PRs merged from the first `reviews.log` line on), and at the baseline.
+  Each line gives the review rounds per merged PR, the blocking findings by class (the verdicts
+  that left each), the findings demoted, and the escaped defects per merged PR.
