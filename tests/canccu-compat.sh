@@ -57,7 +57,7 @@ echo '{"labels": [{"name": "in-progress"}], "comments": []}' > "$FAKE/issue7.jso
 echo '[]' > "$FAKE/prs-tools.json"
 jq -n '["ready","blocked","in-progress","epic","needs-you","plan-ok","awaiting-accept","needs-work","accepted","manual-accept","checkpoint","checkpoint-ok","fast","security"] | map({name: .})' > "$FAKE/labels.json"
 jq -n --arg l "$BOT" '{login: $l}' > "$FAKE/user.json"
-printf '%s\t%s\n' 'pr view 70 *' pr70.json 'issue view 7 *' issue7.json 'api --paginate repos/example-org/web/pulls/70/files*' files70.json 'issue list -R example-org/web -s open*' issues-web.json 'issue list -R example-user/tools -s open*' issues-tools.json \
+printf '%s\t%s\n' 'issue list -R * -l checkpoint*' empty.json 'pr view 70 *' pr70.json 'issue view 7 *' issue7.json 'api --paginate repos/example-org/web/pulls/70/files*' files70.json 'issue list -R example-org/web -s open*' issues-web.json 'issue list -R example-user/tools -s open*' issues-tools.json \
   'issue list*' empty.json 'pr list -R example-org/web -s open*' prs-web.json 'pr list -R example-user/tools -s open*' prs-tools.json \
   'api repos/example-org/web/milestones*' ms.json 'api repos/*/milestones*' empty.json 'api repos/*/dependencies/*' empty.json \
   'label list*' labels.json 'run list*' runs.json 'api user*' user.json > "$FAKE/routes.default"
