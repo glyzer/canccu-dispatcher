@@ -58,4 +58,16 @@ dispatch --once
 ok "body lines: a fix round that pushed nothing → its needs-you, no body send-back first" \
   eq "$(grep -cF "$BSEND" "$FAKE/worker.log") $(grep -c 'pushed no fix' "$FAKE/gh.log")" "0 1"
 
+# ---------------------------------------------------------------- #210: the leader kit
+
+# a restarted leader's loop starts with no --ack: the wait goes on from its stored leader_ack
+env_new leader-restart LEADER=on
+touch -d "@$NOW" "$CANCCU_HOME/heartbeat"
+for t in one two three; do lib feed leader ask idle 6 - - "$t" >/dev/null; done
+lib kv_set "$CANCCU_HOME/feed.open" feed leader_ack=1
+ok "wait --owner leader with no --ack: the first line after the stored ack, not a replay or a skip" \
+  eq "$(PATH="$fb:$PATH" timeout 20 "$root/bin/canccu-dispatcher" wait --owner leader | cut -f2,9)" $'2\ttwo'
+ok "the leader kit's loop starts with no --ack" \
+  grep -qF 'ack=""; while l=$(canccu-dispatcher wait --owner leader ${ack:+--ack "$ack"})' "$root/templates/leader/CLAUDE.leader.md"
+
 echo "canccu-followups3 tests: $npass passed, $nfail failed"; (( nfail == 0 ))

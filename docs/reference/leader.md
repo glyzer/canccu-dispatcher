@@ -149,11 +149,12 @@ none. Every pass touches `heartbeat` beside it.
 
 `canccu-dispatcher wait --owner leader` blocks until the next line for that owner and prints it
 ([`commands.md`](commands.md)); `--ack <id>` resumes after the last line handled and, with
-`--owner leader`, records the acknowledgement the hand-over reads. Exit 3 says the
-heartbeat is 10 minutes old: the dispatcher may be down. A loop for the leader:
+`--owner leader`, records the acknowledgement the hand-over reads. Without `--ack`, the leader's
+wait goes on after its stored acknowledgement (a restarted leader replays nothing). Exit 3 says
+the heartbeat is 10 minutes old: the dispatcher may be down. A loop for the leader:
 
 ```
-ack=0; while l=$(canccu-dispatcher wait --owner leader --ack "$ack"); do ack=$(cut -f2 <<<"$l"); …; done
+ack=""; while l=$(canccu-dispatcher wait --owner leader ${ack:+--ack "$ack"}); do ack=$(cut -f2 <<<"$l"); …; done
 ```
 
 | Kind | Written when | Check, and what to do |

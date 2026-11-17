@@ -19,6 +19,6 @@ if (( usage )); then
     log "usage limit cleared (canccu-resume --usage): runs start again"
   # a worker nudged at the usage stop would set the old reset again when it is reaped
   for f in "$CANCCU_ROOT"/projects/*/state/*; do
-    [ -f "$f" ] && grep -q '^nudge_reset=.' "$f" && kv_set "$f" "${f##*/}" nudge_reset=
+    if [ -f "$f" ] && grep -q '^nudge_reset=.' "$f"; then kv_set "$f" "${f##*/}" nudge_reset=; fi
   done
 fi

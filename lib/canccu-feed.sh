@@ -179,7 +179,7 @@ heartbeat_stale() {
 }
 
 # feed_wait <owner or empty> <ack or empty>: blocks until a line with an id above ack (default: the
-# last id now) for that owner (lines of owner - only without one), prints it, returns 0; returns
+# leader's stored leader_ack for owner leader, else the last id now) for that owner (lines of owner - only without one), prints it, returns 0; returns
 # 3 when the heartbeat is older than 10 minutes. It polls: no inotify dependency. The leader's
 # --ack is recorded first (leader_ack, never lowered but capped at the last id): feed_handover reads it.
 feed_wait() {
@@ -192,6 +192,8 @@ feed_wait() {
     old=$(feed_ack)
     (( ack <= old )) || kv_set "$(feed_open_file)" feed "leader_ack=$ack"
   fi
+  # no --ack: the leader goes on from its stored ack (a restarted leader neither replays nor skips)
+  [ -z "$ack" ] && [ "$owner" = leader ] && { ack=$(feed_ack); (( ack > 0 )) || ack=""; }
   [ -n "$ack" ] || { ack=$(tail -n 1 "$f" 2>/dev/null | cut -f2); [[ $ack =~ ^[0-9]+$ ]] || ack=0; }
   while :; do
     l=$(awk -F '\t' -v a="$ack" -v o="$owner" '$2 + 0 > a + 0 && (o == "" || $3 == o) { print; exit }' "$f" 2>/dev/null)
