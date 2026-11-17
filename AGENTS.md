@@ -23,13 +23,16 @@ About 400 lines at most per source file. Split a file that grows past it along i
 Exempt: `tests/`, `docs/`, fixtures, and every file listed with a reason in
 `.file-size-exemptions` (one `<path> — <reason>` line each). The files already over the limit at
 import are listed there; a split takes a file off the list.
+A new exemption needs the product owner's accept; a worker never adds one.
 
 ## Tests
 
 - Every behaviour change comes with a test that failed before it.
 - While working, run only the tests of the files you change: `tests/run <file or pattern>`
   (for example `tests/run dispatch` or `tests/run lib/canccu-usage.sh`).
-- Run the full local check (`tests/run`) **once**, just before pushing.
+- Do not run the full suite (`tests/run` with no argument) locally: CI runs it on every push.
+- Before every push, run `tests/run repo` (the file-size and repo checks). A source file over 400
+  lines is split along its seams into a new `lib/` part, never added to `.file-size-exemptions`.
 - Never paste whole test logs into the conversation: `tests/run` prints a one-line summary per
   file and only the failing checks, and names the file with the full log.
 - Tests and fixtures use invented names only (projects `web` and `tools`, repos
@@ -75,4 +78,6 @@ In this order:
   the stack, error handling, test shape), one per line; the reviewer checks them;
 - `Next action: <what comes next>`;
 - `Verification run: <the checks run, with their result>`;
+- `Testing: <the tests that failed before the change and pass now, or why there is none>`;
+- `Revert: <plain revert | the extra step a revert needs>`;
 - any `Follow-up: <work outside the issue>` and `Roadmap note: <a change to the plan>` lines.

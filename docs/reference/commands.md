@@ -33,7 +33,7 @@ Every command but `canccu-init` and `canccu-dispatcher` takes `--project <name>`
 | `canccu-run <n> [message]` | Starts or resumes the worker for issue n by hand (for an issue of a work package: the package). On a resume the message is the follow-up (default `continue`). Refuses while the issue's worker, reviewer or answerer runs |
 | `canccu-review <pr>` | Starts the independent reviewer for a PR of ours at its current head. Refuses without the reviewer token and for a PR that is not ours |
 | `canccu-classify <pr>` | Prints `auto` or `manual: <first reason>` ([`merging.md`](merging.md)) |
-| `canccu-ship <n>` | Your accept: arms auto-merge for our PR that closes issue n, pinned to its head, with the repo's merge method (as the dispatcher's own merge). Where the repo does not allow auto-merge it merges directly once CI is green |
+| `canccu-ship <n>` | Your accept: arms auto-merge for our PR that closes issue n, pinned to its head, with the repo's merge method (as the dispatcher's own merge). Where the repo does not allow auto-merge it merges directly once CI is green. As the leader (`CANCCU_ACTOR=leader`) it ships only a unit in `accept` whose stored owner is `leader`, under `LEADER_ACCEPTS=technical`; else `refused: #<n> is the product owner's (<reason>)` or `refused: LEADER_ACCEPTS is none`. A run (`CANCCU_ACTOR=run`) is refused: `refused: a run never accepts` |
 | `canccu-stop <n>` | Stops the worker, reviewer and answerer of issue n (or of its package): sets the phase to `stopped` first, then kills their process trees and windows. Keeps the worktree and the session; `canccu-run <n>` continues it |
 | `canccu-stop --forget <n>` | Does what `canccu-stop <n>` does, then the dispatcher lets go of the unit (issue n's package, if it has one): removes its worktree, its run locks, `.id` and `.nudge` files and its state, and removes `in-progress`, `needs-you`, `awaiting-accept` and (only when the dispatcher set it) `blocked` from each of its issues. The PR, the branch and `ready` stay. No confirmation; without state it says `nothing to forget for #<n>` |
 | `canccu-pause` / `canccu-resume` | While paused no new run starts, a resume, review, fix or answer included; running runs finish and a passed review still merges. `canccu-pause --finish`: only new issues, packages, planners and health passes wait, work in flight goes on (a host move). `canccu-resume --usage` clears the usage-limit wait after an early reset |
@@ -41,6 +41,7 @@ Every command but `canccu-init` and `canccu-dispatcher` takes `--project <name>`
 | `canccu-dispatcher config show [--project <name>] [--global] [--origin] [KEY…]` | Every setting, its default and where it comes from (below) |
 | `canccu-dispatcher config set [--project <name> \| --global] KEY=VALUE [--why <text>]` | Checks one setting and writes it to the file it belongs in, with a history line (below) |
 | `canccu-dispatcher config unset [--project <name> \| --global] KEY [--why <text>]` | Removes that file's line for one setting, with a history line (below) |
+| `canccu-dispatcher leader brief [--project <name>]` | The leader's first command, read only: the `canccu-status` header lines; `open for the leader:` and `open for the product owner:`, the open feed lines of each owner (`<id> · <kind> · <unit> · PR <pr> · <text>`); `next:` the current step lines and the next 5 runnable issues as `canccu-status` lists them; `actions (last 10):` the last lines of `actions.log` ([`lead.md`](lead.md#the-leaders-brief)) |
 | `canccu-dispatcher wait [--project <name>] [--owner po\|leader] [--ack <id>]` | Blocks until the feed has a line with an id above `--ack` (default: its last id at start) for that owner, prints it and exits 0; exits 3 with `heartbeat stale: <n> min; the dispatcher may be down` when the heartbeat is 10 minutes old ([`lead.md`](lead.md#the-feed)) |
 | `canccu-dispatcher watch [--project <name>] [--settle <sec>] [--match <regex>] [--file <path>]...` | Waits for the next log line the lead acts on, a line of a `--file` or a stall line, prints it and exits 0; exit 3 on a stale heartbeat ([`lead-tools.md`](lead-tools.md#watch)) |
 | `canccu-dispatcher stall [--project <name>]` | One line per conflicting PR, CI run over 60 minutes, or `dispatch.log` silent for 3 hours while a step runs; each at most once per 3 hours ([`lead-tools.md`](lead-tools.md#stall)) |
@@ -88,6 +89,12 @@ unset of a key the file does not set, changes nothing and records nothing (statu
 canccu-dispatcher config set CAP=2 --why "less load"   # the project's config
 canccu-dispatcher config unset --project web CAP       # back to the global or default value
 ```
+
+`canccu-ship`, `canccu-pause`, `canccu-resume`, `canccu-stop`, `canccu-run`, `config set` and
+`config unset` each write one line to the project's `actions.log` per call, with the result `ok`
+or the first line of the refusal or error (`exit <status>` when there is none); a failed write
+never fails the command ([`state.md`](state.md#a-projects-dir)). A `--global` config write goes
+to every project's log.
 
 ## Labels
 

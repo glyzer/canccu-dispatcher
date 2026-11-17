@@ -219,6 +219,16 @@ effective_risk() {
 # ---------------------------------------------------------------- merge classifier
 
 is_plan_body() { grep -qiE '^[[:space:]*_]*Tier:[[:space:]*_]*plan\b' <<<"$1"; }
+# body_lacks <PR body>: which of the Testing: and Revert: lines every PR body has (#192) it lacks,
+# as "`Testing:`", "`Revert:`" or "`Testing:` and a `Revert:`"; nothing when it has both. A line
+# counts at its start only, with markdown marks around the word (prose that names it does not).
+body_lacks() {
+  local l out=""
+  for l in Testing Revert; do
+    grep -qiE "^[[:space:]*_>\`-]*${l}[*_\`]*:" <<<"$1" || out+="${out:+ and a }\`$l:\`"
+  done
+  echo "$out"
+}
 
 # automerge_until_problem: why AUTO_MERGE_UNTIL (optional) cannot be compared as a date, or nothing
 automerge_until_problem() {

@@ -54,6 +54,12 @@ ok "CI (oldstable): each test file may take 20 minutes" grep -qE 'CANCCU_TEST_TI
 ok "CI (oldstable): the job ends within 30 minutes" grep -qx '    timeout-minutes: 30' <<<"$old"
 ok "CI (oldstable): the tests run as a user, not as root" grep -qE 'runuser -u [a-z]+ -- .*tests/run$' <<<"$old"
 ci=$(job "$Y" ci)
+gate=$(sed -n '/name: Release PR scenarios line/,/^$/p' <<<"$ci")
+ok "CI: a release PR's body is checked for the scenarios line" grep -qF 'release check "v$(cat VERSION)" --body' <<<"$gate"
+ok "CI: … only on a PR, and only when it changes VERSION" eval \
+  'grep -qF "if: github.event_name == '"'"'pull_request'"'"'" <<<"$gate" && grep -qF -- "-- VERSION" <<<"$gate"'
+ok "CI: … the PR body reaches it through env, never interpolated into the script" \
+  eq "$(grep -c 'pull_request.body' <<<"$gate") $(sed -n '/run: |/,$p' <<<"$gate" | grep -c '\${{')" "1 0"
 ok "CI: builds the tarball with the release script" grep -qF '.github/scripts/release build' <<<"$ci"
 ok "CI: … and runs its install smoke test" grep -qF '.github/scripts/release-smoke' <<<"$ci"
 
@@ -137,11 +143,11 @@ for t in feature bug idea; do
   done
 done
 f=.github/pull_request_template.md
-for l in 'Closes #' 'Package: ' 'Risk: ' 'Tier: ' 'Decisions made:' 'Next action: ' 'Verification run: ' 'Follow-up: ' 'Roadmap note: '; do
+for l in 'Closes #' 'Package: ' 'Risk: ' 'Tier: ' 'Decisions made:' 'Next action: ' 'Verification run: ' 'Testing: ' 'Revert: ' 'Follow-up: ' 'Roadmap note: '; do
   ok "PR template: $l" grep -q "^$l" "$f"
 done
-ok "PR template: the lines in AGENTS.md's order" eq "$(grep -oE '^(Closes|Package|Risk|Tier|Decisions made|Next action|Verification run|Follow-up|Roadmap note)' "$f" | tr '\n' '|')" \
-  "Closes|Package|Risk|Tier|Decisions made|Next action|Verification run|Follow-up|Roadmap note|"
+ok "PR template: the lines in AGENTS.md's order" eq "$(grep -oE '^(Closes|Package|Risk|Tier|Decisions made|Next action|Verification run|Testing|Revert|Follow-up|Roadmap note)' "$f" | tr '\n' '|')" \
+  "Closes|Package|Risk|Tier|Decisions made|Next action|Verification run|Testing|Revert|Follow-up|Roadmap note|"
 
 echo "canccu-ci tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

@@ -41,6 +41,26 @@ ok "check: the section of 1.2.40 is not the one of 1.2.4" eq "$rc" 1
 rel "$T/chk" check
 ok "check: no tag: a usage error" eq "$rc" 2
 
+# ---------------------------------------------------------------- check --body: the scenario gate of a release PR
+
+changelog "$T/chk" '## [1.2.3] — 2030-11-05'; echo 1.2.3 > "$T/chk/VERSION"
+printf '%s\n' 'Closes #9' '' 'Scenarios: pass at 1a2b3c4' > "$T/body-ok"
+printf '%s\n' 'Closes #9' '' 'Scenarios: none run' > "$T/body-no"
+printf '%s\n' 'Scenarios: pass at not-a-sha' > "$T/body-bad"
+gate='the release PR body has no "Scenarios: pass at <sha>" line'
+rel "$T/chk" check v1.2.3 --body "$T/body-ok"
+ok "check --body: a body with the scenarios line: ok" eq "$rc" 0
+rel "$T/chk" check v1.2.3 --body "$T/body-no"
+ok "check --body: no scenarios line: fails with the gate's text" eq "$rc $(cat "$T/out")" "1 release: $gate"
+rel "$T/chk" check v1.2.3 --body "$T/body-bad"
+ok "check --body: a line whose sha is no sha: fails" eq "$rc $(grep -cF "$gate" "$T/out")" "1 1"
+rel "$T/chk" check v1.2.3 --body "$T/no-such-body"
+ok "check --body: a body file that is not there: a usage error" eq "$rc" 2
+rel "$T/chk" check v1.2.4 --body "$T/body-ok"
+ok "check --body: the tag check still runs first" eq "$rc $(grep -c VERSION "$T/out")" "1 1"
+rel "$T/chk" check v1.2.3 --body
+ok "check --body without a file: a usage error" eq "$rc" 2
+
 # ---------------------------------------------------------------- notes: the section's body
 
 changelog "$T/chk" '## [1.2.4] — 2030-11-05'

@@ -22,6 +22,8 @@ self=$(realpath "$0")
 . "$(dirname "$self")/../lib/canccu-common.sh"
 # shellcheck source=../lib/canccu-snapshot-steps.sh
 . "$(dirname "$self")/../lib/canccu-snapshot-steps.sh"
+# shellcheck source=../lib/canccu-brief.sh
+. "$(dirname "$self")/../lib/canccu-brief.sh"
 [ "${1:-}" = --spend ] && { spend_report; exit 0; }
 [ "${1:-}" = --findings ] && { findings_report; exit 0; }
 [ "${1:-}" = --kpi ] && { kpi_report; exit; }
@@ -30,22 +32,7 @@ self=$(realpath "$0")
 clip() { (( ${#1} <= $2 )) && printf '%s' "$1" || printf '%s…' "${1:0:$2-1}"; }
 cols=${COLUMNS:-$(tput cols 2>/dev/null)}; [[ $cols =~ ^[0-9]+$ ]] || cols=100
 
-state="running"
-if pause_holds; then state="PAUSED (canccu-resume to continue)"
-elif paused; then state="PAUSED, work in flight finishes (canccu-resume to continue)"; fi
-dispatcher_running || state+=" · canccu-dispatch is NOT running (canccu-up, or run it in the window dispatch)"
-backing_off && state+=" · usage limit until $(iso "$(backoff_until)")"
-free=$(disk_low) && state+=" · disk low: $free MB (DISK_MIN_MB ${DISK_MIN_MB:-200})"
-lim=$(gh_limit_until); [ -n "$lim" ] && state+=" · GitHub rate limit until $(iso "$lim")"
-echo "canccu-dispatcher $CANCCU_VERSION · $REPO · $state"
-if [ -n "$REVIEWER_LOGIN" ]; then rv="reviews post as $REVIEWER_LOGIN"; else rv="reviews: REVIEWER_LOGIN is not set"; fi
-echo "model: ${MODEL:-the account default} · $rv"
-echo "accepts: ${ACCEPT_CHANNELS-all}"
-lp=$(login_problem)
-[ -n "$lp" ] && echo "$lp: the dispatcher does nothing for this project until it is set"
-echo "usage: $(usage_text)"
-echo "project: $CANCCU_PROJECT (${CANCCU_HOME/#$HOME/\~}, tmux $TMUX_SESSION) · runs: $(running_count) of CAP $CAP · all projects: $(total_running) of TOTAL_CAP $TOTAL_CAP"
-w=$(waiting_for); [ -n "$w" ] && echo "waiting for a slot held by $w"
+status_header
 cp=$(gh_credential_problem)
 if [ -n "$cp" ]; then echo "$cp: the dispatcher does nothing for this project until it works"
 elif [ -n "$CANCCU_GH_DIR" ]; then echo "gh: the project's own login (${CANCCU_GH_DIR/#$HOME/\~})"
@@ -119,14 +106,11 @@ if fetch; then
   echo "not ours (never reviewed, merged or commented on):"
   echo "${foreign:-  none}"
   rl=$(recurring_open_line); [ -n "$rl" ] && echo "$rl"
-  q=$(runnable 5 | sed 's/^/#/' | tr '\n' ' ')
-  echo "queue (fast lane, next 5 runnable): ${q:-none}"
+  status_queue
   # the steps: the current one(s), the package plan, the spend, the checkpoint, the notes
   if fetch_steps; then
     for m in $(current_step_ids); do
-      read -r sp _ <<<"$(step_spend "$m")"; c=$(step_get "$m" checkpoint)
-      cs=$(cur "$m" '.checkpoint.state // empty'); [ "$(step_get "$m" phase)" = checkpoint ] && cs=waiting
-      echo "step: $(step_title "$m") · wave $(step_get "$m" wave) · $(step_get "$m" phase || true) · \$$sp/\$$STEP_BUDGET${c:+ · checkpoint #$c ${cs:-open}}"
+      status_step "$m"
       [ -n "$(step_get "$m" ny_reason)" ] && echo "  needs you: $(step_get "$m" ny_reason)"
       while IFS=$'\t' read -r nm is rk _; do
         [ -n "$nm" ] || continue
