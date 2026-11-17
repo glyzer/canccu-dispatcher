@@ -103,10 +103,10 @@ ok "… no new accept ask in the feed" not grep -qP '\task\taccept\t5\t' "$CANCC
 
 macc conflict-mm-transient
 pr 50 5 $HA green accepted | jq '.mergeStateStatus = "DIRTY"' | prs
-lib eval 'main_merge() { MERGED=error MERGE_WHY="git push: HTTP 502"; }; fetch; conflict_merge 5 50 '"$HA"
+lib eval ". '$root/lib/canccu-merge.sh'; "'main_merge() { MERGED=error MERGE_WHY="git push: HTTP 502"; }; fetch; conflict_merge 5 50 '"$HA"
 ok "a scripted merge of main that fails (conflict) → no needs-you on the first error" \
   eq "$(st 5 phase) $(st 5 mm_err) [$(st 5 conflict_merge)]" "accept 1 []"
-lib eval 'main_merge() { MERGED=error MERGE_WHY="git push: HTTP 502"; }; fetch; conflict_merge 5 50 '"$HA"'; conflict_merge 5 50 '"$HA"
+lib eval ". '$root/lib/canccu-merge.sh'; "'main_merge() { MERGED=error MERGE_WHY="git push: HTTP 502"; }; fetch; conflict_merge 5 50 '"$HA"'; conflict_merge 5 50 '"$HA"
 ok "… needs-you once MERGE_TRIES errors came in a row" eq "$(st 5 phase) [$(st 5 mm_err)]" "needs-you []"
 
 echo "canccu-followups tests: $npass passed, $nfail failed"; (( nfail == 0 ))

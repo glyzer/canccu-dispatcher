@@ -194,12 +194,13 @@ mut() {
 }
 
 # mut_out <cmd...>: mut, also keeping the command's output (stdout and stderr together) in MUT_OUT,
-# for a caller that reads its error; mut in the dispatcher is this. Not run in $(…). The output
+# for a caller that reads its error, and its status in MUT_RC (124 or 137: killed by guard's
+# timeout, with no output to read); mut in the dispatcher is this. Not run in $(…). The output
 # goes where mut_show puts it. Under --dry-run MUT_OUT is empty.
 mut_out() {
-  MUT_OUT=""
+  MUT_OUT="" MUT_RC=0
   if (( CANCCU_DRY )); then echo "  would: $*"; return 0; fi
-  local rc; MUT_OUT=$(guard 60 "$@" 2>&1); rc=$?
+  local rc; MUT_OUT=$(guard 60 "$@" 2>&1); rc=$?; MUT_RC=$rc
   mut_show "$MUT_OUT"
   (( rc == 0 )) || gh_limit_seen "$MUT_OUT"
   return $rc
@@ -363,6 +364,8 @@ run_progress() {
 . "$_canccu_lib/canccu-queue.sh"
 # shellcheck source=canccu-actions.sh
 . "$_canccu_lib/canccu-actions.sh"
+# shellcheck source=canccu-mergecall.sh
+. "$_canccu_lib/canccu-mergecall.sh"
 # shellcheck source=canccu-followup.sh
 . "$_canccu_lib/canccu-followup.sh"
 # shellcheck source=canccu-findings.sh

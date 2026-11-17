@@ -70,7 +70,8 @@ feed_unit_moved() {
     [ -n "$kind" ] && [ "$kind" = "$(feed_kind_of "$id")" ] && return 0
     feed_closed "$id" "$new" "$k"; _st_put "$k" ev_id=
   fi
-  [ -n "$kind" ] || return 0
+  # FEED_QUIET: a move back to an item already answered (a merge needs-you lifted) asks nothing
+  [ -n "$kind" ] && (( ! ${FEED_QUIET:-0} )) || return 0
   pr=$(st_get "$k" pr); r=$(st_get "$k" reason)
   id=$(feed "$(st_get "$k" owner)" ask "$kind" "$k" "$pr" "$(feed_url "$k" "$pr")" "#$k $kind: ${r#manual: }")
   [ -z "$id" ] || _st_put "$k" ev_id="$id" ev_at="$(now)"

@@ -117,7 +117,7 @@ requeue() {
   local n=$1 pr=$2
   drop_accepted "$n" "$pr"
   has_label "$n" awaiting-accept && edit_issue "$n" --remove-label awaiting-accept
-  st_set "$n" phase=check check_at="$(now)" merge_mode=
+  st_set "$n" phase=check check_at="$(now)" merge_mode= merge_tries= accept_sha=
   case $(st_get "$n" stage) in
     fixing|fixcheck) log "#$n PR #$pr: $3; \`accepted\` dropped, the fix-check is void: fix-check again" ;;
     *) log "#$n PR #$pr: $3; \`accepted\` dropped, review again" ;;
@@ -135,19 +135,26 @@ accept_step() {
   fi
   conflict_merge "$n" "$pr" "$head" && return 0
   ship_armed "$n" "$pr" "$head" && return 0
-  # the label on an issue of the unit is tolerated too, under the same checks as on the PR
-  if pr_has_label "$pr" accepted; then on=$pr
-  else for i in $(members_of "$n"); do has_label "$i" accepted && { on=$i; break; }; done; fi
-  [ -n "$on" ] || return 0
+  # the label on an issue of the unit is tolerated too, under the same checks as on the PR; one
+  # that does not count never hides a later one that does
+  local held=() h
+  pr_has_label "$pr" accepted && held+=("$pr")
+  for i in $(members_of "$n"); do has_label "$i" accepted && held+=("$i"); done
+  (( ${#held[@]} )) || return 0
   accept_channel label || { warn_once "accept-label-$pr" "#$n PR #$pr: \`accepted\` label ignored: ACCEPT_CHANNELS does not list label"; return 0; }
-  if accepted_by_user "$on" "$(st_get "$n" accept_at)"; then
-    if [ "$on" != "$pr" ]; then
-      # taken off, so it can never count again for a later head
-      mut gh issue edit "$on" -R "$REPO" --remove-label accepted
-      log "#$n PR #$pr: \`accepted\` was on issue #$on; taken as the accept"
-    fi
-    history_answer "$pr"; merge_auto "$n" "$pr" accepted "$head"
-  else warn_once "accept-$pr" "#$n PR #$pr: \`accepted\` on #$on was not added by $USER_LOGIN after the accept request; ignored"; fi
+  for h in "${held[@]}"; do accepted_by_user "$h" "$(st_get "$n" accept_at)" && { on=$h; break; }; done
+  if [ -z "$on" ]; then
+    warn_once "accept-$pr" "#$n PR #$pr: \`accepted\` on $(printf '#%s ' "${held[@]}")was not added by $USER_LOGIN after the accept request; ignored"
+    return 0
+  fi
+  history_answer "$pr"
+  # the issue's label goes only once the merge is under way: a failed merge keeps the accept
+  merge_auto "$n" "$pr" accepted "$head" || return 0
+  if [ "$on" != "$pr" ]; then
+    # taken off, so it can never count again for a later head
+    mut gh issue edit "$on" -R "$REPO" --remove-label accepted
+    log "#$n PR #$pr: \`accepted\` was on issue #$on; taken as the accept"
+  fi
   return 0
 }
 
@@ -167,7 +174,7 @@ conflict_merge() {
   [ "${4:-}" = disarm ] && armed "$n" "$pr" && mut gh pr merge "$pr" -R "$REPO" --disable-auto
   main_merge "$n" "$pr"
   case $MERGED in
-    merged) st_set "$n" main_merged="$(guard 20 git -C "$(unit_wt "$n")" rev-parse HEAD 2>/dev/null)" check_at="$(now)"
+    merged) st_set "$n" mm_err= main_merged="$(guard 20 git -C "$(unit_wt "$n")" rev-parse HEAD 2>/dev/null)" check_at="$(now)"
       log "#$n PR #$pr: conflicts with main; merged main into the branch by script (no AI run)" ;;
     conflict)
       [ "$(st_get "$n" conflict_sha)" = "$head" ] && { needs_you "$n" "PR #$pr conflicts with main in: $MERGE_WHY, and the worker's merge run pushed no resolution"; return 0; }
@@ -178,7 +185,12 @@ conflict_merge() {
       log "#$n PR #$pr: conflicts with main in: $MERGE_WHY; the worker resolves them" ;;
     current)  # GitHub's merge state is stale: said only; the next head gets its own try
       log "#$n PR #$pr: conflicts with main; the merge by script did not run (main is in already)"; return 1 ;;
-    *) log "#$n PR #$pr: conflicts with main; the merge by script did not run ($MERGE_WHY)"
+    *) # an error (a push refused, a fetch timed out) is often gone a pass later: retried, so only
+       # MERGE_TRIES in a row reach the user
+       local k; k=$(st_get "$n" mm_err); k=$(( ${k:-0} + 1 ))
+       log "#$n PR #$pr: conflicts with main; the merge by script did not run ($MERGE_WHY; error $k of ${MERGE_TRIES:-3})"
+       if (( k < ${MERGE_TRIES:-3} )); then st_set "$n" conflict_merge= mm_err="$k"; return 0; fi
+       st_set "$n" mm_err=
        needs_you "$n" "PR #$pr conflicts with main; the merge by script did not run ($MERGE_WHY)" ;;
   esac
   return 0
