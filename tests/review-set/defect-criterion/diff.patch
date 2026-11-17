@@ -1,0 +1,50 @@
+diff --git a/bin/tally b/bin/tally
+index a31f65b..04ec6c5 100755
+--- a/bin/tally
++++ b/bin/tally
+@@ -2,7 +2,7 @@
+ # SPDX-License-Identifier: AGPL-3.0-or-later
+ # tally — named counters in a file (docs/format.md)
+ #   tally add <name> [n]   add n (default 1) to the counter
+-#   tally show [name]      every counter, or one
++#   tally show [name]      every counter and their total, or one counter
+ #   tally reset <name>     remove a counter
+ set -euo pipefail
+ here=$(cd "$(dirname "$0")/.." && pwd)
+@@ -17,7 +17,7 @@ case $cmd in
+     [[ $n =~ ^[0-9]+$ ]] || { echo "tally: bad count $n" >&2; exit 2; }
+     store_set "$name" $(( $(store_get "$name") + n )) ;;
+   show)
+-    if [ $# -gt 0 ]; then printf '%s\t%s\n' "$1" "$(store_get "$1")"; else store_list; fi ;;
++    if [ $# -gt 0 ]; then printf '%s\t%s\n' "$1" "$(store_get "$1")"; else store_list; store_total; fi ;;
+   reset)
+     name=${1:?tally reset <name>}
+     valid_name "$name" || { echo "tally: bad name $name" >&2; exit 2; }
+diff --git a/lib/store.sh b/lib/store.sh
+index 18568cf..33c11b1 100644
+--- a/lib/store.sh
++++ b/lib/store.sh
+@@ -27,4 +27,7 @@ store_del() {
+   awk -F '\t' -v n="$1" '$1 != n' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+ }
+ 
++# store_total: the sum of every count
++store_total() { local f; f=$(store_file); awk -F '\t' '{ s += $2 } END { printf "total\t%d\n", s }' "$f" 2>/dev/null || printf 'total\t0\n'; }
++
+ store_list() { local f; f=$(store_file); [ -f "$f" ] && cat "$f"; return 0; }
+diff --git a/tests/store.sh b/tests/store.sh
+index 81b42bb..8aff024 100644
+--- a/tests/store.sh
++++ b/tests/store.sh
+@@ -11,9 +11,9 @@ t() { "$root/bin/tally" "$@"; }
+ 
+ t add apples; t add apples 2; t add pears
+ check "add counts up" "$(t show apples)" "$(printf 'apples\t3')"
+-check "the file is sorted" "$(t show)" "$(printf 'apples\t3\npears\t1')"
++check "the file is sorted" "$(t show)" "$(printf 'apples\t3\npears\t1\ntotal\t4')"
+ t reset apples
+-check "reset removes the counter" "$(t show)" "$(printf 'pears\t1')"
++check "reset removes the counter" "$(t show)" "$(printf 'pears\t1\ntotal\t1')"
+ check "an unknown name counts 0" "$(t show plums)" "$(printf 'plums\t0')"
+ # --- new checks above this line
+ exit "$fail"

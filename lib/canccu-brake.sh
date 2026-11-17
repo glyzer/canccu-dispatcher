@@ -84,18 +84,31 @@ brake_baseline() {
 # escaped defects per merged PR of the last BRAKE_WINDOW merged PRs are above the baseline.
 # Nothing here ever releases it: only canccu-dispatcher brake release (rule 7 of the plan).
 brake_tick() {
-  local base prs n rate trig text
+  local base prs n rate
   [ "${REVIEW_BRAKE:-auto}" = auto ] && ! brake_on && (( ! CANCCU_DRY )) || return 0
   read -r _ base _ _ <<<"$(brake_baseline)"; [ -n "$base" ] || return 0
   prs=$(_merged_prs | tail -n "${BRAKE_WINDOW:-20}"); n=$(_count "$prs"); (( n )) || return 0
   escaped_refresh || [ -s "$(regressions_file)" ] || return 0
   rate=$(_rate "$(_escaped_of "$prs")" "$n")
   awk -v a="$rate" -v b="$base" 'BEGIN { exit !(a + 0 > b + 0) }' || return 0
-  trig="escaped defects $rate/PR over the last $n merged PRs, baseline $base/PR"
-  text="Review brake on: $trig. Reviews block as before Q1 until you run canccu-dispatcher brake release"
-  echo "$(iso "$(now)") $trig" > "$(brake_file)" || { log "cannot write $(brake_file)"; return 0; }
+  brake_engage "escaped defects $rate/PR over the last $n merged PRs, baseline $base/PR"
+  return 0
+}
+
+# brake_engage <trigger>: the brake on, with one feed line for the product owner. Its triggers:
+# brake_tick, and a red run of the reviewer's test set (tests/review-set/run, #196).
+brake_engage() {
+  local text="Review brake on: $1. Reviews block as before Q1 until you run canccu-dispatcher brake release"
+  echo "$(iso "$(now)") $1" > "$(brake_file)" || { log "cannot write $(brake_file)"; return 1; }
   feed po ask needs-you - - - "$text" >/dev/null
   log "$text"
+}
+
+# review_set_red <cases>: a red run of the review set engages the brake with REVIEW_BRAKE=auto; a
+# brake already on keeps its own trigger
+review_set_red() {
+  [ "${REVIEW_BRAKE:-auto}" = auto ] && ! brake_on && (( ! CANCCU_DRY )) || return 0
+  brake_engage "review set missed $1"
 }
 
 # brake_effort <effort>: a full review's effort, one step higher while the brake is on; through

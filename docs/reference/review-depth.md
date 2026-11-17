@@ -94,6 +94,8 @@ itself when escaped defects rise. An escaped defect is an issue or PR, open or c
   the same text in `dispatch.log`: "Review brake on: <trigger>. Reviews block as before Q1 until
   you run canccu-dispatcher brake release". GitHub is searched at most once an hour; the result
   is kept in `regressions`.
+- **The review set's trigger.** A red run of the reviewer's test set engages the brake the same
+  way, with the trigger `review set missed <cases>` ([`review-set.md`](review-set.md)).
 - **While it is on**, reviews block as before Q1:
   - the dispatcher demotes nothing for pre-existing, no class or no `Evidence:`. An item under
     `Blocking:` or `Pre-existing:` blocks unless its class is one that never blocks (`style` and

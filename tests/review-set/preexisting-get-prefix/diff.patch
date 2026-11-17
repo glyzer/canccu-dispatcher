@@ -1,0 +1,32 @@
+diff --git a/bin/tally b/bin/tally
+index a31f65b..3d32c1c 100755
+--- a/bin/tally
++++ b/bin/tally
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env bash
+ # SPDX-License-Identifier: AGPL-3.0-or-later
+ # tally — named counters in a file (docs/format.md)
+-#   tally add <name> [n]   add n (default 1) to the counter
++#   tally add <name> [n]   add n (default 1, at most 1000000) to the counter
+ #   tally show [name]      every counter, or one
+ #   tally reset <name>     remove a counter
+ set -euo pipefail
+@@ -15,6 +15,7 @@ case $cmd in
+     name=${1:?tally add <name> [n]} n=${2:-1}
+     valid_name "$name" || { echo "tally: bad name $name" >&2; exit 2; }
+     [[ $n =~ ^[0-9]+$ ]] || { echo "tally: bad count $n" >&2; exit 2; }
++    (( n <= 1000000 )) || { echo "tally: count too big: $n" >&2; exit 2; }
+     store_set "$name" $(( $(store_get "$name") + n )) ;;
+   show)
+     if [ $# -gt 0 ]; then printf '%s\t%s\n' "$1" "$(store_get "$1")"; else store_list; fi ;;
+diff --git a/tests/store.sh b/tests/store.sh
+index 81b42bb..4659ea1 100644
+--- a/tests/store.sh
++++ b/tests/store.sh
+@@ -15,5 +15,6 @@ check "the file is sorted" "$(t show)" "$(printf 'apples\t3\npears\t1')"
+ t reset apples
+ check "reset removes the counter" "$(t show)" "$(printf 'pears\t1')"
+ check "an unknown name counts 0" "$(t show plums)" "$(printf 'plums\t0')"
++check "a count over 1000000 is refused" "$(t add kiwis 1000001 2>&1; echo "rc=$?")" "$(printf 'tally: count too big: 1000001\nrc=2')"
+ # --- new checks above this line
+ exit "$fail"
