@@ -19,7 +19,9 @@ fields are in [`state.md`](state.md). Every file in `~/.canccu/projects/<name>/`
 | `questions/<K>.txt` | The question a worker stopped with, for its answerer |
 | `pings/<n>` | The state issue n was last pinged for ([`pings.md`](pings.md)) |
 | `digest/<date>.md` | The daily digest |
+| `findings.log` | One tab-separated line per key (class + file) of a merged PR's posted verdicts, written once per PR when it merges, append only: `<time> <pr> <class> <file>` (epoch seconds); `FINDINGS_RECUR=0` writes nothing ([`findings.md`](findings.md#recurring-findings)) |
 | `merged.log` | One line per merged PR of a managed issue: time, issue, PR, how (`auto`, `accepted`, or `by hand` when the dispatcher did not arm it), title |
+| `recurring` | One tab-separated line per key with a recurring-finding issue: `<class> <file> <issue>` ([`findings.md`](findings.md#recurring-findings)) |
 | `brake` | While the review brake is on: `<time> <trigger>` ([`reviews.md`](review-depth.md#the-review-brake)); removed only by `canccu-dispatcher brake release` |
 | `brake-baseline` | The brake's baseline, written once: `<time> <escaped/PR> <rounds/PR> <PRs counted>` |
 | `regressions` | The brake's cache of escaped defects, rewritten at most once an hour: `at <epoch>`, then one tab-separated `<issue or PR> <the PR it names>` line per `Regression of:` |

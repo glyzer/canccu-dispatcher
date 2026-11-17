@@ -37,7 +37,8 @@ review_format_text() {
 # without a count line or when it does not match), kept / moved (the items' text: the blocking ones
 # left / all others, in file order), presec (1 when a Pre-existing: item is a security one), keys
 # (the blocking ones left: "<class> <file> <line>"), why ("<plain> <settled> <unchanged>": the
-# demoted by class or Evidence:, by the history, by the pass rule).
+# demoted by class or Evidence:, by the history, by the pass rule), items ("<class> <file> <the
+# item's first line>" per item, tab-separated: the recurring-finding issue's lines).
 # The no-repeat context (review_ctx) comes in the environment, never by -v: awk would read the
 # backslashes of a path as escapes. RV_SETTLED: "<class> <file> <line>" lines that are settled;
 # RV_PASS 1: the pass rule is on, RV_CHANGED its "<file> <lo> <hi>" lines changed since the pass.
@@ -118,6 +119,10 @@ _REVIEW_AWK='
     if (mode == "parse") {
       for (i = 1; i <= ni; i++) printf "%s\t%s\t%s\t%s\t%d\n", sec[i], cl[i], fl[i], ln[i], ev[i]
       if (hasc) printf "count\t%d\t%d\t%d\n", cb, cn, cp; else print "count\t-"
+      exit
+    }
+    if (mode == "items") {
+      for (i = 1; i <= ni; i++) { l = tx[i]; sub(/\n.*/, "", l); printf "%s\t%s\t%s\n", cl[i], fl[i], l }
       exit
     }
     for (i = 1; i <= ni; i++) {
