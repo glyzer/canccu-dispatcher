@@ -86,6 +86,8 @@ ok "AGENTS.md tells a change to read and update only its reference topic" grep -
 # #209: CI runs the full suite; a worker that ran it locally spent its time budget on it
 ok "AGENTS.md tells no one to run the full suite locally" not grep -qE '(full local check|`tests/run`\)? \*\*once|tests/run`[^ ]* (once|in full|before push))' AGENTS.md
 ok "… but the repo checks before every push" grep -qF 'Before every push, run `tests/run repo`' AGENTS.md
+ok "CLAUDE.md's finish runs the repo checks, not the full suite (#209)" \
+  eq "$(grep -cE '^1\. .*`tests/run repo`' CLAUDE.md) $(grep -cE '(once, in full|rerun the local check)' CLAUDE.md)" "1 0"
 ok "… and no worker adds a size exemption" grep -qF "A new exemption needs the product owner's accept; a worker never adds one." AGENTS.md
 
 # ---------------------------------------------------------------- links
