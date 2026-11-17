@@ -104,3 +104,5 @@ NOTIFY_CONTENT	enum:full|link	project	locked
 LEADER	enum:on|off	project	locked
 LEADER_ACCEPTS	enum:technical|none	project	locked
 LEADER_ACCEPTS_HIGH_RISK	enum:0|1	project	locked
+REVIEW_BRAKE	enum:auto|off	project	locked
+BRAKE_WINDOW	int:1:1000	project	locked

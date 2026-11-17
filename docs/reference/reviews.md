@@ -21,12 +21,12 @@ and merges nothing.
 The repo's `REVIEW.md`, from `origin/main`, joins both prompts:
 [`repo-contract.md`](../repo-contract.md).
 
-It writes its review to `~/.canccu/projects/<name>/reviews/<pr>/<sha>.md`: a line
-`Change:` and three `- ` lines on what the PR changes for its users ([the ask
-form](pings.md#the-ask-form)'s summary; never affects the verdict); its prose; the finding block
-below; `Maintainer accept: <what>` only for a broken contract or a destructive migration; for a
-package, `Risk: <low|normal|high> — <why>` (it confirms or
-raises the plan's class, never lowers it); and last, exactly `Review verdict: pass <sha>` or
+It writes its review to the project's `reviews/<pr>/<sha>.md`: a line `Change:` and three `- `
+lines on what the PR changes for its users ([the ask form](pings.md#the-ask-form)'s summary; never
+affects the verdict); any prose of its own, then the finding block below; `Maintainer accept:
+<what>` only when the PR breaks a contract or holds a destructive migration; for a package,
+`Risk: <low|normal|high> — <why>` (it confirms or raises the plan's class); and last, exactly
+`Review verdict: pass <sha>` or
 `Review verdict: changes <sha>`. The dispatcher checks the file and posts it as `REVIEWER_LOGIN`.
 
 ### The finding block
@@ -85,7 +85,7 @@ keeps `FIXCHECK_MODEL`; a retry of the review file keeps the model the review st
 A finding fixed or answered earlier is not raised again, and a full review after a pass blocks on
 nothing the commits since left alone, except a security bug: the history, the prompts and the
 dispatcher's check are in [`findings.md`](findings.md#no-repeats).
-A head that passed is not reviewed again: [`review-depth.md`](review-depth.md).
+A head that passed is not reviewed again, and the brake turns these rules off: [`review-depth.md`](review-depth.md).
 
 ## Fix-check
 

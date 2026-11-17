@@ -92,7 +92,7 @@ RISKY_PATHS='^(\.github|deploy)/|migration|sign-?in|login|auth|rights|permission
 # paths (grep -E) that count as docs for a full review's effort, on top of docs/ and *.md, even
 # when RISKY_PATHS names them; never agent configuration or a gated path
 EFFORT_DOCS_PATHS=''
-REVIEW_EFFORT_MAX=''        # cap for the review and fix-check effort: low, medium or high; empty: none
+REVIEW_EFFORT_MAX=''        # cap for the review and fix-check effort: low, medium, high, xhigh or max; empty: none
 # the same as RISKY_PATHS for a fix-check's fix diff: medium instead of low effort
 FIXCHECK_RISKY='(^|/)deploy/|sign-?in|login|auth|rights|permission|session|secret|tenan|(^|[/_.-])rls([/_.-]|$)|migrations?(/|_|\.|$)|\.sql$|schema'
 # gated paths (grep -E): a PR touching one waits for the user's accept. Agent configuration
@@ -128,3 +128,7 @@ NOTIFY_CONTENT=full         # full|link: what an ask carries (the ping, the PR b
 LEADER=off                  # on or off
 LEADER_ACCEPTS=none         # technical or none: the accepts the owner rule gives the leader
 LEADER_ACCEPTS_HIGH_RISK=0  # 1: a high-risk accept is the leader's too (LEADER_ACCEPTS=technical)
+# the review brake (docs/reference/reviews.md): reviews block as before Q1 again when the escaped
+# defects per merged PR rise above the baseline of the PRs merged before Q1; locked
+REVIEW_BRAKE=auto           # auto: the escaped-defect trigger engages it; off: never engaged by itself
+BRAKE_WINDOW=20             # the merged PRs the trigger, the baseline and canccu-status --kpi-review count
