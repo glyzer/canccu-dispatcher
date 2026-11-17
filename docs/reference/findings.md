@@ -29,14 +29,15 @@ Review verdict: <pass|changes> <sha>
   behaviour change without a test that failed before it). Never blocking: `style`, `docs`,
   `simplify`, `test-gap`, `other`; a class not in either list counts as no class.
 - **An item** starts at column 0 with a list mark (`1.`, `-`, `*`); its indented lines
-  (`Evidence:`, `Fix:`) are its own. A heading with no finding says `none`.
+  (`Evidence:`, `Fix:`) are its own. A heading with no finding says `none`: on its line, as a
+  list item (`- none`) or in brackets (`(none)`); `none`, `n/a` and `nothing` are no item.
 - **Pre-existing:** the cited line is not in the diff's changed lines and the diff did not make
   its bug reachable. Such a finding never blocks; it goes to the follow-up issue, and a `security`
   one gives that issue the label `security`.
 - **The count line** counts the items as written under each heading, before any demotion. A file
   without it, or whose numbers do not match the items, has no valid verdict: like a file without
-  one, the reviewer's session is asked once per head to write it again, with the reason `the count
-  line does not match the items`; then `needs-you`.
+  one, the reviewer's session is asked once per head to write it again, with the reason `no finding
+  block or count line` or `the count line does not match the items`; then `needs-you`.
 
 **The dispatcher decides what blocks** (`lib/canccu-verdict.sh`). A `Blocking:` item with a
 never-blocking class, no class or no `Evidence:` line is **demoted**: it counts as non-blocking.
@@ -67,13 +68,15 @@ class and the file path, the lines overlapping; no matching of the text).
   `reviews/<pr>/history` as `open` ([`state.md`](state.md)). A fix-check (it checks the earlier
   findings, and its `Blocking:` lists only what is still open) marks every `open` line it does
   not raise again `fixed`. Your accept, or your `needs-work` that starts a new cycle (not the
-  one more fix round of a fix-check's open items), marks every `open` line `answered`.
+  one more fix round of a fix-check's open items), marks every `open` line `answered`; a
+  `needs-work` with a `full review` line leaves them `open`, for the new full review to check.
 - **The prompts.** Every full review and fix-check prompt carries the history with its outcomes,
   as data, and the rule: a finding with the same class and file on overlapping lines as a
   `fixed` or `answered` one is not raised again. After a pass, the full review's prompt adds the
   pass rule below.
 - **The dispatcher checks it.** A `Blocking:` item whose key and lines match a `fixed` or
   `answered` line is demoted (`already settled`); it does not go to the follow-up issue either.
+  A `security` item is never settled: one that comes back blocks again.
   When `pass_sha` is set and the full review is of a later head, a blocking item on lines that
   `git diff <pass_sha>..<head>` did not change is demoted (`unchanged since the pass`), unless its
   class is `security`; it goes to the follow-up issue. A fix-check is never under the pass rule,

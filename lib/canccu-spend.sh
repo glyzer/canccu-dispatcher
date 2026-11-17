@@ -71,10 +71,12 @@ findings_count() {
   e=$(review_effective_body "$body" "${2:-}")
   if [ -n "$e" ]; then read -r v b n p d _ <<<"$e"; echo "$b $(( n + p + d ))"; return; fi
   awk 'BEGIN { b = 0; n = 0; pre = 0; part = 0; seen = 0; changes = 0 }
-       /^[[:space:]*_#]*Non-blocking/ { part = 2; next }
-       /^[[:space:]*_#]*Blocking/ { seen = 1; if (part == 0) part = 1; next }
-       /^[[:space:]*_]*Review verdict:[[:space:]*_]*changes/ { changes = 1; next }
-       /^[[:space:]*_]*(Review verdict|Maintainer accept|Risk):/ { next }
+       # headings in any case, as the parser of a valid file (_REVIEW_AWK) reads them
+       { l = tolower($0) }
+       l ~ /^[[:space:]*_#]*non-blocking/ { part = 2; next }
+       l ~ /^[[:space:]*_#]*blocking/ { seen = 1; if (part == 0) part = 1; next }
+       l ~ /^[[:space:]*_]*review verdict:[[:space:]*_]*changes/ { changes = 1; next }
+       l ~ /^[[:space:]*_]*(review verdict|maintainer accept|risk):/ { next }
        /^([0-9]+[.)]|[-*])[[:space:]]/ { if (part == 2) n++; else if (part == 1) b++; else pre++ }
        END { if (!seen && changes) b = pre; print b, n }' <<<"$body"
 }

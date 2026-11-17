@@ -112,7 +112,7 @@ dispatch --once
 ok "a count line 2 blocking with one item: nothing posted" hasnt gh.log "pr comment"
 ok "… one file retry, with the reason" \
   eq "$(grep -c -- '--keep-session .*the count line does not match the items' "$FAKE/worker.log") $(st 5 file_retry)" "1 $HA"
-ok "… logged as no valid verdict's reason" grep -qF "the reviewer left a file whose count line does not match the items; asked once to write the review file" "$CANCCU_HOME/dispatch.log"
+ok "… logged as no valid verdict's reason" grep -qF "the reviewer left a file: the count line does not match the items; asked once to write the review file" "$CANCCU_HOME/dispatch.log"
 ok "… no reviews.log line" eq "$(test -e "$CANCCU_HOME/reviews.log" && echo log)" ""
 
 venv postpass "$(review pass "0 0 0")"

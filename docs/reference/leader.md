@@ -131,9 +131,11 @@ being written passes to you (contracts §1, rule 7): its owner becomes `po`, the
 kind `handover` says `#<n> passed to the product owner: the leader did not acknowledge it in 60
 min`, the log says the same, and the next pass pings it like any of yours. The leader acknowledges
 an item with `canccu-dispatcher wait --owner leader --ack <id>`, `<id>` at or above the item's
-feed line: the wait loop below does it for every line it has read. The hand-over goes one way
-only; the owner is set again when the unit next enters `accept` or `needs-you`. The 60 minutes are
-fixed, not a setting.
+feed line: the wait loop below does it for every line it has read. An ack above the last line
+written counts as the last line, and a stored one above it (the `events` file was reset) is
+cleared. A leader's `idle` line passes the same way (its text says `#<n> (idle) passed to …`).
+The hand-over goes one way only; the owner is set again when the unit next enters `accept` or
+`needs-you`. The 60 minutes are fixed, not a setting.
 
 ## The feed
 

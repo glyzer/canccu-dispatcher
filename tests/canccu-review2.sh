@@ -126,7 +126,10 @@ ok "… next pass: the full review line is read, a new cycle" eq "$(grep -c 'The
 
 # the lead forces a full review with a `full review` line in the comment
 nwenv nw-force $'Broader problems with the layout.\n\nFull review'
+printf '%s\tcorrectness\tsrc/a.ts\t3\topen\n' "$HB" > "$CANCCU_HOME/reviews/50/history"
 dispatch --once
+ok "needs-work with a full review line: the open items stay open, nobody fixed them" \
+  eq "$(cut -f5 "$CANCCU_HOME/reviews/50/history")" open
 ok "needs-work with a full review line: the worker resumes as before" grep -q 'web 5 Rules for this run: .* The user rejected PR #50 (needs-work)' "$FAKE/worker.log"
 ok "… a new cycle: the next review is a full one" eq "$(st 5 stage)|$(st 5 reviewed_sha)|$(st 5 open_sha)" "||"
 # a quote-reply of the fix-check: its verdict line is quoted, the comment ends in the lead's own words

@@ -106,7 +106,7 @@ reap_review() {
     else
       if [ ! -e "$f" ]; then why="no review file"
       elif (( $(stat -c %Y "$f") < ${started:-0} )); then why="the review file is older than the run"
-      elif [ -n "$(file_verdict_raw "$f" "$sha")" ]; then why="a file whose count line does not match the items" reason="the count line does not match the items"
+      elif [ -n "$(file_verdict_raw "$f" "$sha")" ]; then reason=$(review_miss "$f") why="a file: $reason"
       else why="the file's last line is no verdict for ${sha:0:7}"; fi
       if [ "$kind" = usage ]; then
         outcome "$n" "$pr" "$sha" "no valid verdict ($why; usage limit); again after the back-off"
@@ -358,7 +358,9 @@ resume_step() {
     { has_label "$n" awaiting-accept || [ "$phase" = accept ] || [ -n "$(st_get "$n" review_maccept)" ] ||
       [ "$(st_get "$n" review_risk)" = high ]; } && refused=1
     resume "$n" "The user rejected PR #$pr (needs-work). Address their comments, rerun the checks, push once and stop: the dispatcher watches CI. Their comments: ${c:-none found; read the latest comments on the PR and the issue}" needs-work || return 0
-    history_answer "$pr"; edit_issue "$n" --remove-label needs-work
+    # a full review asked for re-reviews the open items: nobody fixed or answered them yet
+    full_review_asked "$c" || history_answer "$pr"
+    edit_issue "$n" --remove-label needs-work
     has_label "$n" awaiting-accept && edit_issue "$n" --remove-label awaiting-accept
     new_cycle "$n"
     # kept until the full review's verdict is acted on: it holds for the next head, even the same
