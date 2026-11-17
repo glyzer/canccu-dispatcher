@@ -248,10 +248,13 @@ issue() {
 }
 issues() { jq -s . > "$FAKE/issues.json"; }
 # pr <n> <closes> <head> [ci green|red|pending|none] [labels] [draft] [body]: by USER_LOGIN (octo), from
-# branch <closes>-thing in the repo; PR_AUTHOR, PR_FORK=true and PR_BRANCH override that
+# branch <closes>-thing in the repo; PR_AUTHOR, PR_FORK=true and PR_BRANCH override that. The body
+# ends in the Testing: and Revert: lines every PR body has (#192); PR_LINES=0 leaves them out.
 pr() {
+  local b=${7:-}
+  [ "${PR_LINES:-1}" = 0 ] || b+="${b:+$'\n'}"$'Testing: tests/web.sh failed before, passes now\nRevert: plain revert'
   jq -n --argjson n "$1" --argjson c "$2" --arg h "$3" --arg ci "${4:-green}" --arg l "${5:-}" \
-        --argjson d "${6:-false}" --arg b "${7:-}" --arg au "${PR_AUTHOR:-octo}" --argjson fk "${PR_FORK:-false}" \
+        --argjson d "${6:-false}" --arg b "$b" --arg au "${PR_AUTHOR:-octo}" --argjson fk "${PR_FORK:-false}" \
         --arg br "${PR_BRANCH:-$2-thing}" \
     '{number: $n, title: "PR \($n)", url: "https://github.com/example-org/web/pull/\($n)", isDraft: $d, headRefOid: $h,
       labels: ($l | split(",") | map(select(. != "")) | map({name: .})), closingIssuesReferences: [{number: $c}],

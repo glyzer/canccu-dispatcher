@@ -83,6 +83,10 @@ done
 ok "docs/README.md lists every guide" eq "${unlisted# }" ""
 ok "… and the reference index" grep -qF '](reference/README.md)' docs/README.md
 ok "AGENTS.md tells a change to read and update only its reference topic" grep -qF 'docs/reference/' AGENTS.md
+# #209: CI runs the full suite; a worker that ran it locally spent its time budget on it
+ok "AGENTS.md tells no one to run the full suite locally" not grep -qE '(full local check|`tests/run`\)? \*\*once|tests/run`[^ ]* (once|in full|before push))' AGENTS.md
+ok "… but the repo checks before every push" grep -qF 'Before every push, run `tests/run repo`' AGENTS.md
+ok "… and no worker adds a size exemption" grep -qF "A new exemption needs the product owner's accept; a worker never adds one." AGENTS.md
 
 # ---------------------------------------------------------------- links
 

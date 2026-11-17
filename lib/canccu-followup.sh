@@ -169,7 +169,7 @@ no_checks_why() {
 # conflict_task <pr> <paths>: the task of a worker's merge run (kind merge: no fix attempt), for a
 # merge of main that conflicts, whether red CI (ci_red) or GitHub's merge state (conflict_merge) found it
 conflict_task() {
-  printf 'Merging origin/main into the branch of PR #%s conflicts in: %s. Run git merge origin/main, resolve the conflicts keeping what both sides meant, rerun the checks, push once (a normal push, never a rebase or force-push) and stop: the dispatcher watches CI.' "$1" "$2"
+  printf 'Merging origin/main into the branch of PR #%s conflicts in: %s. Run git merge origin/main, resolve the conflicts keeping what both sides meant, commit the merge and push it at once (a normal push, never a rebase or force-push), then run only the tests of the files that conflicted and push a fix if one fails, and stop: the dispatcher watches CI.' "$1" "$2"
 }
 
 # ci_log_tail <pr>: the newest log lines of the first failing job of a red CI (its check links to

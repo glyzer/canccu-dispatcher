@@ -7,6 +7,7 @@
 #   canccu-dispatcher config set [--project <name> | --global] KEY=VALUE [--why <text>]   checks and writes one setting
 #   canccu-dispatcher config unset [--project <name> | --global] KEY [--why <text>]       removes one setting's line
 #   canccu-dispatcher wait [--project <name>] [--owner po|leader] [--ack <id>]   the next feed line; exit 3: a stale heartbeat
+#   canccu-dispatcher leader brief [--project <name>]   what a fresh leader session needs; read only
 #   canccu-dispatcher watch [--project <name>] [--settle <sec>] [--match <regex>] [--file <path>]...   the next event the leader acts on; exit 3: a stale heartbeat
 #   canccu-dispatcher stall [--project <name>]        one line per stuck PR, CI run or silent log, each once per 3 hours
 #   canccu-dispatcher rollback [--prefix DIR]         current back to the previous release
@@ -41,7 +42,7 @@ CANCCU_USER_PATH=$PATH
 # shellcheck source=../lib/canccu-feed.sh
 . "$here/lib/canccu-feed.sh"
 
-usage() { sed -n '3,14s/^# \{0,1\}//p' "$self" >&2; exit 2; }
+usage() { sed -n '3,15s/^# \{0,1\}//p' "$self" >&2; exit 2; }
 cmd=${1:-}; [ $# -gt 0 ] && shift
 # from a checkout, the prefix of the PREFIX/bin link this was run through ($0, not resolved)
 prefix=$(canccu_default_prefix "$here" "$0") purge=0 yes=0 force=0
@@ -75,7 +76,7 @@ case $cmd in
   config)
     case ${1:-} in
       show) shift; cfg_show "$@" ;;
-      set|unset) c=$1; shift; cfg_set "$c" "$@" ;;
+      set|unset) c=$1; shift; act_track "config $c"; cfg_set "$c" "$@" ;;
       *) usage ;;
     esac ;;
   wait)
@@ -94,6 +95,14 @@ case $cmd in
     [ -n "$only" ] && canccu_profiles | grep -qxF -- "$only" ||
       _cmd_die "no project '${only}'. Projects: $(canccu_profiles | tr '\n' ' ' | sed 's/ $//')"
     CANCCU_HOME=$CANCCU_ROOT/projects/$only feed_wait "$owner" "$ack" ;;
+  leader)
+    [ "${1:-}" = brief ] || usage; shift
+    case $# in
+      0) ;;
+      2) [ "$1" = --project ] && [ -n "$2" ] || usage ;;
+      *) usage ;;
+    esac
+    exec "$here/libexec/canccu-brief" "$@" ;;
   watch|stall)
     # the whole engine lib is read for these two: they need the project's config, gh login and state
     lt_project="" lt_settle=180 lt_files=()

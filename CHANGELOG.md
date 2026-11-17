@@ -10,6 +10,9 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
   to `~/.canccu/projects/<project>/leader/` and sets `LEADER=on`; with `LEADER=on`, `canccu-up`
   starts the left pane's `claude` there, titled `leader`, with `CANCCU_ACTOR=leader`. The
   reference topic of the role is now `leader.md`, and the docs call it the leader (#187).
+- The scenario suite: `tests/scenarios/run --repo <owner/sandbox>` runs the real dispatcher
+  against a sandbox repo with a fake engine (no model tokens). A release PR (one that changes
+  `VERSION`) needs the body line `Scenarios: pass at <short sha>` (#189).
 
 ## [0.2.0] — 2026-11-16
 
