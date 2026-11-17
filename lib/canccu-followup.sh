@@ -56,10 +56,10 @@ extra_fix_round() {
   st_set "$k" extra_fix=1 stage=fixing reviewed_sha="$head"
   log "#$k PR #$pr: blocking findings fell from $(st_get "$k" blocking_prev) to $(st_get "$k" blocking_last); one more automatic fix round"
 }
-# may_start <K>: a follow-up run of the unit can start now: no back-off, and a slot. Checked before
-# its state changes, so a refused start leaves the work for the next pass (the engine would refuse
-# it anyway, and log that every pass)
-may_start() { backing_off && return 1; room "$1"; }
+# may_start <K>: a follow-up run of the unit can start now: no back-off, no pause, and a slot.
+# Checked before its state changes, so a refused start leaves the work for the next pass (the
+# engine would refuse it anyway, and log that every pass)
+may_start() { { backing_off || pause_holds; } && return 1; room "$1"; }
 
 # handoff <K> [kind]: what a fresh follow-up session gets instead of the old conversation: the PR,
 # its body (Decisions made:, Follow-up:), the branch's commits and their diff stat, uncommitted

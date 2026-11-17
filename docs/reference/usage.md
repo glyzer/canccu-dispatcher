@@ -89,3 +89,36 @@ has started.
 
 The throttle and the back-off are per host: two hosts on one Claude account each read only their
 own runs ([`../hosts.md`](../hosts.md)).
+
+## Pacing
+
+A week's limit runs out early when the work spends it faster than the week goes by. With `PACE`
+on (project config, open: `notify`, `cap` or `pause`; default `off`) each pass compares the weekly
+share of the newest reading with the share of the week gone since its weekly window started
+(its reset minus 7 days, rounded): `gone = 100 × (now − (reset − 604800)) / 604800`. The project is
+**ahead** when the weekly share is more than `PACE_MARGIN` points (10) above that. An unknown or
+stale reading is never ahead: no limit, and an ahead state ends with it (below); a fresh reading
+still ahead starts it again.
+
+While ahead: `notify` limits nothing; `cap` holds the runs over all projects to `PACE_CAP` (1), as
+the slow cap does; `pause` starts no new issue or package (as the weekly drain) and holds the
+resumes of stopped runs (step 4: a `needs-work`, an answer, a retry); the fix runs of work already
+started (a review's `changes`, red CI, a conflict merge) go on, so started work finishes. Pacing never writes `CAP` or `TOTAL_CAP`: it ends by itself once
+the week catches up.
+
+`pace` in the project's dir holds `since=<epoch>` and `mode=<PACE>` while ahead. Each transition
+is logged once:
+
+- `pace: weekly usage <w>% is <d> points ahead of the week (<g>% gone, PACE_MARGIN <m>); PACE=<mode>: <effect>`,
+  the effect `notice only`, `at most <c> run(s) at once over all projects` or `nothing new starts`;
+- `pace: PACE is now <mode> while <d> points ahead: <effect>` (`PACE` changed while ahead);
+- `pace: back on pace (weekly <w>%, <g>% of the week gone); PACE=<mode> no longer limits runs`;
+- `pace: the weekly reading is stale or unknown; PACE=<mode> limits nothing until a fresh one`.
+
+`PACE=pause` also writes a `hold` line (class `info`) in the feed,
+`pace: weekly usage <w>% is ahead of the week; nothing new starts until it is back on pace`, and
+its `closed` line when it ends (or `PACE` changes from `pause`; `reading stale` when the reading
+goes stale or unknown). The daily digest has a `**Pace:**` section while `PACE` is on:
+`on pace` or `ahead by <d> points since <time> (PACE=<mode>)`, then `weekly <w>%, <g>% of the week
+gone`.
+

@@ -10,12 +10,12 @@ time; the sequence below makes the switch clean, with no project running two rel
 
 For each project (`--project <p>`; the examples use the project `web`):
 
-1. **Pause**: `canccu-pause --project web`. No new issue, package or planner starts; running
-   runs go on.
+1. **Pause**: `canccu-pause --project web`. No new run starts, a review, fix or resume of work
+   in flight included; running runs go on.
 2. **Stop** the dispatcher: in its window `dispatch`, press Ctrl-C while the pane is quiet,
    between passes (a pass that is reaping or starting runs is busy; wait for its log lines to
-   end). A paused dispatcher still starts reviews and resumes for work in flight; a stopped one
-   starts nothing. The runs keep going in their own windows.
+   end). A paused dispatcher still reaps and merges what passed; a stopped one does
+   nothing. The runs keep going in their own windows.
 3. **Wait** until no run is left: `canccu-status --project web` lists none under running, and the
    monitor's NOW is empty. A run that must not wait can be stopped with `canccu-stop <n>`
    (`canccu-run <n>` continues it later).

@@ -18,7 +18,8 @@ common_rules() {
   echo "$RUN_RULES Do not review your own work; run the checks only. If you must stop with a question, write it on its own line starting \`Question:\` and stop. If an issue is still blocked (an open blocker), build nothing, open no PR and stop with the status \`blocked\` and what it waits on. When resumed with review findings, fix them, rerun the checks, push once and stop. To bring in main, run \`git merge origin/main\` and push normally; never rebase or force-push a PR branch (the squash-merge flattens it). Do NOT enable auto-merge, never merge, and never add or remove the \`accepted\` label: stop as soon as the PR is open and ready: do not wait for CI, the dispatcher watches it and resumes you when it is red.${WORKER_EXTRA:+ $WORKER_EXTRA} Stop and say why on: a question, a destructive migration, a breaking contract change, or a blocked command. End with a 5-line report: status, PR URL, what changed, verification, next action."
 }
 
-# start_package <m> <name> <issues "a b"> <risk> <reason>: claim the package's issues and start its worker
+# start_package <m> <name> <issues "a b"> <risk> <reason> [planned lines]: claim the package's issues
+# and start its worker
 start_package() {
   local m=$1 nm=$2 is=$3 k br c=0 i n budget rc p="" pl=()
   # every issue is checked against GitHub here, whatever the plan says: only the dispatcher's
@@ -29,8 +30,9 @@ start_package() {
   for i in $is; do is_exclusive "$i" && c=1; done
   # plan-ok on its issues: their plan PR merged (plan_back); the build executes that plan
   for i in $is; do has_label "$i" plan-ok && p=1 pl=(--remove-label plan-ok); done
-  st_set "$k" plan_ok=$p pkg="$nm" step="$m" wave="$(step_get "$m" wave)" members="$is" branch="$br" risk="$4" risk_reason="$(oneline 200 "$5")" exclusive=$c
-  n=$(unit_size "$k"); budget=$(pkg_budget "$BUDGET_WORK" "$n")
+  st_set "$k" plan_ok=$p pkg="$nm" step="$m" wave="$(step_get "$m" wave)" members="$is" branch="$br" risk="$4" risk_reason="$(oneline 200 "$5")" exclusive=$c \
+    plan_lines="$( [[ ${6:-} =~ ^[1-9][0-9]*$ ]] && echo "$6")"
+  n=$(budget_factor "$k"); budget=$(pkg_budget "$BUDGET_WORK" "$n")
   run_worker "$k" "$(package_prompt "$k")" "$budget" || { rc=$?; st_rm "$k"; (( rc == SLOT_REFUSED )) && return "$rc"; return 1; }
   took_slot
   edit_members "$k" --add-label in-progress --remove-label ready --add-assignee "$USER_LOGIN" "${pl[@]}"
@@ -55,7 +57,8 @@ start_packages() {
     # once one finds no shared slot, it and every other startable package wait for one
     if (( held )); then want_held "$m/$nm"; continue; fi
     take_slot "$m/$nm" || { held=1; continue; }
-    start_package "$m" "$nm" "$is" "$rk" "$(jqr --arg n "$nm" '.packages[] | select(.name == $n) | .risk_reason' "$(step_get "$m" plan)")"; rc=$?
+    start_package "$m" "$nm" "$is" "$rk" "$(jqr --arg n "$nm" '.packages[] | select(.name == $n) | .risk_reason' "$(step_get "$m" plan)")" \
+      "$(jqr --arg n "$nm" '.packages[] | select(.name == $n) | .lines // empty' "$(step_get "$m" plan)")"; rc=$?
     case $rc in
       0) ;;
       2) continue ;;

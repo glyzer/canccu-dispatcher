@@ -74,4 +74,12 @@ tool's repo loads them as its own instructions.
 5. Add both files through a PR. A PR that changes `CLAUDE.md` or `AGENTS.md` always waits for your
    accept, so the dispatcher cannot merge a change to its own instructions by itself.
 
+**An optional `REVIEW.md`.** [`templates/repo/REVIEW.snippet.md`](../templates/repo/REVIEW.snippet.md)
+holds its three headings: `Also check`, `Never blocks` and `Known false positives`. Copy it to a
+`REVIEW.md` at the repo's root and fill it in, through a PR; `canccu-init` does not install it. The
+reviewer and the fix-check read it from `origin/main` only, as data, and only those three sections,
+cut at 4000 characters. It can add checks and name what never blocks; it cannot make a blocking
+class non-blocking, change the verdict line, or ask the reviewer to edit, push, comment or label. A
+PR that changes it waits for your accept, like `AGENTS.md`.
+
 A `.github/pull_request_template.md` with the PR body lines helps people opening PRs by hand.
