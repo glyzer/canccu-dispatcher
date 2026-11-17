@@ -220,7 +220,7 @@ n=0
   if (( n )); then echo "Review verdict: changes $sha"; else echo "Review verdict: pass $sha"; fi; } > "$f"
 EOF
 chmod +x "$fb/rs-reviewer"
-rs() { PATH="$fb:$PATH" REVIEW_SET_ENGINE=$fb/rs-reviewer "$root/tests/review-set/run" "$@" > "$E/out" 2>&1; rc=$?; }
+rs() { REVIEW_SET_ENGINE=$fb/rs-reviewer "$root/tests/review-set/run" "$@" > "$E/out" 2>&1; rc=$?; }
 RS_DEFECTS="defect-contract defect-correctness defect-criterion defect-data-loss defect-security defect-test"
 RS_SHA=$(git -C "$root" rev-parse --short HEAD)
 

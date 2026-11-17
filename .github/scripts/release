@@ -4,7 +4,9 @@
 #   release check <tag>              the tag is v<VERSION>, and CHANGELOG.md has a dated section
 #                                    "## [<version>] — <date>" for it (not "unreleased")
 #   release check <tag> --body <f>   also: the release PR body in <f> has the line
-#                                    "Scenarios: pass at <short sha>" (tests/scenarios/run)
+#                                    "Scenarios: pass at <short sha>" (tests/scenarios/run), and
+#                                    when the reviewer changed since the last tag (review_gate),
+#                                    "Review set: pass at <short sha>" (tests/review-set/run)
 #   release notes <version>          print that section's body: the release notes
 #   release build <version> <dir>    git archive of HEAD as <dir>/canccu-dispatcher-<version>.tar.gz
 #                                    (every file under canccu-dispatcher-<version>/), plus
@@ -13,7 +15,7 @@
 set -uo pipefail
 
 die() { echo "release: $1" >&2; exit "${2:-1}"; }
-usage() { sed -n '3,10s/^# \{0,1\}//p' "$0" >&2; exit 2; }
+usage() { sed -n '3,12s/^# \{0,1\}//p' "$0" >&2; exit 2; }
 
 version() { local v=""; { read -r v < VERSION; } 2>/dev/null; printf '%s\n' "${v//[[:space:]]/}"; }
 
@@ -23,6 +25,38 @@ section() {
   awk -v want="## [$1]" '
     /^## / { if (on) exit; on = (substr($0, 1, length(want)) == want) }
     on' CHANGELOG.md 2>/dev/null
+}
+
+# review_gate <rev>: what a review-set run covers, as of that commit: lib/canccu-verdict.sh
+# whole (the block, its parser, REVIEW.md handling), the review prompts' definitions without the
+# comments above them, and REVIEW_MODEL's default. Read from git, so a shallow fetch of the tag's
+# commit is enough.
+review_gate() {
+  git show "$1:lib/canccu-verdict.sh" 2>/dev/null
+  # a function from its "name() {" line to its closing "}"; a variable is one line
+  local f names
+  for f in canccu-runs.sh:review_prompt canccu-depth.sh:light_review_prompt,LIGHT_REVIEW_TEXT canccu-norepeat.sh:norepeat_prompt; do
+    names=${f#*:}
+    git show "$1:lib/${f%%:*}" 2>/dev/null | awk -v names=",$names," '
+      in_fn { print; if ($0 ~ /^}/) in_fn = 0; next }
+      match($0, /^[A-Za-z_][A-Za-z0-9_]*(\(\)|=)/) {
+        n = substr($0, 1, RLENGTH); sub(/(\(\)|=)$/, "", n)
+        if (index(names, "," n ",")) { print; in_fn = ($0 ~ /^[A-Za-z0-9_]+\(\)/ && $0 !~ /}[[:space:]]*$/) }
+      }'
+  done
+  git show "$1:lib/canccu-config.default" 2>/dev/null | grep '^REVIEW_MODEL='
+}
+
+# review_set_since <tag>: prints the tag the reviewer changed since (the highest v* tag below
+# <tag>, or "the first release" without one) and returns 0; returns 1 when nothing changed or
+# when this is no git repo (nothing to compare)
+review_set_since() {
+  local prev
+  git rev-parse --git-dir >/dev/null 2>&1 || return 1
+  prev=$({ git tag -l 'v*'; echo "$1"; } | sort -uV | awk -v t="$1" '$0 == t { print p; exit } { p = $0 }')
+  if [ -z "$prev" ]; then echo "the first release"; return 0; fi
+  [ "$(review_gate "$prev")" = "$(review_gate HEAD)" ] && return 1
+  echo "$prev"
 }
 
 cmd=${1:-}; shift || true
@@ -43,8 +77,13 @@ case $cmd in
       # the gate is the line a run of tests/scenarios/run asks for; a PR body may end in CRLF
       tr -d '\r' < "$body" | grep -qE '^Scenarios: pass at [0-9a-f]{7,40}$' ||
         die 'the release PR body has no "Scenarios: pass at <sha>" line'
+      if since=$(review_set_since "$tag"); then
+        tr -d '\r' < "$body" | grep -qE '^Review set: pass at [0-9a-f]{7,40}$' ||
+          die "the release PR body has no \"Review set: pass at <sha>\" line: the review prompt, REVIEW.md handling, lib/canccu-verdict.sh or REVIEW_MODEL's default changed since $since"
+        rs="; the review set passed"
+      fi
     fi
-    echo "tag $tag matches VERSION and CHANGELOG.md${body:+; the scenarios passed}" ;;
+    echo "tag $tag matches VERSION and CHANGELOG.md${body:+; the scenarios passed}${rs:-}" ;;
   notes)
     [ $# -eq 1 ] || usage
     s=$(section "$1")
