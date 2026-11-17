@@ -1,0 +1,160 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# tests/scenarios/fake-engine — CANCCU_WORKER for the scenario suite (docs/reference/scenarios.md):
+# takes libexec/canccu-worker's arguments and plays a scripted worker, reviewer, fix-check or
+# planner instead of running claude, so a scenario costs no model tokens.
+#   fake-engine [--key K] [--dir D] [--name N] [--model M] [--effort E] [--untrusted]
+#               [--keep-session] [--fresh] [--quiet] <repo> "<prompt>" turns=<n> cost=<usd> min=<n>
+#   fake-engine --unlock <repo> <key>  |  --kill <repo> <key>
+# The script is $SCENARIO_DIR/script, lines "<role> <round> <action>" (role: worker, review,
+# fixcheck, plan; round: the role's nth run on that key). Without a line: worker pr, review pass,
+# fixcheck pass, plan one package. Every run appends "<role> <round> <key> <action>" to
+# $SCENARIO_DIR/engine.log.
+set -uo pipefail
+here=$(cd "$(dirname "$0")" && pwd)
+# the real engine's lock helpers, so a lock written here is one the dispatcher reads as alive
+# shellcheck source=../../lib/canccu-engine.sh
+. "$here/../../lib/canccu-engine.sh"
+: "${SCENARIO_DIR:?fake-engine: SCENARIO_DIR is not set}" "${WORKERS_DIR:?}" "${CODE_ROOT:?}"
+SCENARIO_RUN_SEC=${SCENARIO_RUN_SEC:-2}
+
+# report_last <repo> <key> <prompt> <fresh|resume> <status> <message>: .last in the layout of
+# canccu-worker's report(), which run_exit reads: the status is the 4th " · " field from the end
+report_last() {
+  printf '%s#%s · "%s" · %s · %s · %s turns · $%s · %dm%02ds\n\n%s\n' \
+    "$1" "$2" "$3" "$4" "$5" 1 0 0 0 "$6" > "$WORKERS_DIR/$1-$2.last"
+}
+
+# action <role> <round> <key>: the script's action for that run, else the default
+action() {
+  local a
+  a=$(awk -v r="$1" -v n="$2" '$1 == r && $2 == n { $1 = $2 = ""; sub(/^ +/, ""); print; exit }' \
+        "$SCENARIO_DIR/script" 2>/dev/null)
+  [ -n "$a" ] && { echo "$a"; return; }
+  case $1 in worker) echo pr ;; plan) echo package ;; *) echo pass ;; esac
+}
+
+# closes <key>: the issues the unit's PR closes: the scenario's $SCENARIO_DIR/closes-<key>, else
+# the key itself (an issue)
+closes() { if [ -s "$SCENARIO_DIR/closes-$1" ]; then cat "$SCENARIO_DIR/closes-$1"; else echo "$1"; fi; }
+
+pr_body() {   # pr_body <Closes|Refs> <key>: the body AGENTS.md prescribes
+  local n
+  for n in $(closes "$2"); do echo "$1 #$n"; done
+  printf '\n%s\n' 'Package: -' 'Risk: low — a scenario of the suite' 'Tier: fix' \
+    'Decisions made:' '- none' 'Next action: review' 'Verification run: none (a scenario)'
+}
+
+commit_push() {   # commit_push <branch> <what> [nopush]
+  # a new line each run, so a second commit on the branch always has something to commit; git's
+  # chatter goes to stderr: stdout is the run's status
+  { mkdir -p scenario && echo "$2 $(date +%s%N)" >> "scenario/$1.txt" && git add scenario &&
+      git -c user.name=scenario -c user.email=scenario@users.noreply.github.com commit -qm "scenario: $2" &&
+      { [ -n "${3:-}" ] || git push -q -u origin "$1"; }; } >&2
+}
+open_pr() {   # open_pr <branch> <Closes|Refs> <key> [--draft]: unless the branch has one open
+  [ -n "$(gh pr list --head "$1" --json number -q '.[0].number' 2>/dev/null)" ] && return 0
+  gh pr create --head "$1" --title "scenario: $3${4:+ (draft)}" --body "$(pr_body "$2" "$3")" ${4:+"$4"} >&2
+}
+
+# play_worker <repo> <key> <dir> <action>: echoes "<status>|<message>"
+play_worker() {
+  local repo=$1 key=$2 wt=$3 br
+  [ -d "$wt" ] || git -C "$CODE_ROOT/$repo" worktree add -q --detach "$wt" origin/main >&2 ||
+    { echo "crashed (exit 1)|no worktree"; return; }
+  cd "$wt" || { echo "crashed (exit 1)|no worktree"; return; }
+  br=$(git branch --show-current); [ -n "$br" ] || { br=$key-scenario; git switch -q -c "$br" >&2; }
+  case $4 in
+    pr) commit_push "$br" "$key $4" && open_pr "$br" Closes "$key" &&
+          { gh pr ready "$br" >&2 2>/dev/null || true; } && echo "done|opened the PR" ;;   # a contract unit's draft
+    merge-main)
+      # the PR's side of every conflict: the suite's main commit only touched the PR's own file
+      { git fetch -q origin main && { git merge -q --no-edit origin/main ||
+          { git checkout -q --ours . && git add -A && git -c user.name=scenario -c user.email=scenario@users.noreply.github.com commit -q --no-edit; }; } &&
+          git push -q origin "$br"; } >&2 && echo "done|merged main" ;;
+    contract)
+      git switch -q -c "$br-contract" origin/main >&2 && commit_push "$br-contract" "$key contract" &&
+        open_pr "$br-contract" Refs "$key" && git switch -q "$br" >&2 &&
+        commit_push "$br" "$key unit" && open_pr "$br" Closes "$key" --draft && echo "done|contract PR first" ;;
+    fix) commit_push "$br" "$key fix" && echo "done|fixed" ;;
+    push-denied)
+      commit_push "$br" "$key denied" nopush &&
+        printf 'done|could not push\n\nPermission denials (information):\nBash git push -u origin %s\n' "$br" ;;
+    crash) echo "crashed (exit 1)|the fake engine died" ;;
+    *) echo "crashed (exit 1)|unknown worker action $4" ;;
+  esac
+}
+
+# play_review <key> <dir> <action>: the review file for the head the run sits at
+play_review() {
+  local pr=${1#review-} sha f
+  sha=$(git -C "$2" rev-parse HEAD) || { echo "crashed (exit 1)|no head"; return; }
+  f=$CANCCU_HOME/reviews/$pr/$sha.md; mkdir -p "${f%/*}"
+  case $3 in
+    pass) printf '%s\n' 'Blocking:' '- none' '' "Review verdict: pass $sha" > "$f" ;;
+    pass-accept) printf '%s\n' 'Blocking:' '- none' '' 'Maintainer accept: a scenario of the suite' '' "Review verdict: pass $sha" > "$f" ;;
+    changes) printf '%s\n' 'Blocking:' '1. scenario/x.txt:1 — the scenario asks for one fix; fix: commit again' '' "Review verdict: changes $sha" > "$f" ;;
+    *) echo "crashed (exit 1)|unknown review action $3"; return ;;
+  esac
+  echo "done|wrote $f"
+}
+
+# play_plan <key> <prompt>: one package of every issue the prompt names, as the planner's JSON
+play_plan() {
+  local issues wave
+  issues=$(grep -o 'The issues to plan are exactly: [^.]*' <<<"$2" | grep -oE '[0-9]+' | paste -sd, -)
+  wave=$(grep -oE '[Ww]ave [0-9]+' <<<"$2" | head -1 | grep -oE '[0-9]+')
+  printf 'done|{"schema":1,"step":%s,"wave":%s,"packages":[{"name":"scenario","issues":[%s],"risk":"normal","risk_reason":"a scenario","areas":["scenario/"],"depends_on":[]}]}\n' \
+    "${1#plan-}" "${wave:-1}" "$issues"
+}
+
+# run <repo> <key> <role> <round> <how> <dir> <prompt>: the detached child that holds the lock
+run() {
+  local repo=$1 key=$2 role=$3 round=$4 how=$5 dir=$6 prompt=$7 act out l
+  l=$(lock_path "$repo" "$key")
+  printf 'repo=%s\nkey=%s\nkind=worker\npid=%s\npstart=%s\nwindow=\nstarted=%s\n' \
+    "$repo" "$key" "$$" "$(proc_start $$)" "$(date +%s)" > "$l.tmp" && mv "$l.tmp" "$l"
+  act=$(action "$role" "$round")
+  echo "$role $round $key $act" >> "$SCENARIO_DIR/engine.log"
+  sleep "$SCENARIO_RUN_SEC"
+  case $role in
+    worker) out=$(play_worker "$repo" "$key" "$dir" "$act") ;;
+    review|fixcheck) out=$(play_review "$key" "$dir" "$act") ;;
+    plan) out=$(play_plan "$key" "$prompt") ;;
+  esac
+  [ -n "$out" ] || out="crashed (exit 1)|the $role action $act failed"
+  report_last "$repo" "$key" "$prompt" "$how" "${out%%|*}" "${out#*|}"
+  [[ $key =~ ^[0-9]+$|^pkg- ]] && echo "fake-session-$key" > "$WORKERS_DIR/$repo-$key.id"
+  rm -f "$l"
+}
+
+[ "${1:-}" = __run ] && { shift; run "$@"; exit; }
+
+o_key="" o_dir="" o_name="" fresh=0
+while [[ ${1:-} == --* ]]; do
+  case $1 in
+    --quiet|--untrusted|--keep-session) ;; --fresh) fresh=1 ;;
+    --key|--dir|--name|--model|--effort) printf -v "o_${1#--}" '%s' "${2:?$1 needs a value}"; shift ;;
+    --unlock) rm -f "$(lock_path "${2##*/}" "$3")"; exit 0 ;;
+    --kill) l=$(lock_path "${2##*/}" "$3"); p=$(lock_get "$l" pid); [ -n "$p" ] && kill "$p" 2>/dev/null; rm -f "$l"; exit 0 ;;
+    *) echo "fake-engine: unknown flag $1" >&2; exit 2 ;;
+  esac
+  shift
+done
+(( $# >= 2 )) || { echo "fake-engine: usage: fake-engine [flags] <repo> \"<prompt>\" turns= cost= min=" >&2; exit 2; }
+repo=${1##*/} prompt=$2 key=${o_key:-${2%% *}}
+case $o_name in
+  review#*) role=review ;; fixcheck#*) role=fixcheck ;; plan#*) role=plan ;; *) role=worker ;;
+esac
+round=$(( $(awk -v r="$role" -v k="$key" '$1 == r && $3 == k' "$SCENARIO_DIR/engine.log" 2>/dev/null | wc -l) + 1 ))
+how=resume; { (( fresh )) || [ ! -s "$WORKERS_DIR/$repo-$key.id" ]; } && how=fresh
+dir=${o_dir:-$WORKERS_DIR/worktrees/$repo/issue-$key}
+l=$(lock_path "$repo" "$key")
+lock_alive "$l" 2>/dev/null && { echo "refused: $repo#$key is running" >&2; exit 2; }
+rm -f "$WORKERS_DIR/$repo-$key.last"
+# detached and with its own stdio: the dispatcher reads this command's output to its end, and
+# returns only once the lock is there, as canccu-worker does once the tmux window holds the run
+setsid "$0" __run "$repo" "$key" "$role" "$round" "$how" "$dir" "$prompt" \
+  < /dev/null >> "$SCENARIO_DIR/engine.out" 2>&1 &
+for _ in $(seq 50); do [ -e "$l" ] || [ -s "$WORKERS_DIR/$repo-$key.last" ] && exit 0; sleep 0.1; done
+echo "fake-engine: the run of $repo#$key did not start" >&2; exit 1
