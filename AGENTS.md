@@ -78,4 +78,6 @@ In this order:
   the stack, error handling, test shape), one per line; the reviewer checks them;
 - `Next action: <what comes next>`;
 - `Verification run: <the checks run, with their result>`;
+- `Testing: <the tests that failed before the change and pass now, or why there is none>`;
+- `Revert: <plain revert | the extra step a revert needs>`;
 - any `Follow-up: <work outside the issue>` and `Roadmap note: <a change to the plan>` lines.

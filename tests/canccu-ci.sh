@@ -137,11 +137,11 @@ for t in feature bug idea; do
   done
 done
 f=.github/pull_request_template.md
-for l in 'Closes #' 'Package: ' 'Risk: ' 'Tier: ' 'Decisions made:' 'Next action: ' 'Verification run: ' 'Follow-up: ' 'Roadmap note: '; do
+for l in 'Closes #' 'Package: ' 'Risk: ' 'Tier: ' 'Decisions made:' 'Next action: ' 'Verification run: ' 'Testing: ' 'Revert: ' 'Follow-up: ' 'Roadmap note: '; do
   ok "PR template: $l" grep -q "^$l" "$f"
 done
-ok "PR template: the lines in AGENTS.md's order" eq "$(grep -oE '^(Closes|Package|Risk|Tier|Decisions made|Next action|Verification run|Follow-up|Roadmap note)' "$f" | tr '\n' '|')" \
-  "Closes|Package|Risk|Tier|Decisions made|Next action|Verification run|Follow-up|Roadmap note|"
+ok "PR template: the lines in AGENTS.md's order" eq "$(grep -oE '^(Closes|Package|Risk|Tier|Decisions made|Next action|Verification run|Testing|Revert|Follow-up|Roadmap note)' "$f" | tr '\n' '|')" \
+  "Closes|Package|Risk|Tier|Decisions made|Next action|Verification run|Testing|Revert|Follow-up|Roadmap note|"
 
 echo "canccu-ci tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
