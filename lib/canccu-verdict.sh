@@ -33,7 +33,7 @@ review_format_text() {
 
 # The block's parser. An item starts at column 0 with a list mark; the lines up to the next item,
 # heading or stop line are its own (Evidence:, Fix:). Text on a heading's line is an item too,
-# unless it says none. mode: parse (review_parse), eff ("<kept> <n> <p> <demoted> <classes>", nothing
+# unless it says none. mode: parse (review_parse), keptpre (the Pre-existing: items kept), eff ("<kept> <n> <p> <demoted> <classes>", nothing
 # without a count line or when it does not match), kept / moved (the items' text: the blocking ones
 # left / all others, in file order), presec (1 when a Pre-existing: item is a security one), keys
 # (the blocking ones left: "<class> <file> <line>"), why ("<plain> <settled> <unchanged>": the
@@ -143,7 +143,9 @@ _REVIEW_AWK='
       if (mode == "moved" && !k && y != 2) out = out (out == "" ? "" : "\n") tx[i]
       # a pre-existing security item the brake keeps blocks this PR: no follow-up issue for it
       if (sec[i] == "preexisting" && cl[i] == "security" && !k) psec = 1
+      if (sec[i] == "preexisting" && k) kp++
     }
+    if (mode == "keptpre") { print kp + 0; exit }
     if (mode == "kept" || mode == "moved") { if (out != "") print out; exit }
     if (mode == "presec") { if (psec) print 1; exit }
     if (mode == "keys") exit
@@ -237,14 +239,16 @@ review_post() {
 }
 
 # reviews_log <n> <pr> <sha> <file>: the posted verdict's line in reviews.log (§8); a post-pass
-# check is a fixcheck. Append only.
+# check is a fixcheck. Field 11: the Pre-existing: items the review brake kept blocking (not
+# demoted, --kpi-review). Append only.
 reviews_log() {
-  local kind=full e v b n p d c
+  local kind=full e v b n p d c kp
   is_fixcheck_mode "$(st_get "$1" review_mode)" && kind=fixcheck
   e=$(review_effective "$4" "$3"); [ -n "$e" ] || return 0
   read -r v b n p d c <<<"$e"
+  kp=$(_review_awk keptpre < "$4")
   (( CANCCU_DRY )) && return 0
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$(iso "$(now)")" "$2" "$3" "$kind" "$v" "$b" "$n" "$p" "$d" "$c" \
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$(iso "$(now)")" "$2" "$3" "$kind" "$v" "$b" "$n" "$p" "$d" "$c" "${kp:-0}" \
     >> "$CANCCU_HOME/reviews.log" || log "#$1 PR #$2: cannot append to reviews.log"
 }
 

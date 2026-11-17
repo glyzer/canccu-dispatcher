@@ -86,7 +86,8 @@ itself when escaped defects rise. An escaped defect is an issue or PR, open or c
 
 - **The baseline.** It covers the last `BRAKE_WINDOW` PRs merged before the first `reviews.log`
   line: their escaped defects per merged PR, and their review rounds per merged PR (the
-  `review-<pr>` runs of the spend log up to the merge). It is written once, to `brake-baseline`.
+  `review-<pr>` runs of the spend log up to the merge, but those whose outcome says
+  `verdict=none` or `void`: a lost or retried run posted nothing). It is written once, to `brake-baseline`.
   With fewer than 5 such PRs there is no baseline, the trigger is off, and `canccu-status` says so.
 - **The trigger.** With `REVIEW_BRAKE=auto`, each pass compares the escaped defects per merged PR
   of the last `BRAKE_WINDOW` merged PRs with the baseline. Above it, the brake engages: the file
@@ -106,11 +107,13 @@ itself when escaped defects rise. An escaped defect is an issue or PR, open or c
   - `REVIEW_LIGHT` is off.
 - **The release.** `canccu-dispatcher brake release` is the product owner's only. The leader and
   runs are refused, as with a locked setting (exit 3). The release removes `brake` and writes
-  `<time> po brake release - released` to `actions.log`. Nothing else releases the brake. A
-  release while the rate is still above the baseline engages the brake again on the next pass.
+  `<time> po brake release - released` to `actions.log`. Nothing else releases the brake. It
+  also writes `brake-released`, the newest merged PR: the trigger then waits until a PR merged
+  after the release moves the window, and decides again from there.
   `canccu-dispatcher brake` prints the state.
 - **Where it shows.** `canccu-status` and the monitor show `brake: on since <time> (<trigger>)`.
   `canccu-status --kpi-review` prints one line each for the last `BRAKE_WINDOW` merged PRs,
   since the baseline (the PRs merged from the first `reviews.log` line on), and at the baseline.
   Each line gives the review rounds per merged PR, the blocking findings by class (the verdicts
-  that left each), the findings demoted, and the escaped defects per merged PR.
+  that left each), the findings demoted (a `Pre-existing:` item the brake kept blocking is not one), and the
+  escaped defects per merged PR.

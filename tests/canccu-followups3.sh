@@ -157,4 +157,54 @@ route 'issue list -R example-org/web -s closed -l checkpoint*' cps-closed.json
 cp_read() { fetch_steps && jq -r '[.[] | select(.number == 7) | .state] + [length | tostring] | join(" ")' <<<"$CHECKPOINTS"; }
 ok "an open checkpoint behind 200 closed ones is read (its own list), with the closed" eq "$(lib cp_read)" "OPEN 201"
 
+# ---------------------------------------------------------------- #233: --kpi-review's demoted count
+
+# a pre-existing item the brake kept blocks: reviews.log records it (field 11), --kpi-review does
+# not count it as demoted
+env_new kpi-prekept
+F=$E/review.md
+printf 'Blocking:\nnone\nNon-blocking:\nnone\nPre-existing:\n%s\n%s\nFindings: 0 blocking, 0 non-blocking, 2 pre-existing\nReview verdict: changes %s\n' \
+  '- [correctness] src/old.ts:9 — the old loop skips one' '- [style] src/old.ts:12 — a name' "$HA" > "$F"
+echo "2030-11-05T11:00:00Z escaped defects" > "$CANCCU_HOME/brake"
+state 5 phase=review pr=50
+lib reviews_log 5 50 "$HA" "$F"
+ok "in the brake: reviews.log records the pre-existing item kept (2 written, 1 kept)" eq "$(cut -f5,8,11 "$CANCCU_HOME/reviews.log")" "$(printf 'changes\t2\t1')"
+rm "$CANCCU_HOME/brake"
+lib reviews_log 5 50 "$HA" "$F"
+ok "… without the brake, none kept" eq "$(tail -1 "$CANCCU_HOME/reviews.log" | cut -f5,8,11)" "$(printf 'pass\t2\t0')"
+echo "2030-10-01T00:00:00Z 0.20 2.00 5" > "$CANCCU_HOME/brake-baseline"
+printf '50\t%s\n' "$(lib iso "$NOW")" > "$CANCCU_HOME/merged.log"
+ok "--kpi-review: demoted 3, of them pre-existing 3 (the kept one is not demoted)" \
+  grep -qF "demoted 3 (pre-existing 3, out of Blocking: 0)" <<<"$(lib _kpi_nums 50 0)"
+
+# a brake release holds until the window moves on: one merged PR more lets the trigger decide again
+env_new brake-hold
+echo "2030-10-15T00:00:00Z 0.10 1.00 10" > "$CANCCU_HOME/brake-baseline"
+for p in $(seq 101 110); do printf '%s\t%s\t%s\tauto\tPR %s\n' "$((NOW - 86400 + p))" "$((p - 100))" "$p" "$p"; done >> "$CANCCU_HOME/merged.log"
+json regi.json '[{"number": 90, "body": "Regression of: #103"}, {"number": 92, "body": "Regression of: #107"}]'; json regp.json '[]'
+route 'issue list -R example-org/web -s all *Regression of*' regi.json
+route 'pr list -R example-org/web -s all *Regression of*' regp.json
+lib brake_tick
+ok "the brake engages" test -e "$CANCCU_HOME/brake"
+CANCCU_HOME=$CANCCU_HOME "$root/bin/canccu-dispatcher" brake release >/dev/null 2>&1
+lib brake_tick
+ok "… after brake release, the same window does not engage it again" not test -e "$CANCCU_HOME/brake"
+printf '%s\t%s\t%s\tauto\tPR 111\n' "$NOW" 11 111 >> "$CANCCU_HOME/merged.log"
+lib brake_tick
+ok "… a newer merged PR in the window: the trigger decides again (still above: on)" test -e "$CANCCU_HOME/brake"
+ok "… and the hold is gone" not test -e "$CANCCU_HOME/brake-released"
+
+# the baseline's rounds: a review run with no verdict (lost, void) is no round; an old line with no
+# outcome counts
+env_new brake-base-rounds
+B0=$((NOW - 40 * 86400))
+for p in $(seq 101 105); do printf '%s\t%s\t%s\tauto\tPR %s\n' "$((B0 + p * 60))" "$((p - 100))" "$p" "$p"; done >> "$CANCCU_HOME/merged.log"
+printf '%s\t107\t%s\tfull\tpass\t0\t0\t0\t0\t-\n' "$(lib iso "$((NOW - 86400))")" "$HA" > "$CANCCU_HOME/reviews.log"
+sl() { printf '%s\tweb\treview-%s\t1.00\treview\tm\t-\tfresh\t0\t0\t0\t0\t-\t-\t%s\t60\n' "$((B0 + $1 * 60 - 30))" "$1" "$2"; }
+{ sl 101 verdict=pass,blocking=0; sl 101 verdict=none; sl 102 -; sl 103 verdict=void; sl 104 verdict=changes,blocking=1; } > "$WORKERS_DIR/spend.log"
+json regi.json '[]'; json regp.json '[]'
+route 'issue list -R example-org/web -s all *Regression of*' regi.json
+route 'pr list -R example-org/web -s all *Regression of*' regp.json
+ok "the baseline counts the review runs with a verdict (or no outcome): 3 of 5 lines" eq "$(lib brake_baseline | cut -d' ' -f3)" 0.60
+
 echo "canccu-followups3 tests: $npass passed, $nfail failed"; (( nfail == 0 ))
