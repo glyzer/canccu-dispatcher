@@ -72,8 +72,9 @@ cfg_values() {
       printf '%s\t%s\t%s\t%s\n' "${_cv_keys[_cv_i]}" "$_cv_v" "$_cv_d" "$_cv_o"
     done )
 }
-# _cfg_project <name or empty>: the project a command works on: the named one, else the only one.
-# Ends the command as doctor does when there is none or the name is unknown.
+# _cfg_project <name or empty>: the project a command works on, in CFG_PROJ: the named one, else
+# the only one. Ends the command as doctor does when there is none or the name is unknown; run in
+# the command's own shell, never in $(…), so the refusal (ACT_WHY) reaches the actions log.
 _cfg_project() {
   local proj=$1 ps
   ps=$(canccu_profiles | tr '\n' ' '); ps=${ps% }
@@ -85,7 +86,7 @@ _cfg_project() {
     esac
   fi
   canccu_profiles | grep -qxF -- "$proj" || _cmd_die "no project '$proj'. Projects: $ps"
-  printf '%s\n' "$proj"
+  CFG_PROJ=$proj
 }
 # cfg_show [--project <name>] [--global] [--origin] [KEY...]: config show. It reads the config
 # files only: the token file and the gh login's dir are printed as paths, never opened. A usage
@@ -103,7 +104,7 @@ cfg_show() {
   done
   [ "$glob" = 0 ] || [ -z "$proj" ] || usage
   for k in "${want[@]}"; do cfg_field "$k" 1 >/dev/null || _cmd_die "unknown setting $k" 2; done
-  [ "$glob" = 1 ] || proj=$(_cfg_project "$proj") || exit
+  if [ "$glob" = 0 ]; then _cfg_project "$proj"; proj=$CFG_PROJ; fi
   local vals; vals=$(cfg_values "$proj") || exit 1
   [ "$origin" = 0 ] || printf 'KEY\tVALUE\tDEFAULT\tORIGIN\tLOCKED\n'
   local line key v d o l
@@ -208,7 +209,7 @@ cfg_set() {
   # the key, never the value, goes to the actions log: a value may be a path or a name
   # shellcheck disable=SC2034  # read at exit by _act_exit (lib/canccu-actionslog.sh)
   ACT_CMD="config $op $k"
-  if [ "$glob" = 0 ]; then proj=$(_cfg_project "$proj") || exit; nowp=$proj; ACT_HOMES=("$CANCCU_ROOT/projects/$proj")
+  if [ "$glob" = 0 ]; then _cfg_project "$proj"; proj=$CFG_PROJ nowp=$CFG_PROJ; ACT_HOMES=("$CANCCU_ROOT/projects/$proj")
   else
     # the "now:" line of a --global write: the only project's value, as config show gives it
     [ "$(canccu_profiles | grep -c .)" != 1 ] || nowp=$(canccu_profiles)
