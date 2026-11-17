@@ -1,0 +1,55 @@
+diff --git a/bin/tally b/bin/tally
+index a31f65b..39f42b1 100755
+--- a/bin/tally
++++ b/bin/tally
+@@ -4,6 +4,7 @@
+ #   tally add <name> [n]   add n (default 1) to the counter
+ #   tally show [name]      every counter, or one
+ #   tally reset <name>     remove a counter
++#   tally rename <old> <new>   a counter under a new name
+ set -euo pipefail
+ here=$(cd "$(dirname "$0")/.." && pwd)
+ # shellcheck source=../lib/store.sh
+@@ -22,5 +23,11 @@ case $cmd in
+     name=${1:?tally reset <name>}
+     valid_name "$name" || { echo "tally: bad name $name" >&2; exit 2; }
+     store_del "$name" ;;
+-  *) echo "usage: tally add|show|reset" >&2; exit 2 ;;
++  rename)
++    old=${1:?tally rename <old> <new>} new=${2:?tally rename <old> <new>}
++    valid_name "$new" || { echo "tally: bad name $new" >&2; exit 2; }
++    store_has "$old" || { echo "tally: no counter $old" >&2; exit 1; }
++    store_has "$new" && { echo "tally: $new exists" >&2; exit 1; }
++    store_rename "$old" "$new" ;;
++  *) echo "usage: tally add|show|reset|rename" >&2; exit 2 ;;
+ esac
+diff --git a/lib/store.sh b/lib/store.sh
+index 18568cf..00d88d4 100644
+--- a/lib/store.sh
++++ b/lib/store.sh
+@@ -27,4 +27,13 @@ store_del() {
+   awk -F '\t' -v n="$1" '$1 != n' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+ }
+ 
++# store_has <name>: there is a counter of that name
++store_has() { local f; f=$(store_file); [ -f "$f" ] && awk -F '\t' -v n="$1" '$1 == n { h = 1 } END { exit !h }' "$f"; }
++
++# store_rename <old> <new>: the counter keeps its count under the new name
++store_rename() {
++  local f; f=$(store_file)
++  awk -F '\t' -v OFS='\t' -v o="$1" -v n="$2" '$1 == o { $1 = n } { print }' "$f" | LC_ALL=C sort > "$f"
++}
++
+ store_list() { local f; f=$(store_file); [ -f "$f" ] && cat "$f"; return 0; }
+diff --git a/tests/store.sh b/tests/store.sh
+index 81b42bb..b4cec20 100644
+--- a/tests/store.sh
++++ b/tests/store.sh
+@@ -15,5 +15,7 @@ check "the file is sorted" "$(t show)" "$(printf 'apples\t3\npears\t1')"
+ t reset apples
+ check "reset removes the counter" "$(t show)" "$(printf 'pears\t1')"
+ check "an unknown name counts 0" "$(t show plums)" "$(printf 'plums\t0')"
++t rename pears quinces
++check "rename keeps the count under the new name" "$(t show quinces)" "$(printf 'quinces\t1')"
+ # --- new checks above this line
+ exit "$fail"

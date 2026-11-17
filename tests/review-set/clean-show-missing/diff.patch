@@ -1,0 +1,49 @@
+diff --git a/bin/tally b/bin/tally
+index a31f65b..a874e36 100755
+--- a/bin/tally
++++ b/bin/tally
+@@ -2,7 +2,7 @@
+ # SPDX-License-Identifier: AGPL-3.0-or-later
+ # tally — named counters in a file (docs/format.md)
+ #   tally add <name> [n]   add n (default 1) to the counter
+-#   tally show [name]      every counter, or one
++#   tally show [name]      every counter, or one (exit 1 when there is no such counter)
+ #   tally reset <name>     remove a counter
+ set -euo pipefail
+ here=$(cd "$(dirname "$0")/.." && pwd)
+@@ -17,7 +17,10 @@ case $cmd in
+     [[ $n =~ ^[0-9]+$ ]] || { echo "tally: bad count $n" >&2; exit 2; }
+     store_set "$name" $(( $(store_get "$name") + n )) ;;
+   show)
+-    if [ $# -gt 0 ]; then printf '%s\t%s\n' "$1" "$(store_get "$1")"; else store_list; fi ;;
++    if [ $# -gt 0 ]; then
++      store_has "$1" || { echo "tally: no counter $1" >&2; exit 1; }
++      printf '%s\t%s\n' "$1" "$(store_get "$1")"
++    else store_list; fi ;;
+   reset)
+     name=${1:?tally reset <name>}
+     valid_name "$name" || { echo "tally: bad name $name" >&2; exit 2; }
+diff --git a/lib/store.sh b/lib/store.sh
+index 18568cf..d741d9d 100644
+--- a/lib/store.sh
++++ b/lib/store.sh
+@@ -27,4 +27,7 @@ store_del() {
+   awk -F '\t' -v n="$1" '$1 != n' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+ }
+ 
++# store_has <name>: there is a counter of that name
++store_has() { local f; f=$(store_file); [ -f "$f" ] && awk -F '\t' -v n="$1" '$1 == n { h = 1 } END { exit !h }' "$f"; }
++
+ store_list() { local f; f=$(store_file); [ -f "$f" ] && cat "$f"; return 0; }
+diff --git a/tests/store.sh b/tests/store.sh
+index 81b42bb..218d164 100644
+--- a/tests/store.sh
++++ b/tests/store.sh
+@@ -14,6 +14,6 @@ check "add counts up" "$(t show apples)" "$(printf 'apples\t3')"
+ check "the file is sorted" "$(t show)" "$(printf 'apples\t3\npears\t1')"
+ t reset apples
+ check "reset removes the counter" "$(t show)" "$(printf 'pears\t1')"
+-check "an unknown name counts 0" "$(t show plums)" "$(printf 'plums\t0')"
++check "an unknown name: a message and exit 1" "$(t show plums 2>&1; echo "rc=$?")" "$(printf 'tally: no counter plums\nrc=1')"
+ # --- new checks above this line
+ exit "$fail"
