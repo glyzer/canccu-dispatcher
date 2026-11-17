@@ -53,7 +53,9 @@ Once it merged, the dispatcher reads the report from `origin/main` with the revi
 - blocking items left: one issue in the step's milestone, labelled `ready`, titled
   `Step <title>: polish (deep review)`, with the items, the report and the PR. The step goes back
   to `idle` and the planner plans it like any issue. Logged as
-  `step <title>: the deep review found <b> blocking finding(s); polish issue #<i> filed`;
+  `step <title>: the deep review found <b> blocking finding(s); polish issue #<i> filed`. A create
+  that prints no link: the issue is the newest open one with that exact title; none found is
+  logged (`the polish issue was filed but gh printed no link …`) and the summary says `none`;
 - none: `step <title>: the deep review found nothing blocking; the health pass follows`;
 - the PR closed without merging: `#pkg-<m>-deep: PR #<pr> was closed without merging; the health
   pass follows`;

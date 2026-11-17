@@ -86,7 +86,8 @@ case "$1 $2" in
         '.comments += [{author: {login: $u}, createdAt: "2030-11-05T12:05:\(.comments | length + 10)Z", body: $b}]' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
     fi
     # a new issue prints its link, like the real gh: number 900, or the one in $FAKE/new-issue
-    [ "$1 $2" = "issue create" ] && echo "https://github.com/example-org/web/issues/$(cat "$FAKE/new-issue" 2>/dev/null || echo 900)"
+    # (route nourl:issue create: none)
+    [ "$1 $2" = "issue create" ] && ! grep -qxF "nourl:issue create" <<<"$routes" && echo "https://github.com/example-org/web/issues/$(cat "$FAKE/new-issue" 2>/dev/null || echo 900)"
     # $FAKE/comment-urls: an issue comment prints its link, like the real gh
     [ -e "$FAKE/comment-urls" ] && [ "$1 $2" = "issue comment" ] && echo "https://github.com/example-org/web/issues/$3#issuecomment-$3"
     # $FAKE/noisy: a write prints like the real gh does (URLs on stdout, notes on stderr)
