@@ -3,7 +3,7 @@
 
 A template for the planning session that starts a new project, before the first issue. Copy the
 template into the project's own docs, fill it in with the product owner, and turn the step ladder
-into milestones ([`reference/lead.md`](reference/lead.md#steps-and-epics)). The question bank
+into milestones ([`reference/leader.md`](reference/leader.md#steps-and-epics)). The question bank
 below helps fill each part; skip what does not apply. The gate kinds are in [`gates.md`](gates.md).
 
 ## The template

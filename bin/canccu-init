@@ -8,6 +8,9 @@
 # already runs the repo or uses the clone. Never changes rulesets, secrets, variables or
 # collaborators, never creates or reads a token, and starts nothing. docs/canccu-dispatch.md, "Adding a project"
 # and "A narrow token per project".
+# canccu-init --leader <name> — give an existing project a leader: its kit (CLAUDE.md and
+# .claude/settings.json) in ~/.canccu/projects/<name>/leader/, and LEADER=on in its config
+# (docs/reference/leader.md, "The leader kit").
 set -uo pipefail
 self=$(realpath "$0")
 here=$(dirname "$self")/..
@@ -15,12 +18,41 @@ die() { echo "canccu-init: $*" >&2; exit 1; }
 # shellcheck source=../lib/canccu-projects.sh
 . "$here/lib/canccu-projects.sh"
 
+usage() { sed -n '3,13s/^# \{0,1\}//p' "$self" >&2; exit 2; }
+
+if [ "${1:-}" = --leader ]; then
+  [ $# -eq 2 ] || usage
+  name=$2 dir=$CANCCU_ROOT/projects/$2
+  canccu_valid_name "$name" || die "'$name' is no project name (a-z, 0-9, - and _; up to 31 characters)"
+  [ -f "$dir/config" ] || die "no project '$name' (${dir/#$HOME/\~}); add it first: canccu-init $name <owner/repo>"
+  kit=$dir/leader kt=${dir/#$HOME/\~}/leader
+  { [ -e "$kit/CLAUDE.md" ] || [ -e "$kit/.claude/settings.json" ]; } && die "leader files exist in $kt; remove them first"
+  # the project's own values: its repo, and the token file its config may move
+  # shellcheck disable=SC2034  # read by the lib
+  CANCCU_PROJECT=$name
+  # shellcheck source=../lib/canccu-common.sh
+  . "$here/lib/canccu-common.sh"
+  t=$here/templates/leader
+  mkdir -p "$kit/.claude" || die "cannot create $kt"
+  # sed for the Markdown (no / in a name or a repo); jq for the JSON, so any path stays valid JSON
+  sed -e "s|@NAME@|$name|g" -e "s|@REPO@|$REPO|g" "$t/CLAUDE.leader.md" > "$kit/CLAUDE.md" &&
+    jq --arg f "$REVIEWER_TOKEN_FILE" --arg n "$name" 'walk(if type == "string" then gsub("@REVIEWER_TOKEN_FILE@"; $f) | gsub("@NAME@"; $n) else . end)' \
+      "$t/settings.json" > "$kit/.claude/settings.json" || { rm -f "$kit/CLAUDE.md" "$kit/.claude/settings.json"; die "cannot write the kit in $kt"; }
+  # config set: LEADER is locked, so the leader or a run is refused, and the history says who
+  if ! err=$("$here/bin/canccu-dispatcher" config set --project "$name" LEADER=on --why "canccu-init --leader" 2>&1 >/dev/null); then
+    rm -f "$kit/CLAUDE.md" "$kit/.claude/settings.json"
+    die "${err#canccu-dispatcher: }; no kit written"
+  fi
+  echo "leader kit written to $kt; canccu-up starts the leader there"
+  exit 0
+fi
+
 profile=default
 case ${1:-} in
   --profile) [ $# -ge 2 ] || die "--profile needs a template name"; profile=$2; shift 2 ;;
   --profile=*) profile=${1#--profile=}; shift ;;
 esac
-[ $# -eq 2 ] || [ $# -eq 3 ] || { sed -n '2,9s/^# \{0,1\}//p' "$self" >&2; exit 2; }
+[ $# -eq 2 ] || [ $# -eq 3 ] || usage
 name=$1 repo=$2 clone=${3:-}
 canccu_valid_name "$profile" || die "'$profile' is no template name (a-z, 0-9, - and _)"
 canccu_valid_name "$name" || die "'$name' is no project name (a-z, 0-9, - and _; up to 31 characters)"

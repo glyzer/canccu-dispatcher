@@ -383,7 +383,7 @@ title's leading number, else `m`); `deep_due <m>`; `start_deep <m> [base]`; `dee
 **Files:** create `lib/canccu-leadtools.sh`; modify `bin/canccu-dispatcher` (subcommands and the
 usage text's line range), `bin/canccu-status` (`--pace`), `lib/canccu-feed.sh` (factor the
 heartbeat check out of `feed_wait` as `heartbeat_stale` → message or nothing),
-`docs/reference/lead.md`, `commands.md`, `state.md`. Tests: `tests/canccu-feed.sh`,
+`docs/reference/leader.md`, `commands.md`, `state.md`. Tests: `tests/canccu-feed.sh`,
 `tests/canccu-usage.sh`.
 
 **Interfaces — produces:** `lead_watch <settle> <match> <file>...` (exit 0, 3 on a stale

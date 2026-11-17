@@ -48,7 +48,7 @@ brief_open() {
   echo "${out:-  none}"
 }
 
-# brief: the leader's first command (docs/reference/lead.md)
+# brief: the leader's first command (docs/reference/leader.md)
 brief() {
   local m f=$CANCCU_HOME/actions.log
   status_header

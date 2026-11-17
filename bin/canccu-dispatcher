@@ -9,7 +9,7 @@
 #   canccu-dispatcher wait [--project <name>] [--owner po|leader] [--ack <id>]   the next feed line; exit 3: a stale heartbeat
 #   canccu-dispatcher leader brief [--project <name>]   what a fresh leader session needs; read only
 #   canccu-dispatcher brake [release] [--project <name>]   the review brake's state; release: the product owner's only
-#   canccu-dispatcher watch [--project <name>] [--settle <sec>] [--match <regex>] [--file <path>]...   the next event the lead acts on; exit 3: a stale heartbeat
+#   canccu-dispatcher watch [--project <name>] [--settle <sec>] [--match <regex>] [--file <path>]...   the next event the leader acts on; exit 3: a stale heartbeat
 #   canccu-dispatcher stall [--project <name>]        one line per stuck PR, CI run or silent log, each once per 3 hours
 #   canccu-dispatcher rollback [--prefix DIR]         current back to the previous release
 #   canccu-dispatcher uninstall [--prefix DIR] [--purge-state --yes] [--force]

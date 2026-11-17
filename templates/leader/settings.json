@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(canccu-dispatcher leader brief*)",
+      "Bash(canccu-dispatcher wait *)",
+      "Bash(canccu-dispatcher watch*)",
+      "Bash(canccu-dispatcher stall*)",
+      "Bash(canccu-dispatcher config show*)",
+      "Bash(canccu-dispatcher config set --project @NAME@ PACE=*)",
+      "Bash(canccu-dispatcher config set --project @NAME@ PACE_MARGIN=*)",
+      "Bash(canccu-dispatcher config set --project @NAME@ PACE_CAP=*)",
+      "Bash(canccu-dispatcher config set --project @NAME@ STEP_DEEP_REVIEW=*)",
+      "Bash(canccu-status*)",
+      "Bash(canccu-status --pace*)",
+      "Bash(canccu-ship *)",
+      "Bash(gh issue view *)",
+      "Bash(gh issue list *)",
+      "Bash(gh issue comment *)",
+      "Bash(gh issue create *)",
+      "Bash(gh pr view *)",
+      "Bash(gh pr diff *)",
+      "Bash(gh pr checks *)"
+    ],
+    "deny": [
+      "Read(/@REVIEWER_TOKEN_FILE@)",
+      "Edit(/@REVIEWER_TOKEN_FILE@)",
+      "Bash(*@REVIEWER_TOKEN_FILE@*)",
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git push * --force*)",
+      "Bash(git push * -f*)",
+      "Bash(git rebase*)",
+      "Bash(gh pr merge*)"
+    ]
+  }
+}

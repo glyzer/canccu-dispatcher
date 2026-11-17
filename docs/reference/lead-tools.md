@@ -1,8 +1,8 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
-# The lead's toolkit
+# The leader's toolkit
 
-Part of the reference; the index is [`README.md`](README.md). Three commands for the lead's
-session ([`lead.md`](lead.md)): one waits for what the lead acts on, one names what is stuck, one
+Part of the reference; the index is [`README.md`](README.md). Three commands for the leader's
+session ([`leader.md`](leader.md)): one waits for what the leader acts on, one names what is stuck, one
 shows the pace. They only read: none writes the log, the feed or GitHub.
 
 ## watch
@@ -13,7 +13,7 @@ waits for the next event and exits 0 once it prints it:
 - the new lines of the project's `dispatch.log` that match `--match` (an extended regex). The
   default: `awaiting accept|needs-you:|checkpoint #[0-9]+ waits for checkpoint-ok|is done: |usage at stopping|waits \(no PR\)|stopped, needs-you|Z pace: `
   (a log line starts with its ISO time, so `Z pace: ` is a pacing line);
-- every new line of each `--file` (a lead's own notes, a test's output);
+- every new line of each `--file` (a leader's own notes, a test's output);
 - the [`stall`](#stall) lines, checked at the start and every 10 minutes.
 
 A `--file` line exits at once. Any other hit waits `--settle` seconds (default 180), so a burst of

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # shellcheck shell=bash disable=SC2034,SC2154  # globals are shared with the other lib/canccu-*.sh parts
-# Part of lib/canccu-common.sh (sourced by it, never run): the lead's toolkit (docs/reference/lead-tools.md).
-# `canccu-dispatcher watch` waits for the log lines and files the lead acts on, `canccu-dispatcher
+# Part of lib/canccu-common.sh (sourced by it, never run): the leader's toolkit (docs/reference/lead-tools.md).
+# `canccu-dispatcher watch` waits for the log lines and files the leader acts on, `canccu-dispatcher
 # stall` names what is stuck without a log line saying so, `canccu-status --pace` shows the pace.
 # Both commands only read: they never write the log, the feed or GitHub.
 

@@ -123,7 +123,7 @@ HIGH_RISK_TEXT='migrations, sign-in or auth, rights, sessions, secrets, tenancy/
 REVIEW_LIGHT=0              # 1: a package of class low or normal gets a light review (a checklist at low effort); locked
 PING_KINDS=all              # the ping kinds (PING=on): all, or some of accept checkpoint plan question needs-you pr-needs-you; empty: none
 # the leader (an optional AI session that watches the project): which waiting items are its, and
-# not the product owner's (docs/reference/lead.md). LEADER=off: every item is the product owner's
+# not the product owner's (docs/reference/leader.md). LEADER=off: every item is the product owner's
 LEADER=off                  # on or off
 LEADER_ACCEPTS=none         # technical or none: the accepts the owner rule gives the leader
 LEADER_ACCEPTS_HIGH_RISK=0  # 1: a high-risk accept is the leader's too (LEADER_ACCEPTS=technical)
