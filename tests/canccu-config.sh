@@ -347,6 +347,7 @@ $out" "0
 CAP=2 written to $P/config; it applies at the dispatcher's next pass
 now: 2 (from project)"
 ok "… no temporary file left" eq "$(find "$P" -maxdepth 1 -name '.*' | wc -l)" 0
+ok "config set writes one actions-log line, actor po (#186)" eq "$(wc -l < "$P/actions.log") $(cut -f2- "$P/actions.log")" "1 po	config set CAP	-	ok"
 cs set STALL_MIN=15
 ok "config set STALL_MIN=15 with no such line: the last line" eq "$(tail -1 "$P/config")" "STALL_MIN='15'"
 cs set "WORKER_EXTRA=it's fine"
@@ -360,6 +361,7 @@ ok "… its history in \$CANCCU_ROOT/config.history" eq "$(cut -f3-6 "$CANCCU_RO
 ok "… the project's config still says 2" grep -qxF "CAP='2'" "$P/config"
 cs set TOTAL_CAP=2
 ok "TOTAL_CAP without --global: status 2, is global" eq "$rc $out" "2 canccu-dispatcher: TOTAL_CAP is global: use --global"
+ok "… its actions-log line says why" eq "$(tail -1 "$P/actions.log" | cut -f2-)" "po	config set TOTAL_CAP	-	TOTAL_CAP is global: use --global"
 cs set REPO=a/b
 ok "REPO: status 2, not changed with this command" eq "$rc $out" "2 canccu-dispatcher: REPO is not changed with this command: edit the config file by hand and restart the dispatcher"
 cs set NOPE=1
@@ -377,6 +379,8 @@ for a in leader run; do
   ok "CANCCU_ACTOR=$a config set GATED_PATHS: status 3, refused, the file unchanged" \
     eq "$rc $out $(cmp -s "$P/rules" "$E/before"; echo $?)" "3 canccu-dispatcher: refused: GATED_PATHS is locked; only the product owner changes it 0"
   ok "… one history line: $a refused" eq "$(hist | tail -1 | cut -f2-6)" "$a	refused	GATED_PATHS	^\.github/	^x/"
+  ok "… one actions-log line: $a, the refusal" eq "$(tail -1 "$P/actions.log" | cut -f2-)" \
+    "$a	config set GATED_PATHS	-	refused: GATED_PATHS is locked; only the product owner changes it"
 done
 out=$(CANCCU_ACTOR=leader "$root/bin/canccu-dispatcher" config set 'USER_VISIBLE_PATHS=^web/' 2>&1); rc=$?
 ok "CANCCU_ACTOR=leader config set USER_VISIBLE_PATHS: refused, locked (#78)" \

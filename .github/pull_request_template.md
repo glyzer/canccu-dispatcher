@@ -9,5 +9,7 @@ Decisions made:
 - <!-- each implementation choice the issue left open (names, libraries, error handling, test shape) -->
 Next action: <!-- what comes next -->
 Verification run: <!-- the checks run, with their result -->
+Testing: <!-- the tests that failed before the change and pass now, or why there is none -->
+Revert: <!-- plain revert | the extra step a revert needs -->
 Follow-up: <!-- work outside the issue -->
 Roadmap note: <!-- a change to the plan -->

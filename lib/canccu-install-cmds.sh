@@ -5,7 +5,8 @@
 # never run. Each defines everything it needs before it removes a file: uninstall deletes the
 # tree this script runs from (bash keeps reading it through its open descriptor).
 
-_cmd_die() { echo "canccu-dispatcher: $1" >&2; exit "${2:-1}"; }
+# shellcheck disable=SC2034  # ACT_WHY: the actions log's result (lib/canccu-actionslog.sh)
+_cmd_die() { ACT_WHY=$1; echo "canccu-dispatcher: $1" >&2; exit "${2:-1}"; }
 # canccu_default_prefix <tree> [the path it was run as]: the prefix the running release was
 # installed in; for a checkout (--dev) the prefix of the PREFIX/bin link it was run through, else
 # ~/.local. Resolved either way, as install.sh resolves the prefix it writes the links with:

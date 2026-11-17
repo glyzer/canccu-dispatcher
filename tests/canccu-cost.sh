@@ -199,6 +199,10 @@ for t in 'Never run a command in the background' 'Commit and push early: push th
   ok "worker prompt: $t" grep -qF "$t" "$FAKE/worker.log"
   ok "… the package prompts too" grep -qF "$t" <<<"$(lib common_rules)"
 done
+# #209: the repo checks before every push catch the size limit CI would otherwise find after it
+REPO_RULE='Before every push run the repo checks (tests/run repo in this repo, or the check CLAUDE.md names) and split any source file that went over the size limit; never add a size exemption.'
+ok "worker prompt: the repo checks before every push" grep -qF "CI runs it on every push. $REPO_RULE" "$FAKE/worker.log"
+ok "… the package prompts too" grep -qF "$REPO_RULE" <<<"$(lib common_rules)"
 ok "… and no fix-round count of their own: the dispatcher's FIX_ATTEMPTS caps them" not grep -qF 'CI red after two fix rounds' "$FAKE/worker.log"
 ok "the engine's system prompt: no background work" grep -qF 'Never run a command or subagent in the background' "$root/libexec/canccu-worker"
 

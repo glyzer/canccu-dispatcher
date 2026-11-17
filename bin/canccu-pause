@@ -12,6 +12,7 @@ for a in "$@"; do [ "$a" = --finish ] && finish=1 || args+=("$a"); done
 set -- "${args[@]}"
 # shellcheck source=../lib/canccu-common.sh
 . "$(dirname "$self")/../lib/canccu-common.sh"
+act_track "canccu-pause$( ((finish)) && echo " --finish")"
 
 mkdir -p "$CANCCU_HOME" || exit 1
 # a plain pause empties the file: one written by --finish would otherwise keep its meaning

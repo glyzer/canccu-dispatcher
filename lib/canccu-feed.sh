@@ -114,6 +114,7 @@ feed_handover() {
     pr=$(st_get "$k" pr)
     t="#$k passed to the product owner: the leader did not acknowledge it in 60 min"
     _st_put "$k" owner=po
+    feed_closed "$id" "passed to the product owner" "$k"   # the leader's line: no longer open for it
     id=$(feed po ask handover "$k" "$pr" "$(feed_url "$k" "$pr")" "$t")
     [ -z "$id" ] || _st_put "$k" ev_id="$id" ev_at="$(now)"
     log "$t"

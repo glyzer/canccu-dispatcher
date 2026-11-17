@@ -14,9 +14,9 @@ accept_channel() {
   return 1
 }
 
-# ship_actor: who runs canccu-ship: leader (CANCCU_ACTOR=leader) or po. A run's marker counts as
-# po here: a run holding the project login is what the hardened level shuts out, not this check.
-ship_actor() { [ "${CANCCU_ACTOR-}" = leader ] && echo leader || echo po; }
+# ship_actor: who runs canccu-ship: leader, run or po, by the CANCCU_ACTOR marker (cfg_actor).
+# canccu-ship refuses a run; a run that unsets the marker is what the hardened level shuts out.
+ship_actor() { cfg_actor; }
 # actor_channel <po|leader>: the channel that actor's canccu-ship accepts through
 actor_channel() { [ "$1" = leader ] && echo leader || echo ship; }
 

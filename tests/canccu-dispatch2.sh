@@ -284,5 +284,54 @@ ok "… with Maintainer accept: breaks the contract → waits for the product ow
   eq "$(st 5 phase)|$(grep -c 'pr merge' "$FAKE/gh.log")" "accept|0"
 ok "… with the reason" has gh.log "Why you: maintainer accept: breaks the contract"
 
+# ---------------------------------------------------------------- Testing: and Revert: in the PR body (#192)
+
+# benv <name> <body> [branch]: issue 5 in check on its green PR 50 with that body (PR_LINES=0:
+# the harness adds no Testing:/Revert: lines of its own)
+benv() {
+  local p br=${3:-5-thing}
+  env_new "$1"
+  { issue 5 in-progress; } | issues
+  p=$(PR_LINES=0 PR_BRANCH=$br pr 50 5 $HA green "" false "$2"); printf '%s\n' "$p" | prs
+  json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z)"; route 'pr view 50 *' pr50.json
+  json files50.json '[{"filename": "src/a.ts"}]'; route 'api --paginate repos/example-org/web/pulls/50/files*' files50.json
+  state 5 phase=check "check_at=$NOW" pr=50 branch=5-thing
+  echo sid > "$WORKERS_DIR/web-5.id"
+}
+BSEND='PR #50 needs `Testing:` and `Revert:` lines in its body (after Verification run:). Edit the body only (gh pr edit 50 --body-file <file>); no code change, no push.'
+benv body-no-testing $'Closes #5\nVerification run: tests/run, green\nRevert: plain revert'
+dispatch --once
+ok "body lines: a PR body without Testing: → the worker is resumed with the text" grep -qF "$BSEND" "$FAKE/worker.log"
+ok "… body_lines is set, no reviewer starts" eq "$(st 5 body_lines) $(grep -c -- '--key review-' "$FAKE/worker.log")" "50 0"
+ok "… logged" grep -qF '#5 PR #50: body lacks Testing:/Revert:; the worker adds them' "$CANCCU_HOME/dispatch.log"
+ok "… not a fix round" eq "$(st 5 fixes)" ""
+: > "$FAKE/worker.log"; sed -i '/^phase=/d' "$CANCCU_HOME/state/5"; echo phase=check >> "$CANCCU_HOME/state/5"
+rm -f "$WORKERS_DIR"/web-5.lock
+dispatch --once
+ok "body lines: the same PR still without it on the next pass → the review, not needs-you" \
+  eq "$(grep -c -- '--key review-50' "$FAKE/worker.log") $(st 5 phase) $(grep -c needs-you "$FAKE/gh.log")" "1 review 0"
+ok "… no second send-back" not grep -qF "$BSEND" "$FAKE/worker.log"
+ok "… the review prompt says the lines are missing: a [criterion] finding" \
+  grep -qF 'The PR body lacks a `Testing:` line: raise a `[criterion]` finding for it.' "$FAKE/worker.log"
+
+benv body-both $'Closes #5\n- **Testing:** tests/a.sh failed before, passes now\n- `Revert:` plain revert'
+dispatch --once
+ok "body lines: a body with both lines (markdown marks too) goes straight to review" \
+  eq "$(grep -c -- '--key review-50' "$FAKE/worker.log") $(grep -cF 'needs `Testing:`' "$FAKE/worker.log") $(st 5 body_lines)" "1 0 "
+
+benv body-plan $'Plan for #5\nTier: plan'
+dispatch --once
+ok "body lines: a plan PR is not sent back" eq "$(grep -cF 'needs `Testing:`' "$FAKE/worker.log") $(st 5 body_lines)" "0 "
+
+# the contract PR 51 beside the unit's draft PR 50 (as tests/canccu-merge.sh's cfix), closing nothing
+benv body-contract 'Closes #5' 5-thing
+c=$(PR_LINES=0 PR_BRANCH=5-thing-contract pr 51 0 "$HB" green "" false $'Refs #5\nthe unit'"'"'s own PR implements #5' | jq '.closingIssuesReferences = []')
+printf '%s\n' "$(PR_LINES=0 PR_BRANCH=5-thing pr 50 5 $HA green "" true 'Closes #5')" "$c" | prs
+json pr51.json "$(detail "$c" 2030-11-05T10:00:00Z)"; route 'pr view 51 *' pr51.json
+json files51.json '[{"filename": "contracts/a.yaml"}]'; route 'api --paginate repos/example-org/web/pulls/51/files*' files51.json
+dispatch --once
+ok "body lines: a contract PR is not sent back" \
+  eq "$(grep -cF 'needs `Testing:`' "$FAKE/worker.log") $(st 5 body_lines) $(grep -c -- '--key review-51' "$FAKE/worker.log")" "0  1"
+
 echo "canccu-dispatch2 tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

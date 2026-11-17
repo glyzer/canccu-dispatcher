@@ -59,6 +59,20 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/venv"
           "$RUNNER_TEMP/venv/bin/pip" install --quiet --disable-pip-version-check -r lib/canccu-monitor.requirements.txt
 
+      # the release gate: a PR that changes VERSION is a release PR, and its body must carry the
+      # line a passing run of tests/scenarios/run gives (docs/reference/scenarios.md). The body
+      # reaches the script through env, never interpolated into it: it is the PR author's text.
+      - name: Release PR scenarios line
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          git fetch -q --depth=1 origin "$BASE_SHA"
+          if git diff --quiet "$BASE_SHA" HEAD -- VERSION; then echo "VERSION unchanged: not a release PR"; exit 0; fi
+          printf '%s\n' "$PR_BODY" > "$RUNNER_TEMP/pr-body.md"
+          .github/scripts/release check "v$(cat VERSION)" --body "$RUNNER_TEMP/pr-body.md"
+
       # the local check: lint, every test file, the monitor's self-test and the leak check, in
       # parallel; one line per part, the failing checks, and the full logs kept for the next step
       - name: Local check
