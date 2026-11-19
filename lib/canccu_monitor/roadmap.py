@@ -459,7 +459,7 @@ def fast_table(snap, width):
 def title_line(name, snap, width):
     t = line(("ROADMAP  ", "bold"), (name, "bold"), (" · " + txt(snap, "repo", "?"), "dim"))
     if not has_steps(snap) and not lst(snap, "milestones"):
-        t.append(" · no steps", style="dim")
+        t.append(" · no steps (simple workflow)", style="dim")
         if not fast_rows(snap):
             t.append(" · nothing running or queued", style="dim")
     return wrap(t, width, 2)

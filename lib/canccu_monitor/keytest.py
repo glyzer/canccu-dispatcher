@@ -74,10 +74,14 @@ def keyboard_checks(check):
         kb = Keyboard(r, isatty=lambda fd: True, termios=FakeTermios(log))
         with kb:
             check(log == [("tty", "cbreak", True)], "keys: cbreak mode (ICANON and ECHO off, ISIG kept) %r" % log)
-            os.write(w, b"2\x1b[")
+            os.write(w, b"2")
             check(kb.wait(0.01) == ["2"], "keys: the keyboard reads a key")
-            os.write(w, b"B")
-            check(kb.wait(0.01) == ["down"], "keys: the keyboard joins a split sequence")
+            os.write(w, b"j\x1b[")
+            check(kb.wait(0.01) == ["down"] and kb.rest == "", "keys: an unfinished sequence is kept past its wait")
+            reads = ["1\x1b[", "6", "~"]
+            real, kb.read = kb.read, lambda t: reads.pop(0) if reads else ""
+            check(kb.wait(0.01) == ["1", "pgdn"], "keys: the keyboard does not join a split sequence")
+            kb.read = real
             os.write(w, b"\x1b")
             check(kb.wait(0.01) == [], "keys: a lone ESC gives a key")
             check(kb.wait(0.01) == [], "keys: nothing to read gives a key")
@@ -92,6 +96,7 @@ def keyboard_checks(check):
         log.clear()
         kb = Keyboard(r, isatty=lambda fd: True, termios=FakeTermios(log))
         with kb:
+            check(kb.wait(0.01) == ["q"], "keys: the key left in the tty before it went is not read")
             check(kb.wait(0.01) == [] and not kb.active, "keys: a tty that is gone (end of file) is still read")
         check(log[-1] == ("tty", "restored", True), "keys: the attributes are not restored after the tty is gone")
     finally:
@@ -141,9 +146,10 @@ def loop(snaps, keys, width=100, height=30, error_at=None, state=None):
         os.close(r)
         os.close(w)
     shots = []
-    for kind, s in log:
-        if kind != "write":
+    for entry in log:
+        if entry[0] != "write":
             continue
+        s = entry[1]
         for m in re.finditer(r"\x1b\[(\d+);1H(.*?)(?=\x1b\[\d+;1H|\x1b\[\?2026l|$)", s, re.S):
             screen[int(m.group(1)) - 1] = ANSI.sub("", m.group(2))
         shots.append(list(screen))
@@ -154,13 +160,15 @@ def loop_checks(snap, check):
     log, shots, st = loop([snap], ["2", "", "\t\t\t", "\x1b[Z", "?", "x", "q"])
     bars = [s[-1] for s in shots if s[-1].strip()]
     check(any("[2 Projects]" in b for b in bars), "loop: 2 does not switch to Projects")
-    check(st.view == 0 and "[1 Summary" in shots[-2][-1], "loop: Tab ×3 from Projects does not wrap to the Summary")
-    writes = [s for k, s in log if k == "write"]
+    first = next((i for i, b in enumerate(bars) if "[2 Projects]" in b), len(bars))
+    check(any("[1 Summary" in b for b in bars[first:]), "loop: Tab ×3 from Projects does not wrap to the Summary")
+    check(st.view == 3 and any("[4 Activity]" in b for b in bars), "loop: Shift-Tab from the Summary does not wrap to Activity")
+    writes = [e[1] for e in log if e[0] == "write"]
     check(len(writes) == len(shots), "loop: a write per screen")
     log2, shots2, st2 = loop([snap, dict(snap, events=[])], ["3", "", "", ""])
     check(st2.view == 2 and all("[3 Roadmap]" in s[-1] for s in shots2[2:-1]),
           "loop: the view is not kept over ticks and a new snapshot")
-    check(any("help" in " ".join(s) and "q quit" in " ".join(s) for s in shots), "loop: no help overlay")
+    check(any("any key closes it" in " ".join(s) for s in shots), "loop: no help overlay")
     tty = [k for k in log if k[0] == "tty"]
     check(tty[0] == ("tty", "cbreak", True) and tty[-1] == ("tty", "restored", True), "loop: the tty is not restored on q")
     last_tty = max(i for i, k in enumerate(log) if k[0] == "tty")
@@ -173,7 +181,7 @@ def loop_checks(snap, check):
           "loop: an error does not restore the tty before leaving the alternate screen")
     # a key that changes nothing writes nothing: Summary, then 1 again
     log, _, _ = loop([snap], ["1", ""])
-    writes = [s for k, s in log if k == "write"]
+    writes = [e[1] for e in log if e[0] == "write"]
     check(len(writes) == 3, "loop: a key that changes nothing is written (%d writes, not 3)" % len(writes))
     # rotation: a over a few ticks switches the view, a key stops it
     st = State(rotate=1)
