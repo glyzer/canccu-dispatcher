@@ -4,9 +4,9 @@
 
 # ---------------------------------------------------------------- GitHub data (one pass)
 
-ISSUES='[]' PRS='[]' AUTO_MERGE_ALLOWED="" MERGE_METHOD="" MF=()
+ISSUES='[]' PRS='[]' AUTO_MERGE_ALLOWED="" MERGE_FLAG="" MF=()
 fetch() {
-  AUTO_MERGE_ALLOWED="" MERGE_METHOD=""   # read again (auto_merge_read, merge_method_read) in each pass that merges
+  AUTO_MERGE_ALLOWED="" MERGE_FLAG=""   # read again (auto_merge_read, merge_method_read) in each pass that merges
   local i
   i=$(ghj issue list -R "$REPO" -s open -L 300 --json number,title,labels,milestone,body) && ISSUES=$(safe_titles <<<"$i") && fetch_prs
 }
@@ -113,16 +113,24 @@ auto_merge_read() {
   AUTO_MERGE_ALLOWED=$(ghj api "repos/$REPO" --jq .allow_auto_merge 2>/dev/null)
   case $AUTO_MERGE_ALLOWED in true|false) ;; *) AUTO_MERGE_ALLOWED=unknown ;; esac
 }
-# merge_method_read: MERGE_METHOD is the method flag a merge passes: queue (none: the merge queue
-# sets it), else the first the repo allows of --squash, --merge, --rebase; unknown on a gh error
-# (auto-merge then passes none, a direct merge --squash, as before). Read once per pass.
+# merge_method_read: MERGE_FLAG is the method flag a merge passes: queue (none: the merge queue
+# sets it), else --MERGE_METHOD when the repo allows it, else the first it allows of --squash,
+# --merge, --rebase (with a warning); unknown on a gh error (auto-merge then passes none, a direct
+# merge --squash, as before). Read once per pass.
 merge_method_read() {
-  [ -n "$MERGE_METHOD" ] && return 0
-  MERGE_METHOD=$(ghj api graphql -F o="${REPO%%/*}" -F r="${REPO#*/}" \
+  local r
+  [ -n "$MERGE_FLAG" ] && return 0
+  r=$(ghj api graphql -F o="${REPO%%/*}" -F r="${REPO#*/}" \
     -f query='query($o: String!, $r: String!) { repository(owner: $o, name: $r) { mergeQueue { id } squashMergeAllowed mergeCommitAllowed rebaseMergeAllowed } }' \
-    -q '.data.repository | if .mergeQueue != null then "queue" elif .squashMergeAllowed == true then "squash"
-          elif .mergeCommitAllowed == true then "merge" elif .rebaseMergeAllowed == true then "rebase" else "unknown" end' 2>/dev/null)
-  case $MERGE_METHOD in queue) ;; squash|merge|rebase) MERGE_METHOD=--$MERGE_METHOD ;; *) MERGE_METHOD=unknown ;; esac
+    -q '.data.repository | if .mergeQueue != null then "queue" else [ (if .squashMergeAllowed == true then "squash" else empty end),
+          (if .mergeCommitAllowed == true then "merge" else empty end), (if .rebaseMergeAllowed == true then "rebase" else empty end) ] | join(" ") end' 2>/dev/null)
+  case " $r " in
+    " queue ") MERGE_FLAG=queue ;;
+    "  ") MERGE_FLAG=unknown ;;
+    *" ${MERGE_METHOD:-squash} "*) MERGE_FLAG=--${MERGE_METHOD:-squash} ;;
+    *) MERGE_FLAG=--${r%% *}
+       warn_once merge-method "MERGE_METHOD=${MERGE_METHOD:-squash}: $REPO does not allow it; merging with $MERGE_FLAG" ;;
+  esac
 }
 # is_full_sha <sha>: a full 40-character commit sha, the only kind --match-head-commit is given
 is_full_sha() { [[ $1 =~ ^[0-9a-f]{40}$ ]]; }

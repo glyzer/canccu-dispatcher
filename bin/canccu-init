@@ -3,11 +3,12 @@
 # canccu-init [--profile <template>] <name> <owner/repo> [clone] — add a project for canccu-dispatch:
 # writes ~/.canccu/projects/<name>/config and rules from a template (default: default), looked up
 # in ~/.canccu/profiles/<template>/ first (your own templates) and then in this tool's profiles/,
-# creates the dispatcher's labels in the repo, and prints what is left to do by hand. The clone defaults to ~/code/<repo>; give another
-# absolute path when that one is taken. Refuses when the project exists, or when another project
-# already runs the repo or uses the clone. Never changes rulesets, secrets, variables or
-# collaborators, never creates or reads a token, and starts nothing. docs/canccu-dispatch.md, "Adding a project"
-# and "A narrow token per project".
+# with USER_LOGIN (gh's login; none: refused) and BASE_BRANCH (the repo's default branch), creates
+# the dispatcher's labels in the repo, and prints what is left to do by hand. The clone defaults to
+# $CLONE_ROOT/<repo> (~/code/<repo>); give another absolute path when that one is taken. Refuses
+# when the project exists, or when another project already runs the repo or uses the clone. Never
+# changes rulesets, secrets, variables or collaborators, never creates or reads a token, and starts
+# nothing. docs/canccu-dispatch.md, "Adding a project" and "A narrow token per project".
 # canccu-init --leader <name> — give an existing project a leader: its kit (CLAUDE.md and
 # .claude/settings.json) in ~/.canccu/projects/<name>/leader/, and LEADER=on in its config
 # (docs/reference/leader.md, "The leader kit").
@@ -18,8 +19,8 @@ die() { echo "canccu-init: $*" >&2; exit 1; }
 # shellcheck source=../lib/canccu-projects.sh
 . "$here/lib/canccu-projects.sh"
 
-usage() { sed -n '3,13s/^# \{0,1\}//p' "$self" >&2; exit 2; }
-[ "${1:-}" = --help ] && { sed -n '3,13s/^# \{0,1\}//p' "$self"; exit 0; }
+usage() { sed -n '3,14s/^# \{0,1\}//p' "$self" >&2; exit 2; }
+[ "${1:-}" = --help ] && { sed -n '3,14s/^# \{0,1\}//p' "$self"; exit 0; }
 
 if [ "${1:-}" = --leader ]; then
   [ $# -eq 2 ] || usage
@@ -59,6 +60,12 @@ canccu_valid_name "$profile" || die "'$profile' is no template name (a-z, 0-9, -
 canccu_valid_name "$name" || die "'$name' is no project name (a-z, 0-9, - and _; up to 31 characters)"
 [[ $repo =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || die "'$repo' is not owner/repo"
 [ -z "$clone" ] || [[ $clone =~ ^/[A-Za-z0-9_./-]+$ ]] || die "'$clone' is not an absolute path (letters, digits, _ . / -)"
+# CLONE_ROOT as this host sets it (~/.canccu/config over the default), read in a subshell like
+# HOST_PROFILE: nothing else of those files may leak into the template's values
+croot=$(set +u; . "$here/lib/canccu-config.default" >/dev/null 2>&1
+  [ -f "$CANCCU_ROOT/config" ] && . "$CANCCU_ROOT/config" >/dev/null 2>&1; printf '%s' "$CLONE_ROOT")
+[ -z "$clone" ] && [ -n "$croot" ] && [ "$croot" != "$HOME/code" ] && clone=$croot/${repo#*/}
+[ -z "$clone" ] || [[ $clone =~ ^/[A-Za-z0-9_./-]+$ ]] || die "CLONE_ROOT gives '$clone', not an absolute path (letters, digits, _ . / -)"
 dir=$CANCCU_ROOT/projects/$name
 { [ -e "$dir" ] || [ -L "$dir" ]; } && die "project '$name' exists (${dir/#$HOME/\~}); nothing changed"
 # the user's own templates live beside the projects, never in this repo
@@ -73,10 +80,18 @@ trepo=$(sed -n 's/^REPO=//p' "$tpl/config" | tail -1)
 [ "$trepo" = @REPO@ ] || [ "$trepo" = "$repo" ] ||
   die "$tname is for $trepo, not $repo"
 
+# the login and the base branch, read before anything is written: without USER_LOGIN the project
+# never runs, and a worktree started from the wrong branch merges into it
+login=$(timeout 30 gh api user -q .login 2>/dev/null)
+[[ $login =~ ^[A-Za-z0-9-]+$ ]] || die "gh has no login to write as USER_LOGIN (gh auth status); nothing changed"
+base=$(timeout 30 gh repo view "$repo" --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null) bnote=""
+[[ $base =~ ^[A-Za-z0-9._/-]+$ ]] || { base=main bnote=" (gh could not read the default branch of $repo: check BASE_BRANCH)"; }
+
 # the config as it will be written, and the clone it names
 render() { sed -e "s|@NAME@|$name|g" -e "s|@REPO@|$repo|g" -e "s|@REPO_NAME@|${repo#*/}|g" "$tpl/$1"; }
 cfg=$(render config) || die "cannot read $tname/config"
 [ -n "$clone" ] && cfg=$(sed "s|^CLONE=.*|CLONE=$clone|" <<<"$cfg")
+cfg=$(sed -e '/^USER_LOGIN=/d' -e '/^BASE_BRANCH=/d' -e "/^CLONE=/a USER_LOGIN=$login\nBASE_BRANCH=$base" <<<"$cfg")
 newclone=$(canccu_repo_clone /dev/stdin <<<"$cfg" | cut -f2)
 [ -n "$newclone" ] || die "$tname: its config sets no CLONE"
 # two projects on one repo would both adopt, review and merge its PRs; two on one clone would
@@ -101,6 +116,7 @@ fi
 printf '%s\n' "$cfg" > "$dir/config" || die "cannot write ${dir/#$HOME/\~}/config"
 render rules > "$dir/rules" || die "cannot write ${dir/#$HOME/\~}/rules"
 echo "wrote ${dir/#$HOME/\~}/config and rules (from $tname)"
+echo "USER_LOGIN=$login, BASE_BRANCH=$base$bnote"
 
 # the labels: listed once, each missing one created; the report says what gh did
 # shellcheck disable=SC2034  # read by the lib
@@ -137,7 +153,8 @@ secrets, variables or collaborators):
   3. Add the review-gate workflow and its script to $REPO through a PR: copy the files under
      $(canccu_tilde "$(realpath -m "$here/templates/repo/.github")")/ to the same paths in the
      repo (templates/README.md says what they check).
-  4. Set the required checks (a ruleset on main): CI and ${REVIEW_CHECKS:-review-gate}; with a merge queue.
+  4. Set the required checks (a ruleset on $BASE_BRANCH): CI and ${REVIEW_CHECKS:-review-gate}. A merge
+     queue is optional: without one, accepted PRs merge with MERGE_METHOD (default squash).
   5. Clone the repo to $CLONE if it is not there, and review ${CANCCU_HOME/#$HOME/\~}/rules
      (risky and gated paths, extra reviewer and worker text, AUTO_MERGE_UNTIL, one-at-a-time lock,
      ADD_DIRS, the review-gate checks).

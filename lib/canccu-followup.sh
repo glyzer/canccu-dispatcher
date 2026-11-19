@@ -72,8 +72,8 @@ handoff() {
   wt=$(unit_wt "$k")
   [ -n "$pr" ] && body=$(pr_get "$pr" .body)
   if [ -e "$wt/.git" ]; then
-    commits=$(guard 20 git -C "$wt" log --oneline origin/main..HEAD 2>/dev/null | head -n 30)
-    stat=$(guard 20 git -C "$wt" diff --stat origin/main...HEAD 2>/dev/null | tail -n 25)
+    commits=$(guard 20 git -C "$wt" log --oneline origin/$BASE_BRANCH..HEAD 2>/dev/null | head -n 30)
+    stat=$(guard 20 git -C "$wt" diff --stat origin/$BASE_BRANCH...HEAD 2>/dev/null | tail -n 25)
     dirty=$(guard 20 git -C "$wt" status --short 2>/dev/null | head -n 20)
   fi
   # a limited run's task carries its own handoff already: its last report would repeat it
@@ -81,8 +81,8 @@ handoff() {
   printf '%s' "This run is a fresh session, not a resume of your earlier one: your earlier work is in this worktree, on its branch. Build on it; never create the branch again or open a second PR."
   [ -n "$pr" ] && printf ' The PR: %s.' "$(pr_url "$pr")"
   [ -n "$body" ] && printf ' Its body: %s' "$(oneline 1500 "$body")"
-  printf ' The commits on the branch (git log origin/main..HEAD): %s.' "$(oneline 1000 "${commits:-none read}")"
-  [ -n "$stat" ] && printf ' Their diff stat (git diff --stat origin/main...HEAD): %s.' "$(oneline 800 "$stat")"
+  printf ' The commits on the branch (git log origin/%s..HEAD): %s.' "$BASE_BRANCH" "$(oneline 1000 "${commits:-none read}")"
+  [ -n "$stat" ] && printf ' Their diff stat (git diff --stat origin/%s...HEAD): %s.' "$BASE_BRANCH" "$(oneline 800 "$stat")"
   [ -n "$dirty" ] && printf ' Uncommitted in the worktree: %s.' "$(oneline 400 "$dirty")"
   [ -n "$rep" ] && printf ' Your last report: %s' "$(oneline 1200 "$rep")"
   br=$(st_get "$k" branch); [ -n "$br" ] || [ ! -e "$wt/.git" ] || br=$(guard 20 git -C "$wt" branch --show-current 2>/dev/null)
@@ -141,10 +141,10 @@ main_merge() {
   MERGED=error
   MERGE_WHY=$(guard 120 git -C "$wt" fetch -q origin 2>&1) || { MERGE_WHY="git fetch: $(oneline 300 "$MERGE_WHY")"; return 0; }
   MERGE_WHY=""
-  behind=$(guard 20 git -C "$wt" rev-list --count HEAD..origin/main 2>/dev/null)
+  behind=$(guard 20 git -C "$wt" rev-list --count HEAD..origin/$BASE_BRANCH 2>/dev/null)
   [[ $behind =~ ^[0-9]+$ ]] || { MERGE_WHY="git rev-list failed"; return 0; }
   (( behind > 0 )) || { MERGED=current; return 0; }
-  if ! mut git -C "$wt" merge --no-edit origin/main; then
+  if ! mut git -C "$wt" merge --no-edit origin/$BASE_BRANCH; then
     MERGE_WHY=$(guard 20 git -C "$wt" diff --name-only --diff-filter=U 2>/dev/null | tr '\n' ' ')
     mut git -C "$wt" merge --abort
     MERGE_WHY=${MERGE_WHY% } MERGED=conflict; return 0
@@ -159,10 +159,10 @@ main_merge() {
 contract_resume() {
   local n=$1 pr=$2 c=$3 t
   may_start "$n" || return 1
-  t="The contract PR #$c merged into main. Run git merge origin/main in your branch, finish the package's work in PR #$pr and mark it ready."
+  t="The contract PR #$c merged into $BASE_BRANCH. Run git merge origin/$BASE_BRANCH in your branch, finish the package's work in PR #$pr and mark it ready."
   if [ "${MERGE_MAIN_ANY_PHASE:-1}" = 1 ]; then
     main_merge "$n" "$pr"
-    case $MERGED in merged|current) t="The contract PR #$c merged into main, and main is merged into your branch already. Finish the package's work in PR #$pr and mark it ready." ;; esac
+    case $MERGED in merged|current) t="The contract PR #$c merged into $BASE_BRANCH, and $BASE_BRANCH is merged into your branch already. Finish the package's work in PR #$pr and mark it ready." ;; esac
   fi
   resume "$n" "$t" merge
 }
@@ -177,7 +177,9 @@ no_checks_why() {
 # conflict_task <pr> <paths>: the task of a worker's merge run (kind merge: no fix attempt), for a
 # merge of main that conflicts, whether red CI (ci_red) or GitHub's merge state (conflict_merge) found it
 conflict_task() {
-  printf 'Merging origin/main into the branch of PR #%s conflicts in: %s. Run git merge origin/main, resolve the conflicts keeping what both sides meant, commit the merge and push it at once (a normal push, never a rebase or force-push), then run only the tests of the files that conflicted and push a fix if one fails, and stop: the dispatcher watches CI.' "$1" "$2"
+  local f='Merging origin/@BASE@ into the branch of PR #%s conflicts in: %s. Run git merge origin/@BASE@, resolve the conflicts keeping what both sides meant, commit the merge and push it at once (a normal push, never a rebase or force-push), then run only the tests of the files that conflicted and push a fix if one fails, and stop: the dispatcher watches CI.'
+  # shellcheck disable=SC2059  # the format is ours; only the branch name goes in
+  printf "${f//@BASE@/"$BASE_BRANCH"}" "$1" "$2"
 }
 
 # ci_log_tail <pr>: the newest log lines of the first failing job of a red CI (its check links to
@@ -275,7 +277,7 @@ ci_red() {
       log "#$k PR #$pr: CI red; merged main into the branch (no AI run), CI runs again"; return 0 ;;
     conflict)
       # one conflict run per head: one that pushed nothing gets no second try
-      [ "$(st_get "$k" conflict_sha)" = "$head" ] && { needs_you "$k" "CI is red on PR #$pr and merging origin/main into it conflicts in: $MERGE_WHY; the worker's merge run pushed no resolution$f" "$(run_msg "$k")" "" ci; return; }
+      [ "$(st_get "$k" conflict_sha)" = "$head" ] && { needs_you "$k" "CI is red on PR #$pr and merging origin/$BASE_BRANCH into it conflicts in: $MERGE_WHY; the worker's merge run pushed no resolution$f" "$(run_msg "$k")" "" ci; return; }
       may_start "$k" || return 0
       resume "$k" "$(conflict_task "$pr" "$MERGE_WHY")" merge || return 0
       st_set "$k" conflict_sha="$head"; return 0 ;;
@@ -287,8 +289,8 @@ ci_red() {
   ci_rerun "$k" "$pr" "$head" && return 0
   fix_left "$k" "$pr" || { needs_you "$k" "CI is red on PR #$pr after $(fix_max) automatic fix runs (FIX_ATTEMPTS)$f" "$(run_msg "$k")" "" ci; return; }
   may_start "$k" || return 0
-  if [ "$MERGED" = current ]; then task="CI is red on PR #$pr, with main already merged in, so the failure is the PR's. Fix it,"
-  else task="CI is red on PR #$pr; main was not merged in by script ($MERGE_WHY). First run git merge origin/main (a normal merge and push, never a rebase or force-push), then fix what is still red,"; fi
+  if [ "$MERGED" = current ]; then task="CI is red on PR #$pr, with $BASE_BRANCH already merged in, so the failure is the PR's. Fix it,"
+  else task="CI is red on PR #$pr; $BASE_BRANCH was not merged in by script ($MERGE_WHY). First run git merge origin/$BASE_BRANCH (a normal merge and push, never a rebase or force-push), then fix what is still red,"; fi
   resume "$k" "$task rerun the checks, push once and stop: the dispatcher watches CI. $(ci_log_tail "$pr")" ci || return 0
   fix_count "$k" "$pr"
   log "#$k PR #$pr: CI red; fix run $(fixes_used "$k" "$pr") of $(fix_max)"
@@ -301,7 +303,7 @@ finish_once() {
   local k=$1 wt commits dirty
   [ "$(st_get "$k" finish_tried)" = 1 ] && return 1
   wt=$(unit_wt "$k"); [ -e "$wt/.git" ] || return 1
-  commits=$(guard 20 git -C "$wt" log --oneline origin/main..HEAD 2>/dev/null | head -n1)
+  commits=$(guard 20 git -C "$wt" log --oneline origin/$BASE_BRANCH..HEAD 2>/dev/null | head -n1)
   dirty=$(guard 20 git -C "$wt" status --porcelain 2>/dev/null | head -n1)
   [ -n "$commits$dirty" ] || return 1
   may_start "$k" || return 0

@@ -104,14 +104,17 @@ blocked_held() { unit_blocked "$1" || return 1; warn_once "blocked-$1" "#$1 is l
 # a new worker's whole task for issue n; with its plan merged (plan_back), the order to execute it.
 # An issue started before its branch was kept gets the name from its title, as then.
 issue_prompt() {
-  local n=$1 title=${2:-} p=${3:-$(st_get "$1" plan_ok)} br=${4:-$(st_get "$1" branch)} prompt
+  local n=$1 title=${2:-} p=${3:-$(st_get "$1" plan_ok)} br=${4:-$(st_get "$1" branch)} prompt wp
   if [ -z "$br" ]; then
     [ -n "$title" ] || title=$(title_of "$n")
     [ -n "$title" ] || title=$(safe_title "$(ghj issue view "$n" -R "$REPO" --json title | jqr .title)")
     br=$(issue_branch "$n" "$title")
   fi
+  wp=${WORKER_PROMPT//@BASE@/"$BASE_BRANCH"}
   # shellcheck disable=SC2059
-  printf -v prompt "$WORKER_PROMPT" "$REPO" "$n" "$n" "$n" "$br" "${WORKER_EXTRA:+ $WORKER_EXTRA}"
+  printf -v prompt "$wp" "$REPO" "$n" "$n" "$br" "${WORKER_EXTRA:+ $WORKER_EXTRA}"
+  # after printf: a % in the host's sentence is text, not a format
+  prompt=${prompt//@SKILLS@/"$(worker_skills)"}
   prompt+=" $(contract_rule "$br")"
   [ "$p" = 1 ] && prompt+=" $(plan_merged_text "docs/plans/issue-$n.md")"
   printf '%s' "$prompt"
@@ -145,7 +148,7 @@ start_issue() {
 }
 
 # plan_merged_text <plan file>: what a worker starting on a merged, approved plan is told
-plan_merged_text() { echo "The plan $1 is approved and merged on main: execute it with the superpowers skill executing-plans; the PR closes the issue."; }
+plan_merged_text() { echo "The plan $1 is approved and merged on $BASE_BRANCH: execute it; the PR closes the issue.$(worker_skills)"; }
 
 # accept_lines <n>: the Accept: and Reject: lines of the accept's form (ask_block). Only the
 # channels that count are offered; canccu-ship arms auto-merge: not in a repo without it.

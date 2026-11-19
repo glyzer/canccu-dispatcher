@@ -458,27 +458,41 @@ ok "reviewer prompt: nits, style and wording never block" grep -qF 'Nits, style 
 
 # ---------------------------------------------------------------- skills (superpowers)
 
-env_new skills-worker
+# today's sentence, as a host with the superpowers plugin sets it (docs/hosts.md, "Skills")
+SP='Use the superpowers skills test-driven-development, systematic-debugging and verification-before-completion. On the plan tier use writing-plans for the plan, and executing-plans after plan-ok.'
+env_new skills-worker "WORKER_SKILLS='$SP'"
 { issue 30 ready; } | issues
 dispatch --once
 w=$(grep -- '--name #30 ' "$FAKE/worker.log")
 ok "worker prompt: the superpowers skills to use" grep -qF 'Use the superpowers skills test-driven-development, systematic-debugging and verification-before-completion.' <<<"$w"
-ok "worker prompt: writing-plans on the plan tier, executing-plans after plan-ok" grep -qF 'On the plan tier use writing-plans for docs/plans/issue-30.md, and executing-plans after plan-ok.' <<<"$w"
+ok "worker prompt: writing-plans on the plan tier, executing-plans after plan-ok" grep -qF 'On the plan tier use writing-plans for the plan, and executing-plans after plan-ok.' <<<"$w"
 for sk in brainstorming using-git-worktrees finishing-a-development-branch requesting-code-review subagent-driven-development dispatching-parallel-agents writing-skills; do
   ok "worker prompt: do NOT use $sk" grep -qE "Do NOT use [^.]*\\b$sk\\b" <<<"$w"
 done
 ok "worker prompt: why (the dispatcher owns them, the issue is the spec)" grep -qF 'the dispatcher owns worktrees, branches, reviews and questions, and the issue is the agreed spec' <<<"$w"
 # the forbidden list names requesting-code-review; apart from that the prompt has no review step
 ok "worker prompt: no review skill apart from the forbidden name" not grep -qiE 'code-review|security-review' <<<"${w//requesting-code-review/}"
-env_new skills-plan-ok
+env_new skills-none
+{ issue 30 ready; } | issues
+dispatch --once
+w=$(grep -- '--name #30 ' "$FAKE/worker.log")
+ok "WORKER_SKILLS empty (the default): the worker prompt names no skill to use (#14)" not grep -qE 'Use the superpowers|writing-plans|executing-plans' <<<"$w"
+ok "… and reads on cleanly" grep -qF 'and stop. Do NOT use brainstorming' <<<"$w"
+hp=$(lib eval 'health_prompt 12 pkg-12-health')
+ok "… nor does the health prompt, whose checklist is HEALTH_CHECKLIST's (#14)" eq "$(grep -cE 'Use the superpowers|test-driven-development' <<<"$hp") $(grep -cF 'The checklist, and nothing else: 1. files over the size limit' <<<"$hp")" "0 1"
+env_new skills-plan-ok "WORKER_SKILLS='$SP'"
 { issue 5 in-progress,needs-you,plan-ok; } | issues
 state 5 phase=needs-you pr=50 "ny_at=$NOW"
 json issue5.json '{"comments": []}'; route 'issue view 5 *' issue5.json; json pr50.json '{"comments": []}'; route 'pr view 50 *' pr50.json
 dispatch --once
-ok "plan-ok resume names executing-plans" grep -q 'web 5 The user approved the plan. Execute it with the superpowers skill executing-plans.' "$FAKE/worker.log"
+ok "plan-ok resume names executing-plans" grep -qF "web 5 The user approved the plan. Execute it. $SP Build it" "$FAKE/worker.log"
 effenv skills-reviewer '[{"filename": "src/a.ts", "changes": 12}]' 'Tier: fix'
 dispatch --once
 ok "reviewer prompt: no superpowers workflow skill" grep -q 'review#50 .*Do not use any superpowers workflow skill; use the code-review and security-review skills as stated.' "$FAKE/worker.log"
+effenv skills-reviewer-own '[{"filename": "src/a.ts", "changes": 12}]' 'Tier: fix'; pconf web "REVIEW_SKILLS='deep-review sec-audit'"
+dispatch --once
+ok "REVIEW_SKILLS: the host's two skills in the reviewer prompt (#14)" grep -q 'review#50 .*Run the deep-review skill at .*also run the sec-audit skill if .*use the deep-review and sec-audit skills as stated.' "$FAKE/worker.log"
+
 qenv skills-answerer $'Question: poll or subscribe?'
 dispatch --once
 ok "answerer prompt: no superpowers workflow skill" grep -q 'answer#5 .*Do not use any superpowers workflow skill.' "$FAKE/worker.log"

@@ -36,7 +36,7 @@ queue_removed() {
     *check*|*fail*)
       # gh's --jq takes no --arg: the prefix goes in the filter (pr is a number)
       names=$(ghj api "repos/$REPO/actions/runs?event=merge_group&per_page=20" -q '[.workflow_runs[]?
-        | select((.head_branch // "") | startswith("gh-readonly-queue/main/pr-'"$pr"'-"))
+        | select((.head_branch // "") | startswith("gh-readonly-queue/'"$BASE_BRANCH"'/pr-'"$pr"'-"))
         | select(.conclusion | IN("failure", "timed_out", "cancelled")) | "\(.name) \(.html_url)"] | join(", ")' 2>/dev/null)
       needs_you "$n" "the merge queue removed PR #$pr because checks failed in its merge group: ${names:-none found}. Not enqueued again: a failure there can be a real bug that only shows with the other PRs of the group" ;;
     *) needs_you "$n" "the merge queue removed PR #$pr (reason: $why); a manual removal or a queue change. Not enqueued again" ;;

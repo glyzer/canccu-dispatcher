@@ -65,12 +65,12 @@ unit_wt() {
 }
 # plan_wt <m>: the worktree of the step's planner (made afresh each run, removed when the step is done)
 plan_wt() { echo "$WORKERS_DIR/worktrees/$REPO_NAME/plan-$1"; }
-# ensure_unit_wt <K>: a package's worktree, detached at origin/main, made once
+# ensure_unit_wt <K>: a package's worktree, detached at origin/$BASE_BRANCH, made once
 ensure_unit_wt() {
   local wt; wt=$(unit_wt "$1")
   is_pkg "$1" && [ ! -e "$wt/.git" ] || return 0
   mut git -C "$CLONE" fetch -q origin || { log "#$1: git fetch failed"; return 1; }
-  mut git -C "$CLONE" worktree add -q --detach "$wt" origin/main || { log "#$1: worktree $wt failed"; return 1; }
+  mut git -C "$CLONE" worktree add -q --detach "$wt" origin/$BASE_BRANCH || { log "#$1: worktree $wt failed"; return 1; }
 }
 # unit_title <K>: the issue's title; "package <name>: <lead's title> (+k)"; "health pass: <step>".
 # Through safe_title: a step's title in the state may predate it.

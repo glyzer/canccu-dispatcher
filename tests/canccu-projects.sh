@@ -156,16 +156,23 @@ ok "profiles/: the default template only" eq "$(ls "$root/profiles")" default
 # canccu-init
 penv init tools
 echo '[{"name": "ready"}, {"name": "blocked"}]' > "$FAKE/labels.json"
+json me.json '{"login": "octo"}'; route 'api user*' me.json
+json repoview.json '{"defaultBranchRef": {"name": "trunk"}}'; route 'repo view example-org/web *' repoview.json
 out=$(PATH="$fb:$PATH" "$root/bin/canccu-init" web example-org/web 2>&1); rc=$?
 w=$CANCCU_ROOT/projects/web
 ok "canccu-init: succeeds" eq "$rc" 0
+ok "canccu-init: writes USER_LOGIN from gh's login and BASE_BRANCH from the repo (#14)" \
+  eq "$(grep -E '^(USER_LOGIN|BASE_BRANCH)=' "$w/config" | tr '\n' ' ')" 'USER_LOGIN=octo BASE_BRANCH=trunk '
+ok "… and says so" grep -qxF 'USER_LOGIN=octo, BASE_BRANCH=trunk' <<<"$out"
+ok "canccu-init checklist: the ruleset on the base branch, the merge queue optional (#14)" grep -qF 'ruleset on trunk): CI and review-gate. A merge
+     queue is optional' <<<"$out"
 ok "canccu-init: the config names the repo and its clone" eq "$(grep -E '^(REPO|CLONE)=' "$w/config" | tr '\n' ' ')" 'REPO=example-org/web CLONE=$HOME/code/web '
 ok "canccu-init: the rules from the generic template" eq "$(grep -v '^#' "$w/rules")" "$(grep -v '^#' "$root/profiles/default/rules")"
 ok "canccu-init: says which template" grep -q "^wrote .*/projects/web/config and rules (from the template default: .*profiles/default)$" <<<"$out"
 ok "canccu-init: the only project so far becomes the default (it keeps session canccu)" eq "$(cat "$CANCCU_ROOT/default-project")" tools
 ok "canccu-init: creates the missing labels in the repo" eq "$(grep -c '^label create .* -R example-org/web' "$FAKE/gh.log")" 12
 ok "… none that exist" not grep -q '^label create ready' "$FAKE/gh.log"
-ok "canccu-init: no other gh call (rulesets, secrets, variables, collaborators)" eq "$(grep -cvE '^label (list|create) ' "$FAKE/gh.log")" 0
+ok "canccu-init: no other gh call (rulesets, secrets, variables, collaborators)" eq "$(grep -cvE '^(label (list|create)|api user|repo view example-org/web) ' "$FAKE/gh.log")" 0
 for w8 in 'as a collaborator' 'repo scope' 'repo variable REVIEWER_LOGIN' 'review-gate workflow and its script' 'required checks' \
           'canccu-up --project web' 'tmux session canccu-web' 'Resource owner: example-org ' 'Only
      select repositories → example-org/web' 'Read and write: Contents, Issues, Pull requests, Workflows' \
@@ -185,6 +192,23 @@ PATH="$fb:$PATH" "$root/bin/canccu-init" Bad/x example-org/x > /dev/null 2>&1; r
 ok "canccu-init: a bad name is refused" eq "$rc$(test -e "$CANCCU_ROOT/projects/Bad" && echo made)" 1
 PATH="$fb:$PATH" "$root/bin/canccu-init" x notarepo > /dev/null 2>&1; rc=$?
 ok "canccu-init: a bad repo is refused" eq "$rc$(test -e "$CANCCU_ROOT/projects/x" && echo made)" 1
+
+# canccu-init: no gh login → refused before anything is written; no default branch read → main (#14)
+penv init-nologin
+json me.json '{}'; route 'api user*' me.json
+out=$(PATH="$fb:$PATH" "$root/bin/canccu-init" web example-org/web 2>&1); rc=$?
+ok "canccu-init: no gh login → refused, nothing written (#14)" \
+  eq "$rc $(grep -c 'gh has no login to write as USER_LOGIN' <<<"$out")$(test -e "$CANCCU_ROOT/projects/web" && echo made)" "1 1"
+penv init-nobranch
+json me.json '{"login": "octo"}'; route 'api user*' me.json
+out=$(PATH="$fb:$PATH" "$root/bin/canccu-init" web example-org/web 2>&1); rc=$?
+ok "canccu-init: the default branch unread → BASE_BRANCH=main, and it says to check it (#14)" \
+  eq "$rc $(grep -c '^BASE_BRANCH=main$' "$CANCCU_ROOT/projects/web/config") $(grep -c 'check BASE_BRANCH' <<<"$out")" "0 1 1"
+penv init-cloneroot
+json me.json '{"login": "octo"}'; route 'api user*' me.json
+echo "CLONE_ROOT=$E/src" > "$CANCCU_ROOT/config"
+out=$(PATH="$fb:$PATH" "$root/bin/canccu-init" web example-org/web 2>&1); rc=$?
+ok "canccu-init: the clone under the host's CLONE_ROOT (#14)" eq "$rc $(grep -c "^CLONE=$E/src/web\$" "$CANCCU_ROOT/projects/web/config")" "0 1"
 
 # canccu-init: the template no longer follows the project's name, --profile picks one
 penv init-name

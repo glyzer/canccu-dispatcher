@@ -13,7 +13,7 @@ self=$(realpath "$0")
 . "$(dirname "$self")/../lib/canccu-common.sh"
 
 S=$TMUX_SESSION H=$CANCCU_HOME
-mkdir -p "$H" ~/code || exit 1
+mkdir -p "$H" "$CLONE_ROOT" || exit 1
 touch "$H/dispatch.log"
 if ! tmux has-session -t "=$S" 2>/dev/null; then
   # every pane (and every later window: the session environment) acts on this project: a
@@ -25,11 +25,11 @@ if ! tmux has-session -t "=$S" 2>/dev/null; then
   # client that may start the server runs without them (without_gh_env): never the global
   # environment of every later session. -e on new-session sets the session environment too.
   mapfile -d '' GE < <(tmux_gh_env; [ -n "$CANCCU_GH_DIR" ] && tmux_token_blanks)
-  lead=$(without_gh_env tmux new-session -d -P -F '#{pane_id}' -e "$P" "${GE[@]}" -s "$S" -n main -c ~/code) || die "tmux new-session $S failed"
+  lead=$(without_gh_env tmux new-session -d -P -F '#{pane_id}' -e "$P" "${GE[@]}" -s "$S" -n main -c "$CLONE_ROOT") || die "tmux new-session $S failed"
   tmux set-environment -t "=$S" CANCCU_PROJECT "$CANCCU_PROJECT"
-  mon=$(tmux split-window -h -l 40% -P -F '#{pane_id}' -e "$P" "${GE[@]}" -t "$lead" -c ~/code) || die "tmux split-window failed"
-  disp=$(tmux new-window -d -P -F '#{pane_id}' -e "$P" "${GE[@]}" -t "=$S:" -n dispatch -c ~/code) || die "tmux new-window dispatch failed"
-  tmux new-window -d -e "$P" "${GE[@]}" -t "=$S:" -n shell -c ~/code || die "tmux new-window shell failed"
+  mon=$(tmux split-window -h -l 40% -P -F '#{pane_id}' -e "$P" "${GE[@]}" -t "$lead" -c "$CLONE_ROOT") || die "tmux split-window failed"
+  disp=$(tmux new-window -d -P -F '#{pane_id}' -e "$P" "${GE[@]}" -t "=$S:" -n dispatch -c "$CLONE_ROOT") || die "tmux new-window dispatch failed"
+  tmux new-window -d -e "$P" "${GE[@]}" -t "=$S:" -n shell -c "$CLONE_ROOT" || die "tmux new-window shell failed"
   # the leader runs in its kit, so claude loads its CLAUDE.md and .claude/settings.json; the
   # marker makes config set refuse it a locked setting (not a boundary: docs/security.md)
   title=lead start=claude kit=$H/leader

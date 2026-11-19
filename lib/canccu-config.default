@@ -11,9 +11,17 @@
 # Each project's config sets at least REPO and CLONE (canccu-init writes them).
 REPO=
 CLONE=
+BASE_BRANCH=main            # the repo's base branch: worktrees start from it, PRs merge into it, its CI is the one shown; canccu-init writes it
 HOST_PROFILE=               # the host profile (hosts/<name>.conf, e.g. max); ~/.canccu/config or CANCCU_HOST_PROFILE only; empty: none
 CAP=3                       # workers + reviewers + answerers of this project running at once
 TOTAL_CAP=3                 # the same over all projects together (one Claude account); ~/.canccu/config only
+CLONE_ROOT=$HOME/code       # where canccu-init clones a new project, and where canccu-up's panes start (docs/hosts.md)
+EXTRA_PATH=                 # dirs put first on PATH for every command and run, colon-separated (cron starts with a bare PATH); empty: none
+GUARD_VMEM_KB=2000000       # the virtual-memory cap of every gh, jq and python3 call, in KB: a runaway kills itself, not the host
+WORKER_SKILLS=              # the skill sentence of the worker, package and health prompts; empty: no skill named (docs/hosts.md)
+REVIEW_SKILLS="code-review security-review"   # the reviewer's two skills: the one that reviews the diff, then the security one
+HEALTH_CHECKLIST="1. files over the size limit in AGENTS.md are split up; 2. dead code for dropped features and old names is removed; 3. comments follow the comment rule in AGENTS.md; 4. duplicated logic is merged."   # the health pass's checklist, and nothing else
+MERGE_METHOD=squash         # squash, merge or rebase: how a PR merges without a merge queue; one the repo does not allow → the repo's own
 MODEL=                      # every run gets --model $MODEL; empty: no --model, the account default
 USER_LOGIN=                 # your GitHub login: whose PRs are ours, who is pinged; unset → the dispatcher does nothing
 REVIEWER_LOGIN=             # the reviewer bot's login: reviews post as it, only its verdicts count; unset → no reviews
