@@ -6,6 +6,12 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 
 ## Unreleased
 
+- An accept survives the dispatcher's merges of main (#244). **Upgrade:** `KEEP_ACCEPT_ON_MAIN_MERGE`
+  now defaults to `1`: an accept by the label or by `canccu-ship` carries over clean merges of
+  main, and merges whose conflicts were resolved inside the PR's own files once their fix-check
+  passes. Set it to `0` in the project's config to be asked after every push, as before.
+  `canccu-ship` on a head with no review pass records the accept and arms nothing: the head gets
+  its fix-check first.
 - `canccu-init --leader <project>` writes a leader kit (`CLAUDE.md` and `.claude/settings.json`)
   to `~/.canccu/projects/<project>/leader/` and sets `LEADER=on`; with `LEADER=on`, `canccu-up`
   starts the left pane's `claude` there, titled `leader`, with `CANCCU_ACTOR=leader`. The

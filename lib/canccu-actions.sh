@@ -173,10 +173,11 @@ to_accept() {
 }
 
 # new_cycle <n>: a new start, an adoption, plan-ok or needs-work: the next review is a full one
-new_cycle() { st_set "$1" accept_sha= stage= reviewed_sha= review_maccept= review_risk= open_sha= full_sha= pass_sha= extra_fix=; }
+new_cycle() { st_set "$1" accept_sha= carry_sha= carry_by= carried= carried_by= stage= reviewed_sha= review_maccept= review_risk= open_sha= full_sha= pass_sha= extra_fix=; }
 
 # after_pass <n> <pr> <head> <how>: that head passed (a review, a fix-check, or a merge of main only
-# after a pass): classify, then merge it or wait for the accept. 1 when nothing was done (classify
+# after a pass): classify, then merge it, carry an accept held for it over (carry_accept), or wait
+# for the accept. 1 when nothing was done (classify
 # could not read the PR, or the merge failed): the caller sees the pass again next pass.
 after_pass() {
   local n=$1 pr=$2 head=$3 c
@@ -186,8 +187,9 @@ after_pass() {
   # the open items are fixed: cleared before the merge step, so a failed merge or accept
   # leaves none behind for a later needs-work, which then starts a new cycle
   st_set "$n" open_sha=
-  if [ "$c" = auto ]; then merge_auto "$n" "$pr" auto "$head" || return 1
-  else to_accept "$n" "$pr" "$c" "$head"; fi
+  if [ "$c" = auto ]; then merge_auto "$n" "$pr" auto "$head" || return 1; return 0; fi
+  carry_accept "$n" "$pr" "$head" "$4"
+  case $? in 0) ;; 2) return 1 ;; *) to_accept "$n" "$pr" "$c" "$head" ;; esac
 }
 
 # save_findings <n> <pr> <file> <text>: the items a fix-check checks (findings_file), or the open
@@ -228,6 +230,9 @@ act_verdict() {
       after_pass "$n" "$pr" "$head" "$what" || return 0
       st_set "$n" verdict_at="$at" ;;
     changes)
+      # an accept held for this head's check (carry_accept) is void: the fix round's commits are
+      # the PR's own, and their pass asks again
+      st_set "$n" carry_sha= carry_by=
       # a light review rated high gets the full review first: its verdict drives the fix round
       light_upgrade "$n" "$pr" "$head" "$j" "$at" && return 0
       case $stage in

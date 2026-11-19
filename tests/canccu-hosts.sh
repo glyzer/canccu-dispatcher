@@ -58,8 +58,9 @@ ok "a name that is a path is no profile" grep -q "no host profile '../lib/canccu
 tname=max
 ok "hosts/max.conf ships" test -f "$root/hosts/max.conf"
 ok "… and sets no HOST_PROFILE" not grep -qE '^[[:space:]]*HOST_PROFILE=' "$root/hosts/max.conf"
-# the plan-limit keys only: the run models and REVIEW_EFFORT_MAX are the profile's own choice
-keys=$(grep -oE '^[A-Z_]+=' "$root/hosts/max.conf" | tr -d = | grep -vE 'MODEL|^REVIEW_EFFORT_MAX$' | sort -u)
+# the plan-limit keys only: the run models, the review effort and the caps (two at once under v2,
+# #14) are the profile's own choice
+keys=$(grep -oE '^[A-Z_]+=' "$root/hosts/max.conf" | tr -d = | grep -vE 'MODEL|^REVIEW_EFFORT_MAX$|^DEEP_REVIEW_EFFORT$|CAP$' | sort -u)
 ok "… it pins some keys" test -n "$keys"
 diff=""
 for k in $keys; do
@@ -70,9 +71,10 @@ done
 ok "… each to today's default" eq "${diff# }" ""
 env_new max-load
 ok "HOST_PROFILE=max loads" eq "$(CANCCU_HOST_PROFILE=max load '$HOST_PROFILE|$BUDGET_WORK')" "max|250 80 150"
-ok "HOST_PROFILE=max: Opus runs and reviews, Sonnet the light reviews and fix-checks" \
-  eq "$(CANCCU_HOST_PROFILE=max load "$models|\$REVIEW_EFFORT_MAX")" \
-  "claude-opus-5-5||claude-opus-5-5|claude-opus-5-5|claude-sonnet-5-5|claude-sonnet-5-5||medium"
+ok "HOST_PROFILE=max: Opus runs and every review and fix-check (v2), effort up to high" \
+  eq "$(CANCCU_HOST_PROFILE=max load "$models|\$REVIEW_EFFORT_MAX|\$DEEP_REVIEW_EFFORT")" \
+  "claude-opus-5-5||claude-opus-5-5|claude-opus-5-5||||high|high"
+ok "… two runs at once" eq "$( (CANCCU_ROOT=/nonexistent; . "$root/hosts/max.conf"; echo "$CAP|$TOTAL_CAP") )" "2|2"
 printf 'HOST_PROFILE=max\nMODEL=x\n' > "$CANCCU_ROOT/config"
 ok "… MODEL in ~/.canccu/config overrides it" eq "$(load '$MODEL|$REVIEW_MODEL')" "x|claude-opus-5-5"
 
@@ -95,16 +97,40 @@ ok "… and one run at a time" eq "$( (CANCCU_ROOT=/nonexistent; . "$root/hosts/
 env_new pro-load
 # the harness's project config sets CAP, which wins over any profile
 sed -i '/^CAP=/d' "$CANCCU_HOME/config"
-ok "HOST_PROFILE=pro: one run at a time, max's budgets, a medium review effort" \
-  eq "$(CANCCU_HOST_PROFILE=pro load '$HOST_PROFILE|$CAP|$TOTAL_CAP|$BUDGET_REVIEW|$REVIEW_EFFORT_MAX')" "pro|1|1|60 15 40|medium"
+ok "HOST_PROFILE=pro: one run at a time, max's budgets, a medium review and deep review effort" \
+  eq "$(CANCCU_HOST_PROFILE=pro load '$HOST_PROFILE|$CAP|$TOTAL_CAP|$BUDGET_REVIEW|$REVIEW_EFFORT_MAX|$DEEP_REVIEW_EFFORT')" "pro|1|1|60 15 40|medium|medium"
 printf 'HOST_PROFILE=pro\nTOTAL_CAP=2\nREVIEW_EFFORT_MAX=high\n' > "$CANCCU_ROOT/config"
 ok "… a value in ~/.canccu/config overrides it" eq "$(load '$TOTAL_CAP|$REVIEW_EFFORT_MAX|$BUDGET_REVIEW')" "2|high|60 15 40"
 printf 'HOST_PROFILE=pro\n' > "$CANCCU_ROOT/config"
-ok "HOST_PROFILE=pro: Sonnet runs, fixes, light reviews, fix-checks and health; Opus plans and reviews" \
+ok "HOST_PROFILE=pro: Sonnet runs, fixes and health; Opus plans, every review and fix-check (v2)" \
   eq "$(load "$models")" \
-  "claude-sonnet-5-5|claude-sonnet-5-5|claude-opus-5-5|claude-opus-5-5|claude-sonnet-5-5|claude-sonnet-5-5|claude-sonnet-5-5"
+  "claude-sonnet-5-5|claude-sonnet-5-5|claude-opus-5-5|claude-opus-5-5||claude-opus-5-5|claude-sonnet-5-5"
 printf 'HOST_PROFILE=pro\nMODEL=x\n' > "$CANCCU_ROOT/config"
 ok "… MODEL in ~/.canccu/config overrides it" eq "$(load '$MODEL|$REVIEW_MODEL')" "x|claude-opus-5-5"
 
+# ---------------------------------------------------------------- the same project on both (#14)
+
+tname=both
+# keys_of <profile>: every key the lib loads, with its value, minus the profile's own
+keys_of() {
+  ( CANCCU_HOST_PROFILE=$1; . "$root/lib/canccu-common.sh"
+    for k in $(grep -oE '^[A-Z_]+=' "$root/lib/canccu-config.default" | tr -d = | sort -u); do
+      grep -qE "^$k=" "$root/hosts/max.conf" "$root/hosts/pro.conf" || printf '%s=%s\n' "$k" "${!k}"
+    done ) 2>/dev/null
+}
+env_new both
+sed -i '/^CAP=/d' "$CANCCU_HOME/config"
+ok "the same project on a pro and a max host gets the same features" eq "$(keys_of pro | md5sum)" "$(keys_of max | md5sum)"
+ok "… a profile sets only caps, budgets, thresholds, models and effort" \
+  eq "$(cat "$root/hosts/max.conf" "$root/hosts/pro.conf" | grep -oE '^[A-Z_]+=' | tr -d = | grep -vE '^(CAP|TOTAL_CAP|BUDGET_[A-Z_]+|STEP_BUDGET|USAGE_[A-Z_]+|[A-Z_]*MODEL[A-Z_]*|REVIEW_EFFORT_MAX|DEEP_REVIEW_EFFORT)$')" ""
+# the throttle at each profile's thresholds (usage_state)
+ustate() { ( CANCCU_HOST_PROFILE=$1; . "$root/lib/canccu-common.sh"
+  for v in "${@:2}"; do USAGE_NOW="$v - - $NOW"; printf '%s ' "$(usage_state)"; done ) 2>/dev/null; }
+ok "pro's throttle: slow at 80, stop at 95, drain at weekly 90" eq "$(ustate pro '79 0' '80 0' '95 0' '10 90')" "normal slow stop drain "
+ok "max's throttle: slow at 60, stop at 90, drain at weekly 90" eq "$(ustate max '59 0' '60 0' '90 0' '10 90')" "normal slow stop drain "
+# the review effort per profile: a gated path asks for high, the profile caps it
+eff() { ( CANCCU_HOST_PROFILE=$1; . "$root/lib/canccu-common.sh"; review_effort_pure "$(printf '%s\t1' "$2")" "" "${3:-}" ) 2>/dev/null; }
+ok "pro: a gated path and a high-risk PR are reviewed at medium" eq "$(eff pro .github/workflows/ci.yml)|$(eff pro src/a.sh high)" "medium capped|medium capped"
+ok "max: the same at high" eq "$(eff max .github/workflows/ci.yml)|$(eff max src/a.sh high)" "high|high"
 echo "canccu-hosts tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

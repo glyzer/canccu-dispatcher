@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # shellcheck shell=bash disable=SC2034,SC2154  # globals are shared with the other lib/canccu-*.sh parts
 # Part of lib/canccu-common.sh (sourced by it, never run): which accepts count (ACCEPT_CHANNELS),
-# canccu-ship's accept record (accepts.log), the label's accept (accepted_by_user, keep_accept),
+# canccu-ship's accept record (accepts.log), the label's accept (accepted_by_user), an accept
+# carried over merges of main (keep_accept, carry_accept),
 # and the product owner's comments, without those posted while a run of the unit was alive.
 # docs/reference/merging.md, "The accept channels".
 
@@ -67,20 +68,67 @@ ship_armed() {
 # (never the reviewer bot) and came after the accept request
 accepted_by_user() { label_by_user "$1" accepted "${2:-0}"; }
 
-# keep_accept <n> <pr> <old> <head>: with KEEP_ACCEPT_ON_MAIN_MERGE=1, an accept of old carries over
-# to head when head adds nothing to old but merges of main (main_merge_only) and the PR's own
-# `accepted` is still the user's, since the accept request: auto-merge on head. Only the PR's label
-# counts: an accept taken off an issue of the unit has left no label to check again. Off by
-# default: until package S2 a run can forge such a merge as easily as the label. 1: today's path.
+# accept_held <n> <pr> <old>: the channel through which old's accept still counts: label (the
+# PR's own `accepted`, the user's since the accept request: one taken off an issue of the unit has
+# left no label to check again), ship or leader (canccu-ship's record of old), or the channel an
+# earlier carry-over brought it to old by (carried, carried_by: the label went with that requeue).
+# Each only while ACCEPT_CHANNELS lists it. 1: none.
+accept_held() {
+  local n=$1 pr=$2 old=$3 a by
+  if accept_channel label && pr_has_label "$pr" accepted && accepted_by_user "$pr" "$(st_get "$n" accept_at)"; then echo label; return 0; fi
+  for a in $(awk -F '\t' -v p="$pr" -v h="$old" '$3 == p && $4 == h { print $5 }' "$CANCCU_HOME/accepts.log" 2>/dev/null | sort -u); do
+    by=$(actor_channel "$a"); accept_channel "$by" && { echo "$by"; return 0; }
+  done
+  by=$(st_get "$n" carried_by)
+  [ -n "$old" ] && [ "$(st_get "$n" carried)" = "$old" ] && [ -n "$by" ] && accept_channel "$by" && { echo "$by"; return 0; }
+  return 1
+}
+
+# keep_accept <n> <pr> <old> <head>: with KEEP_ACCEPT_ON_MAIN_MERGE=1, an accept of old that still
+# counts (accept_held) carries over to head when head adds nothing to old but clean merges of main
+# (main_merge_only): auto-merge on head. Merges of main with conflicts resolved only inside the
+# PR's own files (resolved_outside) hold the accept for head's fix-check instead (carry_sha,
+# carry_by; carry_accept spends it on the pass), and the caller's requeue reviews head. 1: not
+# carried now, the caller's path. canccu-ship's own hold on head (carry_sha = head) is kept.
 keep_accept() {
-  local n=$1 pr=$2 old=$3 head=$4
-  [ "${KEEP_ACCEPT_ON_MAIN_MERGE:-0}" = 1 ] && [ -n "$old" ] && accept_channel label || return 1
-  pr_has_label "$pr" accepted && accepted_by_user "$pr" "$(st_get "$n" accept_at)" || return 1
+  local n=$1 pr=$2 old=$3 head=$4 by out
+  [ "$(st_get "$n" carry_sha)" = "$head" ] || st_set "$n" carry_sha= carry_by=
+  [ "${KEEP_ACCEPT_ON_MAIN_MERGE:-1}" = 1 ] && [ -n "$old" ] || return 1
+  by=$(accept_held "$n" "$pr" "$old") || return 1
   pr_fetch "$pr"
-  main_merge_only "$old" "$head" || return 1
-  st_set "$n" accept_sha="$head"
-  log "#$n PR #$pr: \`accepted\` carried over from ${old:0:7} to ${head:0:7}: a merge of main only (KEEP_ACCEPT_ON_MAIN_MERGE=1)"
-  merge_auto "$n" "$pr" accepted "$head"
+  if main_merge_only "$old" "$head"; then
+    st_set "$n" accept_sha="$head" carried="$head" carried_by="$by"
+    log "#$n PR #$pr: \`accepted\` carried over from ${old:0:7} to ${head:0:7}: a merge of main only (KEEP_ACCEPT_ON_MAIN_MERGE=1)"
+    merge_auto "$n" "$pr" accepted "$head"
+    return 0
+  fi
+  out=$(resolved_outside "$old" "$head") || return 1
+  if [ -n "$out" ]; then
+    log "#$n PR #$pr: ${head:0:7} resolves a conflict outside the PR's own files ($(paste -sd, - <<<"$out" | sed 's/,/, /g')); a new accept is asked"
+    return 1
+  fi
+  st_set "$n" carry_sha="$old" carry_by="$by"
+  log "#$n PR #$pr: ${head:0:7} merges main with conflicts resolved in the PR's own files; the accept of ${old:0:7} holds until its fix-check"
+  return 1
+}
+
+# carry_accept <n> <pr> <head> <what passed>: after_pass on a manual class. An accept held by
+# keep_accept (carry_sha) carries over to head once head passed, when head still adds to carry_sha
+# nothing but merges of main resolved inside the PR's own files (a commit of the PR's own since
+# needs a new accept); canccu-ship's hold on head itself is that head's accept. 0: merged (or
+# tried: 2 when merge_auto failed, the caller retries); 1: no such accept, the accept is asked.
+carry_accept() {
+  local n=$1 pr=$2 head=$3 old by out
+  old=$(st_get "$n" carry_sha) by=$(st_get "$n" carry_by)
+  [ "${KEEP_ACCEPT_ON_MAIN_MERGE:-1}" = 1 ] && [ -n "$old" ] && [ -n "$by" ] && accept_channel "$by" || return 1
+  if [ "$old" != "$head" ]; then
+    pr_fetch "$pr"
+    out=$(resolved_outside "$old" "$head") && [ -z "$out" ] || { st_set "$n" carry_sha= carry_by=; return 1; }
+  fi
+  merge_auto "$n" "$pr" accepted "$head" || return 2
+  st_set "$n" carry_sha= carry_by= carried="$head" carried_by="$by" accept_sha="$head"
+  if [ "$old" = "$head" ]; then log "#$n PR #$pr: canccu-ship's accept of ${head:0:7} holds: its $4 passed"
+  else log "#$n PR #$pr: \`accepted\` carried over from ${old:0:7} to ${head:0:7}: a merge of main only (KEEP_ACCEPT_ON_MAIN_MERGE=1) (conflicts resolved, $4 pass)"; fi
   return 0
 }
 
@@ -122,4 +170,14 @@ user_comments() {
     [ -n "$t" ] && warn_once "live-comment-$n-$t" "#$n: a comment by $USER_LOGIN at $t was posted while a run was alive; not taken as the product owner's answer" >/dev/null
   done < <(jqr '.[] | select(.live) | .createdAt' <<<"$j")
   jqr 'map(select(.live | not) | .body) | join("\n\n---\n\n")' <<<"$j"
+}
+
+# ship_reviewed <K> <pr> <head>: head is one the dispatcher let through: the head the accept was
+# asked on, the one armed, the last pass, or merges of main only since that pass
+ship_reviewed() {
+  local h p
+  for h in accept_sha merge_sha pass_sha; do [ "$(st_get "$1" "$h")" = "$3" ] && return 0; done
+  p=$(st_get "$1" pass_sha); [ -n "$p" ] || return 1
+  pr_fetch "$2"
+  main_merge_only "$p" "$3"
 }

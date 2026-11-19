@@ -42,7 +42,13 @@ head=$(pr_get "$pr" .headRefOid)
 why=$(pr_not_ours "$(pr_get "$pr" .)" "$n" adoptable); [ -z "$why" ] || die "PR #$pr is not ours: $why"
 # the accept the dispatcher can check later; no label or comment on GitHub can write it
 accept_record "$n" "$pr" "$head" "$actor" || die "refused: the accept record could not be written to $CANCCU_HOME/accepts.log"
-if is_managed "$n"; then
+if is_managed "$n" && ! ship_reviewed "$n" "$pr" "$head"; then
+  # armed now, it would wait on a review gate that never runs for it (the merge timeout's hours):
+  # the dispatcher checks the head first, and carry_accept merges it on the pass
+  st_set "$n" pr="$pr" carry_sha="$head" carry_by="$ch"
+  log "#$n PR #$pr: ${head:0:7} has no review pass yet; sent to the fix-check first, and the accept carries over once it passes"
+  echo "#$n PR #$pr: ${head:0:7} has no review pass yet; sent to the fix-check first, and the accept carries over once it passes"
+elif is_managed "$n"; then
   st_set "$n" pr="$pr" merge_mode=
   merge_auto "$n" "$pr" accepted "$head" || die "PR #$pr was not merged; see the needs-you comment on #$(lead_of "$n")"
 else
