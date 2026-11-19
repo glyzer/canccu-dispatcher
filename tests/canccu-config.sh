@@ -243,8 +243,8 @@ ok "TOTAL_CAP in a project config does not show: the global layer's value and or
 TOTAL_CAP	4	3	global	"
 
 cfgenv host HOST_PROFILE=max ""
-# the shipped max.conf pins today's defaults (no value differs): a copy sets one that does
-src_copy "$E/src"; sed -i 's/^CAP=3$/CAP=4/' "$E/src/hosts/max.conf"
+# a copy of max.conf with a CAP no other layer sets, so its origin can only be the profile
+src_copy "$E/src"; sed -i 's/^CAP=2$/CAP=4/' "$E/src/hosts/max.conf"
 CFG_BIN=$E/src/bin/canccu-dispatcher show --origin CAP HOST_PROFILE
 ok "HOST_PROFILE=max: a key max.conf sets comes from host:max; HOST_PROFILE from global" eq "$out" "$H
 HOST_PROFILE	max		global	
