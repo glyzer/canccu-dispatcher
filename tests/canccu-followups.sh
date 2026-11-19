@@ -140,7 +140,7 @@ env_new ping-accepted-issue
 pr 50 5 $HA green | prs
 state 5 phase=accept pr=50 accept_sha=$HA "accept_at=$((NOW - 60))" "reason=manual: changes .github/ (.github/workflows/ci.yml)"
 dispatch --once
-ok "\`accepted\` on the issue only: no accept ping" eq "$(pings '^issue comment 5 -R example-org/web --body @octo PR #50 waits')" 0
+ok "\`accepted\` on the issue only: no accept ping" eq "$(pings '^issue comment 5 -R example-org/web --body @octo For the product owner: PR #50 waits')" 0
 
 env_new ping-ship-only ACCEPT_CHANNELS=ship
 { issue 5 in-progress,awaiting-accept; } | issues
@@ -148,9 +148,9 @@ pr 50 5 $HA green accepted | prs
 state 5 phase=accept pr=50 accept_sha=$HA "accept_at=$((NOW - 60))" "reason=manual: changes .github/ (.github/workflows/ci.yml)"
 dispatch --once
 ok "ACCEPT_CHANNELS=ship: an ignored label does not stop the ping, which offers canccu-ship only" \
-  has gh.log 'issue comment 5 -R example-org/web --body @octo PR #50 waits for your accept: `canccu-ship 5`.'
+  has gh.log 'issue comment 5 -R example-org/web --body @octo For the product owner: PR #50 waits for your accept: `canccu-ship 5`.'
 lib eval "fetch; to_accept 5 50 'manual: changes .github/' $HA"
-ok "… the accept request offers canccu-ship only" eq "$(grep -c 'Accept: `canccu-ship 5`\.' "$FAKE/gh.log") $(grep -c 'Accept: add the label' "$FAKE/gh.log")" "1 0"
+ok "… the accept request offers canccu-ship only" eq "$(grep -q 'Accept: `canccu-ship 5`\.' "$FAKE/gh.log" && echo yes) $(grep -c 'Accept: add the label' "$FAKE/gh.log")" "yes 0"
 
 # ---------------------------------------------------------------- a named close refused
 

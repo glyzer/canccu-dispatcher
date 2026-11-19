@@ -10,8 +10,8 @@ Part of the reference; the index is [`README.md`](README.md). The prompts are in
 
 A fresh headless session per PR head (key `review-<pr>`, window `review#<pr>`, budget
 `BUDGET_REVIEW`), in its own worktree at the head, run `--untrusted` (the checkout's
-`.claude/` settings, hooks and `.mcp.json` never load) and never with the bot's token: it has
-the project's narrow login like every run ([`engine.md`](engine.md), [`../security.md`](../security.md)). It reads the issue, `AGENTS.md` and the diff against `origin/main`;
+`.claude/`, hooks and `.mcp.json` never load) with the project's narrow login, never the bot's
+token ([`engine.md`](engine.md), [`../security.md`](../security.md)). It reads the issue, `AGENTS.md` and the diff against `origin/main`;
 runs the code-review skill at the chosen effort, and the security-review skill when the diff
 touches `SECURITY_REVIEW_WHEN`; checks every acceptance criterion, the rules' `REVIEW_EXTRA` and
 the choices under `Decisions made:` in the PR body. It treats the PR, the issue, the code,
@@ -21,10 +21,11 @@ and merges nothing.
 The repo's `REVIEW.md`, from `origin/main`, joins both prompts:
 [`repo-contract.md`](../repo-contract.md).
 
-It writes its review to the project's `reviews/<pr>/<sha>.md`: any prose of its own,
-then the finding block below; `Maintainer accept: <what>` only when the PR breaks a contract or
-holds a destructive migration; for a package, `Risk: <low|normal|high> — <why>` (it confirms or
-raises the plan's class); and last, exactly `Review verdict: pass <sha>` or
+It writes its review to the project's `reviews/<pr>/<sha>.md`: `Change:` and three `- ` lines
+on what the PR changes for users ([the ask form](pings.md#the-ask-form)'s summary, not the
+verdict's); its prose, then the finding block; `Maintainer accept: <what>` only when the PR
+breaks a contract or holds a destructive migration; for a package, `Risk: <low|normal|high> —
+<why>` (it confirms or raises the plan's class); and last, exactly `Review verdict: pass <sha>` or
 `Review verdict: changes <sha>`. The dispatcher checks the file and posts it as `REVIEWER_LOGIN`.
 
 ### The finding block
@@ -40,8 +41,9 @@ findings, step <title>, wave <w>` for a package, `…, health pass` for the heal
 you decide), later ones are comments on it while it is open; a closed one makes a new issue.
 A PR that closes the follow-up issue files its own findings in a new one. The
 fix run of a `changes` verdict gets only the blocking findings, and the fix-check checks only
-those. They are saved to `reviews/<pr>/<head>.findings.md` before the fix run starts; its prompt
-names that file and inlines at most their first 3,000 characters, so a long list is read there. A `gh` error is logged and blocks nothing: the items stay in the PR comment.
+those (its file opens with `Change:` too). They are saved to `reviews/<pr>/<head>.findings.md`
+before the fix run starts; its prompt names that file and inlines at most their first 3,000
+characters. A `gh` error is logged and blocks nothing: the items stay in the PR comment.
 `canccu-status --findings` lists the most common findings and the files cited most, across the
 review records (`FINDINGS_TOP` lines at most, 15 by default).
 
@@ -65,8 +67,7 @@ not be read and a package of risk `high` are capped too. It never raises an effo
 accept a gated PR does not change. A capped review's `reviews/<pr>.effort` reads `medium (capped)`.
 
 **Model by kind.** A full review runs on `REVIEW_MODEL`, a fix-check on `FIXCHECK_MODEL`; each
-is `MODEL` when empty. A project that runs fix-checks on a cheaper model (`claude-sonnet-5-5`)
-and leaves `REVIEW_MODEL` empty keeps every full review, a high-risk PR's too, on `MODEL`. The
+is `MODEL` when empty (a cheaper `FIXCHECK_MODEL` alone leaves every full review on `MODEL`). The
 log line of the start names the effort and the model, and `canccu-status` shows both next to the
 running review: `review PR #50 (medium · claude-opus-5-5)` (the effort alone when no model is
 set).

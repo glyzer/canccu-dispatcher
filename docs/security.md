@@ -79,7 +79,7 @@ session may be fooled, and limits what a fooled session can do:
 - **The planner reads nothing back.** Its plan is its final message, validated as JSON against
   the issues the dispatcher alone chose; it gets no directory the dispatcher reads, and no link
   or path it names is followed.
-- **Pings carry no content**: fixed words, numbers and a link only.
+- **Asks carry checked content only**: the facts come from the dispatcher's shell code; the three change lines come from the independent reviewer's file, cut and stripped of links, mentions and markup; nothing comes from the worker or the PR body. `NOTIFY_CONTENT=link` sends only the first line, the last line and the link.
 - **Narrow tokens** bound the damage of any run to one repo, without administration or secrets.
 
 ## Why posted texts never carry absolute paths

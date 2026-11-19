@@ -20,11 +20,13 @@ accept_label_held() {
   for m in $(members_of "$1"); do has_label "$m" accepted && return 0; done
   return 1
 }
-# accept_ways <lead>: how to accept, by the channels that count (a ping's words)
+# accept_ways <lead>: how to accept, by the channels that count (the ask form's first line).
+# canccu-ship arms auto-merge: not offered in a repo without it.
 accept_ways() {
   local w=""
   accept_channel label && w="label it \`accepted\`"
-  accept_channel ship && w="${w:+$w, or }\`canccu-ship $1\`"
+  auto_merge_read
+  accept_channel ship && [ "$AUTO_MERGE_ALLOWED" != false ] && w="${w:+$w, or }\`canccu-ship $1\`"
   echo "${w:-as ACCEPT_CHANNELS ($ACCEPT_CHANNELS) allows}"
 }
 

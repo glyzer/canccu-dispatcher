@@ -420,7 +420,7 @@ dispatch --once
 ok "checkpoint: checkpoint-ok added by another login → ignored" eq "$(grep -c '^issue close 95 ' "$FAKE/gh.log") $(sed -n 's/^phase=//p' "$CANCCU_HOME/steps/12")" "0 checkpoint"
 # the checkpoint waiting for checkpoint-ok is the product owner's: its own ping (canccu
 # PING_KINDS has checkpoint), on the checkpoint, linking the summary comment
-CPLINE='@octo this checkpoint waits for your `checkpoint-ok`: read the summary (https://github.com/example-org/web/issues/95#issuecomment-95), then label this issue `checkpoint-ok`, or close it.'
+CPLINE='@octo For the product owner: this checkpoint waits for your `checkpoint-ok`: read the summary (https://github.com/example-org/web/issues/95#issuecomment-95), then label this issue `checkpoint-ok`, or close it.'
 cpenv cp-ping
 { issue 90 epic "" "3 Events"; issue 95 checkpoint,needs-you "" "3 Events"; } | issues
 echo 'checkpoint_url=https://github.com/example-org/web/issues/95#issuecomment-95' >> "$CANCCU_HOME/steps/12"
@@ -435,7 +435,7 @@ cpenv cp-ping-nolabel
 { issue 90 epic "" "3 Events"; issue 95 checkpoint "" "3 Events"; } | issues
 dispatch --once
 ok "checkpoint: its needs-you label did not land → pinged all the same; no summary link: \"above\"" \
-  has gh.log 'issue comment 95 -R example-org/web --body @octo this checkpoint waits for your `checkpoint-ok`: read the summary above, then label'
+  has gh.log 'issue comment 95 -R example-org/web --body @octo For the product owner: this checkpoint waits for your `checkpoint-ok`: read the summary above, then label'
 cpenv cp-ping-ok checkpoint-ok
 { issue 90 epic "" "3 Events"; issue 95 checkpoint,needs-you,checkpoint-ok "" "3 Events"; } | issues
 json ev95.json "$(jq -n --arg t 2030-11-05T13:00:00Z '[{event: "labeled", label: {name: "checkpoint-ok"}, actor: {login: "octo"}, created_at: $t}]')"
@@ -457,20 +457,20 @@ json ev95.json "$(jq -n --arg t 2030-11-05T13:00:00Z '[{event: "labeled", label:
 route 'api --paginate repos/example-org/web/issues/95/events' ev95.json
 dispatch --once
 ok "checkpoint-ok added by another login (ignored): the checkpoint still pings" \
-  eq "$(grep -c '^issue comment 95 -R example-org/web --body @octo this checkpoint waits' "$FAKE/gh.log") $(cat "$CANCCU_HOME/pings/95" 2>/dev/null)" "1 checkpoint"
+  eq "$(grep -c '^issue comment 95 -R example-org/web --body @octo For the product owner: this checkpoint waits' "$FAKE/gh.log") $(cat "$CANCCU_HOME/pings/95" 2>/dev/null)" "1 checkpoint"
 cpenv cp-ping-ok-early checkpoint-ok
 { issue 90 epic "" "3 Events"; issue 95 checkpoint,needs-you,checkpoint-ok "" "3 Events"; } | issues
 json ev95.json "$(jq -n --arg t 2030-11-05T10:00:00Z '[{event: "labeled", label: {name: "checkpoint-ok"}, actor: {login: "octo"}, created_at: $t}]')"
 route 'api --paginate repos/example-org/web/issues/95/events' ev95.json
 dispatch --once
 ok "checkpoint-ok by the user before the summary (ignored): the checkpoint still pings" \
-  eq "$(grep -c '^issue comment 95 -R example-org/web --body @octo this checkpoint waits' "$FAKE/gh.log") $(sed -n 's/^phase=//p' "$CANCCU_HOME/steps/12")" "1 checkpoint"
+  eq "$(grep -c '^issue comment 95 -R example-org/web --body @octo For the product owner: this checkpoint waits' "$FAKE/gh.log") $(sed -n 's/^phase=//p' "$CANCCU_HOME/steps/12")" "1 checkpoint"
 # non-blocking: open is read from the checkpoint list (the one checkpoint_tick reads), not only
 # from the open issues (their newest 300)
 cpenv cp-ping-old
 dispatch --once
 ok "a waiting checkpoint missing from the open-issue list but open among the checkpoints: pinged" \
-  eq "$(grep -c '^issue comment 95 -R example-org/web --body @octo this checkpoint waits' "$FAKE/gh.log")" 1
+  eq "$(grep -c '^issue comment 95 -R example-org/web --body @octo For the product owner: this checkpoint waits' "$FAKE/gh.log")" 1
 
 cpenv cp-closed; cpi 95 CLOSED "3 Events" | jq -s . > "$FAKE/cps.json"
 dispatch --once

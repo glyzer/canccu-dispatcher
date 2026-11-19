@@ -136,6 +136,7 @@ accept_step() {
   fi
   conflict_merge "$n" "$pr" "$head" && return 0
   ship_armed "$n" "$pr" "$head" && return 0
+  [ "$(st_get "$n" ask_sha)" = "$head" ] || ask_block "$n" "$pr" "$(accept_lines "$n")"
   # the label on an issue of the unit is tolerated too, under the same checks as on the PR; one
   # that does not count never hides a later one that does
   local held=() h

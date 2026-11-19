@@ -109,7 +109,7 @@ json issue5.json "$(comment 2030-11-05T11:45:00Z 'Fix the rest.' | jq -s '{label
 dispatch --once; { issue 5 in-progress; } | issues
 fixed_to_hc
 fixcheck_passes
-ok "… the extra round's pass without the line: waits for the accept" has gh.log "waits for your accept: maintainer accept: breaking contract (renames screen.title)."
+ok "… the extra round's pass without the line: waits for the accept" has gh.log "Why you: maintainer accept: breaking contract (renames screen.title)"
 ok "… no auto-merge" hasnt gh.log "pr merge 50 -R example-org/web --auto"
 
 # ---------------------------------------------------------------- a new full review
