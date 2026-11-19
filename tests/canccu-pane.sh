@@ -223,23 +223,23 @@ out=$(mon --self-test)
 if grep -q 'needs the Python package rich' <<<"$out"; then
   nfail=$((nfail + 1)); echo "FAIL [monitor] canccu-monitor needs rich: set CANCCU_VENV to a venv with lib/canccu-monitor.requirements.txt"
 else
-  ok "monitor: --self-test (the mockup at 120x55 … 60x30, the drop order; fixtures at 60, 100 and 160 columns; redraws keep the cursor hidden)" eq "$(tail -1 <<<"$out")" "canccu-monitor self-test: ok"
+  ok "monitor: --self-test (the Inbox First mockup and the four views at 160x60 … 60x20, the drop order, the keys on a fake tty; redraws keep the cursor hidden)" eq "$(tail -1 <<<"$out")" "canccu-monitor self-test: ok"
   { issue 3 ready; issue 8 needs-you; } | issues
   dispatch --once
   : > "$FAKE/gh.log"; : > "$FAKE/git.log"
   out=$(CANCCU_PROJECT=web mon --once --width 100)
-  ok "monitor: draws the snapshot the dispatcher wrote" \
-    eq "$(grep -cE '━ ✖ NEEDS YOU · 1 ━|^NOW · running|^  #3  no PR yet  Issue 3$' <<<"$(sed 's/\x1b\[[0-9;]*m//g' <<<"$out")")" 3
+  ok "monitor: draws the snapshot the dispatcher wrote (the Summary)" \
+    eq "$(grep -cE '^✖ NEEDS YOU · 1$|^NOW · running 1 of 3$|^  #3  work ◉ .* · Issue 3$|^ \[1 Summary ✖1\] ' <<<"$(sed 's/\x1b\[[0-9;]*m//g' <<<"$out")")" 4
   ok "monitor: reads only the snapshot: no gh, no git" eq "$(cat "$FAKE/gh.log" "$FAKE/git.log" | wc -l)" 0
   mkdir -p "$CANCCU_ROOT/projects/tools"; echo 'REPO=example-user/tools' > "$CANCCU_ROOT/projects/tools/config"
   echo '{"schema": 1, "needs_you": [{"kind": "accept", "issue": 1}, {"kind": "plan", "issue": 2}]}' > "$CANCCU_ROOT/projects/tools/status.json"
   out=$(CANCCU_PROJECT="" mon --project web --once --width 160 | sed 's/\x1b\[[0-9;]*m//g')
-  ok "monitor: the other projects are in the header, their needs-you items in the box" \
-    eq "$(grep -cE '^web · example-org/web · pass .*│  tools · no pass yet ⚠|NEEDS YOU · 3 |✖ ACCEPT   tools #1 ' <<<"$out")" 3
+  ok "monitor: the other projects are in the header, their needs-you items in NEEDS YOU" \
+    eq "$(grep -cE '^web · example-org/web · pass .*│  tools · no pass yet ⚠|^✖ NEEDS YOU · 3$|^ ✖ ACCEPT   tools #1$' <<<"$out")" 3
   out=$(CANCCU_PROJECT="" mon --project tools --once --width 70 | sed 's/\x1b\[[0-9;]*m//g')
   ok "monitor: --project picks that project's snapshot, its items first, all projects in one view" \
-    eq "$(head -1 <<<"$out" | cut -d' ' -f1) $(grep -A1 '^✖ NEEDS YOU' <<<"$out" | tr -s ' ' | tr '\n' '|')" "tools ✖ NEEDS YOU · 3|✖ ACCEPT tools #1|"
-  ok "… the other project's needs-you item, marked" grep -qE '^✖ STUCK web #8 · labelled needs-you$' <<<"$out"
+    eq "$(head -1 <<<"$out" | cut -d' ' -f1) $(grep -A1 '^✖ NEEDS YOU' <<<"$out" | tr -s ' ' | tr '\n' '|')" "tools ✖ NEEDS YOU · 3| ✖ ACCEPT tools #1|"
+  ok "… the other project's needs-you item, marked" grep -qE '^ ✖ STUCK    web #8 · labelled needs-you$' <<<"$out"
   rm "$CANCCU_ROOT/projects/tools/status.json"
   out=$(CANCCU_PROJECT="" mon --project tools --once --width 70); rc=$?
   ok "monitor: no snapshot yet → one line, no crash" eq "$rc $(grep -c '^canccu-monitor: no snapshot yet' <<<"$out")" "0 1"

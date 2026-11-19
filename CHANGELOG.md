@@ -6,6 +6,11 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 
 ## Unreleased
 
+- The monitor has four views: Summary (the default), Projects, Roadmap and Activity, with a
+  one-line strip on top, a view bar at the bottom and keys (`1`–`4`, `Tab`, the arrows, `j`/`k`,
+  `PgUp`/`PgDn`, `Home`/`End`, `p`, `a`, `r`, `?`, `q`) read in cbreak mode when stdin is a
+  terminal. `--view <name>` picks the start view, also with `--once`; `--rotate [secs]` cycles
+  them (#37).
 - `canccu-init --leader <project>` writes a leader kit (`CLAUDE.md` and `.claude/settings.json`)
   to `~/.canccu/projects/<project>/leader/` and sets `LEADER=on`; with `LEADER=on`, `canccu-up`
   starts the left pane's `claude` there, titled `leader`, with `CANCCU_ACTOR=leader`. The
