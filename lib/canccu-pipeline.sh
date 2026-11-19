@@ -106,7 +106,7 @@ reap_review() {
     else
       if [ ! -e "$f" ]; then why="no review file"
       elif (( $(stat -c %Y "$f") < ${started:-0} )); then why="the review file is older than the run"
-      elif [ -n "$(file_verdict_raw "$f" "$sha")" ]; then why="a file whose count line does not match the items" reason="the count line does not match the items"
+      elif [ -n "$(file_verdict_raw "$f" "$sha")" ]; then reason=$(review_miss "$f") why="a file: $reason"
       else why="the file's last line is no verdict for ${sha:0:7}"; fi
       if [ "$kind" = usage ]; then
         outcome "$n" "$pr" "$sha" "no valid verdict ($why; usage limit); again after the back-off"
@@ -235,7 +235,8 @@ check_pr() {
     log "#$n PR #$pr: head ${head:0:7} passed review already; no new review (verdict reused)"
     after_pass "$n" "$pr" "$head" "earlier"; return
   fi
-  body_lines_missing "$n" "$pr" "$j" && return
+  # a fix round that pushed nothing is the needs-you below: no body send-back first
+  { (( fix )) && [ "$head" = "$rsha" ]; } || ! body_lines_missing "$n" "$pr" "$j" || return
   postpass_step "$n" "$pr" "$head" && return
   # the worker fixed the full review's findings: the fix-check of reviewed_sha..head, never a
   # second full review. A push after a fix-check voids it (its verdict names the old head): a
@@ -268,12 +269,14 @@ ci_unpark() {
 }
 
 # ready_unpark <n>: a needs-you of a finished worker (ny_stage work: it stopped, not a review or a
-# fix round) whose label the lead removed with no comment, and whose PR waits for review (open,
-# not a draft, CI green), goes back to check; check_pr (called next) starts the review. A comment
+# fix round) or of a red CI (ny_stage ci: a flaky run re-run green costs no worker run) whose label
+# the lead removed with no comment, and whose PR waits for review (open, not a draft, CI green),
+# goes back to check; check_pr (called next) starts the review. A comment
 # since it parked leaves it to resume_step. 0 when it is back in check.
 ready_unpark() {
   local n=$1 pr c
-  [ "$(st_get "$n" ny_stage)" = work ] && ! has_label "$n" needs-you || return 1
+  case $(st_get "$n" ny_stage) in work|ci) ;; *) return 1 ;; esac
+  ! has_label "$n" needs-you || return 1
   pr=$(st_get "$n" pr); [ -n "$pr" ] && pr_is_open "$pr" || return 1
   [ "$(pr_get "$pr" .isDraft)" = false ] && [ "$(ci_state "$pr")" = green ] || return 1
   c=$(user_comments "$n" "$pr" "$(st_get "$n" ny_at)") || return 1
@@ -358,7 +361,9 @@ resume_step() {
     { has_label "$n" awaiting-accept || [ "$phase" = accept ] || [ -n "$(st_get "$n" review_maccept)" ] ||
       [ "$(st_get "$n" review_risk)" = high ]; } && refused=1
     resume "$n" "The user rejected PR #$pr (needs-work). Address their comments, rerun the checks, push once and stop: the dispatcher watches CI. Their comments: ${c:-none found; read the latest comments on the PR and the issue}" needs-work || return 0
-    history_answer "$pr"; edit_issue "$n" --remove-label needs-work
+    # a full review asked for re-reviews the open items: nobody fixed or answered them yet
+    full_review_asked "$c" || history_answer "$pr"
+    edit_issue "$n" --remove-label needs-work
     has_label "$n" awaiting-accept && edit_issue "$n" --remove-label awaiting-accept
     new_cycle "$n"
     # kept until the full review's verdict is acted on: it holds for the next head, even the same

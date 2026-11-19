@@ -309,8 +309,8 @@ planned 2 '{"schema":1,"step":12,"wave":2,"packages":[{"name":"c","issues":[105]
 dispatch --once
 ok "… its plan (depending on the running package it overlaps) is taken: wave 2" \
   eq "$(sed -n 's/^wave=//p;s/^plan=.*\///p' "$CANCCU_HOME/steps/12" | tr '\n' ' ')" "2 12.plan-2.json "
-ok "… which rolls on at once: nothing of it can start (c waits for a), nothing is left to plan" \
-  eq "$(sed -n 's/^phase=//p' "$CANCCU_HOME/steps/12") $(plans12) $(grep -c 'step 3 Events: wave 2 rolls on' "$CANCCU_HOME/dispatch.log")" "idle 1 1"
+ok "… which runs on: nothing of it can start (c waits for a), but nothing is left to plan either" \
+  eq "$(sed -n 's/^phase=//p' "$CANCCU_HOME/steps/12") $(plans12) $(grep -c 'step 3 Events: wave 2 rolls on' "$CANCCU_HOME/dispatch.log")" "running 1 0"
 ok "… the running package is in the new plan with carried_from" \
   eq "$(jq -c '[.packages[] | "\(.name):\(.carried_from // "-")"]' "$CANCCU_HOME/steps/12.plan-2.json")" '["c:-","a:1","b:1"]'
 ok "… and not flagged as overlapping itself (the check runs before the carry)" \
@@ -323,6 +323,12 @@ planned 2 '{"schema":1,"step":12,"wave":2,"packages":[{"name":"c","issues":[105]
 dispatch --once
 ok "rolling (#166): a new package overlapping the running one without depending on it → the plan is invalid" \
   grep -q '^issue comment 90 .*the plan of wave 2 is invalid: c overlaps running a in lib/a/b.sh' "$FAKE/gh.log"
+# the dependency of b is met while the lead looks at the rejected plan of wave 2
+{ issue 90 epic,needs-you "" "3 Events"; issue 101 in-progress "" "3 Events"; issue 104 ready "" "3 Events"; issue 105 ready "" "3 Events"; } | issues
+printf '%s\n' "$(jq -c '.packages[1].depends_on = []' <<<"$PR1")" > "$CANCCU_HOME/steps/12.plan-1.json"
+dispatch --once
+ok "… a package of the current wave whose wait ended still starts while the step needs you" \
+  eq "$(sed -n 's/^phase=//p' "$CANCCU_HOME/steps/12") $(grep -c -- '--name #104 ' "$FAKE/worker.log")" "needs-you 1"
 
 rollenv rolling-pending WAVE_ROLLING=1
 printf '%s\n' "$(jq -c '.packages[1].depends_on = []' <<<"$PR1")" > "$CANCCU_HOME/steps/12.plan-1.json"
@@ -332,6 +338,12 @@ ok "rolling (#166): a package pending → no early plan" eq "$(rolls) $(plans12)
 rollenv rolling-noslot WAVE_ROLLING=1 CAP=1
 dispatch --once
 ok "rolling (#166): no slot free → no early plan" eq "$(rolls) $(plans12) $(sed -n 's/^phase=//p' "$CANCCU_HOME/steps/12")" "0 0 running"
+
+rollenv rolling-nothing WAVE_ROLLING=1
+{ issue 90 epic "" "3 Events"; issue 101 in-progress "" "3 Events"; issue 104 ready "" "3 Events"; } | issues
+dispatch --once
+ok "rolling (#166): nothing left to plan → no early plan, the wave runs on" \
+  eq "$(rolls) $(plans12) $(sed -n 's/^phase=//p' "$CANCCU_HOME/steps/12")" "0 0 running"
 
 rollenv rolling-off
 dispatch --once

@@ -197,6 +197,14 @@ ok "… said in project a's log" grep -qF 'usage limit cleared (canccu-resume --
 ok "… runs start again" eq "$(lib usage_cap)" "$(lib eval 'echo "$TOTAL_CAP"')"
 ok "… nothing on stderr" eq "$(cat "$E/err")" ""
 
+# a worker nudged at the usage stop keeps its reset in nudge_reset: --usage clears it in every
+# project, so its reap sets no back-off again
+usage_env resume-usage-nudged
+for q in a b; do mkdir -p "$CANCCU_ROOT/projects/$q/state"; printf '%s\n' phase=work nudged=1 "nudge_reset=$((NOW + 3600))" > "$CANCCU_ROOT/projects/$q/state/5"; done
+PATH="$fb:$PATH" "$root/bin/canccu-resume" --usage --project a > "$E/out" 2> "$E/err"
+ok "canccu-resume --usage: nudge_reset cleared in every project" \
+  eq "$(cat "$CANCCU_ROOT"/projects/[ab]/state/5 | grep -c '^nudge_reset=[0-9]') $(cat "$CANCCU_ROOT"/projects/[ab]/state/5 | grep -c '^phase=work')" "0 2"
+
 usage_env resume-plain
 PATH="$fb:$PATH" "$root/bin/canccu-resume" --project a > "$E/out" 2> "$E/err"
 ok "canccu-resume without --usage: the back-off and the readings stay" \
@@ -234,7 +242,8 @@ state 5 phase=limited
 puse 60 4
 ok "PACE=pause ahead: draining, usage_cap unchanged" eq "$(lib draining && echo drain) $(lib usage_cap)" "drain 3"
 dispatch --once
-ok "… nothing new starts, nothing resumes" eq "$(wc -l < "$FAKE/worker.log")" 0
+ok "… nothing new starts" not started 6
+ok "… the stopped run resumes, as under the weekly drain: started work finishes" eq "$(st 5 phase)" work
 ok "… a hold line (info) in the feed" grep -qP '\t-\tinfo\thold\t.*pace: weekly usage 60% is ahead of the week; nothing new starts until it is back on pace$' "$CANCCU_HOME/events"
 puse 45 4
 dispatch --once

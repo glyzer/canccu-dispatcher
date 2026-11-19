@@ -142,6 +142,21 @@ dpass
 ok "… the retry files it; the same pass starts no health pass" \
   eq "$(sf deep) $(sf polish) $(sf phase) $(grep -c -- '--key pkg-12-health' "$FAKE/worker.log")" "merged 900 idle 0"
 
+# the create prints no link: the issue is looked up by its title; not found either: logged
+merged deep-polish-nourl 'the cache is never cleared'
+echo 'nourl:issue create' >> "$FAKE/routes"
+json polish.json '[{"number": 901, "title": "Step 4 Search: polish (deep review)"}, {"number": 77, "title": "Step 4 Search: polish (deep review) notes"}]'
+route 'issue list -R example-org/web -s open -L 20 --search *' polish.json
+dpass
+ok "no link from the create → the polish issue found by its title" \
+  eq "$(sf polish) $(dlog 'step 4 Search: the deep review found 1 blocking finding(s); polish issue #901 filed')" "901 1"
+merged deep-polish-lost 'the cache is never cleared'
+echo 'nourl:issue create' >> "$FAKE/routes"
+json polish.json '[]'; route 'issue list -R example-org/web -s open -L 20 --search *' polish.json
+dpass
+ok "… not found either → logged, the polish field empty" \
+  eq "$(sf polish)|$(dlog "step 4 Search: the polish issue was filed but gh printed no link and the title finds no open issue; the summary names none")" "|1"
+
 merged deep-clean
 dpass
 ok "a report with nothing blocking → no issue, the health pass follows" \

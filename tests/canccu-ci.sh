@@ -58,6 +58,8 @@ gate=$(sed -n '/name: Release PR scenarios line/,/^$/p' <<<"$ci")
 ok "CI: a release PR's body is checked for the scenarios line" grep -qF 'release check "v$(cat VERSION)" --body' <<<"$gate"
 ok "CI: … with the release tags fetched first, for the review set's line (#196)" \
   grep -qF "git fetch -q --depth=1 origin 'refs/tags/v*:refs/tags/v*'" <<<"$gate"
+ok "CI: … a repo without a tag yet still reaches the check (#235)" \
+  grep -qF "git fetch -q --depth=1 origin 'refs/tags/v*:refs/tags/v*' || true" <<<"$gate"
 ok "CI: … only on a PR, and only when it changes VERSION" eval \
   'grep -qF "if: github.event_name == '"'"'pull_request'"'"'" <<<"$gate" && grep -qF -- "-- VERSION" <<<"$gate"'
 ok "CI: … the PR body reaches it through env, never interpolated into the script" \

@@ -117,11 +117,13 @@ plan_carry() {
     | .packages |= map(.depends_on = ((.depends_on // []) | map(select(IN($in[])))))' <<<"$1"
 }
 
-# running_areas <m>: the current plan's packages that run (needs-you included: their branch holds
-# work too) with their areas, compact JSON: what a new package must not overlap without waiting
+# running_areas <m>: the current plan's live packages (running, needs-you: their branch holds work
+# too; pending or blocked: carried into the next plan, they start later) with their areas, compact
+# JSON: what a new package must not overlap without waiting. A carried one left out would start
+# beside a new package of its area once the package it waits for merges.
 running_areas() {
   local f n; f=$(step_get "$1" plan); [ -n "$f" ] && [ -f "$f" ] || { echo '[]'; return 0; }
-  n=" $(plan_states "$1" | awk -F '\t' '$2 == "running" || $2 == "needs-you" { printf "%s ", $1 }')"
+  n=" $(plan_states "$1" | awk -F '\t' '$3 == 1 { printf "%s ", $1 }')"
   jq -c --arg n "$n" '[.packages[] | .name as $x | select($n | contains(" \($x) ")) | {name, areas: ((.areas // []) | map(strings))}]' "$f" 2>/dev/null ||
     echo '[]'
 }

@@ -20,14 +20,13 @@ Every `INTERVAL` seconds, under the project's lock:
    fix-check, answer or resume; running runs finish, their reaps work, and a passed review still
    merges (a merge costs no tokens). Paused with `--finish` (for a host move): no new issue,
    package, planner or health pass starts (step 3); work in flight still gets its reviews,
-   answers and resumes. Backing off from a usage limit, or holding for a low disk: nothing starts
-   and nothing resumes.
+   answers and resumes. Backing off from a usage limit: nothing starts and nothing resumes.
    A GitHub rate limit (a failed `gh` call that says so) writes `gh_limit` with the reset (the
    primary limit's from `gh api rate_limit`, else 15 minutes): until then every pass returns at
    once, with no `gh` call, logging `GitHub rate limit: passes pause until <time>` once and
    `GitHub rate limit over; passes resume` when it ends. Free space below `DISK_MIN_MB` on the
    worktrees' file system: nothing new starts (step 3), logged once when it starts and once when
-   it ends; reaping, running reviews and merges go on.
+   it ends; reaping, running reviews, resumes of started work and merges go on.
 2. **Reap.** For each managed issue whose run has finished:
    - A worker that finished with no PR (the PR list read again to be sure) and a status line
      starting `blocked` or `not started` → phase `waiting`, quietly: no `needs-you`, no answerer
@@ -39,8 +38,8 @@ Every `INTERVAL` seconds, under the project's lock:
      nothing is uncommitted, it is treated as finished, like any other (next item); otherwise
      (no PR, a head that differs, uncommitted files, a worktree gone) → `needs-you` with the
      denials. An older worker whose report says `blocked` with an open PR is still finished. A `needs-you` of a
-     finished worker whose label the leader removes, with no comment and a PR waiting for review
-     (open, not a draft, CI green), goes back to `check` and the review starts.
+     finished worker or of a red CI whose label the leader removes with no comment, its PR open,
+     not a draft and green (a re-run), goes back to `check` and the review starts.
    - A worker that stopped with a question (a line starting `Question:`) → the answerer.
    - A worker that finished → phase `check`, then its PR decides (a PR for issue `n`: one that
      closes it, a plan-only PR with a `Plan for #n` line, or one on its branch `<n>-…`):
@@ -64,8 +63,8 @@ Every `INTERVAL` seconds, under the project's lock:
        log tail, at most `FIX_ATTEMPTS` automatic fix runs per PR (review fix rounds included),
        then `needs-you`. Checks in `REVIEW_CHECKS` are ignored here. A `needs-you`
        that only waited on CI goes back to `check` by itself once CI is green or red;
-     - CI green, no verdict, body lacking `Testing:`/`Revert:` (not contract or plan) → worker
-       resumed once for the body (`body_lines`, no fix round), then the review;
+     - CI green, no verdict, body lacking `Testing:`/`Revert:` (no contract, no `Tier: plan`)
+       → worker resumed once (`body_lines`; no fix round; no back-off), then review;
      - CI green and no verdict for this head → the review (or, after a fix round, the
        fix-check) starts; it checks both lines against the diff.
    - A reviewer that finished: its review file, if valid for the reviewed head, is posted as

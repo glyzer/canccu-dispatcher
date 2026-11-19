@@ -14,6 +14,22 @@ accept_channel() {
   return 1
 }
 
+# accept_label_held <K> <pr>: the PR or an issue of the unit carries `accepted`
+accept_label_held() {
+  local m; pr_has_label "$2" accepted && return 0
+  for m in $(members_of "$1"); do has_label "$m" accepted && return 0; done
+  return 1
+}
+# accept_ways <lead>: how to accept, by the channels that count (the ask form's first line).
+# canccu-ship arms auto-merge: not offered in a repo without it.
+accept_ways() {
+  local w=""
+  accept_channel label && w="label it \`accepted\`"
+  auto_merge_read
+  accept_channel ship && [ "$AUTO_MERGE_ALLOWED" != false ] && w="${w:+$w, or }\`canccu-ship $1\`"
+  echo "${w:-as ACCEPT_CHANNELS ($ACCEPT_CHANNELS) allows}"
+}
+
 # ship_actor: who runs canccu-ship: leader, run or po, by the CANCCU_ACTOR marker (cfg_actor).
 # canccu-ship refuses a run; a run that unsets the marker is what the hardened level shuts out.
 ship_actor() { cfg_actor; }

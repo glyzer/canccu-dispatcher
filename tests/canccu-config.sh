@@ -273,6 +273,7 @@ ok "config show --origin prints the token file's path, never its content" eq "$(
 
 tname=cfg-check
 chk() { bash -c '. "$1/lib/canccu-configcmd.sh"; cfg_check "$2" "$3"' _ "$root" "$1" "$2"; }
+ok "USAGE_MAX_AGE_MIN=0 (no age limit, as documented) passes" chk USAGE_MAX_AGE_MIN 0
 ok "every default value passes cfg_check for its key" eq "$(bash -c '. "$1/lib/canccu-configcmd.sh"; CANCCU_ROOT=/nonexistent
   . "$1/lib/canccu-config.default"; for k in $(cfg_keys); do cfg_check "$k" "${!k-}" || echo "($k)"; done' _ "$root")" ""
 while IFS='|' read -r k v want; do
@@ -450,6 +451,11 @@ chmod +x "$E/between"
 loop
 ok "config set CAP=1 between two passes of one dispatcher: the second pass runs with CAP=1" \
   eq "$(cat "$E/cap-1") $(jq -r .caps.cap "$CANCCU_HOME/status.json") $(cat "$E/sleeps")" "3 1 2"
+
+cfgenv show-broken - 'CAP=1' 'if true; then'
+show
+ok "config show with a layer that is not valid shell → exit 1, naming the file" \
+  eq "$rc $(grep -c 'projects/web/config is not valid shell' <<<"$out")" "1 1"
 
 echo "canccu-config tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

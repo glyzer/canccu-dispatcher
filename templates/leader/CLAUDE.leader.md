@@ -75,10 +75,11 @@ not sure of: pass it on, in the ask form below.
 
 ## How you wait
 
-Loop on the feed, and acknowledge each line once you handled it:
+Loop on the feed, and acknowledge each line once you handled it. The first wait has no `--ack`: it
+goes on after the last line you acknowledged (after a restart too), so nothing is replayed:
 
 ```
-ack=0; while l=$(canccu-dispatcher wait --owner leader --ack "$ack"); do ack=$(cut -f2 <<<"$l"); …; done
+ack=""; while l=$(canccu-dispatcher wait --owner leader ${ack:+--ack "$ack"}); do ack=$(cut -f2 <<<"$l"); …; done
 ```
 
 A line is `<time> <id> <owner> <class> <kind> <unit> <pr> <url> <text>`, tab-separated; the

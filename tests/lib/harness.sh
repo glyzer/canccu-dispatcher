@@ -28,6 +28,9 @@ MON_VENV=${CANCCU_VENV:-$HOME/.local/share/canccu/venv}; unset CANCCU_VENV
 unset GH_CONFIG_DIR CANCCU_GH_OWNER GH_TOKEN GITHUB_TOKEN "${!GIT_CONFIG_@}"
 # … nor the caller's actor marker: a worker running the tests carries CANCCU_ACTOR=run
 unset CANCCU_ACTOR
+# … nor a worker's own settings (WORKER_STALL_MIN, WORKER_CAP, …), which the engine and the
+# dispatcher read before their defaults; a test sets the ones it needs
+unset "${!WORKER_@}"
 # the caller's locale never reaches a test (ls, sort and [a-z] order by it); a test that needs
 # another locale sets its own
 export LC_ALL=C
@@ -98,7 +101,8 @@ case "$1 $2" in
         '.comments += [{author: {login: $u}, createdAt: "2030-11-05T12:05:\(.comments | length + 10)Z", body: $b}]' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
     fi
     # a new issue prints its link, like the real gh: number 900, or the one in $FAKE/new-issue
-    [ "$1 $2" = "issue create" ] && echo "https://github.com/example-org/web/issues/$(cat "$FAKE/new-issue" 2>/dev/null || echo 900)"
+    # (route nourl:issue create: none)
+    [ "$1 $2" = "issue create" ] && ! grep -qxF "nourl:issue create" <<<"$routes" && echo "https://github.com/example-org/web/issues/$(cat "$FAKE/new-issue" 2>/dev/null || echo 900)"
     # an issue comment's body is kept in $FAKE/comment-<issue> (the newest)
     if [ "$1 $2" = "issue comment" ]; then
       for ((i = 0; i < ${#args[@]}; i++)); do [ "${args[i]}" = --body ] && printf '%s\n' "${args[i+1]}" > "$FAKE/comment-$3"; done
@@ -246,7 +250,7 @@ env_new() {
   printf '%s\n' "$FAKE_TOKEN" > "$E/reviewer-token"; chmod 600 "$E/reviewer-token"
   jq -n --arg l "$BOT" '{login: $l}' > "$FAKE/user.json"
   printf '%s\t%s\n' \
-    'api repos/example-org/web/milestones*' ms.json  'issue list -R example-org/web -s all -l checkpoint*' cps.json \
+    'api repos/example-org/web/milestones*' ms.json  'issue list -R example-org/web -s * -l checkpoint*' cps.json \
     'issue list*' issues.json  'pr list -R example-org/web -s open*' prs.json  'label list*' labels.json \
     'api repos/example-org/web/issues/*/dependencies/blocked_by' empty.json \
     'api repos/example-org/web/issues/*/dependencies/blocking' empty.json \

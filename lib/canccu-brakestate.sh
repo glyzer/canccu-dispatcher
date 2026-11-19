@@ -18,7 +18,8 @@ brake_text() {
 
 # brake_cmd [release]: `canccu-dispatcher brake`. Only the product owner releases: the leader and
 # a run are refused like a locked setting (exit 3), and the refusal is in the actions log too,
-# so the product owner sees who tried. Nothing else removes the file (rule 7 of the plan).
+# so the product owner sees who tried. Nothing else removes the file (rule 7 of the plan). A
+# release writes brake-released, the newest merged PR: the same window never engages it again.
 brake_cmd() {
   case ${1:-} in
     "") if brake_on; then echo "brake: $(brake_text)"; else echo "brake: off"; fi ;;
@@ -29,6 +30,8 @@ brake_cmd() {
       fi
       brake_on || { echo "the review brake is not on"; return 0; }
       rm -f "$CANCCU_HOME/brake" || { echo "canccu-dispatcher: cannot remove $(brake_file)" >&2; return 1; }
+      # the hold: the trigger (brake_tick) waits for a PR merged after this one, the newest now
+      awk -F '\t' '$3 ~ /^[0-9]+$/ { p = $3 } END { print p }' "$CANCCU_HOME/merged.log" 2>/dev/null > "$CANCCU_HOME/brake-released"
       actions_log "brake release" - released
       echo "review brake released" ;;
     *) return 2 ;;

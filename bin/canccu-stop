@@ -46,8 +46,8 @@ for m in $members; do
   labels=in-progress,needs-you,awaiting-accept
   # a blocked the user set is theirs: only the dispatcher's own (its marker) goes
   [ -e "$CANCCU_HOME/blocked/$m" ] && labels+=,blocked
-  guard 60 gh issue edit "$m" -R "$REPO" --remove-label "$labels" >/dev/null 2>&1 ||
-    echo "canccu-stop: could not remove the labels of #$m; remove $labels by hand" >&2
-  rm -f "$CANCCU_HOME/blocked/$m"
+  # the marker goes with the label only: kept, the dispatcher still lifts its own `blocked` later
+  if guard 60 gh issue edit "$m" -R "$REPO" --remove-label "$labels" >/dev/null 2>&1; then rm -f "$CANCCU_HOME/blocked/$m"
+  else echo "canccu-stop: could not remove the labels of #$m; remove $labels by hand" >&2; fi
 done
 log "#$n forgotten (canccu-stop --forget): runs stopped, state and worktree removed, labels cleared"

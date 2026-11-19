@@ -30,21 +30,29 @@ section() {
 # review_gate <rev>: what a review-set run covers, as of that commit: lib/canccu-verdict.sh
 # whole (the block, its parser, REVIEW.md handling), the review prompts' definitions without the
 # comments above them, and REVIEW_MODEL's default. Read from git, so a shallow fetch of the tag's
-# commit is enough.
+# commit is enough. A listed name the file lacks prints "missing: lib/<file> <name>": a rename
+# must not turn the gate off unseen (review_gate_missing).
 review_gate() {
   git show "$1:lib/canccu-verdict.sh" 2>/dev/null
   # a function from its "name() {" line to its closing "}"; a variable is one line
   local f names
   for f in canccu-runs.sh:review_prompt canccu-depth.sh:light_review_prompt,LIGHT_REVIEW_TEXT canccu-norepeat.sh:norepeat_prompt; do
     names=${f#*:}
-    git show "$1:lib/${f%%:*}" 2>/dev/null | awk -v names=",$names," '
+    git show "$1:lib/${f%%:*}" 2>/dev/null | awk -v names=",$names," -v file="lib/${f%%:*}" '
       in_fn { print; if ($0 ~ /^}/) in_fn = 0; next }
       match($0, /^[A-Za-z_][A-Za-z0-9_]*(\(\)|=)/) {
         n = substr($0, 1, RLENGTH); sub(/(\(\)|=)$/, "", n)
-        if (index(names, "," n ",")) { print; in_fn = ($0 ~ /^[A-Za-z0-9_]+\(\)/ && $0 !~ /}[[:space:]]*$/) }
-      }'
+        if (index(names, "," n ",")) { seen[n] = 1; print; in_fn = ($0 ~ /^[A-Za-z0-9_]+\(\)/ && $0 !~ /}[[:space:]]*$/) }
+      }
+      END { k = split(substr(names, 2, length(names) - 2), w, ","); for (i = 1; i <= k; i++) if (!seen[w[i]]) print "missing: " file " " w[i] }'
   done
   git show "$1:lib/canccu-config.default" 2>/dev/null | grep '^REVIEW_MODEL='
+}
+
+# review_gate_missing: the names review_gate lists that HEAD lacks, one "lib/<file> <name>" a line
+review_gate_missing() {
+  git rev-parse --git-dir >/dev/null 2>&1 || return 0
+  review_gate HEAD | sed -n 's/^missing: //p'
 }
 
 # review_set_since <tag>: prints the tag the reviewer changed since (the highest v* tag below
@@ -77,6 +85,8 @@ case $cmd in
       # the gate is the line a run of tests/scenarios/run asks for; a PR body may end in CRLF
       tr -d '\r' < "$body" | grep -qE '^Scenarios: pass at [0-9a-f]{7,40}$' ||
         die 'the release PR body has no "Scenarios: pass at <sha>" line'
+      miss=$(review_gate_missing)
+      [ -z "$miss" ] || die "the review gate lists names HEAD lacks (renamed? update review_gate in $0): ${miss//$'\n'/, }"
       if since=$(review_set_since "$tag"); then
         tr -d '\r' < "$body" | grep -qE '^Review set: pass at [0-9a-f]{7,40}$' ||
           die "the release PR body has no \"Review set: pass at <sha>\" line: the review prompt, REVIEW.md handling, lib/canccu-verdict.sh or REVIEW_MODEL's default changed since $since"

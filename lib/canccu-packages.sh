@@ -42,10 +42,16 @@ start_package() {
 
 # start_packages <m>: the wave's packages whose dependencies are merged, in plan order, while
 # slots are free (also while the next wave is planned: a dependant whose waiting dependency merged
-# meanwhile starts at once); the one-at-a-time lock holds for packages too
+# meanwhile starts at once); the one-at-a-time lock holds for packages too. A needs-you that is
+# not a stop is a plan the lead must look at (reap_planner): with a current plan, that is the next
+# wave's (WAVE_ROLLING), and the current one's packages go on starting.
 start_packages() {
   local m=$1 nm is rk dep busy i ex rc held=0
-  case $(step_get "$m" phase) in running|planning) ;; *) return 0 ;; esac
+  case $(step_get "$m" phase) in
+    running|planning) ;;
+    needs-you) [ -n "$(step_get "$m" plan)" ] || return 0 ;;
+    *) return 0 ;;
+  esac
   [ "$(step_get "$m" ny_kind)" != stop ] || return 0
   step_blocked_to_start "$m" && return 0
   busy=$(exclusive_busy)

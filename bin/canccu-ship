@@ -24,6 +24,8 @@ ACT_UNIT=$n
 case $actor in
   run) die "refused: a run never accepts" ;;
   leader)
+    # LEADER=off makes every item the product owner's (need_owner), a stored leader owner too
+    [ "${LEADER:-off}" = on ] || die "refused: LEADER is off"
     [ "${LEADER_ACCEPTS:-none}" = technical ] || die "refused: LEADER_ACCEPTS is none"
     ph=$(st_get "$n" phase)
     if ! is_managed "$n" || [ "$ph" != accept ] || [ "$(st_get "$n" owner)" != leader ]; then

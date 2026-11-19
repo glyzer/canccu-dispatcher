@@ -47,14 +47,16 @@ tests/review-set/run [--model <m>] [--effort low|medium|high|xhigh|max] [--light
 - The engine is `claude -p` with the untrusted-run flags ([`engine.md`](engine.md)) and the
   budget of `BUDGET_REVIEW`. It runs in the foreground, one case at a time. Its `gh` answers only
   `issue view`, `pr view` and `pr diff`, from the case. `--model` passes a model; without it,
-  the engine's default.
+  the project's review model (`REVIEW_MODEL`, else `MODEL`; with `--light`, `REVIEW_MODEL_LIGHT`),
+  as a dispatcher review would run.
 - The verdict file is judged as the dispatcher judges one: `review_ctx`, then `review_effective`.
   - A defect case is `found` when a kept blocking finding is on the planted file, within 5 lines
     of the planted line, whatever its class. Otherwise it is `missed`.
   - A clean case is `clean` when the effective verdict is pass. Otherwise it is `blocked`.
-- It prints `<case> found|missed|clean|blocked` per case, then
-  `found N · missed N · clean N · blocked N`.
-- Exit 0 green (or the baseline written), 1 red, 2 a usage error.
+- It prints `<case> found|missed|clean|blocked|error` per case, then
+  `found N · missed N · clean N · blocked N`. `error` is an engine that exited non-zero: it is no
+  miss, so the run writes no log line, no baseline and engages no brake.
+- Exit 0 green (or the baseline written), 1 red, 2 a usage error or an engine error.
 
 ## The log and the baseline
 
@@ -62,7 +64,7 @@ Both are in the project's home (`CANCCU_PROJECT`, as for every command).
 
 - `review-set.log`: one line per run,
   `<time> <short sha> <model> <effort> <found> <missed> <clean-blocked> <cases>`. The model is
-  `default` without `--model`; the effort is `light` with `--light`. The cases are the missed
+  `default` when neither `--model` nor the project names one; the effort is `light` with `--light`. The cases are the missed
   defect cases and the blocked clean ones, comma-separated, or `-`.
 - `review-set-baseline` (with `--light`: `review-set-baseline-light`): written by the first run,
   `<time> <short sha> <model> <effort> <clean-blocked> <found cases>`. To take a new baseline,

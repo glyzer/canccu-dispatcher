@@ -33,11 +33,12 @@ flow below; a session started by hand follows it too.
 
 ### `finish` — open the PR
 
-1. Run the local check once, in full: `tests/run`. It must pass.
+1. Run the repo checks, `tests/run repo` (file size and the repo's own checks); they must pass.
+   Not the full suite: CI runs it on every push (`AGENTS.md`, Tests).
 2. Push the branch and open the PR (or mark the draft ready), with the body `AGENTS.md`
    prescribes.
-3. Watch CI (`gh pr checks <pr> --watch`, bounded with `timeout`). Red: fix, rerun the local
-   check, push once. Red after two fix rounds: stop and say why.
+3. Watch CI (`gh pr checks <pr> --watch`, bounded with `timeout`). Red: fix, rerun the failing
+   tests and `tests/run repo`, push once. Red after two fix rounds: stop and say why.
 4. Never merge, never enable auto-merge, never add or remove the `accepted` label: an
    independent reviewer and the product owner take it from here.
 5. End with a 5-line report: status, PR URL, what changed, verification, next action.

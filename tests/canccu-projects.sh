@@ -597,8 +597,8 @@ ok "canccu-up, LEADER=off: the left pane as today, titled lead, claude in ~/code
   eq "$(grep -cxF 'select-pane -t %0 -T lead' "$FAKE/tmux.log") $(grep -cxF 'send-keys -t %0 claude C-m' "$FAKE/tmux.log")" "1 1"
 penv leader-nokit web; mkdir -p "$E/home"; echo LEADER=on >> "$CANCCU_ROOT/projects/web/config"
 HOME=$E/home PATH="$T/tmuxup:$fb:$PATH" "$root/bin/canccu-up" --project web > "$E/out" 2>&1
-ok "canccu-up, LEADER=on without a kit: the leader pane in ~/code, and says how to write the kit" \
-  eq "$(grep -cxF 'select-pane -t %0 -T leader' "$FAKE/tmux.log") $(grep -cxF 'send-keys -t %0 CANCCU_ACTOR=leader claude C-m' "$FAKE/tmux.log") $(grep -c 'no leader kit in .*: canccu-init --leader web' "$E/out")" "1 1 1"
+ok "canccu-up, LEADER=on without a kit: no leader marker (no kit, no denies): your own session, and how to write the kit" \
+  eq "$(grep -cxF 'select-pane -t %0 -T lead' "$FAKE/tmux.log") $(grep -cxF 'send-keys -t %0 claude C-m' "$FAKE/tmux.log") $(grep -c 'CANCCU_ACTOR=leader' "$FAKE/tmux.log") $(grep -c 'no leader kit in .*: canccu-init --leader web' "$E/out")" "1 1 0 1"
 
 echo "canccu-projects tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

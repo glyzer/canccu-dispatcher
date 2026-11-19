@@ -18,6 +18,7 @@ ok "a review fix round starts a fresh session" grep -q -- ' --fresh ' <<<"$l"
 ok "… its task first, after the safety block" grep -q 'web 5 Rules for this run: .* next action\. The independent reviewer asked for changes on PR #50 ' <<<"$l"
 ok "… the handoff: the PR's link" grep -qF 'https://github.com/example-org/web/pull/50' <<<"$l"
 ok "… the branch's commits" grep -qF 'abc1234 feat: the thing' <<<"$l"
+ok "… the test rule of the first prompt" grep -qF 'Tests: run only the tests of the files you change, in the foreground; CI runs the full suite on every push.' <<<"$l"
 ok "… the last report" grep -qF 'status: done PR URL:' <<<"$l"
 ok "… the safety block first (#88)" grep -qF -- "web 5 $(lib eval 'echo "$SAFETY_BLOCK"') The independent reviewer asked" <<<"$l"
 ok "… short findings inline, with their file" grep -qF "$HA (also in $CANCCU_HOME/reviews/50/$HA.findings.md)" <<<"$l"
@@ -407,6 +408,25 @@ printf '%s\tweb\t5\t2.00\tbuild\t-\t-\tfresh\t-\t-\t-\t-\t-\t-\t-\n' "$((NOW - 1
 dispatch --once
 ok "the rerun head turned green → rerun-green and its ci_wait on the worker's spend line" \
   eq "$(cut -f15 "$WORKERS_DIR/spend.log" | sed 's/ci_wait=[0-9][0-9]*$/ci_wait=N/')" "ci=rerun-green,ci_wait=N"
+
+ok "ci_names: a REVIEW_CHECKS check (it waits for the verdict) is no CI failure" \
+  eq "$(lib eval 'REVIEW_CHECKS=review-gate; PRS=$(jq -n "[{number: 50, statusCheckRollup: [{name: \"review-gate\", conclusion: \"FAILURE\"}, {name: \"test\", conclusion: \"FAILURE\"}]}]"); ci_names 50')" "test"
+
+# a red run whose other jobs still run: GitHub refuses `rerun --failed` then, so it waits for them
+rrenv rerun-busy
+pr 50 5 $HA red | jq '.statusCheckRollup[0].detailsUrl = "https://github.com/example-org/web/actions/runs/700/job/77"
+  | .statusCheckRollup += [{name: "lint", status: "IN_PROGRESS", conclusion: "", detailsUrl: "https://github.com/example-org/web/actions/runs/700/job/78"}]' | prs
+dispatch --once
+ok "a failed run with a job still running → no rerun yet, no fix run, the rerun not spent" \
+  eq "$(grep -c '^run rerun' "$FAKE/gh.log") $(wc -l < "$FAKE/worker.log") [$(st 5 ci_rerun)]" "0 0 []"
+ok "… logged" grep -qF '#5 PR #50: CI red; run 700 still has jobs running: the rerun waits for them' "$CANCCU_HOME/dispatch.log"
+
+# a health pass's fresh follow-up names the pass and its limits, not an empty package
+env_new handoff-health
+mkdir -p "$CANCCU_HOME/steps"; printf 'title=3 Events\n' > "$CANCCU_HOME/steps/12"
+state pkg-12-health pkg=health health=1 step=12 members= branch=pkg-12-health
+ok "the health pass's handoff names the pass and its limits" \
+  grep -qF 'This run is on the health pass of step 3 Events (cleanups only: change no behaviour; the PR has no `Closes` line), branch pkg-12-health.' <<<"$(lib handoff pkg-12-health)"
 
 echo "canccu-followup tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

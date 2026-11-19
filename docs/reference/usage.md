@@ -101,8 +101,8 @@ stale reading is never ahead: no limit, and an ahead state ends with it (below);
 still ahead starts it again.
 
 While ahead: `notify` limits nothing; `cap` holds the runs over all projects to `PACE_CAP` (1), as
-the slow cap does; `pause` starts no new issue or package (as the weekly drain) and holds the
-resumes of stopped runs (step 4: a `needs-work`, an answer, a retry); the fix runs of work already
+the slow cap does; `pause` starts no new issue or package, as the weekly drain does; the resumes of
+stopped runs (step 4: a `needs-work`, an answer, a retry) and the fix runs of work already
 started (a review's `changes`, red CI, a conflict merge) go on, so started work finishes. Pacing never writes `CAP` or `TOTAL_CAP`: it ends by itself once
 the week catches up.
 

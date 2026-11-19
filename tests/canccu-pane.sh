@@ -159,7 +159,7 @@ json cps.json '[{"number": 12, "title": "Checkpoint: contracts", "state": "OPEN"
                 {"number": 2, "title": "Checkpoint: skeleton", "state": "CLOSED", "milestone": {"title": "1 Skeleton"}, "labels": [{"name": "checkpoint"}]}]'
 json deps9.json '[]'
 route 'api repos/example-org/web/milestones*' ms.json
-route 'issue list -R example-org/web -s all -l checkpoint*' cps.json
+route 'issue list -R example-org/web -s * -l checkpoint*' cps.json
 printf '%s\tweb\t5\t2.50\n%s\tweb\t6\t?\n' "$((NOW - 100))" "$((NOW - 50))" > "$WORKERS_DIR/spend.log"
 dispatch --once
 S=$CANCCU_HOME/status.json

@@ -21,7 +21,7 @@ Findings: <b> blocking, <n> non-blocking, <p> pre-existing
 Review verdict: <pass|changes> <sha>'
 # single quotes: the backticks are the reviewer's markdown, not a command substitution. "a contract
 # of the repo" stands for §8's "this file": in a prompt that would read as the review file.
-REVIEW_RULES='Classes. Blocking: `correctness`, `security`, `criterion` (an acceptance criterion not met), `contract` (a name, default, text or format a contract of the repo fixes, not used as written), `data-loss`, `test` (a behaviour change without a test that failed before it). Never blocking: `style`, `docs`, `simplify`, `test-gap` (a test that could be better), `other`. A finding under Blocking: with a never-blocking class, no class, or no Evidence: line counts as non-blocking; the verdict is changes only when at least one blocking finding is left (the dispatcher checks this and corrects the verdict line). Pre-existing: the cited line is not in the diff'"'"'s changed lines and the diff did not make its bug reachable. A `security` finding of that kind is still listed there; it goes to the follow-up issue with the label `security` and never blocks the PR. Count line: the three numbers count the items as written under each heading, before any demotion; a file whose numbers do not match has no valid verdict. A heading without findings gets none after it; keep every heading.'
+REVIEW_RULES='Classes. Blocking: `correctness`, `security`, `criterion` (an acceptance criterion not met), `contract` (a name, default, text or format a contract of the repo fixes, not used as written), `data-loss`, `test` (a behaviour change without a test that failed before it). Never blocking: `style`, `docs`, `simplify`, `test-gap` (a test that could be better), `other`. A finding under Blocking: with a never-blocking class, no class, or no Evidence: line counts as non-blocking; the verdict is changes only when at least one blocking finding is left (the dispatcher checks this and corrects the verdict line). Pre-existing: the cited line is not in the diff'"'"'s changed lines and the diff did not make its bug reachable. A `security` finding of that kind is still listed there; it goes to the follow-up issue with the label `security` and never blocks the PR. Count line: the three numbers count the items as written under each heading, before any demotion; a file whose numbers do not match has no valid verdict. A heading without findings gets none after it; keep every heading. Any wrong behaviour (a wrong result, a crash, a hang, a leak) is `correctness`: classed `other` or not at all, a real bug would not block.'
 
 # review_format_text: the block and its rules on one line (a prompt must be one: oneline), ↵ for
 # each line break, so the reviewer can still write it line by line
@@ -33,7 +33,7 @@ review_format_text() {
 
 # The block's parser. An item starts at column 0 with a list mark; the lines up to the next item,
 # heading or stop line are its own (Evidence:, Fix:). Text on a heading's line is an item too,
-# unless it says none. mode: parse (review_parse), eff ("<kept> <n> <p> <demoted> <classes>", nothing
+# unless it says none. mode: parse (review_parse), keptpre (the Pre-existing: items kept), eff ("<kept> <n> <p> <demoted> <classes>", nothing
 # without a count line or when it does not match), kept / moved (the items' text: the blocking ones
 # left / all others, in file order), presec (1 when a Pre-existing: item is a security one), keys
 # (the blocking ones left: "<class> <file> <line>"), why ("<plain> <settled> <unchanged>": the
@@ -54,9 +54,10 @@ _REVIEW_AWK='
   }
   function lo(r,   q) { split(r, q, "-"); return q[1] + 0 }
   function hi(r,   q, m) { m = split(r, q, "-"); return (q[m] + 0 < q[1] + 0) ? q[1] + 0 : q[m] + 0 }
-  # the key of contracts §8: class and file, the lines overlapping
+  # the key of contracts §8: class and file, the lines overlapping. A security finding is never
+  # settled: one that comes back is a bug re-introduced, and it blocks like the first time
   function settled(i,   k) {
-    if (ln[i] == "-") return 0
+    if (ln[i] == "-" || cl[i] == "security") return 0
     for (k = 1; k <= ns; k++) if (sc[k] == cl[i] && sf[k] == fl[i] && slo[k] <= hi(ln[i]) && lo(ln[i]) <= shi[k]) return 1
     return 0
   }
@@ -65,6 +66,11 @@ _REVIEW_AWK='
     if (!pass || cl[i] == "security" || ln[i] == "-") return 0
     for (k = 1; k <= nc; k++) if (cf[k] == fl[i] && clo[k] <= hi(ln[i]) && lo(ln[i]) <= chi[k]) return 0
     return 1
+  }
+  # none, n/a, nothing, also in brackets or bold and with a full stop: a heading without findings
+  function isnone(s) {
+    s = tolower(s); sub(/^([0-9]+[.)]|[-*+])[[:space:]]+/, "", s); gsub(/[][()*_`[:space:].!]/, "", s)
+    return s ~ /^(none|n\/a|nothing)$/
   }
   function head(t) {
     if (t ~ /^[[:space:]#*_>]*non-blocking[*_[:space:]]*(:|$)/) return "nonblocking"
@@ -104,12 +110,12 @@ _REVIEW_AWK='
       flush(); cur = h; rest = ""
       if (index($0, ":")) { rest = $0; sub(/^[^:]*:/, "", rest) }
       gsub(/^[*_[:space:]]+|[*_[:space:]]+$/, "", rest)
-      if (rest != "" && tolower(rest) !~ /^(none|n\/a|nothing)[.!]?$/) start(rest, rest)
+      if (rest != "" && !isnone(rest)) start(rest, rest)
       next
     }
     if (t ~ /^[[:space:]*_>]*(maintainer accept|risk|review verdict|dispatcher)[*_]*:/ || t ~ /^#+[[:space:]]/) { flush(); cur = ""; next }
     if (cur == "") next
-    if ($0 ~ /^([0-9]+[.)]|[-*+])[[:space:]]/) { start($0, $0); next }
+    if ($0 ~ /^([0-9]+[.)]|[-*+])[[:space:]]/) { if (isnone($0)) flush(); else start($0, $0); next }
     if (!open) next
     txt = txt "\n" $0
     if (t ~ /^[[:space:]>*_-]*evidence[*_]*:[*_[:space:]]*[^*_[:space:]]/) iev = 1
@@ -137,7 +143,9 @@ _REVIEW_AWK='
       if (mode == "moved" && !k && y != 2) out = out (out == "" ? "" : "\n") tx[i]
       # a pre-existing security item the brake keeps blocks this PR: no follow-up issue for it
       if (sec[i] == "preexisting" && cl[i] == "security" && !k) psec = 1
+      if (sec[i] == "preexisting" && k) kp++
     }
+    if (mode == "keptpre") { print kp + 0; exit }
     if (mode == "kept" || mode == "moved") { if (out != "") print out; exit }
     if (mode == "presec") { if (psec) print 1; exit }
     if (mode == "keys") exit
@@ -154,6 +162,13 @@ _review_awk() {
 # review_parse <file>: one "<section> <class|-> <file|-> <line|-> <Evidence: 0|1>" line per item
 # (tab-separated; section blocking, nonblocking or preexisting), then "count <b> <n> <p>" or "count -"
 review_parse() { _review_awk parse < "$1"; }
+
+# review_miss <file>: why the file has no valid verdict, for the reviewer's retry: no count line
+# at all, or one that does not match the items
+review_miss() {
+  if [ "$(_review_awk parse < "$1" | tail -1)" = "count	-" ]; then echo "no finding block or count line"
+  else echo "the count line does not match the items"; fi
+}
 
 # review_valid <body>: the body has the block with a count line that matches its items
 review_valid() { [ -n "$(_review_awk eff <<<"$1")" ]; }
@@ -224,14 +239,16 @@ review_post() {
 }
 
 # reviews_log <n> <pr> <sha> <file>: the posted verdict's line in reviews.log (§8); a post-pass
-# check is a fixcheck. Append only.
+# check is a fixcheck. Field 11: the Pre-existing: items the review brake kept blocking (not
+# demoted, --kpi-review). Append only.
 reviews_log() {
-  local kind=full e v b n p d c
+  local kind=full e v b n p d c kp
   is_fixcheck_mode "$(st_get "$1" review_mode)" && kind=fixcheck
   e=$(review_effective "$4" "$3"); [ -n "$e" ] || return 0
   read -r v b n p d c <<<"$e"
+  kp=$(_review_awk keptpre < "$4")
   (( CANCCU_DRY )) && return 0
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$(iso "$(now)")" "$2" "$3" "$kind" "$v" "$b" "$n" "$p" "$d" "$c" \
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$(iso "$(now)")" "$2" "$3" "$kind" "$v" "$b" "$n" "$p" "$d" "$c" "${kp:-0}" \
     >> "$CANCCU_HOME/reviews.log" || log "#$1 PR #$2: cannot append to reviews.log"
 }
 
@@ -241,13 +258,20 @@ preexisting_security() { review_valid "$1" && [ -n "$(_review_awk presec <<<"$1"
 # review_md <pr>: the sections Also check, Never blocks and Known false positives of the repo's
 # REVIEW.md (contracts §8), cut at 4000 characters; empty without one. Read from origin/main in the
 # review worktree (start_reviewer fetched main), never from the PR head: a PR must not relax its
-# own review. Any other section is dropped: §8 gives the file these three and nothing else.
+# own review. Any other section is dropped: §8 gives the file these three and nothing else. CRLF
+# lines count as LF; a # line inside a ``` or ~~~ fence is no heading; the <!-- … --> comment lines
+# (the snippet's guidance) are dropped. A git error other than a missing file is logged (stderr).
 review_md() {
-  local s
-  s=$(git -C "$(review_wt "$1")" show origin/main:REVIEW.md 2>/dev/null |
-    awk '/^#+[ \t]/ { t = $0; sub(/^#+[ \t]+/, "", t); sub(/[ \t#]+$/, "", t)
+  local s e ef; ef=$(mktemp)
+  s=$(git -C "$(review_wt "$1")" show origin/main:REVIEW.md 2>"$ef" | tr -d '\r' |
+    awk '/^ ? ? ?(```|~~~)/ { fence = !fence }
+         !fence && /^#+[ \t]/ { t = $0; sub(/^#+[ \t]+/, "", t); sub(/[ \t#]+$/, "", t)
                       keep = (t == "Also check" || t == "Never blocks" || t == "Known false positives") }
+         !fence && !cmt && /^[ \t]*<!--/ { cmt = 1 }
+         cmt { if ($0 ~ /-->[ \t]*$/) cmt = 0; next }
          keep')
+  e=$(cat "$ef"); rm -f "$ef"
+  case $e in ''|*"does not exist in"*) ;; *) log "PR #$1 REVIEW.md: git show origin/main failed, read as none: $(oneline 200 "$e")" >&2 ;; esac
   (( ${#s} > 4000 )) && s="${s:0:4000}"$'\n'"(REVIEW.md cut at 4000 characters)"
   printf '%s' "$s"
 }

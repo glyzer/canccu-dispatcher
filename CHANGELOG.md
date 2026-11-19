@@ -17,6 +17,37 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
   real review prompt on 12 fixed cases and logs the result to `review-set.log`. A red run against
   its baseline engages the review brake. A release PR whose diff since the last tag touches the
   review prompt or the verdict handling needs `Review set: pass at <short sha>` (#196).
+- The follow-ups of the 0.2 reviews (#222, with #226, #233 and #235):
+  - **Contract:** each `reviews.log` line gets an 11th field, `<kept>`: the pre-existing items the
+    review brake kept. Lines written before read as `0`. `--kpi-review` no longer counts them as
+    demoted.
+  - Merge and accept: gh timeouts are retried, an armed merge is seen as one, and an issue's accept
+    is kept until the merge. A merge by script that is skipped (a dirty worktree) is needs-you at
+    once; only git errors are retried. `canccu-ship` refuses the leader with `LEADER=off`.
+  - Gating and retries: any pass leaves the fix round; review checks are no CI failure; a rerun
+    waits for running jobs; a refused close is not waited out.
+  - Holds: a low disk and `PACE=pause` hold new work only, so resumes of started work go on. Body
+    send-backs wait out the back-off and the pause, and read a plan PR by its body.
+  - A needs-you lifted from a red CI goes back to check once CI is green.
+  - `canccu-status` shows a unit in check whose PR conflicts with main while auto-merge is off.
+  - `REVIEW.md` skips fenced blocks, CRLF and HTML comment lines. A git error reading it is logged.
+  - Steps read open and closed checkpoints separately, so an old open checkpoint behind 200 closed
+    ones is never lost.
+  - The review brake's release holds until the window moves. The baseline's rounds skip runs with
+    no verdict.
+  - `tests/review-set/run`: without `--model`, it uses the project's review model. An engine
+    failure is `error` (exit 2) and writes no log line, baseline or brake. The release gate fails
+    when a name it lists is gone. CI's tag fetch works in a repo with no tag yet.
+  - Config: `PING_KINDS` reads commas; a config change in the same second reloads; a broken layer
+    is named; `USAGE_MAX_AGE_MIN` takes `0`.
+  - `canccu-resume --usage` clears the nudge reset and exits 0. Every command answers `--help`.
+  - The leader's wait without `--ack` goes on from its stored ack. `canccu-up` starts no leader
+    without its kit.
+  - A worker stopped by TERM, HUP or INT stops `claude` and its tools first.
+  - The planner checks carried packages and the root area for overlaps, and a rejected next-wave
+    plan holds no started wave.
+  - A deep review's polish issue that prints no link is looked up by its title.
+  - `CLAUDE.md` finish: run `tests/run repo` before a push, not the full suite (#209).
 
 ## [0.2.0] — 2026-11-16
 
@@ -33,6 +64,8 @@ Release 0.2 ends here; its remaining packages move to 0.3 (#105).
   longer runs on the host's default login: it starts no run until it gets its own login or its
   config sets `ALLOW_DEFAULT_GH_LOGIN=1` (new, default `0`, locked). `canccu-dispatcher doctor`
   names such projects with the steps (#173).
+
+**New:**
 
 - A head that passed review is never reviewed again: a `needs-work` answered with no push, or a
   pass read again, reuses the verdict; a `full review` line asks for a new one (#214).
@@ -53,7 +86,7 @@ Release 0.2 ends here; its remaining packages move to 0.3 (#105).
     effort and budget: `DEEP_REVIEW_MODEL` (default empty: `REVIEW_MODEL`, else `MODEL`),
     `DEEP_REVIEW_EFFORT` (default `high`), `BUDGET_DEEP_REVIEW` (default `150 40 120`).
   - `STEP_TAG` (locked, default empty: no tag): the checkpoint OK tags `origin/main`, `{n}` for
-    the step's number (for example `step-{n}`); the next deep review starts from that tag.
+    the step title's leading number, else the milestone's (for example `step-{n}`); the next deep review starts from that tag.
   - `CADENCE_DAYS` (default `0`: no rounds): a step whose milestone description has the line
     `Cadence: on` gets a round every this many days while it runs: its deep review, polish and
     checkpoint summary.

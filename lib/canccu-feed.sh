@@ -70,7 +70,8 @@ feed_unit_moved() {
     [ -n "$kind" ] && [ "$kind" = "$(feed_kind_of "$id")" ] && return 0
     feed_closed "$id" "$new" "$k"; _st_put "$k" ev_id=
   fi
-  [ -n "$kind" ] || return 0
+  # FEED_QUIET: a move back to an item already answered (a merge needs-you lifted) asks nothing
+  [ -n "$kind" ] && (( ! ${FEED_QUIET:-0} )) || return 0
   pr=$(st_get "$k" pr); r=$(st_get "$k" reason)
   id=$(feed "$(st_get "$k" owner)" ask "$kind" "$k" "$pr" "$(feed_url "$k" "$pr")" "#$k $kind: ${r#manual: }")
   [ -z "$id" ] || _st_put "$k" ev_id="$id" ev_at="$(now)"
@@ -99,19 +100,42 @@ feed_tick() {
   feed_idle "$@"
 }
 
+# feed_ack: the leader's acknowledged line id (leader_ack), 0 when none. One above the last line
+# means the events file was reset (its ids start again at 1): that ack is cleared, or it would
+# silence every hand-over until the new ids caught up with it.
+feed_ack() {
+  local ack last
+  ack=$(kv_get "$(feed_open_file)" feed leader_ack); [[ $ack =~ ^[0-9]+$ ]] || ack=0
+  last=$(tail -n 1 "$(feed_file)" 2>/dev/null | cut -f2); [[ $last =~ ^[0-9]+$ ]] || last=0
+  if (( ack > last )); then kv_set "$(feed_open_file)" feed "leader_ack="; ack=0; fi
+  echo "$ack"
+}
+
 # feed_handover: rule 7 of docs/plan/contracts.md §1: a unit's item stored for the leader whose
 # line the leader has not acknowledged (leader_ack, from `wait --owner leader --ack`) passes to the
 # product owner once its line is 60 minutes old. One way only: nothing hands it back, and leaving
 # the phase clears the owner. An item with no line id (state from before the feed) has nothing the
-# leader could have acked, so it stays.
+# leader could have acked, so it stays. An idle line has no stored owner: its line names it.
 feed_handover() {
-  local k id ack at pr t
-  ack=$(kv_get "$(feed_open_file)" feed leader_ack); [[ $ack =~ ^[0-9]+$ ]] || ack=0
+  local k id ack at pr t o
+  ack=$(feed_ack)
   for k in $(managed); do
+    pr=$(st_get "$k" pr)
+    id=$(st_get "$k" idle_ev)
+    if [[ $id =~ ^[0-9]+$ ]] && (( id > ack )); then
+      read -r o at <<<"$(awk -F '\t' -v i="$id" '$2 == i { print $3, $1 }' "$(feed_file)" 2>/dev/null)"
+      at=$(iso_epoch "${at:-}")
+      if [ "${o:-}" = leader ] && [[ $at =~ ^[0-9]+$ ]] && (( $(now) - at >= 3600 )); then
+        t="#$k (idle) passed to the product owner: the leader did not acknowledge it in 60 min"
+        feed_closed "$id" "passed to the product owner" "$k"
+        id=$(feed po ask handover "$k" "$pr" "$(feed_url "$k" "$pr")" "$t")
+        [ -z "$id" ] || _st_put "$k" idle_ev="$id"
+        log "$t"
+      fi
+    fi
     [ "$(st_get "$k" owner)" = leader ] || continue
     id=$(st_get "$k" ev_id); [[ $id =~ ^[0-9]+$ ]] && (( id > ack )) || continue
     at=$(st_get "$k" ev_at); [ -n "$at" ] || at=$(st_get "$k" phase_at); [[ $at =~ ^[0-9]+$ ]] && (( $(now) - at >= 3600 )) || continue
-    pr=$(st_get "$k" pr)
     t="#$k passed to the product owner: the leader did not acknowledge it in 60 min"
     _st_put "$k" owner=po
     feed_closed "$id" "passed to the product owner" "$k"   # the leader's line: no longer open for it
@@ -155,16 +179,21 @@ heartbeat_stale() {
 }
 
 # feed_wait <owner or empty> <ack or empty>: blocks until a line with an id above ack (default: the
-# last id now) for that owner (lines of owner - only without one), prints it, returns 0; returns
+# leader's stored leader_ack for owner leader, else the last id now) for that owner (lines of owner - only without one), prints it, returns 0; returns
 # 3 when the heartbeat is older than 10 minutes. It polls: no inotify dependency. The leader's
-# --ack is recorded first (leader_ack, never lowered): feed_handover reads it.
+# --ack is recorded first (leader_ack, never lowered but capped at the last id): feed_handover reads it.
 feed_wait() {
-  local owner=$1 ack=$2 f hb l old
+  local owner=$1 ack=$2 f hb l old last
   f=$(feed_file)
-  if [ "$owner" = leader ] && [ -n "$ack" ]; then
-    old=$(kv_get "$(feed_open_file)" feed leader_ack); [[ $old =~ ^[0-9]+$ ]] || old=0
+  if [ "$owner" = leader ] && [[ $ack =~ ^[0-9]+$ ]]; then
+    # at most the last id: a mistyped --ack 99999 would ack every item still to come
+    last=$(tail -n 1 "$f" 2>/dev/null | cut -f2); [[ $last =~ ^[0-9]+$ ]] || last=0
+    (( ack <= last )) || ack=$last
+    old=$(feed_ack)
     (( ack <= old )) || kv_set "$(feed_open_file)" feed "leader_ack=$ack"
   fi
+  # no --ack: the leader goes on from its stored ack (a restarted leader neither replays nor skips)
+  [ -z "$ack" ] && [ "$owner" = leader ] && { ack=$(feed_ack); (( ack > 0 )) || ack=""; }
   [ -n "$ack" ] || { ack=$(tail -n 1 "$f" 2>/dev/null | cut -f2); [[ $ack =~ ^[0-9]+$ ]] || ack=0; }
   while :; do
     l=$(awk -F '\t' -v a="$ack" -v o="$owner" '$2 + 0 > a + 0 && (o == "" || $3 == o) { print; exit }' "$f" 2>/dev/null)

@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # shellcheck shell=bash disable=SC2034,SC2154  # globals are shared with the other lib/canccu-*.sh parts
-# Part of lib/canccu-common.sh (sourced by it, never run): actions: needs-you, resume, start, merge, accept, act on a verdict, labels.
+# Part of lib/canccu-common.sh (sourced by it, never run): actions: needs-you, resume, start, accept, act on a verdict, labels
+# (the merge calls: lib/canccu-mergecall.sh).
 
 # ---------------------------------------------------------------- actions
 
@@ -30,7 +31,8 @@ edit_issue() { local n; n=$(lead_of "$1"); shift; [ -n "$n" ] || return 0; mut g
 needs_work_from_pr() {
   local n=$1 pr=$2 l
   [ -n "$pr" ] && pr_has_label "$pr" needs-work || return 0
-  l=$(lead_of "$n")
+  # no lead issue (a health unit whose step issue is gone): nowhere to move it
+  l=$(lead_of "$n"); [ -n "$l" ] || return 0
   # added before removed: an error between the two leaves the label on both, never on neither
   if ! { mut gh issue edit "$l" -R "$REPO" --add-label needs-work && mut gh pr edit "$pr" -R "$REPO" --remove-label needs-work; }; then
     log "#$n PR #$pr: gh error moving \`needs-work\`; retrying next pass"; return 1
@@ -145,125 +147,15 @@ start_issue() {
 # plan_merged_text <plan file>: what a worker starting on a merged, approved plan is told
 plan_merged_text() { echo "The plan $1 is approved and merged on main: execute it with the superpowers skill executing-plans; the PR closes the issue."; }
 
-# merge_flags <direct 0|1>: MF is the method a merge passes (merge_method_read): none for the
-# merge queue; unknown → none for auto-merge, --squash for a direct merge (as before). Not run in
-# $(…), so MERGE_METHOD stays read for the rest of the pass.
-merge_flags() {
-  merge_method_read
-  MF=()
-  case $MERGE_METHOD in --*) MF=("$MERGE_METHOD") ;; unknown) (( $1 )) && MF=(--squash) ;; esac
-  return 0
-}
-
-# merge_auto <n> <pr> <how> <head>: merge exactly that head. Where the repo allows auto-merge (or
-# the setting is unknown): arm it; a push in between fails it. Where it does not (the setting, or
-# --auto's "not allowed" error), or where GitHub refuses --auto for a PR in clean status:
-# merge_direct, now or on a later pass (merge_mode=direct).
-merge_auto() {
-  local n=$1 pr=$2 how=$3 head=$4
-  is_full_sha "$head" || { needs_you "$n" "the head of PR #$pr ($head) is not a full commit sha; not merged"; return 1; }
-  auto_merge_read
-  if [ "$AUTO_MERGE_ALLOWED" != false ]; then
-    merge_flags 0
-    if mut_out gh pr merge "$pr" -R "$REPO" --auto "${MF[@]}" --match-head-commit "$head"; then
-      st_set "$n" phase=merging how="$how" merge_sha="$head" merge_at="$(now)" merge_mode= merge_tries=
-      log "#$n PR #$pr: auto-merge enabled ($how)"; return 0
-    fi
-    # GitHub refuses to arm a PR it can merge right now: merging that same head directly is what
-    # auto-merge would have done a moment later. AUTO_MERGE_ALLOWED stays: the next PR arms again.
-    if grep -qi 'clean status' <<<"$MUT_OUT"; then
-      log "#$n PR #$pr: GitHub can merge it now (clean status); merging directly at ${head:0:7}"
-      st_set "$n" phase=merging how="$how" merge_sha="$head" merge_at="$(now)" merge_mode=direct
-      merge_direct "$n" "$pr"; return
-    fi
-    if ! grep -qiE 'auto.?merge is not allowed' <<<"$MUT_OUT"; then
-      merge_retry "$n" "$pr" && return 1
-      needs_you "$n" "\`gh pr merge $pr --auto${MF[*]:+ ${MF[*]}} --match-head-commit ${head:0:7}\` failed; merge it by hand or check the merge queue. gh: $(oneline 300 "$MUT_OUT")$MERGE_AFTER"; return 1
-    fi
-    AUTO_MERGE_ALLOWED=false
-  fi
-  st_set "$n" phase=merging how="$how" merge_sha="$head" merge_at="$(now)" merge_mode=direct
-  merge_direct "$n" "$pr"
-}
-
-# merge_retry <n> <pr>: the merge call failed (its output in MUT_OUT). 0 when the error looks
-# transient (gh_transient) and merge_tries is below MERGE_RETRY: the try is counted and logged and
-# the phase kept, so the next pass's step (accept_step, merging_step, or check_pr acting on the same
-# verdict again) runs the same merge. 1: raise the needs-you, with MERGE_AFTER appended to it.
-merge_retry() {
-  local n=$1 pr=$2 k max=${MERGE_RETRY:-3}
-  MERGE_AFTER=""
-  gh_transient "$MUT_OUT" || return 1
-  k=$(st_get "$n" merge_tries); k=${k:-0}
-  (( k >= max )) && { MERGE_AFTER=" (after $max tries)"; return 1; }
-  st_set "$n" merge_tries=$(( k + 1 ))
-  log "#$n PR #$pr: GitHub error on the merge (try $(( k + 1 )) of $max); trying again next pass: $(oneline 200 "$MUT_OUT")"
-}
-
-# merge_unpark <n>: a needs-you at the merge step (ny_stage merge) whose label the user removed
-# with no comment since it parked means "try again": back to accept, where accept_step checks the
-# user's accept and the head again before it merges, so no new accept is asked. A push since the
-# accept → requeue, as accept_step would. A comment leaves it to resume_step; a gh error reading
-# the comments, to the next pass. A unit without an accept (accept_sha empty: auto-merged) is left
-# as it is: in accept it would wait for a label nobody adds. 0 when it left needs-you.
-merge_unpark() {
-  local n=$1 pr c
-  [ "$(st_get "$n" ny_stage)" = merge ] && [ -n "$(st_get "$n" accept_sha)" ] && ! has_label "$n" needs-you || return 1
-  pr=$(st_get "$n" pr); [ -n "$pr" ] && pr_is_open "$pr" || return 1
-  c=$(user_comments "$n" "$pr" "$(st_get "$n" ny_at)") || return 1
-  [ -z "$c" ] || return 1
-  if [ "$(pr_get "$pr" .headRefOid)" != "$(st_get "$n" accept_sha)" ]; then
-    requeue "$n" "$pr" "new push since the merge needs-you"; return 0
-  fi
-  st_set "$n" phase=accept merge_tries=
-  log "#$n PR #$pr: needs-you lifted at the merge; trying the merge again"
-}
-
-# armed <n> <pr>: auto-merge may be armed on the PR: the state says auto-merge (merge_mode empty),
-# or GitHub does, whatever merge_mode says (a stale one never keeps an unreviewed head armed)
-armed() { [ -z "$(st_get "$1" merge_mode)" ] || [ "$(pr_get "$2" '.autoMergeRequest != null')" = true ]; }
-# direct_ci <pr>: what a direct merge sees on the PR's head: ci_state, but pending while a
-# REVIEW_CHECKS check still runs there (a required review-gate would refuse the merge)
-direct_ci() { local c; c=$(ci_state "$1"); [ "$c" = green ] && review_checks_running "$1" && c=pending; echo "$c"; }
-
-# merge_direct <n> <pr>: without auto-merge, merge merge_sha (merge_flags) --match-head-commit, but
-# only while it is the PR's head (a push: merging_step reviews again) and CI is green on it
-# (direct_ci; pending or none: wait; red: needs-you). merge_mode=merged after (merge_at: then):
-# the PR is still in this pass's list, and finish_unit logs the merge once the issue closes. 1
-# after a needs-you or a retry (merge_retry).
-merge_direct() {
-  local n=$1 pr=$2 sha; sha=$(st_get "$n" merge_sha)
-  is_full_sha "$sha" || { needs_you "$n" "the head of PR #$pr ($sha) is not a full commit sha; not merged"; return 1; }
-  [ "$(pr_get "$pr" .headRefOid)" = "$sha" ] || return 0
-  case $(direct_ci "$pr") in
-    green) ;;
-    red) needs_you "$n" "CI is red on PR #$pr at ${sha:0:7}; not merged"; return 1 ;;
-    *) return 0 ;;
-  esac
-  merge_flags 1
-  if ! mut_out gh pr merge "$pr" -R "$REPO" "${MF[@]}" --match-head-commit "$sha"; then
-    merge_retry "$n" "$pr" && return 1
-    needs_you "$n" "\`gh pr merge $pr${MF[*]:+ ${MF[*]}} --match-head-commit ${sha:0:7}\` failed; merge it by hand. gh: $(oneline 300 "$MUT_OUT")$MERGE_AFTER"; return 1
-  fi
-  st_set "$n" merge_mode=merged merge_at="$(now)" merge_tries=
-  log "#$n PR #$pr: merged directly ($(st_get "$n" how))"
-}
-
-# drop_accepted <n> <pr>: take `accepted` off the PR and off every issue of the unit (accept_step
-# reads both places), so an old label never accepts a later head
-drop_accepted() {
-  local m
-  pr_has_label "$2" accepted && mut gh pr edit "$2" -R "$REPO" --remove-label accepted
-  for m in $(members_of "$1"); do has_label "$m" accepted && mut gh issue edit "$m" -R "$REPO" --remove-label accepted; done
-  return 0
-}
-
-# accept_lines <n>: the Accept: and Reject: lines of the accept's form (ask_block)
+# accept_lines <n>: the Accept: and Reject: lines of the accept's form (ask_block). Only the
+# channels that count are offered; canccu-ship arms auto-merge: not in a repo without it.
 accept_lines() {
-  local ship
-  # canccu-ship arms auto-merge: not offered in a repo without it
-  auto_merge_read; ship=", or \`canccu-ship $(lead_of "$1")\`"; [ "$AUTO_MERGE_ALLOWED" = false ] && ship=""
-  printf '%s\n' "Accept: add the label \`accepted\` to this PR$ship." "Reject: comment here and label issue #$(lead_of "$1") \`needs-work\`."
+  local how=""
+  accept_channel label && how="add the label \`accepted\` to this PR"
+  auto_merge_read
+  accept_channel ship && [ "$AUTO_MERGE_ALLOWED" != false ] && how="${how:+$how, or }\`canccu-ship $(lead_of "$1")\`"
+  [ -n "$how" ] || how="as ACCEPT_CHANNELS ($ACCEPT_CHANNELS) allows"
+  printf '%s\n' "Accept: $how." "Reject: comment here and label issue #$(lead_of "$1") \`needs-work\`."
 }
 
 # to_accept <n> <pr> <reason> <head>: wait for the user's accept of this head, asked in the form at
@@ -275,13 +167,13 @@ to_accept() {
   # armed by someone else (a worker acting as the user): a manual PR never merges on its own
   [ "$(pr_get "$pr" '.autoMergeRequest != null')" = true ] && mut gh pr merge "$pr" -R "$REPO" --disable-auto
   edit_issue "$n" --add-label awaiting-accept
-  st_set "$n" phase=accept accept_sha="$head" accept_at="$(now)" reason="$(oneline 200 "$reason")"
+  st_set "$n" phase=accept accept_sha="$head" accept_at="$(now)" reason="$(oneline 200 "$reason")" accept_reason="$(oneline 200 "$reason")"
   ask_block "$n" "$pr" "$(accept_lines "$n")"
   log "#$n PR #$pr: awaiting accept ($reason)$(its_url "$(pr_url "$pr")")"
 }
 
 # new_cycle <n>: a new start, an adoption, plan-ok or needs-work: the next review is a full one
-new_cycle() { st_set "$1" stage= reviewed_sha= review_maccept= review_risk= open_sha= full_sha= pass_sha= extra_fix=; }
+new_cycle() { st_set "$1" accept_sha= stage= reviewed_sha= review_maccept= review_risk= open_sha= full_sha= pass_sha= extra_fix=; }
 
 # after_pass <n> <pr> <head> <how>: that head passed (a review, a fix-check, or a merge of main only
 # after a pass): classify, then merge it or wait for the accept. 1 when nothing was done (classify
@@ -330,9 +222,9 @@ act_verdict() {
   case $v in
     pass)
       light_upgrade "$n" "$pr" "$head" "$j" "$at" && return 0
-      # a post-pass check that passed leaves the fix-check stage: the next push is again
-      # measured against full_sha, not taken for a fix of findings
-      st_set "$n" pass_sha="$head"; [ "$mode" = postpass ] && st_set "$n" stage=review
+      # any pass leaves the fix round: the next push is again measured against full_sha
+      # (postpass_step), not taken for a fix of findings
+      st_set "$n" pass_sha="$head" stage=review
       after_pass "$n" "$pr" "$head" "$what" || return 0
       st_set "$n" verdict_at="$at" ;;
     changes)

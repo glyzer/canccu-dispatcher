@@ -78,8 +78,8 @@ ok "… with the dispatcher line above the verdict line" \
   eq "$(tail -2 "$FAKE/posted-50" | head -1)" "Dispatcher: no blocking finding left (3 moved out of Blocking: never-blocking class, no class or no Evidence:); verdict pass."
 ok "… the file says the same" eq "$(cat "$RF")" "$(cat "$FAKE/posted-50")"
 ok "… acted on as a pass: auto-merge, no fix round" eq "$(grep -c '^pr merge 50' "$FAKE/gh.log") $(grep -c 'asked for changes' "$FAKE/worker.log")" "1 0"
-ok "… reviews.log: one line, 10 tab-separated columns" eq "$(awk -F '\t' '{ print NF }' "$CANCCU_HOME/reviews.log")" 10
-ok "… in the format of §8" eq "$(cat "$CANCCU_HOME/reviews.log")" "$(printf '2030-11-05T12:00:00Z\t50\t%s\tfull\tpass\t0\t0\t0\t3\t-' "$HA")"
+ok "… reviews.log: one line, 11 tab-separated columns" eq "$(awk -F '\t' '{ print NF }' "$CANCCU_HOME/reviews.log")" 11
+ok "… in the format of §8" eq "$(cat "$CANCCU_HOME/reviews.log")" "$(printf '2030-11-05T12:00:00Z\t50\t%s\tfull\tpass\t0\t0\t0\t3\t-\t0' "$HA")"
 
 venv valid "$(review changes "4 0 0" "$DEMOTED"$'\n'"$VALID")"
 dispatch --once
@@ -88,7 +88,7 @@ ok "… the fix round gets only that item" grep -qF "The blocking findings: $(li
 ok "… none of the demoted ones" not grep -q 'src/a.ts:3\|src/c.ts:5' "$FAKE/worker.log"
 ok "… the findings file holds only it" eq "$(cat "$CANCCU_HOME/reviews/50/$HA.findings.md")" "$VALID"
 ok "… the demoted items go to the follow-up issue" grep -q '^issue create .*src/a.ts:3.*src/b.ts:4.*src/c.ts:5' "$FAKE/gh.log"
-ok "… reviews.log: changes 1, the class left" eq "$(cut -f4- "$CANCCU_HOME/reviews.log")" "$(printf 'full\tchanges\t1\t0\t0\t3\tcorrectness')"
+ok "… reviews.log: changes 1, the class left" eq "$(cut -f4- "$CANCCU_HOME/reviews.log")" "$(printf 'full\tchanges\t1\t0\t0\t3\tcorrectness\t0')"
 
 venv pre-security "$(review pass "0 1 1" "" "$NBI" "$PRE")"
 dispatch --once
@@ -112,7 +112,7 @@ dispatch --once
 ok "a count line 2 blocking with one item: nothing posted" hasnt gh.log "pr comment"
 ok "… one file retry, with the reason" \
   eq "$(grep -c -- '--keep-session .*the count line does not match the items' "$FAKE/worker.log") $(st 5 file_retry)" "1 $HA"
-ok "… logged as no valid verdict's reason" grep -qF "the reviewer left a file whose count line does not match the items; asked once to write the review file" "$CANCCU_HOME/dispatch.log"
+ok "… logged as no valid verdict's reason" grep -qF "the reviewer left a file: the count line does not match the items; asked once to write the review file" "$CANCCU_HOME/dispatch.log"
 ok "… no reviews.log line" eq "$(test -e "$CANCCU_HOME/reviews.log" && echo log)" ""
 
 venv postpass "$(review pass "0 0 0")"
@@ -138,7 +138,7 @@ ok "a [correctness] a.sh:10-12 fixed earlier, raised again at a.sh:11: posted as
 ok "… the dispatcher line names it already settled" \
   eq "$(tail -2 "$FAKE/posted-50" | head -1)" "Dispatcher: no blocking finding left (1 moved out of Blocking: 1 already settled); verdict pass."
 ok "… no fix round, auto-merge" eq "$(grep -c '^pr merge 50' "$FAKE/gh.log") $(grep -c 'asked for changes' "$FAKE/worker.log")" "1 0"
-ok "… reviews.log counts it demoted" eq "$(cut -f5- "$CANCCU_HOME/reviews.log")" "$(printf 'pass\t0\t0\t0\t1\t-')"
+ok "… reviews.log counts it demoted" eq "$(cut -f5- "$CANCCU_HOME/reviews.log")" "$(printf 'pass\t0\t0\t0\t1\t-\t0')"
 ok "… the history keeps the settled line and adds none" eq "$(cat "$CANCCU_HOME/reviews/50/history")" "$(printf "$HIST" "$HB")"
 
 venv settled-elsewhere "$(review changes "1 0 0" "$(item correctness a.sh:40)")"

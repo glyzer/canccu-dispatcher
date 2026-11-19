@@ -86,7 +86,7 @@ ok "… the hold is logged once over two passes" \
 ok "canccu-status shows the low disk" grep -qF ' · disk low: 100 MB (DISK_MIN_MB 200)' <<<"$(status)"
 state 7 phase=limited; { issue 3 ready; issue 7 in-progress; } | issues
 dispatch --once
-ok "… the disk hold holds a resume too" eq "$(wc -l < "$FAKE/worker.log") $(st 7 phase)" "0 limited"
+ok "… the disk hold holds no resume of started work" eq "$(not started 3 && echo held) $(st 7 phase)" "held work"
 rm -f "$CANCCU_HOME/state/7"; { issue 3 ready; } | issues
 echo 500 > "$FAKE/df_mb"
 dispatch --once

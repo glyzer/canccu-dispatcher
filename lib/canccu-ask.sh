@@ -19,10 +19,7 @@ ask_what() {
       echo "this checkpoint waits for your \`checkpoint-ok\`: read the summary $url, then label this issue \`checkpoint-ok\`, or close it." ;;
     plan) echo "the plan here waits for your OK: label this issue \`plan-ok\`, or comment." ;;
     question) echo "the worker's question here needs the product owner: answer it in a comment." ;;
-    accept) # canccu-ship arms auto-merge: not offered in a repo without it
-      auto_merge_read
-      if [ "$AUTO_MERGE_ALLOWED" = false ]; then echo "PR #$3 waits for your accept: label it \`accepted\`."
-      else echo "PR #$3 waits for your accept: label it \`accepted\`, or \`canccu-ship $1\`."; fi ;;
+    accept) echo "PR #$3 waits for your accept: $(accept_ways "$1")." ;;
     pr-needs-you) echo "PR #$3 needs you (\`needs-you\`): its latest comments say why." ;;
     *) echo "this issue needs you (\`needs-you\`): the latest comments say why." ;;
   esac

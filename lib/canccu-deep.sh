@@ -153,9 +153,17 @@ deep_read() {
     { log "step $t: filing the polish issue failed (gh); retrying next pass"; return 0; }
   (( CANCCU_DRY )) && return 0
   i=$(grep -oE '/issues/[0-9]+' <<<"$MUT_OUT" | grep -oE '[0-9]+$' | tail -1)
+  [ -n "$i" ] || i=$(polish_lookup "Step $t: polish (deep review)")
+  [ -n "$i" ] || log "step $t: the polish issue was filed but gh printed no link and the title finds no open issue; the summary names none"
   if [ -n "${2:-}" ]; then step_set "$m" round_blocking="$b" round_polish="$i" round_phase=polish round_from="$(step_get "$m" round_head)"
   else step_set "$m" deep=merged deep_blocking="$b" polish="$i" phase=idle; fi
   log "step $t: the deep review found $b blocking finding(s); polish issue #${i:-?} filed"
+}
+# polish_lookup <title>: the newest open issue with exactly this title (a create that printed no link)
+polish_lookup() {
+  ghj issue list -R "$REPO" -s open -L 20 --search "\"$1\" in:title" --json number,title 2>/dev/null |
+    jqr --arg t "$1" '[.[] | select(.title == $t) | .number] | max // empty' 2>/dev/null
+  return 0
 }
 # deep_line <pr> <blocking> <polish>: a summary's deep-review line; no blocking count: closed unmerged
 deep_line() {
@@ -173,7 +181,7 @@ deep_summary() {
   esac
 }
 
-# step_tag_name <m> [suffix]: STEP_TAG with {n} as the step's number, plus the suffix; nothing (and
+# step_tag_name <m> [suffix]: STEP_TAG with {n} as step_n (the title's leading number), plus the suffix; nothing (and
 # one warning) when STEP_TAG has no {n} or the name is no valid tag. 1 when there is none.
 step_tag_name() {
   local t

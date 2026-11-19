@@ -24,7 +24,7 @@ pr_gone() {
 # merged_left <K> <pr> <pr view json>: the unit's PR merged with a member still open. One its
 # `Closes` names is closed by GitHub a moment later: wait for that (gone_at), MERGE_CLOSE_MIN, then
 # close it ourselves (GitHub sometimes leaves it open, as after a 5xx on the merge call). A close
-# that keeps failing falls to the MERGE_WAIT_MIN bound. A member it does not name (or a named one
+# refused for good is left at once; one that keeps failing transiently, at the MERGE_WAIT_MIN bound. A member it does not name (or a named one
 # still open after that) never closes on its own; parking the unit would block the `ready` that
 # restarts it, so the unit is released and the member waits for a person with needs-you. The open
 # list is capped: a member missing from it is confirmed with gh, and a gh error decides nothing
@@ -45,12 +45,13 @@ merged_left() {
     [ -n "$at" ] || { st_set "$k" gone_at="$(now)"; return 0; }
     (( $(now) - at > MERGE_CLOSE_MIN * 60 )) || return 0
     for m in "${named[@]}"; do
-      if mut gh issue close "$m" -R "$REPO" --reason completed --comment "Closed by canccu-dispatch: PR #$pr merged and names this issue as closing, but GitHub left it open."$'\n\n'"$CANCCU_MARK"; then
+      if mut_out gh issue close "$m" -R "$REPO" --reason completed --comment "Closed by canccu-dispatch: PR #$pr merged and names this issue as closing, but GitHub left it open."$'\n\n'"$CANCCU_MARK"; then
         closed+=("$m")
         log "#$k PR #$pr merged; closed #$m (GitHub left it open)"
         r=(); for l in in-progress awaiting-accept needs-you; do has_label "$m" "$l" && r+=(--remove-label "$l"); done
         (( ${#r[@]} )) && mut gh issue edit "$m" -R "$REPO" "${r[@]}"
-      elif (( $(now) - at > MERGE_WAIT_MIN * 60 )); then left+=("$m")
+      # a refusal (a locked issue, no rights) stays one: only a transient error is waited out
+      elif ! mut_transient || (( $(now) - at > MERGE_WAIT_MIN * 60 )); then left+=("$m")
       else log "#$k: gh error closing issue #$m; retrying next pass"; return 0
       fi
     done
@@ -117,7 +118,7 @@ requeue() {
   local n=$1 pr=$2
   drop_accepted "$n" "$pr"
   has_label "$n" awaiting-accept && edit_issue "$n" --remove-label awaiting-accept
-  st_set "$n" phase=check check_at="$(now)" merge_mode=
+  st_set "$n" phase=check check_at="$(now)" merge_mode= merge_tries= accept_sha=
   case $(st_get "$n" stage) in
     fixing|fixcheck) log "#$n PR #$pr: $3; \`accepted\` dropped, the fix-check is void: fix-check again" ;;
     *) log "#$n PR #$pr: $3; \`accepted\` dropped, review again" ;;
@@ -136,19 +137,27 @@ accept_step() {
   conflict_merge "$n" "$pr" "$head" && return 0
   ship_armed "$n" "$pr" "$head" && return 0
   [ "$(st_get "$n" ask_sha)" = "$head" ] || ask_block "$n" "$pr" "$(accept_lines "$n")"
-  # the label on an issue of the unit is tolerated too, under the same checks as on the PR
-  if pr_has_label "$pr" accepted; then on=$pr
-  else for i in $(members_of "$n"); do has_label "$i" accepted && { on=$i; break; }; done; fi
-  [ -n "$on" ] || return 0
+  # the label on an issue of the unit is tolerated too, under the same checks as on the PR; one
+  # that does not count never hides a later one that does
+  local held=() h
+  pr_has_label "$pr" accepted && held+=("$pr")
+  for i in $(members_of "$n"); do has_label "$i" accepted && held+=("$i"); done
+  (( ${#held[@]} )) || return 0
   accept_channel label || { warn_once "accept-label-$pr" "#$n PR #$pr: \`accepted\` label ignored: ACCEPT_CHANNELS does not list label"; return 0; }
-  if accepted_by_user "$on" "$(st_get "$n" accept_at)"; then
-    if [ "$on" != "$pr" ]; then
-      # taken off, so it can never count again for a later head
-      mut gh issue edit "$on" -R "$REPO" --remove-label accepted
-      log "#$n PR #$pr: \`accepted\` was on issue #$on; taken as the accept"
-    fi
-    history_answer "$pr"; merge_auto "$n" "$pr" accepted "$head"
-  else warn_once "accept-$pr" "#$n PR #$pr: \`accepted\` on #$on was not added by $USER_LOGIN after the accept request; ignored"; fi; return 0
+  for h in "${held[@]}"; do accepted_by_user "$h" "$(st_get "$n" accept_at)" && { on=$h; break; }; done
+  if [ -z "$on" ]; then
+    warn_once "accept-$pr" "#$n PR #$pr: \`accepted\` on $(printf '#%s ' "${held[@]}")was not added by $USER_LOGIN after the accept request; ignored"
+    return 0
+  fi
+  history_answer "$pr"
+  # the issue's label goes only once the merge is under way: a failed merge keeps the accept
+  merge_auto "$n" "$pr" accepted "$head" || return 0
+  if [ "$on" != "$pr" ]; then
+    # taken off, so it can never count again for a later head
+    mut gh issue edit "$on" -R "$REPO" --remove-label accepted
+    log "#$n PR #$pr: \`accepted\` was on issue #$on; taken as the accept"
+  fi
+  return 0
 }
 
 # conflict_merge <n> <pr> <head> [disarm|queue] [dirty]: GitHub says the PR conflicts with main (DIRTY; queue: the merge
@@ -167,7 +176,7 @@ conflict_merge() {
   [ "${4:-}" = disarm ] && armed "$n" "$pr" && mut gh pr merge "$pr" -R "$REPO" --disable-auto
   main_merge "$n" "$pr"
   case $MERGED in
-    merged) st_set "$n" main_merged="$(guard 20 git -C "$(unit_wt "$n")" rev-parse HEAD 2>/dev/null)" check_at="$(now)"
+    merged) st_set "$n" mm_err= main_merged="$(guard 20 git -C "$(unit_wt "$n")" rev-parse HEAD 2>/dev/null)" check_at="$(now)"
       log "#$n PR #$pr: conflicts with main; merged main into the branch by script (no AI run)" ;;
     conflict)
       [ "$(st_get "$n" conflict_sha)" = "$head" ] && { needs_you "$n" "PR #$pr conflicts with main in: $MERGE_WHY, and the worker's merge run pushed no resolution"; return 0; }
@@ -178,20 +187,17 @@ conflict_merge() {
       log "#$n PR #$pr: conflicts with main in: $MERGE_WHY; the worker resolves them" ;;
     current)  # GitHub's merge state is stale: said only; the next head gets its own try
       log "#$n PR #$pr: conflicts with main; the merge by script did not run (main is in already)"; return 1 ;;
-    *) log "#$n PR #$pr: conflicts with main; the merge by script did not run ($MERGE_WHY)"
+    *) # an error (a push refused, a fetch timed out) is often gone a pass later: retried, so only
+       # MERGE_TRIES in a row reach the user. Skipped (uncommitted changes, another branch): at once
+       if [ "$MERGED" = error ]; then
+         local k; k=$(st_get "$n" mm_err); k=$(( ${k:-0} + 1 ))
+         log "#$n PR #$pr: conflicts with main; the merge by script did not run ($MERGE_WHY; error $k of ${MERGE_TRIES:-3})"
+         if (( k < ${MERGE_TRIES:-3} )); then st_set "$n" conflict_merge= mm_err="$k"; return 0; fi
+       fi
+       st_set "$n" mm_err=
        needs_you "$n" "PR #$pr conflicts with main; the merge by script did not run ($MERGE_WHY)" ;;
   esac
   return 0
-}
-
-# in_merge_queue <pr>: the PR sits in the merge queue (auto-merge hands it over there). A gh
-# error counts as yes: the MERGE_WAIT_MIN bound still catches a PR that never merges.
-in_merge_queue() {
-  local r
-  r=$(ghj api graphql -F o="${REPO%%/*}" -F r="${REPO#*/}" -F p="$1" \
-        -f query='query($o: String!, $r: String!, $p: Int!) { repository(owner: $o, name: $r) { pullRequest(number: $p) { mergeQueueEntry { state } } } }' \
-        -q '.data.repository.pullRequest.mergeQueueEntry != null') || return 0
-  [ "$r" = true ]
 }
 
 # merging_step <n>: auto-merge is armed (merge_mode empty), or, without auto-merge, the PR waits to
@@ -255,61 +261,8 @@ merging_step() {
   return 0
 }
 
-# queue_removal <pr>: "<reason>\t<createdAt>" of the PR's newest removal from the merge queue;
-# nothing when there is none or gh fails
-queue_removal() {
-  ghj api graphql -F o="${REPO%%/*}" -F r="${REPO#*/}" -F p="$1" \
-    -f query='query($o: String!, $r: String!, $p: Int!) { repository(owner: $o, name: $r) { pullRequest(number: $p) { timelineItems(itemTypes: [REMOVED_FROM_MERGE_QUEUE_EVENT], last: 1) { nodes { ... on RemovedFromMergeQueueEvent { reason createdAt } } } } } }' \
-    -q '.data.repository.pullRequest.timelineItems.nodes[-1] // empty | "\(.reason // "")\t\(.createdAt // "")"' 2>/dev/null
-}
-
-# queue_removed <n> <pr> <head> <merge_at>: auto-merge is off and the PR is out of the queue: act on
-# the queue's reason, if it removed the PR after this merge was armed. GitHub's reason is no
-# documented enum, so it is matched by substring. Never enqueued again: failed checks in a merge
-# group can be a real bug that only shows with the group's other PRs. 1: no such removal.
-queue_removed() {
-  local n=$1 pr=$2 why at names
-  IFS=$'\t' read -r why at <<<"$(queue_removal "$pr")"
-  [ -n "$why" ] && [ -n "$at" ] && (( $(iso_epoch "$at") + 0 > $4 )) || return 1
-  case ${why,,} in
-    *conflict*)
-      log "#$n PR #$pr: the merge queue removed it (merge conflict); merging main by script"
-      conflict_merge "$n" "$pr" "$3" queue || needs_you "$n" "the merge queue removed PR #$pr for a conflict with main; main was merged in by script once on this head already" ;;
-    *check*|*fail*)
-      # gh's --jq takes no --arg: the prefix goes in the filter (pr is a number)
-      names=$(ghj api "repos/$REPO/actions/runs?event=merge_group&per_page=20" -q '[.workflow_runs[]?
-        | select((.head_branch // "") | startswith("gh-readonly-queue/main/pr-'"$pr"'-"))
-        | select(.conclusion | IN("failure", "timed_out", "cancelled")) | "\(.name) \(.html_url)"] | join(", ")' 2>/dev/null)
-      needs_you "$n" "the merge queue removed PR #$pr because checks failed in its merge group: ${names:-none found}. Not enqueued again: a failure there can be a real bug that only shows with the other PRs of the group" ;;
-    *) needs_you "$n" "the merge queue removed PR #$pr (reason: $why); a manual removal or a queue change. Not enqueued again" ;;
-  esac
-  return 0
-}
-
-# queue_kick <n> <pr> <head>: GitHub sometimes starts no merge_group run for a queue entry, which
-# then waits for checks until the queue's own timeout. An entry still waiting NO_CHECKS_MIN after it
-# was queued, with no run for its merge group, is dequeued and enqueued again (that starts them),
-# once per head: still stuck, MERGE_WAIT_MIN's needs-you follows. A gh error reading decides nothing.
-queue_kick() {
-  local n=$1 pr=$2 r id at oid c
-  r=$(ghj api graphql -F o="${REPO%%/*}" -F r="${REPO#*/}" -F p="$pr" \
-        -f query='query($o: String!, $r: String!, $p: Int!) { repository(owner: $o, name: $r) { pullRequest(number: $p) { id mergeQueueEntry { state enqueuedAt headCommit { oid } } } } }' \
-        -q '.data.repository.pullRequest | select(.mergeQueueEntry.state == "AWAITING_CHECKS") | "\(.id) \(.mergeQueueEntry.enqueuedAt) \(.mergeQueueEntry.headCommit.oid // "")"') || return 0
-  read -r id at oid <<<"$r"
-  [ -n "$id" ] && [ -n "$at" ] && (( $(now) - $(iso_epoch "$at") > ${NO_CHECKS_MIN:-10} * 60 )) || return 0
-  if [ -n "$oid" ]; then
-    c=$(ghj api "repos/$REPO/actions/runs?event=merge_group&head_sha=$oid&per_page=1" -q .total_count) || return 0
-    [ "$c" = 0 ] || return 0
-  fi
-  st_set "$n" queue_kick="$head"
-  mut gh api graphql -f id="$id" -f query='mutation($id: ID!) { dequeuePullRequest(input: {id: $id}) { clientMutationId } }' >/dev/null ||
-    { log "#$n PR #$pr: its merge group has no runs, and the dequeue failed; MERGE_WAIT_MIN still applies"; return 0; }
-  if ! mut_out gh api graphql -f id="$id" -f query='mutation($id: ID!) { enqueuePullRequest(input: {pullRequestId: $id}) { clientMutationId } }'; then
-    needs_you "$n" "PR #$pr was dequeued to restart its merge group, but could not be enqueued again; add it to the merge queue by hand. gh: $(oneline 300 "$MUT_OUT")"
-    return 0
-  fi
-  log "#$n PR #$pr: the merge queue started no merge_group run in ${NO_CHECKS_MIN:-10} min; dequeued and enqueued again"
-}
+# shellcheck source=canccu-mqueue.sh
+. "$_canccu_lib/canccu-mqueue.sh"
 
 # ---------------------------------------------------------------- a merge of main only
 
@@ -342,7 +295,7 @@ postpass_full() {
   local base=$1 head=$2 mb stats total p re max=${FIXCHECK_FULL_LINES:-100} files=()
   [[ $max =~ ^[0-9]+$ ]] || max=100
   mb=$(guard 20 git -C "$CLONE" merge-base origin/main "$head" 2>/dev/null)
-  [ -n "$mb" ] && mapfile -t files < <(guard 20 git -C "$CLONE" diff --name-only --no-renames "$mb" "$head" 2>/dev/null)
+  [ -n "$mb" ] && mapfile -t files < <(guard 20 git -C "$CLONE" -c core.quotePath=off diff --name-only --no-renames "$mb" "$head" 2>/dev/null)
   stats=$(change_stats "$(count_from "$base" "$head")" "$head" "${files[@]}") || { echo "the change cannot be read"; return; }
   total=$(awk -F '\t' '{ for (i = 1; i <= 2; i++) if ($i ~ /^[0-9]+$/) t += $i } END { print t + 0 }' <<<"$stats")
   (( total > max )) && { echo "$total changed lines, over FIXCHECK_FULL_LINES=$max"; return; }

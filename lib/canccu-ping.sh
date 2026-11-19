@@ -65,7 +65,8 @@ ping_states() {
         echo "$n $kind -" ;;
       accept)
         pr=$(st_get "$k" pr); [ -n "$pr" ] && pr_is_open "$pr" || continue
-        pr_has_label "$pr" accepted && continue
+        # a counting label on the PR or an issue: this pass acts on it
+        accept_channel label && accept_label_held "$k" "$pr" && continue
         [ "$(need_owner "$k" accept)" = po ] || continue
         n=$(lead_of "$k"); [ -n "$n" ] && echo "$n accept $pr" ;;
     esac
@@ -92,9 +93,11 @@ ping_cp_waits() {
 
 # the ping kinds PING_KINDS may list (besides all)
 PING_KIND_NAMES='accept checkpoint plan question needs-you pr-needs-you'
-# ping_kind_on <kind>: PING_KINDS lets this kind ping (unset: all; empty: none)
+# ping_kind_on <kind>: PING_KINDS lets this kind ping (unset: all; empty: none). Commas separate
+# too, as in the other word lists and as `config set` accepts them
 ping_kind_on() {
-  [[ " ${PING_KINDS-all} " == *" all "* || " ${PING_KINDS-all} " == *" $1 "* ]]
+  local p=" ${PING_KINDS-all} "; p=${p//,/ }
+  [[ $p == *" all "* || $p == *" $1 "* ]]
 }
 # ping_kinds_check: a word in PING_KINDS that is no kind is logged (once): it pings nothing
 ping_kinds_check() {

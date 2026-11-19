@@ -17,4 +17,8 @@ rm -f "$CANCCU_HOME/paused" "$CANCCU_HOME/.warned-paused-start" && log "resumed 
 if (( usage )); then
   rm -f "$CANCCU_ROOT/backoff" "$CANCCU_ROOT"/projects/*/workers/usage.json &&
     log "usage limit cleared (canccu-resume --usage): runs start again"
+  # a worker nudged at the usage stop would set the old reset again when it is reaped
+  for f in "$CANCCU_ROOT"/projects/*/state/*; do
+    if [ -f "$f" ] && grep -q '^nudge_reset=.' "$f"; then kv_set "$f" "${f##*/}" nudge_reset=; fi
+  done
 fi

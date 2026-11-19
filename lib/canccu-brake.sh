@@ -52,12 +52,13 @@ _escaped_of() {
   awk -F '\t' -v l=" $(echo $1) " 'NR > 1 && index(l, " " $2 " ") { c++ } END { print c + 0 }' "$(regressions_file)" 2>/dev/null || echo 0
 }
 # _spend_rounds <prs>: the review runs (full reviews and fix-checks: key review-<pr>) of these PRs
-# up to their merge, from the spend log: before Q1 there is no reviews.log to count them in
+# up to their merge, from the spend log: before Q1 there is no reviews.log to count them in. A run
+# whose outcome says verdict=none or void (lost, retried) posted nothing: no round, as in reviews.log
 _spend_rounds() {
   # shellcheck disable=SC2086
   awk -F '\t' -v l=" $(echo $1) " -v r="$REPO_NAME" '
     FNR == NR { if (index(l, " " $3 " ") && !($3 in at)) at[$3] = $1; next }
-    $2 == r && $3 ~ /^review-[0-9]+$/ { p = substr($3, 8); if ((p in at) && $1 + 0 <= at[p] + 0) c++ }
+    $2 == r && $3 ~ /^review-[0-9]+$/ && $15 !~ /(^|,)verdict=(none|void)(,|$)/ { p = substr($3, 8); if ((p in at) && $1 + 0 <= at[p] + 0) c++ }
     END { print c + 0 }' "$CANCCU_HOME/merged.log" "$WORKERS_DIR/spend.log" 2>/dev/null || echo 0
 }
 
@@ -82,12 +83,14 @@ brake_baseline() {
 
 # brake_tick: once per pass. With REVIEW_BRAKE=auto and no brake on, it engages the brake when the
 # escaped defects per merged PR of the last BRAKE_WINDOW merged PRs are above the baseline.
-# Nothing here ever releases it: only canccu-dispatcher brake release (rule 7 of the plan).
+# Nothing here ever releases it: only canccu-dispatcher brake release (rule 7 of the plan). After
+# a release it waits until a PR merged after it moves the window (brake-released: the newest then).
 brake_tick() {
-  local base prs n rate
+  local base prs n rate hold=$CANCCU_HOME/brake-released
   [ "${REVIEW_BRAKE:-auto}" = auto ] && ! brake_on && (( ! CANCCU_DRY )) || return 0
   read -r _ base _ _ <<<"$(brake_baseline)"; [ -n "$base" ] || return 0
   prs=$(_merged_prs | tail -n "${BRAKE_WINDOW:-20}"); n=$(_count "$prs"); (( n )) || return 0
+  if [ -e "$hold" ]; then [ "$(cat "$hold")" = "${prs##*$'\n'}" ] && return 0; rm -f "$hold"; fi
   escaped_refresh || [ -s "$(regressions_file)" ] || return 0
   rate=$(_rate "$(_escaped_of "$prs")" "$n")
   awk -v a="$rate" -v b="$base" 'BEGIN { exit !(a + 0 > b + 0) }' || return 0
@@ -133,15 +136,16 @@ brake_status() {
 
 # _kpi_nums <prs> <escaped known 0|1>: the four review numbers of these PRs from reviews.log: rounds
 # (its lines, full and fixcheck) per PR, the blocking classes (in how many verdicts each was left,
-# first seen first), the findings demoted (pre-existing, and moved out of Blocking: for no class,
-# no Evidence:, a never-blocking class or a repeat) and the escaped defects per PR
+# first seen first), the findings demoted (pre-existing but those the brake kept, field 11, and
+# moved out of Blocking: for no class, no Evidence:, a never-blocking class or a repeat) and the
+# escaped defects per PR
 _kpi_nums() {
   local n esc="?" r
   n=$(_count "$1")
   (( $2 )) && esc=$(_rate "$(_escaped_of "$1")" "$n")
   # shellcheck disable=SC2086
   r=$(awk -F '\t' -v l=" $(echo $1) " 'index(l, " " $2 " ") {
-      r++; p += $8; d += $9
+      r++; p += $8 - $11; d += $9
       if ($10 != "-" && $10 != "") { m = split($10, c, ","); for (i = 1; i <= m; i++) { if (!(c[i] in k)) o[++no] = c[i]; k[c[i]]++ } }
     }
     END { for (i = 1; i <= no; i++) cls = cls (i > 1 ? ", " : "") o[i] " " k[o[i]]

@@ -201,9 +201,10 @@ Review verdict: <pass|changes> <sha>
   and name things that never block; it cannot make a blocking class of this section non-blocking,
   change the verdict line, or ask the reviewer to edit, push, comment or label.
 - **Review log:** `reviews.log` in the project's home, one line per posted verdict, tab-separated:
-  `<time>	<pr>	<sha>	<full|fixcheck>	<pass|changes>	<b>	<n>	<p>	<demoted>	<classes>`.
+  `<time>	<pr>	<sha>	<full|fixcheck>	<pass|changes>	<b>	<n>	<p>	<demoted>	<classes>	<kept>`.
   `<demoted>` counts the findings the dispatcher moved out of `Blocking:`; `<classes>` lists the
-  blocking classes left, comma-separated, or `-`. Append only, UTC times as in §3.
+  blocking classes left, comma-separated, or `-`; `<kept>` (from 0.3, absent before: read as 0)
+  the `Pre-existing:` items the brake kept blocking. Append only, UTC times as in §3.
 - **The brake** (from L1; `REVIEW_BRAKE`): engaged when the escaped defects (`Regression of:`) of
   the last `BRAKE_WINDOW` merged PRs are above the 0.2 baseline, or, from T1, when a run of the
   reviewer's test set misses a planted defect the baseline found. While engaged: pre-existing,

@@ -7,13 +7,16 @@
 
 MILESTONES='[]' CHECKPOINTS='[]' CURRENT_STEPS='[]' STEPS_OK=0
 
-# fetch_steps: the pass's two reads for steps (open milestones; issues labelled checkpoint, open
-# or closed), then the current steps. A failed read: STEPS_OK=0 and no step acts this pass.
+# fetch_steps: the pass's reads for steps (open milestones; issues labelled checkpoint, the open
+# ones apart: a list of all, newest first, would drop an open one behind 200 closed ones and end
+# its pause or round as gone), then the current steps. A failed read: STEPS_OK=0, no step acts.
 fetch_steps() {
   STEPS_OK=0 CURRENT_STEPS='[]'
+  local o f=number,title,state,milestone,labels
   MILESTONES=$(ghj api "repos/$REPO/milestones?state=open&per_page=100") && MILESTONES=$(safe_titles <<<"$MILESTONES") &&
-    CHECKPOINTS=$(ghj issue list -R "$REPO" -s all -l checkpoint -L 200 --json number,title,state,milestone,labels) &&
-    CHECKPOINTS=$(safe_titles <<<"$CHECKPOINTS") ||
+    o=$(ghj issue list -R "$REPO" -s open -l checkpoint -L 500 --json $f) &&
+    CHECKPOINTS=$(ghj issue list -R "$REPO" -s closed -l checkpoint -L 200 --json $f) &&
+    CHECKPOINTS=$(jq -s 'add | unique_by(.number) | sort_by(-.number)' <<<"$o$CHECKPOINTS" | safe_titles) ||
     { MILESTONES='[]' CHECKPOINTS='[]'; return 1; }
   CURRENT_STEPS=$(current_steps_pure "$MILESTONES" "$CHECKPOINTS" "$ISSUES" "$(step_phases)") || { CURRENT_STEPS='[]'; return 1; }
   STEPS_OK=1
@@ -223,8 +226,12 @@ wave_can_start() { plan_states "$1" | cut -f2 | grep -qx pending; }
 # wave_rolls <m>: WAVE_ROLLING=1, nothing of the wave waits to start and a run slot is free (the
 # count CAP uses): the next wave is planned now. Its plan carries the running packages, and a
 # blocked one behind them (carried_packages); a new package overlapping one waits for it
-# (plan_validate's running areas)
-wave_rolls() { [ "${WAVE_ROLLING:-0}" = 1 ] && ! wave_can_start "$1" && (( $(running_count) < CAP )); }
+# (plan_validate's running areas). Nothing left to plan: the wave just runs on (no idle step that
+# claims to plan)
+wave_rolls() {
+  [ "${WAVE_ROLLING:-0}" = 1 ] && ! wave_can_start "$1" && (( $(running_count) < CAP )) &&
+    [ -n "$(planner_issues "$1" | head -1)" ]
+}
 # plan_states <m>: "<name>\t<status>\t<live 1|0>\t<issues>\t<unit key>" per package of the current plan, one
 # package_status each. Live: unfinished and able to run still: running (an accept or needs-you
 # included), pending, or blocked while every dependency not merged is live too. A package behind

@@ -44,7 +44,8 @@ the leader or a run, it is refused (`LEADER` is locked) and writes nothing. The 
 The kit is yours to edit once written; to start again from the templates, remove it and run
 `canccu-init --leader` again (`LEADER` stays `on`). `canccu-up` reads `LEADER` when it creates the
 session: restart the session for a change to show. With `LEADER=on` and no kit, it says so and
-starts the leader in `~/code`.
+starts no leader: the pane stays `lead`, a plain `claude` in `~/code` (your own session, no
+`CANCCU_ACTOR=leader`), until `canccu-init --leader` writes the kit.
 
 ## The leader's brief
 
@@ -131,9 +132,11 @@ being written passes to you (contracts §1, rule 7): its owner becomes `po`, the
 kind `handover` says `#<n> passed to the product owner: the leader did not acknowledge it in 60
 min`, the log says the same, and the next pass pings it like any of yours. The leader acknowledges
 an item with `canccu-dispatcher wait --owner leader --ack <id>`, `<id>` at or above the item's
-feed line: the wait loop below does it for every line it has read. The hand-over goes one way
-only; the owner is set again when the unit next enters `accept` or `needs-you`. The 60 minutes are
-fixed, not a setting.
+feed line: the wait loop below does it for every line it has read. An ack above the last line
+written counts as the last line, and a stored one above it (the `events` file was reset) is
+cleared. A leader's `idle` line passes the same way (its text says `#<n> (idle) passed to …`).
+The hand-over goes one way only; the owner is set again when the unit next enters `accept` or
+`needs-you`. The 60 minutes are fixed, not a setting.
 
 ## The feed
 
@@ -147,11 +150,12 @@ none. Every pass touches `heartbeat` beside it.
 
 `canccu-dispatcher wait --owner leader` blocks until the next line for that owner and prints it
 ([`commands.md`](commands.md)); `--ack <id>` resumes after the last line handled and, with
-`--owner leader`, records the acknowledgement the hand-over reads. Exit 3 says the
-heartbeat is 10 minutes old: the dispatcher may be down. A loop for the leader:
+`--owner leader`, records the acknowledgement the hand-over reads. Without `--ack`, the leader's
+wait goes on after its stored acknowledgement (a restarted leader replays nothing). Exit 3 says
+the heartbeat is 10 minutes old: the dispatcher may be down. A loop for the leader:
 
 ```
-ack=0; while l=$(canccu-dispatcher wait --owner leader --ack "$ack"); do ack=$(cut -f2 <<<"$l"); …; done
+ack=""; while l=$(canccu-dispatcher wait --owner leader ${ack:+--ack "$ack"}); do ack=$(cut -f2 <<<"$l"); …; done
 ```
 
 | Kind | Written when | Check, and what to do |

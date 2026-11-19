@@ -67,11 +67,11 @@ tools_busy() {
   [ -n "$now" ] && awk 'FILENAME == ARGV[1] { t[$1] = $2; next } !($1 in t) || $2 > t[$1] { busy = 1 } END { exit !busy }' "$2" "$2.new" 2>/dev/null
   local r=$?; mv -f "$2.new" "$2"; return $r
 }
-# kill_tree <pid>: TERM the whole tree, KILL what is left after 3 s
+# kill_tree <pid> [secs]: TERM the whole tree, KILL what is left after secs (3) s
 kill_tree() {
   local pids; pids=$(tree_pids "$1")
   # shellcheck disable=SC2086
-  kill -TERM $pids 2>/dev/null; sleep 3; kill -KILL $pids 2>/dev/null
+  kill -TERM $pids 2>/dev/null; sleep "${2:-3}"; kill -KILL $pids 2>/dev/null
   return 0
 }
 

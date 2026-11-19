@@ -16,10 +16,11 @@ def merged: [$input[0].merged[]?.name];
 # dispatcher adds the carried ones only after this check, so even one with carried_from is the
 # planner's) whose area equals one of theirs, or is a path prefix of it or the other way round,
 # must depend on it, else both change the same files at once. Path prefixes only: "lib/a"
-# holds "lib/a/b.sh", never "lib/ab"; an empty area matches nothing.
-def area: sub("^(\\./)+"; "") | sub("/+$"; "");
+# holds "lib/a/b.sh", never "lib/ab". The root ("", ".", "./", "/") is the whole repo: it
+# overlaps every area.
+def area: sub("^(\\./)+"; "") | sub("/+$"; "") | if . == "." then "" else . end;
 def overlap($a; $b): ($a | area) as $x | ($b | area) as $y
-  | $x != "" and $y != "" and ($x == $y or ($y | startswith($x + "/")) or ($x | startswith($y + "/")));
+  | $x == "" or $y == "" or $x == $y or ($y | startswith($x + "/")) or ($x | startswith($y + "/"));
 
 . as $plan
 | ($plan.packages) as $ps
@@ -77,6 +78,6 @@ def overlap($a; $b): ($a | area) as $x | ($b | area) as $y
         | ((.areas // []) | if strs then . else [] end) as $ar
         | $running[0][]? | select((.name | IN($d[])) | not) | . as $r
         | [ $ar[] as $a | ($r.areas // [])[] | strings | select(overlap($a; .))
-            | [($a | area), area] | max_by(length) ] | first // empty
+            | [($a | area), area] | max_by(length) | if . == "" then "the whole repo" else . end ] | first // empty
         | "\($x) overlaps running \($r.name) in \(.)" ] ),
     left_out: [ known[] | select(IN([ $obj[] | .issues // [] | if type == "array" then .[] else empty end ][]) | not) ] }
