@@ -282,7 +282,7 @@ cenv contract-one-pr-maccept $'Maintainer accept: breaks the contract\nReview ve
 dispatch --once
 ok "… with Maintainer accept: breaks the contract → waits for the product owner" \
   eq "$(st 5 phase)|$(grep -c 'pr merge' "$FAKE/gh.log")" "accept|0"
-ok "… with the reason" has gh.log "waits for your accept: maintainer accept: breaks the contract."
+ok "… with the reason" has gh.log "Why you: maintainer accept: breaks the contract"
 
 # ---------------------------------------------------------------- Testing: and Revert: in the PR body (#192)
 

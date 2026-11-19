@@ -8,7 +8,7 @@
 
 # pings <glob>: the comments posted as the reviewer bot whose gh.log line matches (one per line)
 pings() { grep -cE -- "$1" <(paste <(cut -f2 "$FAKE/gh.env") "$FAKE/gh.log" | grep -P '^reviewer\t' | cut -f2-); }
-NYLINE='@octo this issue needs you (`needs-you`): the latest comments say why.'
+NYLINE='@octo For the product owner: this issue needs you (`needs-you`): the latest comments say why.'
 
 env_new ping-needs-you PING_KINDS=all
 { issue 8 needs-you; issue 9 ""; } | issues
@@ -32,9 +32,9 @@ env_new ping-accept
 pr 50 5 $HA green | prs
 state 5 phase=accept pr=50 accept_sha=$HA "accept_at=$((NOW - 60))" "reason=manual: changes .github/ (.github/workflows/ci.yml)"
 dispatch --once
-ok "waiting for accept → one ping, on the issue" eq "$(pings '^issue comment 5 -R example-org/web --body @octo PR #50 waits for your accept')" 1
+ok "waiting for accept → one ping, on the issue" eq "$(pings '^issue comment 5 -R example-org/web --body @octo For the product owner: PR #50 waits for your accept')" 1
 ok "… saying how to accept, without the classifier's reason" \
-  has gh.log 'issue comment 5 -R example-org/web --body @octo PR #50 waits for your accept: label it `accepted`, or `canccu-ship 5`.'
+  has gh.log 'issue comment 5 -R example-org/web --body @octo For the product owner: PR #50 waits for your accept: label it `accepted`, or `canccu-ship 5`.'
 ok "… never on the PR (the review-gate reads the bot's comments there)" eq "$(pings '^pr comment')" 0
 ok "… nothing else pinged" eq "$(pings '^(issue|pr) comment')" 1
 ok "… recorded" eq "$(cat "$CANCCU_HOME/pings/5" 2>/dev/null)" accept
@@ -49,7 +49,7 @@ state 5 phase=accept pr=50 accept_sha=$HA "accept_at=$((NOW - 60))" "reason=manu
 state 6 phase=accept pr=60 accept_sha=$HB "accept_at=$((NOW - 60))" "reason=manual: users see it: web/pages/a.tsx"
 dispatch --once
 ok "owner: an accept of owner leader is not pinged" eq "$(pings '^issue comment 5 ') $(test -e "$CANCCU_HOME/pings/5"; echo $?)" "0 1"
-ok "… one of owner po is" eq "$(pings '^issue comment 6 -R example-org/web --body @octo PR #60 waits for your accept')" 1
+ok "… one of owner po is" eq "$(pings '^issue comment 6 -R example-org/web --body @octo For the product owner: PR #60 waits for your accept')" 1
 
 # a step's epic labelled needs-you by STEP_BUDGET or an invalid plan: po's, as the snapshot shows it
 env_new ping-owner-step PING_KINDS=all LEADER=on LEADER_ACCEPTS=technical
@@ -68,9 +68,9 @@ state 6 phase=needs-you "ny_at=$NOW" "reason=the worker's question needs the pro
 state 7 phase=needs-you "ny_at=$NOW" "reason=the worker stopped: SECRET-WORKER-OUTPUT"
 dispatch --once
 ok "a plan waiting for approval → its own ping" \
-  has gh.log 'issue comment 5 -R example-org/web --body @octo the plan here waits for your OK: label this issue `plan-ok`, or comment.'
+  has gh.log 'issue comment 5 -R example-org/web --body @octo For the product owner: the plan here waits for your OK: label this issue `plan-ok`, or comment.'
 ok "an escalated question → its own ping" \
-  has gh.log 'issue comment 6 -R example-org/web --body @octo the worker'"'"'s question here needs the product owner: answer it in a comment.'
+  has gh.log 'issue comment 6 -R example-org/web --body @octo For the product owner: the worker'"'"'s question here needs the product owner: answer it in a comment.'
 ok "any other needs-you → the plain ping" has gh.log "issue comment 7 -R example-org/web --body $NYLINE"
 ok "… one each" eq "$(pings '^issue comment')" 3
 ok "no event content in a ping" eq "$(grep -cE 'SECRET-|pull/50' <(grep -E '^issue comment [567] ' "$FAKE/gh.log"))" 0
@@ -83,7 +83,7 @@ env_new ping-pr-needs-you PING_KINDS=all
 state 5 phase=check pr=50 "check_at=$NOW"
 route 'pr view 50 *' FAIL
 dispatch --once
-ok "our PR labelled needs-you → one ping, on its issue" eq "$(pings "^issue comment 5 -R example-org/web --body @octo PR #50 needs you")" 1
+ok "our PR labelled needs-you → one ping, on its issue" eq "$(pings "^issue comment 5 -R example-org/web --body @octo For the product owner: PR #50 needs you")" 1
 ok "… a PR that is not ours: none" eq "$(pings '^(issue|pr) comment (6|60) ')" 0
 ok "… nothing on a PR" eq "$(pings '^pr comment')" 0
 
@@ -134,13 +134,13 @@ env_new ping-accepted
 pr 50 5 $HA green accepted | prs
 state 5 phase=accept pr=50 accept_sha=$HA "accept_at=$((NOW - 60))" "reason=manual: changes .github/ (.github/workflows/ci.yml)"
 dispatch --once
-ok "an accept the user already gave (PR labelled accepted): no ping" eq "$(grep -c '^issue comment 5 -R example-org/web --body @octo PR #50 waits' "$FAKE/gh.log") $(test -e "$CANCCU_HOME/pings/5"; echo $?)" "0 1"
+ok "an accept the user already gave (PR labelled accepted): no ping" eq "$(grep -c '^issue comment 5 -R example-org/web --body @octo For the product owner: PR #50 waits' "$FAKE/gh.log") $(test -e "$CANCCU_HOME/pings/5"; echo $?)" "0 1"
 
 env_new ping-plan-ok
 { issue 5 in-progress,needs-you,plan-ok; } | issues
 state 5 phase=needs-you "ny_at=$NOW" "reason=plan ready for OK" ny_kind=plan
 dispatch --once
-ok "a plan the user already labelled plan-ok: no ping" eq "$(grep -c '^issue comment 5 -R example-org/web --body @octo the plan' "$FAKE/gh.log") $(test -e "$CANCCU_HOME/pings/5"; echo $?)" "0 1"
+ok "a plan the user already labelled plan-ok: no ping" eq "$(grep -c '^issue comment 5 -R example-org/web --body @octo For the product owner: the plan' "$FAKE/gh.log") $(test -e "$CANCCU_HOME/pings/5"; echo $?)" "0 1"
 
 # finding 3: PING=off drops the records, so the state seen again once pings are back on pings again
 env_new ping-off-records PING_KINDS=all
@@ -171,7 +171,7 @@ env_new ping-ny-unlabelled PING_KINDS=all
 state 5 phase=needs-you "ny_at=$NOW" "reason=x" ny_kind=question
 state 6 phase=needs-you "ny_at=$NOW" "reason=y"
 dispatch --once
-ok "phase needs-you without the label → its ping" has gh.log 'issue comment 5 -R example-org/web --body @octo the worker'"'"'s question here'
+ok "phase needs-you without the label → its ping" has gh.log 'issue comment 5 -R example-org/web --body @octo For the product owner: the worker'"'"'s question here'
 ok "… labelled and in phase needs-you: one ping, not two" eq "$(grep -c '^issue comment 6 ' "$FAKE/gh.log")" 1
 ok "… recorded" eq "$(cat "$CANCCU_HOME/pings/5" 2>/dev/null)" question
 
@@ -203,7 +203,7 @@ state 9 phase=check pr=90 "check_at=$NOW"
 route 'pr view 90 *' FAIL
 dispatch --once
 ok "PING_KINDS (canccu): the accept and the plan are pinged" \
-  eq "$(pings '^issue comment 5 -R example-org/web --body @octo PR #50 waits') $(pings '^issue comment 6 -R example-org/web --body @octo the plan here')" "1 1"
+  eq "$(pings '^issue comment 5 -R example-org/web --body @octo For the product owner: PR #50 waits') $(pings '^issue comment 6 -R example-org/web --body @octo For the product owner: the plan here')" "1 1"
 ok "… a question, a needs-you and a PR's needs-you are not" eq "$(pings '^(issue|pr) comment (7|8|9|90) ')" 0
 ok "… and nothing is recorded for them" eq "$(ls "$CANCCU_HOME/pings" | tr '\n' ' ')" "5 6 "
 ok "… they stay in the snapshot's needs-you (the monitor reads it)" \
@@ -226,7 +226,7 @@ pr 50 5 $HA green | prs
 state 5 phase=accept pr=50 accept_sha=$HA "accept_at=$((NOW - 60))" "reason=manual"
 dispatch --once
 ok "PING_KINDS=accept: an issue labelled needs-you that waits for its accept → the accept ping" \
-  eq "$(pings '^issue comment 5 -R example-org/web --body @octo PR #50 waits') $(pings '^issue comment 5 ') $(cat "$CANCCU_HOME/pings/5")" "1 1 accept"
+  eq "$(pings '^issue comment 5 -R example-org/web --body @octo For the product owner: PR #50 waits') $(pings '^issue comment 5 ') $(cat "$CANCCU_HOME/pings/5")" "1 1 accept"
 
 env_new ping-kinds-typo "PING_KINDS='accept questoin'"
 { issue 5 in-progress,awaiting-accept; issue 6 in-progress,needs-you; } | issues
@@ -250,6 +250,145 @@ pr 50 5 $HA green | prs
 state 5 phase=accept pr=50 accept_sha=$HA "accept_at=$((NOW - 60))" "reason=manual"
 dispatch --once
 ok "PING_KINDS empty: no ping, nothing recorded" eq "$(pings '^(issue|pr) comment') $(ls "$CANCCU_HOME/pings" 2>/dev/null | wc -l)" "0 0"
+
+# ---------------------------------------------------------------- the ask form (#181)
+
+# body <issue>: the newest comment posted on the issue, without the dispatcher's mark
+body() { sed '/^<!-- canccu-dispatch -->$/d' "$FAKE/comment-$1" | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}'; }
+# review <pr> <sha> [Change: lines...]: the reviewer's file for that head
+review() {
+  local d="$CANCCU_HOME/reviews/$1"; mkdir -p "$d"
+  { (( $# > 2 )) && { echo "Change:"; printf '%s\n' "${@:3}"; }; echo "Blocking:"; echo "none"; echo "Review verdict: pass $2"; } > "$d/$2.md"
+}
+SA=${HA:0:7} SB=${HB:0:7}
+NOSUM='  - (the reviewer gave no summary)'
+
+env_new ask-accept
+{ issue 5 in-progress,awaiting-accept; } | issues
+pr 50 5 $HA red | prs
+state 5 phase=accept pr=50 accept_sha=$HA pass_sha=$HA "accept_at=$((NOW - 60))" "reason=manual: changes .github/ (.github/workflows/ci.yml)"
+review 50 $HA '- Adds a setting for what a ping carries.' '- Edits one comment per issue.' '- Keeps the old records working.'
+dispatch --once
+ok "ask form: an accept on a PR with red CI renders the full form" eq "$(body 5)" "@octo
+For the product owner: PR #50 waits for your accept: label it \`accepted\`, or \`canccu-ship 5\`.
+Why you: changes .github/ (.github/workflows/ci.yml)
+Change (reviewer's summary):
+  - Adds a setting for what a ping carries.
+  - Edits one comment per issue.
+  - Keeps the old records working.
+Review: pass on $SA · CI: red
+Recommended: do not accept, CI is red
+If you accept: it merges at $SA once CI is green
+No answer: this waits.
+https://github.com/example-org/web/pull/50 · head $SA"
+
+env_new ask-needs-you PING_KINDS=all
+{ issue 7 in-progress,needs-you; } | issues
+pr 70 7 $HB red | prs
+state 7 phase=needs-you pr=70 "ny_at=$NOW" "reason=the worker stopped: SECRET-WORKER-OUTPUT" stage=fixcheck reviewed_sha=$HB
+route 'pr view 70 *' FAIL
+dispatch --once
+ok "ask form: a needs-you on a PR with red CI renders the full form" eq "$(body 7)" "@octo
+For the product owner: this issue needs you (\`needs-you\`): the latest comments say why.
+Why you: no leader runs for this project (LEADER=off)
+Change (reviewer's summary):
+$NOSUM
+$NOSUM
+$NOSUM
+Review: changes on $SB · CI: red
+Recommended: answer needed, this issue needs you (\`needs-you\`): the latest comments say why.
+If you accept: the worker resumes with your answer
+No answer: this waits.
+https://github.com/example-org/web/pull/70 · head $SB"
+
+env_new ask-checkpoint
+pr 50 12 $HA red | prs
+mkdir -p "$CANCCU_HOME/steps"
+printf 'phase=checkpoint\ntitle=3 Events\nepic=90\ncheckpoint_url=https://github.com/example-org/web/issues/12#issuecomment-1\n' > "$CANCCU_HOME/steps/3"
+review 50 $HA '- One.' '- Two.' '- Three.'
+CPL='this checkpoint waits for your `checkpoint-ok`: read the summary (https://github.com/example-org/web/issues/12#issuecomment-1), then label this issue `checkpoint-ok`, or close it.'
+ok "ask form: a checkpoint on a PR with red CI renders the full form" \
+  eq "$(lib eval "PRS=\$(cat '$FAKE/prs.json'); ISSUES='[]'; ask_form 12 checkpoint 50 3")" "For the product owner: $CPL
+Why you: a checkpoint is always the product owner's
+Change (reviewer's summary):
+  - One.
+  - Two.
+  - Three.
+Review: none · CI: red
+Recommended: answer needed, $CPL
+If you accept: the next step starts
+No answer: this waits.
+https://github.com/example-org/web/pull/50 · head $SA"
+ok "ask form: an item with no PR leaves the change lines out" \
+  eq "$(lib eval "PRS='[]'; ISSUES='[]'; ask_form 12 checkpoint - 3" | sed -n '3p;$p')" "Review: none · CI: none
+https://github.com/example-org/web/issues/12 · head -"
+
+LONG=$(printf 'a%.0s' {1..200})
+review 50 $HA '- Adds `NOTIFY_CONTENT`, see https://example.com/x?y=1 and ask @someone-else about it.' "- $LONG" '- Keeps *the* old _record_ #format <b>.'
+ok "ask form: the change lines are stripped of links, mentions and markup, and cut at 160" \
+  eq "$(lib eval "PRS=\$(cat '$FAKE/prs.json'); ISSUES='[]'; ask_form 12 checkpoint 50 3" | sed -n '4,6p')" "  - Adds NOTIFYCONTENT, see and ask about it.
+  - ${LONG:0:160}
+  - Keeps the old record format b."
+review 50 $HA '- see @*octocat* now' '- ping @`team` here' '- go h`ttp`s://evil.example/x or H*TTP://evil.example/y'
+ok "… markup inside a mention or a link does not bring it back" \
+  eq "$(lib eval "PRS=\$(cat '$FAKE/prs.json'); ISSUES='[]'; ask_form 12 checkpoint 50 3" | sed -n '4,6p')" "  - see now
+  - ping here
+  - go or"
+review 50 $HA
+ok "… a review file without Change: gives the no-summary lines" \
+  eq "$(lib eval "PRS=\$(cat '$FAKE/prs.json'); ISSUES='[]'; ask_form 12 checkpoint 50 3" | sed -n '4,6p')" "$NOSUM
+$NOSUM
+$NOSUM"
+review 50 $HA '- Only one line.'
+ok "… nor does one with fewer than three lines" \
+  eq "$(lib eval "PRS=\$(cat '$FAKE/prs.json'); ISSUES='[]'; ask_form 12 checkpoint 50 3" | sed -n '4p')" "$NOSUM"
+
+# edit in place: one comment per issue
+env_new ask-edit PING_KINDS=all
+touch "$FAKE/comment-urls"
+{ issue 5 in-progress,needs-you; } | issues
+state 5 phase=needs-you "ny_at=$NOW" "reason=x"
+dispatch --once
+ok "edit in place: the record holds the kind and the comment id" eq "$(cat "$CANCCU_HOME/pings/5")" "needs-you 5"
+dispatch --once
+ok "… a second pass in the same state sends nothing" eq "$(grep -cE '^(issue comment|api .*PATCH)' "$FAKE/gh.log")" 1
+state 5 phase=needs-you "ny_at=$NOW" "reason=plan ready for OK" ny_kind=plan
+dispatch --once
+ok "… a changed kind edits the stored comment (PATCH) and posts none" \
+  eq "$(grep -c '^issue comment' "$FAKE/gh.log") $(grep -c '^api repos/example-org/web/issues/comments/5 -X PATCH' "$FAKE/gh.log")" "1 1"
+ok "… with the new form" eq "$(sed -n 2p "$FAKE/patched-5")" 'For the product owner: the plan here waits for your OK: label this issue `plan-ok`, or comment.'
+ok "… as the reviewer bot" grep -qxP '^api repos/example-org/web/issues/comments/5\treviewer$' "$FAKE/gh.env"
+ok "… recorded with the same comment id" eq "$(cat "$CANCCU_HOME/pings/5")" "plan 5"
+cp "$FAKE/patched-5" "$FAKE/body5"; jq -Rs '{body: .}' "$FAKE/body5" > "$FAKE/comment5.json"
+route 'api repos/example-org/web/issues/comments/5*' comment5.json
+issue 5 "" | issues
+rm "$CANCCU_HOME/state/5"
+dispatch --once
+ok "… a settled item marks its comment closed" eq "$(sed -n 2p "$FAKE/patched-5")" 'Closed: For the product owner: the plan here waits for your OK: label this issue `plan-ok`, or comment.'
+ok "… keeps the rest of it" eq "$(sed -n '3,$p' "$FAKE/patched-5")" "$(sed -n '3,$p' "$FAKE/body5")"
+ok "… and drops the record" test ! -e "$CANCCU_HOME/pings/5"
+
+env_new ask-old-record PING_KINDS=all
+touch "$FAKE/comment-urls"
+{ issue 5 in-progress,needs-you; } | issues
+state 5 phase=needs-you "ny_at=$NOW" "reason=plan ready for OK" ny_kind=plan
+mkdir -p "$CANCCU_HOME/pings"; echo needs-you > "$CANCCU_HOME/pings/5"
+dispatch --once
+ok "an old one-word record: no comment id, so the new state posts a new comment" \
+  eq "$(grep -c '^issue comment 5 ' "$FAKE/gh.log") $(grep -c 'PATCH' "$FAKE/gh.log") $(cat "$CANCCU_HOME/pings/5")" "1 0 plan 5"
+
+env_new ask-link PING_KINDS=all NOTIFY_CONTENT=link
+{ issue 5 in-progress,awaiting-accept; } | issues
+pr 50 5 $HA red | prs
+state 5 phase=accept pr=50 accept_sha=$HA pass_sha=$HA "accept_at=$((NOW - 60))" "reason=manual: SECRET-REASON"
+review 50 $HA '- SECRET-CHANGE one.' '- Two.' '- Three.'
+dispatch --once
+ok "NOTIFY_CONTENT=link: the first line, the last line and the link only" eq "$(body 5)" "@octo
+For the product owner: PR #50 waits for your accept: label it \`accepted\`, or \`canccu-ship 5\`.
+https://github.com/example-org/web/pull/50 · head $SA"
+ok "NOTIFY_CONTENT: full by default, project, locked" \
+  eq "$( . "$root/lib/canccu-config.default"; echo "$NOTIFY_CONTENT") $(grep -P '^NOTIFY_CONTENT\t' "$root/lib/canccu-settings.tsv" | cut -f2-)" \
+  "full enum:full|link	project	locked"
 
 echo "canccu-pings tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

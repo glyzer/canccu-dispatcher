@@ -258,20 +258,25 @@ drop_accepted() {
   return 0
 }
 
-# to_accept <n> <pr> <reason> <head>: wait for the user's accept of this head. An `accepted` label
-# from before (an older head, or not the user's) is removed first: it never counts for this one.
-to_accept() {
-  local n=$1 pr=$2 reason=$3 head=$4 ship
-  drop_accepted "$n" "$pr"
+# accept_lines <n>: the Accept: and Reject: lines of the accept's form (ask_block)
+accept_lines() {
+  local ship
   # canccu-ship arms auto-merge: not offered in a repo without it
-  auto_merge_read; ship=", or \`canccu-ship $(lead_of "$n")\`"; [ "$AUTO_MERGE_ALLOWED" = false ] && ship=""
+  auto_merge_read; ship=", or \`canccu-ship $(lead_of "$1")\`"; [ "$AUTO_MERGE_ALLOWED" = false ] && ship=""
+  printf '%s\n' "Accept: add the label \`accepted\` to this PR$ship." "Reject: comment here and label issue #$(lead_of "$1") \`needs-work\`."
+}
+
+# to_accept <n> <pr> <reason> <head>: wait for the user's accept of this head, asked in the form at
+# the top of the PR body (ask_block). An `accepted` label from before (an older head, or not the
+# user's) is removed first: it never counts for this one.
+to_accept() {
+  local n=$1 pr=$2 reason=$3 head=$4
+  drop_accepted "$n" "$pr"
   # armed by someone else (a worker acting as the user): a manual PR never merges on its own
   [ "$(pr_get "$pr" '.autoMergeRequest != null')" = true ] && mut gh pr merge "$pr" -R "$REPO" --disable-auto
   edit_issue "$n" --add-label awaiting-accept
-  comment_pr "$pr" "Review passed; this PR waits for your accept: ${reason#manual: }.
-Accept: add the label \`accepted\` to this PR$ship.
-Reject: comment here and label issue #$(lead_of "$n") \`needs-work\`."
   st_set "$n" phase=accept accept_sha="$head" accept_at="$(now)" reason="$(oneline 200 "$reason")"
+  ask_block "$n" "$pr" "$(accept_lines "$n")"
   log "#$n PR #$pr: awaiting accept ($reason)$(its_url "$(pr_url "$pr")")"
 }
 

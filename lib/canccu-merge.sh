@@ -135,6 +135,7 @@ accept_step() {
   fi
   conflict_merge "$n" "$pr" "$head" && return 0
   ship_armed "$n" "$pr" "$head" && return 0
+  [ "$(st_get "$n" ask_sha)" = "$head" ] || ask_block "$n" "$pr" "$(accept_lines "$n")"
   # the label on an issue of the unit is tolerated too, under the same checks as on the PR
   if pr_has_label "$pr" accepted; then on=$pr
   else for i in $(members_of "$n"); do has_label "$i" accepted && { on=$i; break; }; done; fi
@@ -147,8 +148,7 @@ accept_step() {
       log "#$n PR #$pr: \`accepted\` was on issue #$on; taken as the accept"
     fi
     history_answer "$pr"; merge_auto "$n" "$pr" accepted "$head"
-  else warn_once "accept-$pr" "#$n PR #$pr: \`accepted\` on #$on was not added by $USER_LOGIN after the accept request; ignored"; fi
-  return 0
+  else warn_once "accept-$pr" "#$n PR #$pr: \`accepted\` on #$on was not added by $USER_LOGIN after the accept request; ignored"; fi; return 0
 }
 
 # conflict_merge <n> <pr> <head> [disarm|queue] [dirty]: GitHub says the PR conflicts with main (DIRTY; queue: the merge

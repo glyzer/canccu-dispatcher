@@ -40,7 +40,14 @@ cat > "$fb/gh" <<'EOF'
 # "$*" wins. A file named FAIL makes the call fail. Writes always succeed unless a route
 # "fail:<cmd sub>" exists. Every call is appended to gh.log on one line, and the identity it ran
 # as (user: no GH_TOKEN; reviewer: the fake reviewer token; other) to gh.env, never the token.
-a="$*"; printf '%s\n' "${a//$'\n'/ }" >> "$FAKE/gh.log"
+# A `pr edit --body-file <file>` is logged as the file's text, and kept in $FAKE/prbody-<pr>.
+a="$*" bf="" args=("$@")
+for ((i = 0; i < ${#args[@]}; i++)); do [ "${args[i]}" = --body-file ] && bf=${args[i+1]}; done
+if [ "$1 $2" = "pr edit" ] && [ -n "$bf" ] && [ -f "$bf" ]; then
+  a=${a/--body-file $bf/--body-file $(< "$bf")}
+  cp "$bf" "$FAKE/prbody-$3"
+fi
+printf '%s\n' "${a//$'\n'/ }" >> "$FAKE/gh.log"
 { tok=$(< "$FAKE/../reviewer-token"); } 2>/dev/null
 if [ -z "${GH_TOKEN:-}" ]; then id=user; elif [ "$GH_TOKEN" = "$tok" ]; then id=reviewer; else id=other; fi
 printf '%s %s\t%s\n' "$1" "$2" "$id" >> "$FAKE/gh.env"
@@ -60,7 +67,15 @@ if [ "$1" = api ] && [[ $2 =~ ^repos/[^/]+/[^/]+$ ]]; then
   [ -e "$FAKE/repo.json" ] && [ "${3:-}" = --jq ] && { jq -r "$4" "$FAKE/repo.json"; exit; }
   echo "${2#repos/}"; exit 0
 fi
-q="" args=("$@")
+# `gh api <path> -X PATCH -f body=<text>` (a ping edited in place): kept in $FAKE/patched-<id>,
+# fails with a route "fail:api patch"
+if [ "$1" = api ] && [[ " $* " == *" -X PATCH "* ]]; then
+  { routes=$(< "$FAKE/routes"); } 2>/dev/null
+  grep -qxF "fail:api patch" <<<"$routes" && { echo "gh: Not Found (HTTP 404)" >&2; exit 1; }
+  for ((i = 0; i < $#; i++)); do [[ ${args[i]} == body=* ]] && printf '%s\n' "${args[i]#body=}" > "$FAKE/patched-${2##*/}"; done
+  echo '{}'; exit 0
+fi
+q=""
 for ((i = 0; i < ${#args[@]}; i++)); do case ${args[i]} in -q|--jq) q=${args[i+1]} ;; esac; done
 { routes=$(< "$FAKE/routes"); routes+=$'\n'$(< "$FAKE/routes.default"); } 2>/dev/null
 case "$1 $2" in
@@ -84,6 +99,10 @@ case "$1 $2" in
     fi
     # a new issue prints its link, like the real gh: number 900, or the one in $FAKE/new-issue
     [ "$1 $2" = "issue create" ] && echo "https://github.com/example-org/web/issues/$(cat "$FAKE/new-issue" 2>/dev/null || echo 900)"
+    # an issue comment's body is kept in $FAKE/comment-<issue> (the newest)
+    if [ "$1 $2" = "issue comment" ]; then
+      for ((i = 0; i < ${#args[@]}; i++)); do [ "${args[i]}" = --body ] && printf '%s\n' "${args[i+1]}" > "$FAKE/comment-$3"; done
+    fi
     # $FAKE/comment-urls: an issue comment prints its link, like the real gh
     [ -e "$FAKE/comment-urls" ] && [ "$1 $2" = "issue comment" ] && echo "https://github.com/example-org/web/issues/$3#issuecomment-$3"
     # $FAKE/noisy: a write prints like the real gh does (URLs on stdout, notes on stderr)

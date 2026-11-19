@@ -180,7 +180,7 @@ ok "… leader brief no longer lists the leader's line" \
 ok "… and logged" eq "$(grep -cF "$HO" "$CANCCU_HOME/dispatch.log")" 1
 ok "… not pinged in the pass that hands it over" eq "$(pings '^issue comment 5 ')" 0
 dispatch --once
-ok "… the next ping pass pings it" eq "$(pings '^issue comment 5 -R example-org/web --body @octo PR #50 waits for your accept')" 1
+ok "… the next ping pass pings it" eq "$(pings '^issue comment 5 -R example-org/web --body @octo For the product owner: PR #50 waits for your accept')" 1
 ok "… and a second pass writes nothing new" eq "$(lines) $(st 5 owner)" "3 po"
 
 env_new feed-handover-acked LEADER=on LEADER_ACCEPTS=technical PING_KINDS=all
