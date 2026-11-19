@@ -82,7 +82,7 @@ trepo=$(sed -n 's/^REPO=//p' "$tpl/config" | tail -1)
 
 # the login and the base branch, read before anything is written: without USER_LOGIN the project
 # never runs, and a worktree started from the wrong branch merges into it
-login=$(timeout 30 gh api user -q .login 2>/dev/null)
+login=$(timeout 30 gh api user -q '.login // empty' 2>/dev/null)
 [[ $login =~ ^[A-Za-z0-9-]+$ ]] || die "gh has no login to write as USER_LOGIN (gh auth status); nothing changed"
 base=$(timeout 30 gh repo view "$repo" --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null) bnote=""
 [[ $base =~ ^[A-Za-z0-9._/-]+$ ]] || { base=main bnote=" (gh could not read the default branch of $repo: check BASE_BRANCH)"; }

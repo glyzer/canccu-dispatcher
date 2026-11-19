@@ -339,7 +339,9 @@ penv() {
   echo '[]' > "$FAKE/empty.json"; echo '[]' > "$FAKE/runs.json"
   jq -n '["ready","blocked","in-progress","epic","needs-you","plan-ok","awaiting-accept","needs-work","accepted","manual-accept","checkpoint","checkpoint-ok","fast","security"] | map({name: .})' \
     > "$FAKE/labels.json"
-  : > "$FAKE/routes"; : > "$FAKE/gh.log"; : > "$FAKE/worker.log"; : > "$FAKE/routes.default"
+  : > "$FAKE/routes"; : > "$FAKE/gh.log"; : > "$FAKE/worker.log"
+  # gh's own login (canccu-init writes it as USER_LOGIN), with or without projects
+  printf '%s\t%s\n' 'api user*' user.json > "$FAKE/routes.default"
   for p; do
     mkdir -p "$CANCCU_ROOT/projects/$p/state" "$CANCCU_ROOT/projects/$p/workers" "$E/code/$p"
     { echo "REPO=$(prepo "$p")"; echo "CLONE=$E/code/$p"; echo "USER_LOGIN=octo"; echo "REVIEWER_LOGIN=review-bot"; echo "DIGEST_HOUR_UTC=24"
