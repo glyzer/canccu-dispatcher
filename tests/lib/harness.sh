@@ -127,7 +127,7 @@ EOF
 # (--config -), as in the real call, so the token is in no argument. One line per call in
 # $FAKE/tg.log: the method, then each form field as k=v (a newline as \n); never the url, so
 # never the token. A call whose url held the test token ($FAKE/../telegram-token) adds its
-# method to $FAKE/tg-token-ok. $FAKE/tg-down: exit 7 (nothing sent); $FAKE/tg-slow: exit 28 (timed
+# method to $FAKE/tg-token-ok. $FAKE/tg-down: exit 7 (nothing sent); $FAKE/tg-slow (or tg-slow-<method>): exit 28 (timed
 # out); $FAKE/tg-refuse-<method>: {"ok":false}. getUpdates answers the updates of
 # $FAKE/tg-updates.json from the offset on; every other method a new id from 101 up.
 cat > "$fb/curl" <<'EOF'
@@ -141,7 +141,7 @@ done
 [ -n "${tok:-}" ] && [ "$url" = "https://api.telegram.org/bot$tok/$m" ] && echo "$m" >> "$FAKE/tg-token-ok"
 printf '%s %s\n' "$m" "${f[*]}" >> "$FAKE/tg.log"
 [ -e "$FAKE/tg-down" ] && { echo "curl: (7) Failed to connect to api.telegram.org port 443" >&2; exit 7; }
-[ -e "$FAKE/tg-slow" ] && { echo "curl: (28) Operation timed out" >&2; exit 28; }
+[ -e "$FAKE/tg-slow" ] || [ -e "$FAKE/tg-slow-$m" ] && { echo "curl: (28) Operation timed out" >&2; exit 28; }
 [ -e "$FAKE/tg-refuse-$m" ] && { echo '{"ok":false,"error_code":400,"description":"Bad Request: refused"}'; exit 0; }
 n=$(( $(cat "$FAKE/tg-n" 2>/dev/null || echo 100) + 1 )); echo "$n" > "$FAKE/tg-n"
 case $m in

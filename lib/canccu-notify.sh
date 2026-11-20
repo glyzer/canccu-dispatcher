@@ -111,6 +111,7 @@ notify_event() {
   # a line gone (the events file was reset) is never sent
   [ -n "$l" ] || { notify_retry_del "$1"; return 0; }
   IFS=$'\t' read -r t id owner class kind unit pr url text <<<"$l"
+  notify_reset_check
   if [ "$kind" = closed ]; then
     [[ $text =~ ^closes\ ([0-9]+) ]] && notify_settle "${BASH_REMATCH[1]}"
     return 0
@@ -118,6 +119,31 @@ notify_event() {
   notify_wanted "$owner" "$class" "$kind" || return 0
   [ -z "$(nt_get sent "$id" 1)" ] || return 0
   notify_send "$id" "$kind" "$unit" "$pr" "$(notify_text "$class" "$kind" "$unit" "$pr" "$url" "$text")"
+}
+
+# notify_reset_check: the events file was reset when its first line is no longer the one seen
+# before (notify/epoch), or its last id is below the highest id in notify/sent (as feed_ack
+# tells): ids start again at 1. The records keyed by a feed id are then old items': cleared, or a
+# new item with a used id is never sent and its closed line edits an old message.
+notify_reset_check() {
+  local first last max seen
+  first=$(head -n 1 "$(feed_file)" 2>/dev/null); [ -n "$first" ] || return 0
+  seen=$(cat "$(notify_dir)/epoch" 2>/dev/null)
+  last=$(tail -n 1 "$(feed_file)" 2>/dev/null | cut -f2); [[ $last =~ ^[0-9]+$ ]] || last=0
+  max=$(awk -F '\t' '$1 + 0 > m { m = $1 + 0 } END { print m + 0 }' "$(notify_dir)/sent" 2>/dev/null)
+  if [ "$seen" = "$first" ] && (( last >= max )); then return 0; fi
+  mkdir -p "$(notify_dir)"
+  # a first look at the file (no epoch yet) is no reset: only a file that differs from the seen one is
+  if [ -n "$seen" ] || (( last < max )); then
+    _nt_locked _nt_reset
+    log "telegram: the events file was reset: the records of its old feed ids are cleared"
+  fi
+  printf '%s\n' "$first" > "$(notify_dir)/epoch"
+}
+_nt_reset() {
+  local f; f=$(notify_dir)
+  : > "$f/sent"; : > "$f/retry"; rm -rf "$f/text"
+  [ ! -f "$f/topics" ] || { awk -F '\t' -v OFS='\t' '{ $2 = "-" } { print }' "$f/topics" > "$f/topics.tmp" && mv -f "$f/topics.tmp" "$f/topics"; }
 }
 
 # notify_send <feed id> <kind> <unit> <pr> <text>: opens the item's topic (a forum topic in a
@@ -201,6 +227,8 @@ notify_photos() {
     th=$m key=t$m; nt_add topics "$key	-	$k	-	open	-"
   fi
   m=$(tg_photos "$th" "$re" "$cap" "$@"); rc=$?
+  # a timed-out upload may have landed: it counts as sent, as for a message
+  if (( rc == 2 )); then log "telegram: sending the images for #$k timed out; they may have landed, so they are not sent again"; echo "?"; return 0; fi
   (( rc == 0 )) || { echo "$m"; return "$rc"; }
   [ -n "$key" ] || { key=m$m; nt_add topics "$key	-	$k	-	open	$m"; }
   nt_add msgs "$m	$key"

@@ -182,6 +182,26 @@ ok "a send that timed out may have landed: recorded, never sent again" eq "$(cut
 rm "$FAKE/tg-slow"; dispatch --once
 ok "… the next pass sends nothing" eq "$(calls sendMessage)" 1
 
+tg notify-photo-timeout
+accept5
+printf 'PNG' > "$E/a.png"
+touch "$FAKE/tg-slow-sendPhoto"
+out=$(notifycmd --project web photos 5 "$E/a.png" 2>&1)
+lib notify_photos 5 cap "$E/a.png" >/dev/null; rc=$?
+ok "a photo send that timed out may have landed: counted as sent" eq "$rc" 0
+ok "… logged" grep -q 'sending the images for #5 timed out' "$CANCCU_HOME/dispatch.log"
+ok "… uploads get a longer limit than text calls" grep -q 'TG_MAX_TIME=${TG_UPLOAD_MAX_TIME:-60}' "$root/lib/canccu-telegram.sh"
+rm "$FAKE/tg-slow-sendPhoto"
+
+tg notify-reset
+accept5
+ok "before the reset: the ask is sent" eq "$(cut -f1 "$(ND)/sent")" 1
+: > "$(EV)"
+lib feed po ask idle 8 - - "#8 idle" >/dev/null
+ok "events reset, a new ask with a used id: sent" eq "$(cut -f1 "$(ND)/sent" | tr '\n' ' ') $(calls sendMessage)" "1  2"
+ok "… in a topic of its own" eq "$(calls createForumTopic)" 2
+ok "… a closed line edits the new message, not the old one" eq "$(lib feed - info closed 8 - - "closes 1: check" >/dev/null; calls editMessageText) $(call editMessageText | grep -c 'message_id=101')" "1 0"
+
 tg notify-down
 touch "$FAKE/tg-down"
 lib feed po ask idle 8 - - "#8 idle" >/dev/null

@@ -81,7 +81,7 @@ tg_photos() {
     if (( $# == 1 )); then
       cp "$1" "$d/p.png" || { rm -rf "$d"; return 1; }
       [ -z "$cap" ] || a+=(--form-string "caption=${cap:0:1000}")
-      r=$(tg_call sendPhoto "${a[@]}" -F "photo=@$d/p.png"); rc=$?
+      r=$(TG_MAX_TIME=${TG_UPLOAD_MAX_TIME:-60} tg_call sendPhoto "${a[@]}" -F "photo=@$d/p.png"); rc=$?
       shift
     else
       media="[]" i=0
@@ -91,7 +91,7 @@ tg_photos() {
           '. + [{type: "photo", media: ("attach://" + $n)} + (if $c == "" then {} else {caption: $c} end)]' <<<"$media")
         a+=(-F "p$i=@$d/p$i.png"); i=$((i + 1)); shift
       done
-      r=$(tg_call sendMediaGroup "${a[@]}" --form-string "media=$media"); rc=$?
+      r=$(TG_MAX_TIME=${TG_UPLOAD_MAX_TIME:-60} tg_call sendMediaGroup "${a[@]}" --form-string "media=$media"); rc=$?
     fi
     (( rc == 0 )) || { rm -rf "$d"; echo "$r"; return "$rc"; }
     [ -n "$first" ] || first=$(jq -r 'if type == "array" then .[0].message_id else .message_id end' <<<"$r")
