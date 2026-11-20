@@ -47,7 +47,7 @@ fixcheck_gaps() {
   local n i w miss="" open=""
   n=$(finding_count "$1")
   for ((i = 1; i <= n; i++)); do
-    w=$(grep -ioE "^[[:space:]>*_-]*finding[[:space:]]+$i[*_]*:[*_[:space:]]*(fixed|not fixed|broken)" <<<"$2" | head -1)
+    w=$(grep -ioE "^[[:space:]>*_-]*finding[[:space:]]+${i}[*_]*:[*_[:space:]]*(fixed|not fixed|broken)" <<<"$2" | head -1)
     w=${w,,}
     case $w in *'not fixed'|*broken) open+=" $i" ;; *fixed) ;; *) miss+=" $i" ;; esac
   done
