@@ -15,6 +15,13 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
   nothing new and, with no run live, runs the new release in its place
   ([`docs/upgrading.md`](docs/upgrading.md#between-passes)). New key: `UPGRADE` (`auto`, or
   `manual` to only show it).
+- Notifications on Telegram: `NOTIFY` (`github`, the default, `telegram`, `both`, `off`) sends
+  each ask of the product owner, a step done, a hold and a polish issue as one Telegram message at
+  the change of state, in a forum topic per item (a reply chain in a private chat). The product
+  owner's replies in an open topic land in `$CANCCU_HOME/inbox` for the leader; `canccu-notify`
+  answers, notes, closes topics and sends images; `canccu-init --check <project>` checks the
+  setup. New settings `TELEGRAM_CHAT_ID`, `TELEGRAM_USER_ID`, `TELEGRAM_TOKEN_FILE`; new feed kind
+  `polish` ([`docs/reference/notify.md`](docs/reference/notify.md), #39).
 - Host settings (#14): one release runs on a Max and a Pro host, and what differs is a setting
   ([`docs/hosts.md`](docs/hosts.md#what-a-host-decides)). New keys: `BASE_BRANCH`, `CLONE_ROOT`,
   `EXTRA_PATH`, `GUARD_VMEM_KB`, `WORKER_SKILLS`, `REVIEW_SKILLS`, `HEALTH_CHECKLIST` and

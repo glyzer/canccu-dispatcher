@@ -338,6 +338,10 @@ run_progress() {
 . "$_canccu_lib/canccu-stateformat.sh"
 # shellcheck source=canccu-feed.sh
 . "$_canccu_lib/canccu-feed.sh"
+# shellcheck source=canccu-telegram.sh
+. "$_canccu_lib/canccu-telegram.sh"
+# shellcheck source=canccu-notify.sh
+. "$_canccu_lib/canccu-notify.sh"
 # shellcheck source=canccu-units.sh
 . "$_canccu_lib/canccu-units.sh"
 # shellcheck source=canccu-leadtools.sh
@@ -366,10 +370,8 @@ run_progress() {
 . "$_canccu_lib/canccu-skills.sh"
 # shellcheck source=canccu-share.sh
 . "$_canccu_lib/canccu-share.sh"
-# shellcheck source=canccu-claim.sh
-. "$_canccu_lib/canccu-claim.sh"
-# shellcheck source=canccu-upgrade.sh
-. "$_canccu_lib/canccu-upgrade.sh"
+# shellcheck source=/dev/null  # canccu-claim.sh, canccu-upgrade.sh (#15, #20): each is linted on its own
+for _canccu_f in claim upgrade; do . "$_canccu_lib/canccu-$_canccu_f.sh"; done
 # shellcheck source=canccu-answer.sh
 . "$_canccu_lib/canccu-answer.sh"
 # shellcheck source=canccu-github.sh

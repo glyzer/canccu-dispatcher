@@ -143,6 +143,36 @@ while IFS=$'\t' read -r pat file; do
 done <<<"$routes"
 echo "fake gh: no route for: $a" >&2; exit 1
 EOF
+# fake curl, the Telegram Bot API's only client (lib/canccu-telegram.sh): the url comes on stdin
+# (--config -), as in the real call, so the token is in no argument. One line per call in
+# $FAKE/tg.log: the method, then each form field as k=v (a newline as \n); never the url, so
+# never the token. A call whose url held the test token ($FAKE/../telegram-token) adds its
+# method to $FAKE/tg-token-ok. $FAKE/tg-down: exit 7 (nothing sent); $FAKE/tg-slow (or tg-slow-<method>): exit 28 (timed
+# out); $FAKE/tg-refuse-<method>: {"ok":false}. getUpdates answers the updates of
+# $FAKE/tg-updates.json from the offset on; every other method a new id from 101 up.
+cat > "$fb/curl" <<'EOF'
+#!/usr/bin/env bash
+cfg=$(cat); url=$(sed -n 's/^url = "\(.*\)"$/\1/p' <<<"$cfg"); m=${url##*/}
+args=("$@") f=() off=0
+for ((i = 0; i < ${#args[@]}; i++)); do
+  case ${args[i]} in --form-string|-F) v=${args[i+1]}; f+=("${v//$'\n'/\\n}"); [[ $v == offset=* ]] && off=${v#offset=}; i=$((i + 1)) ;; esac
+done
+{ tok=$(< "$FAKE/../telegram-token"); } 2>/dev/null
+[ -n "${tok:-}" ] && [ "$url" = "https://api.telegram.org/bot$tok/$m" ] && echo "$m" >> "$FAKE/tg-token-ok"
+printf '%s %s\n' "$m" "${f[*]}" >> "$FAKE/tg.log"
+[ -e "$FAKE/tg-down" ] && { echo "curl: (7) Failed to connect to api.telegram.org port 443" >&2; exit 7; }
+[ -e "$FAKE/tg-slow" ] || [ -e "$FAKE/tg-slow-$m" ] && { echo "curl: (28) Operation timed out" >&2; exit 28; }
+[ -e "$FAKE/tg-refuse-$m" ] && { echo '{"ok":false,"error_code":400,"description":"Bad Request: refused"}'; exit 0; }
+n=$(( $(cat "$FAKE/tg-n" 2>/dev/null || echo 100) + 1 )); echo "$n" > "$FAKE/tg-n"
+case $m in
+  getMe) echo '{"ok":true,"result":{"id":1,"is_bot":true,"username":"web_bot"}}' ;;
+  createForumTopic) echo "{\"ok\":true,\"result\":{\"message_thread_id\":$n,\"name\":\"t\"}}" ;;
+  getUpdates) jq -c --argjson o "$off" '{ok: true, result: [.[] | select(.update_id >= $o)]}' "$FAKE/tg-updates.json" 2>/dev/null || echo '{"ok":true,"result":[]}' ;;
+  sendMediaGroup) echo "{\"ok\":true,\"result\":[{\"message_id\":$n},{\"message_id\":$((n + 50))}]}" ;;
+  closeForumTopic) echo '{"ok":true,"result":true}' ;;
+  *) echo "{\"ok\":true,\"result\":{\"message_id\":$n}}" ;;
+esac
+EOF
 cat > "$fb/worker" <<'EOF'
 #!/usr/bin/env bash
 # fake run engine: records the call and its whole environment; a start writes a live lock (pid

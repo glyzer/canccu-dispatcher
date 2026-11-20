@@ -115,6 +115,10 @@ HIGH_RISK_TEXT	text	rules	locked
 REVIEW_LIGHT	enum:0|1	rules	locked
 PING_KINDS	words:all|accept|checkpoint|plan|question|needs-you|pr-needs-you	project	locked
 NOTIFY_CONTENT	enum:full|link	project	locked
+NOTIFY	enum:github|telegram|both|off	project	locked
+TELEGRAM_CHAT_ID	text	project	locked
+TELEGRAM_USER_ID	text	project	locked
+TELEGRAM_TOKEN_FILE	text	fixed	locked
 LEADER	enum:on|off	project	locked
 LEADER_ACCEPTS	enum:technical|none	project	locked
 LEADER_ACCEPTS_HIGH_RISK	enum:0|1	project	locked
