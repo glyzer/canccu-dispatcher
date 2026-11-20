@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Review findings (#73): only blocking findings start a fix round; the non-blocking ones go to one
-# follow-up issue per wave (the fast lane shares one); canccu-status --findings counts the common ones.
+# follow-up ticket per step (#223; the fast lane shares one); canccu-status --findings counts the common ones.
 . "$(dirname "$0")/lib/harness.sh"
 
+ms() { jq -nc --argjson n "$1" --arg t "$2" '{number: $n, title: $t, open_issues: 0, closed_issues: 0, due_on: null}'; }
 BLOCK='1. src/a.ts:3 off by one; fix: use <='
 NB=$'Non-blocking:\n- src/b.ts:9 the name `x` says nothing; rename it\n- docs/a.md:2 a typo'
 # nbenv <name> <verdict> [config...]: PR 50 of issue 5 has a posted review with a blocking finding
@@ -38,10 +39,10 @@ ok "… a later heading ends the section" eq "$(lib nonblocking_of $'## Non-bloc
 nbenv pass-nb pass
 dispatch --once
 ok "a pass with non-blocking findings merges (no fix round)" eq "$(grep -c 'pr merge 50' "$FAKE/gh.log") $(wc -l < "$FAKE/worker.log")" "1 0"
-ok "… a follow-up issue is created for them" eq "$(grep -c '^issue create -R example-org/web --title Follow-ups: non-blocking review findings (fast lane)' "$FAKE/gh.log")" 1
+ok "… a follow-up issue is created for them" eq "$(grep -c '^issue create -R example-org/web --title Follow-ups: fast lane --body' "$FAKE/gh.log")" 1
 ok "… not ready" not grep -q 'issue create.*ready' "$FAKE/gh.log"
 ok "… it names the PR and each finding's file:line" grep -q 'issue create.*PR #50.*src/b.ts:9 the name.*docs/a.md:2 a typo' "$FAKE/gh.log"
-ok "… and is recorded" eq "$(cat "$CANCCU_HOME/followups")" $'fast\t900'
+ok "… and is recorded" eq "$(cat "$CANCCU_HOME/followups")" $'fast\t900\t1'
 ok "… logged" grep -q '#5 PR #50: 2 non-blocking finding(s) filed in #900' "$CANCCU_HOME/dispatch.log"
 
 # another fast-lane PR: the open follow-up issue gains its findings
@@ -49,12 +50,12 @@ nbenv pass-nb-shared pass
 printf 'fast\t77\n' > "$CANCCU_HOME/followups"
 { issue 5 in-progress; issue 77 ""; } | issues
 dispatch --once
-ok "the fast lane shares one open follow-up issue: a comment on it" eq "$(grep -c '^issue comment 77 .*PR #50.*src/b.ts:9' "$FAKE/gh.log") $(grep -c 'issue create' "$FAKE/gh.log")" "1 0"
+ok "the fast lane shares one open follow-up ticket: its body gains the findings" eq "$(grep -c '^issue edit 77 -R example-org/web --body .*PR #50.*src/b.ts:9' "$FAKE/gh.log") $(grep -c 'issue create\|issue comment' "$FAKE/gh.log")" "1 0"
 
 nbenv pass-nb-closed pass
 printf 'fast\t77\n' > "$CANCCU_HOME/followups"
 dispatch --once
-ok "… a closed one is not reused: a new issue" eq "$(grep -c 'issue create' "$FAKE/gh.log") $(tail -1 "$CANCCU_HOME/followups")" $'1 fast\t900'
+ok "… a closed one is not reused: a new issue" eq "$(grep -c 'issue create' "$FAKE/gh.log") $(tail -1 "$CANCCU_HOME/followups")" $'1 fast\t900\t1'
 
 nbenv pass-nb-once pass
 dispatch --once; state 5 phase=review pr=50 review_sha=$HA stage=review "nb_at=$(st 5 nb_at)"
@@ -66,7 +67,7 @@ nbenv pass-nb-same-head pass
 dispatch --once; state 5 phase=review pr=50 review_sha=$HA stage=review "nb_at=$(st 5 nb_at)" "nb_sha=$(st 5 nb_sha)"
 json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z "$(vcomment 2030-11-05T11:30:00Z "$NB"$'\n\nReview verdict: pass '"$HA")")"
 dispatch --once
-ok "a second verdict on a filed head files no follow-up items" eq "$(grep -c 'issue create\|issue comment 900' "$FAKE/gh.log")" 1
+ok "a second verdict on a filed head files no follow-up items" eq "$(grep -c 'issue create\|issue edit 900' "$FAKE/gh.log")" 1
 ok "… logged" grep -qF "#5 PR #50: non-blocking findings of ${HA:0:7} are filed already; not filed again" "$CANCCU_HOME/dispatch.log"
 
 # the full review after a light one on the same head (a light pass rated high) is a review of its
@@ -78,13 +79,15 @@ rm -f "$CANCCU_HOME/reviews/50.light"
 json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z "$(vcomment 2030-11-05T11:30:00Z "$NB"$'\n\nReview verdict: pass '"$HA")")"
 dispatch --once
 ok "a full verdict after a light one on the same head files its items too" \
-  eq "$(grep -c 'issue create\|issue comment 900' "$FAKE/gh.log") $(grep -cF 'are filed already' "$CANCCU_HOME/dispatch.log")" "2 0"
+  eq "$(grep -c 'issue create\|issue edit 900' "$FAKE/gh.log") $(grep -cF 'are filed already' "$CANCCU_HOME/dispatch.log")" "2 0"
 
 nbenv pass-wave pass
 state 5 phase=review pr=50 review_sha=$HA stage=review step=12 wave=2 pkg=one members=5
+ms 12 "4 Search" | jq -s . > "$FAKE/ms.json"
 dispatch --once
-ok "a package's findings go to its wave's follow-up issue" grep -q '^issue create -R example-org/web --title Follow-ups: non-blocking review findings, step .* wave 2' "$FAKE/gh.log"
-ok "… recorded per step and wave" eq "$(cut -f1 "$CANCCU_HOME/followups")" "step-12-wave-2"
+ok "a package's findings go to its step's follow-up ticket, in the step's milestone" \
+  grep -q '^issue create -R example-org/web --title Follow-ups: step 4 Search --milestone 4 Search --body' "$FAKE/gh.log"
+ok "… recorded per step" eq "$(cut -f1 "$CANCCU_HOME/followups")" "step-12"
 
 nbenv pass-none pass
 json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z "$(vcomment 2030-11-05T11:00:00Z $'Non-blocking: none\n\nReview verdict: pass '"$HA")")"
@@ -97,8 +100,8 @@ p=$(pr 50 5 $HA | jq -c '.closingIssuesReferences = []'); printf '%s\n' "$p" | p
 json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z "$(vcomment 2030-11-05T11:00:00Z "$NB"$'\n\nReview verdict: pass '"$HA")")"
 printf 'fast\t5\n' > "$CANCCU_HOME/followups"
 dispatch --once
-ok "the unit is the recorded follow-up issue: a new issue, no comment on itself" eq "$(grep -c 'issue create' "$FAKE/gh.log") $(grep -c '^issue comment 5 ' "$FAKE/gh.log")" "1 0"
-ok "… the new one is recorded" eq "$(cat "$CANCCU_HOME/followups")" $'fast\t900'
+ok "the unit is the recorded follow-up ticket: a new one, its own body untouched" eq "$(grep -c 'issue create' "$FAKE/gh.log") $(grep -c '^issue edit 5 -R example-org/web --body' "$FAKE/gh.log")" "1 0"
+ok "… the new one is recorded" eq "$(tail -1 "$CANCCU_HOME/followups")" $'fast\t900\t1'
 
 nbenv pass-nb-closes pass
 p=$(pr 50 5 $HA | jq -c '.closingIssuesReferences += [{number: 77}]'); printf '%s\n' "$p" | prs
@@ -106,8 +109,8 @@ json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z "$(vcomment 2030-11-05T11:00:
 printf 'fast\t77\n' > "$CANCCU_HOME/followups"
 { issue 5 in-progress; issue 77 ""; } | issues
 dispatch --once
-ok "the PR closes the recorded follow-up issue: a new issue, no comment on it" eq "$(grep -c 'issue create' "$FAKE/gh.log") $(grep -c '^issue comment 77 ' "$FAKE/gh.log")" "1 0"
-ok "… the new one is recorded" eq "$(cat "$CANCCU_HOME/followups")" $'fast\t900'
+ok "the PR closes the recorded follow-up ticket: a new one, the old body untouched" eq "$(grep -c 'issue create' "$FAKE/gh.log") $(grep -c '^issue edit 77 -R example-org/web --body' "$FAKE/gh.log")" "1 0"
+ok "… the new one is recorded" eq "$(tail -1 "$CANCCU_HOME/followups")" $'fast\t900\t1'
 
 # the log counts items, not lines: an item's indented Fix: line is part of it
 NB5=$'Non-blocking:'; for i in 1 2 3 4 5; do NB5+=$'\n'"$i. src/b.ts:$i a nit"$'\n   - Fix: rename it'; done
@@ -115,6 +118,53 @@ nbenv pass-nb-count pass
 json pr50.json "$(detail "$p" 2030-11-05T10:00:00Z "$(vcomment 2030-11-05T11:00:00Z "$NB5"$'\n\nReview verdict: pass '"$HA")")"
 dispatch --once
 ok "5 numbered items with a Fix: line each: 5 findings logged" grep -q '#5 PR #50: 5 non-blocking finding(s) filed in #900' "$CANCCU_HOME/dispatch.log"
+
+# ---------------------------------------------------------------- one ticket per step (#223)
+
+# fu_pass <K> <pr> <sha> <items>: one pass filing a verdict's items, with the open issues and the
+# milestones the fake has
+fu_pass() { ISSUES=$(jq -c . "$FAKE/issues.json"); MILESTONES=$(jq -c . "$FAKE/ms.json"); file_nonblocking "$@"; }
+# fu_open <n>: the ticket is open, with the body the fake was last sent for it
+fu_open() { issue "$1" "" "$(cat "$FAKE/body-$1" 2>/dev/null || cat "$FAKE/created-$1")" "4 Search" | issues; }
+MARK='<!-- canccu-dispatch -->'
+
+env_new step-ticket
+ms 12 "4 Search" | jq -s . > "$FAKE/ms.json"
+state pkg-12-a step=12 wave=1 pkg=a "members=101 102"
+state pkg-12-b step=12 wave=2 pkg=b members=103
+state pkg-12-health step=12 health=1 pkg=health
+lib fu_pass pkg-12-a 60 "$HA" $'- src/a.ts:1 a nit\n   - Fix: rename it\n- src/a.ts:2 another'
+fu_open 900
+lib fu_pass pkg-12-b 61 "$HB" '1. src/b.ts:1 a typo'
+fu_open 900
+lib fu_pass pkg-12-health 62 "$HC" '- src/c.ts:1 a name'
+b=$(cat "$FAKE/body-900")
+ok "two waves and the health pass of a step: one ticket, no comments" \
+  eq "$(grep -c '^issue create' "$FAKE/gh.log") $(grep -c '^issue comment' "$FAKE/gh.log") $(grep -c '^issue edit 900 -R example-org/web --body' "$FAKE/gh.log")" "1 0 2"
+ok "… three PR sections in its body, in filing order" eq "$(grep -o '^### PR #6[0-9]' <<<"$b" | paste -sd' ')" "### PR #60 ### PR #61 ### PR #62"
+ok "… each heading names what the PR closes and its head" \
+  eq "$(grep -cxF "### PR #61 (package b: closes #103, ${HB:0:7})" <<<"$b") $(grep -cxF "### PR #62 (the health pass of step 4 Search: closes no issue, ${HC:0:7})" <<<"$b")" "1 1"
+ok "… each finding a checklist line, an item's own lines under it" \
+  eq "$(grep -c '^- \[ \] ' <<<"$b") $(grep -cxF -- '- [ ] src/b.ts:1 a typo' <<<"$b") $(grep -cxF '  - Fix: rename it' <<<"$b")" "4 1 1"
+ok "… the dispatcher's mark once, last" eq "$(grep -cF "$MARK" <<<"$b") $(tail -1 <<<"$b")" "1 $MARK"
+ok "… recorded once, as part 1" eq "$(cat "$CANCCU_HOME/followups")" $'step-12\t900\t1'
+ok "… logged per filing" eq "$(grep -c 'non-blocking finding(s) filed in #900$' "$CANCCU_HOME/dispatch.log")" 3
+
+env_new step-ticket-part
+ms 12 "4 Search" | jq -s . > "$FAKE/ms.json"
+state pkg-12-a step=12 wave=1 pkg=a members=101
+issue 900 "" "$(head -c 59950 /dev/zero | tr '\0' x)"$'\n\n'"$MARK" "4 Search" | issues
+printf 'step-12\t900\t1\n' > "$CANCCU_HOME/followups"; echo 901 > "$FAKE/new-issues"
+lib fu_pass pkg-12-a 60 "$HA" '- src/a.ts:1 a nit'
+ok "a body that would pass 60000 characters: part 2 opens" \
+  grep -q '^issue create -R example-org/web --title Follow-ups: step 4 Search (part 2) --milestone 4 Search --body' "$FAKE/gh.log"
+ok "… with the findings, and a link to part 1" eq "$(grep -cxF -- '- [ ] src/a.ts:1 a nit' "$FAKE/created-901") $(grep -c 'part 1 is #900' "$FAKE/created-901")" "1 1"
+ok "… the full one links it and gains no findings" \
+  eq "$(grep -cxF 'Continued in #901.' "$FAKE/body-900") $(grep -c 'src/a.ts' "$FAKE/body-900") $(tail -1 "$FAKE/body-900")" "1 0 $MARK"
+ok "… recorded as part 2" eq "$(tail -1 "$CANCCU_HOME/followups")" $'step-12\t901\t2'
+fu_open 901; echo 902 > "$FAKE/new-issues"
+lib fu_pass pkg-12-a 61 "$HB" '- src/a.ts:5 one more'
+ok "… the next findings go to part 2" eq "$(grep -c '^issue create' "$FAKE/gh.log") $(grep -cxF -- '- [ ] src/a.ts:5 one more' "$FAKE/body-901")" "1 1"
 
 # ---------------------------------------------------------------- changes: only the blocking ones
 

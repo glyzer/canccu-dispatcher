@@ -102,7 +102,17 @@ case "$1 $2" in
     fi
     # a new issue prints its link, like the real gh: number 900, or the one in $FAKE/new-issue
     # (route nourl:issue create: none)
-    [ "$1 $2" = "issue create" ] && ! grep -qxF "nourl:issue create" <<<"$routes" && echo "https://github.com/example-org/web/issues/$(cat "$FAKE/new-issue" 2>/dev/null || echo 900)"
+    # $FAKE/new-issues: one number per line, each create takes the first; the body is kept in
+    # $FAKE/created-<number>, an edited one in $FAKE/body-<issue>
+    if [ "$1 $2" = "issue create" ] && ! grep -qxF "nourl:issue create" <<<"$routes"; then
+      if [ -s "$FAKE/new-issues" ]; then num=$(head -1 "$FAKE/new-issues"); sed -i 1d "$FAKE/new-issues"
+      else num=$(cat "$FAKE/new-issue" 2>/dev/null || echo 900); fi
+      for ((i = 0; i < ${#args[@]}; i++)); do [ "${args[i]}" = --body ] && printf '%s\n' "${args[i+1]}" > "$FAKE/created-$num"; done
+      echo "https://github.com/example-org/web/issues/$num"
+    fi
+    if [ "$1 $2" = "issue edit" ]; then
+      for ((i = 0; i < ${#args[@]}; i++)); do [ "${args[i]}" = --body ] && printf '%s\n' "${args[i+1]}" > "$FAKE/body-$3"; done
+    fi
     # an issue comment's body is kept in $FAKE/comment-<issue> (the newest)
     if [ "$1 $2" = "issue comment" ]; then
       for ((i = 0; i < ${#args[@]}; i++)); do [ "${args[i]}" = --body ] && printf '%s\n' "${args[i+1]}" > "$FAKE/comment-$3"; done

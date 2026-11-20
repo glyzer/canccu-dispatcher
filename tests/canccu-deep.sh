@@ -38,7 +38,7 @@ denv() {
   echo start > "$E/code/web/README.md"; rg add -A; rg commit -qm start; rg push -q origin HEAD:main 2>/dev/null; rg fetch -q origin
   mkdir -p "$CANCCU_HOME/steps" "$E/sbin"
   printf 'pkg-12-a\ta\t1\t101 103\tnormal\t50\tmerged\n104\tb\t1\t104\tlow\t51\tmerged\n' > "$CANCCU_HOME/steps/12.packages"
-  printf 'step-12-wave-1\t900\nstep-11-wave-1\t800\n' > "$CANCCU_HOME/followups"
+  printf 'step-12-wave-1\t900\nstep-11-wave-1\t800\nstep-12\t902\t1\n' > "$CANCCU_HOME/followups"
   printf '#!/usr/bin/env bash\ncase " $* " in\n  *" fetch "*|*" rev-parse "*|*" show "*|*" tag "*|*" ls-remote "*|*" push -q origin refs/tags/"*|*" check-ref-format "*)\n    printf "%%s\\n" "$*" >> "$FAKE/git.log"; exec "$FAKE_REAL_GIT" "$@" ;;\nesac\nexec "%s/git" "$@"\n' "$fb" > "$E/sbin/git"
   chmod +x "$E/sbin/git"
 }
@@ -61,7 +61,7 @@ p=$(grep -- '--key pkg-12-deep' "$FAKE/worker.log")
 ok "the prompt names the base (the step's PRs), the head and the issues" \
   grep -qF "from the step's merged PRs #50, #51 (read them with gh pr view <n> -R example-org/web and gh pr diff <n> -R example-org/web) up to origin/main at $(sf deep_head)" <<<"$p"
 ok "… the step's issues" grep -qF "The step's issues: #101, #103, #104." <<<"$p"
-ok "… its follow-up issues only" grep -qF "do not report them again): #900." <<<"$p"
+ok "… its follow-up issues only, the old per-wave ones and the step's ticket (#223)" grep -qF "do not report them again): #900, #902." <<<"$p"
 ok "… the report path, its sections and the verdict line" grep -qF "Write the report docs/reports/step-4-deep-review.md with the sections ## Architecture, ## Security, ## Contracts and ## Test quality" <<<"$p"
 ok "… the PR body lines and no Closes line" grep -qF "\`Package: deep-review\`, \`Step: 4 Search\` and \`Risk: low — the step's deep-review report\`, and no \`Closes\` line" <<<"$p"
 dpass
