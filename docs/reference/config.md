@@ -72,7 +72,7 @@ pacing are in [`config-steps.md`](config-steps.md).
 | `NOTIFY` | `github` | Where an ask of the product owner goes ([`notify.md`](notify.md)): `github`, the ping (with `PING=on`); `telegram`, a Telegram message only; `both`; `off`, nowhere (no ping either). Locked |
 | `TELEGRAM_CHAT_ID` | empty | The chat the bot writes to: a group with topics on (`-100…`), or a private chat (reply chains). Locked |
 | `TELEGRAM_USER_ID` | empty | The product owner's Telegram user id: only their replies, in an open topic, reach the inbox; empty: no reply is read. Locked |
-| `TELEGRAM_TOKEN_FILE` | `~/.config/canccu/telegram-token` | The bot token, mode 600, outside every repo; only the dispatcher's `curl` reads it, on stdin. Not settable with `config set` |
+| `TELEGRAM_TOKEN_FILE` | `$HOME/.config/canccu/telegram-token` | The bot token, mode 600, outside every repo; only the dispatcher's `curl` reads it, on stdin. Not settable with `config set` |
 | `LEADER` | `off` | `on`: the owner rule gives a leader the waiting items that are not the product owner's ([`leader.md`](leader.md#the-owner-of-a-waiting-item)); `canccu-init --leader` sets it with the kit. Locked |
 | `LEADER_ACCEPTS` | `none` | `technical`: the leader owns the accepts the rule does not give the product owner. Locked |
 | `LEADER_ACCEPTS_HIGH_RISK` | `0` | `1`: … a high-risk one too. Locked |

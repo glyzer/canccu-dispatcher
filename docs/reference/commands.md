@@ -94,7 +94,7 @@ canccu-dispatcher config set CAP=2 --why "less load"   # the project's config
 canccu-dispatcher config unset --project web CAP       # back to the global or default value
 ```
 
-`canccu-ship`, `canccu-pause`, `canccu-resume`, `canccu-stop`, `canccu-run`, `config set` and
+`canccu-ship`, `canccu-pause`, `canccu-resume`, `canccu-stop`, `canccu-run`, `canccu-notify`, `config set` and
 `config unset` each write one line to the project's `actions.log` per call, with the result `ok`
 or the first line of the refusal or error (`exit <status>` when there is none); a failed write
 never fails the command ([`state.md`](state.md#a-projects-dir)). A `--global` config write goes
