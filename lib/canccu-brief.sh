@@ -37,6 +37,11 @@ status_step() {
   echo "step: $(step_title "$m") · wave $(step_get "$m" wave) · $(step_get "$m" phase || true) · \$$sp/\$$STEP_BUDGET${c:+ · checkpoint #$c ${cs:-open}}"
 }
 
+# status_step_waiting <m>: one line per ready issue of the step waiting for its next wave (#236)
+status_step_waiting() {
+  local n; for n in $(step_waiting "$1"); do echo "  #$n · $(title_of "$n") · waiting for $(next_wave_why "$1")"; done
+}
+
 # brief_open <owner>: the feed's open lines of that owner, oldest first, as "<id> · <kind> · <unit>
 # · PR <pr> · <text>". Open: no later closed line's text starts with "closes <id>:" (§3).
 brief_open() {
@@ -56,7 +61,7 @@ brief() {
   echo "open for the product owner:"; brief_open po
   echo "next:"
   if fetch; then
-    if fetch_steps; then for m in $(current_step_ids); do echo "  $(status_step "$m")"; done
+    if fetch_steps; then for m in $(current_step_ids); do echo "  $(status_step "$m")"; status_step_waiting "$m" | sed 's/^/  /'; done
     else echo "  steps: gh error reading the milestones"; fi
     echo "  $(status_queue)"
   else echo "  queue: gh error"; fi

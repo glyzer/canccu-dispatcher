@@ -38,7 +38,7 @@ STATE = {"merged": (DONE, "merged"), "closed": (DONE, "closed"), "accept": (YOU,
          "merge": (RUN, "merging"), "merging": (RUN, "merging"), "plan": (RUN, "planning")}
 # an issue's status in the step overview → (mark, word)
 ISSUE = {"running": (RUN, "working"), "accept": (YOU, "accept"), "needs-you": (YOU, "needs you"),
-         "ready": (NEXT, "ready"), "blocked": (WAIT, "blocked"), "done": (DONE, "done")}
+         "ready": (NEXT, "ready"), "next-wave": (NEXT, "next wave"), "blocked": (WAIT, "blocked"), "done": (DONE, "done")}
 # a parked unit's needs-you kind → (word, what it waits on)
 PARKED = {"accept": ("accept", "your accept"), "plan": ("plan", "your OK"), "question": ("question", "your answer")}
 ORDER = [RUN, YOU, NEXT, WAIT, DONE]

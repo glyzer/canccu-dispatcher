@@ -6,6 +6,10 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 
 ## Unreleased
 
+- A ready step issue outside the running wave no longer waits unseen (#236): `canccu-status`, the
+  brief and the monitor list it as `waiting for the next wave of step <n> (label fast to run it
+  now)`. It is not added to the running wave; the next wave plans it
+  ([`packages.md`](docs/reference/packages.md#the-planner)).
 - A step whose last work issue closes after its wave ended (a polish PR still merging) keeps its
   turn (#239): it gets its health pass and checkpoint pause before the next step starts, with or
   without a checkpoint issue.

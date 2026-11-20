@@ -20,7 +20,7 @@ from rich.console import Console
 from .data import load, safe_title
 from .draw import render
 from .parts import PHONE_UPTO, fold_events
-from .roadmap import fast_rows, later_line, step_sections
+from .roadmap import fast_rows, later_line, loose_rows, step_sections
 from .screen import ALT_OFF, ALT_ON, HIDE, SHOW, SYNC_OFF, SYNC_ON, Display, live
 
 NOW = 1920110430  # 30 s after the fixtures' pass (2030-11-05 12:00:00 UTC)
@@ -306,6 +306,9 @@ def roadmap_checks(mock, check):
                                         + ["8–11 empty"]),
           "roadmap: the later steps %r" % later_line(web))
     check(plain_rows(step_sections(web, detail=False)[1]["rows"]) == [want[0]], "roadmap: no detail keeps the blocked rows")
+    nw = "the next wave of step 3 (label fast to run it now)"
+    rows = plain_rows(loose_rows(web, [{"issue": 260, "title": "Fix the token check", "status": "next-wave", "waits_on": nw}], False, {}))
+    check(rows == [["Fix the token check", "#260", "", "○ next wave", nw]], "roadmap: a ready issue outside the wave, without detail %r" % rows)
     fr = plain_rows(fast_rows(own))
     check([r[0] for r in fr] == ["#27", "#24", "#22", "#25"] and [r[2:4] for r in fr] == [
         ["–", "● working"], ["#31", "● fix-check"], ["#29", "✖ needs you"], ["#30", "✖ needs you"]],
