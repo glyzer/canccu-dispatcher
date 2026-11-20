@@ -152,6 +152,16 @@ printf '%s\t5\t50\t%s\tpo\n' "$((NOW - 60))" "$MB_RC" > "$CANCCU_HOME/accepts.lo
 dispatch --once
 ok "… its fix-check passes → auto-merge on that head, no request" eq "$(grep -c -- "--match-head-commit $MB_RC" "$FAKE/gh.log") $(asked)" "1 0"
 ok "… logged" grep -qF "#5 PR #50: canccu-ship's accept of ${MB_RC:0:7} holds: its fix-check passed" "$CANCCU_HOME/dispatch.log"
+env_new ship-unreviewed-off; rcrepo
+{ issue 5 in-progress,manual-accept; } | issues
+pr 50 5 "$MB_RC" | prs
+state 5 phase=check pr=50 "pass_sha=$MB_B" "full_sha=$MB_B" "merge_sha=$MB_B" stage=review "check_at=$NOW"
+ship 5
+fxpass ship-unreviewed-off-pass pass KEEP_ACCEPT_ON_MAIN_MERGE=0
+printf 'carry_sha=%s\ncarry_by=ship\n' "$MB_RC" >> "$CANCCU_HOME/state/5"
+printf '%s\t5\t50\t%s\tpo\n' "$((NOW - 60))" "$MB_RC" > "$CANCCU_HOME/accepts.log"
+dispatch --once
+ok "KEEP_ACCEPT_ON_MAIN_MERGE=0: canccu-ship's accept of an unreviewed head still holds once it passes" eq "$(grep -c -- "--match-head-commit $MB_RC" "$FAKE/gh.log") $(asked)" "1 0"
 env_new ship-passed; rcrepo
 { issue 5 in-progress,manual-accept; } | issues
 pr 50 5 "$MB_B" | prs

@@ -120,8 +120,9 @@ keep_accept() {
 carry_accept() {
   local n=$1 pr=$2 head=$3 old by out
   old=$(st_get "$n" carry_sha) by=$(st_get "$n" carry_by)
-  [ "${KEEP_ACCEPT_ON_MAIN_MERGE:-1}" = 1 ] && [ -n "$old" ] && [ -n "$by" ] && accept_channel "$by" || return 1
+  [ -n "$old" ] && [ -n "$by" ] && accept_channel "$by" || return 1
   if [ "$old" != "$head" ]; then
+    [ "${KEEP_ACCEPT_ON_MAIN_MERGE:-1}" = 1 ] || return 1
     pr_fetch "$pr"
     out=$(resolved_outside "$old" "$head") && [ -z "$out" ] || { st_set "$n" carry_sha= carry_by=; return 1; }
   fi
