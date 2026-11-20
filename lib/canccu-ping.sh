@@ -142,7 +142,9 @@ ping_pr_issue() {
 ping_tick() {
   local d="$CANCCU_HOME/pings" n kind pr form line text out rc f rk rid id prob='' checked='' stop='' complete=''
   local -A cur=() seen=()
-  case ${PING:-on} in
+  # NOTIFY sends no GitHub ping (telegram, off): as PING=off
+  local ping=${PING:-on}; notify_on github || ping=off
+  case $ping in
     on) ;;
     off) (( CANCCU_DRY )) || rm -rf "$d"; return 0 ;;
     *) warn_once ping-config "PING=$PING is neither on nor off: pings stay on" ;;

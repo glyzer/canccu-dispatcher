@@ -106,6 +106,7 @@ _doc_project() {
   sz=$( { du -s --apparent-size -B1 "$f" | cut -f1; } 2>/dev/null)
   (( ${sz:-0} > 5 * 1024 ** 3 )) &&
     echo "run temp dirs use $(numfmt --to=iec --round=nearest --format=%.1f "$sz"); a run may leak, check $(canccu_tilde "$f")"
+  notify_problem
   for l in "$WORKERS_DIR"/*.lock; do
     [ -e "$l" ] && ! lock_alive "$l" &&
       echo "stale run lock $(canccu_tilde "$l") (no process or window of it; canccu-worker --unlock $(lock_get "$l" repo) $(lock_get "$l" key), or remove it)"

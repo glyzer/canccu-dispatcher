@@ -134,6 +134,11 @@ HIGH_RISK_TEXT='migrations, sign-in or auth, rights, sessions, secrets, tenancy/
 REVIEW_LIGHT=1              # 1: a package of class low or normal gets a light review (a checklist at low effort); locked
 PING_KINDS=all              # the ping kinds (PING=on): all, or some of accept checkpoint plan question needs-you pr-needs-you; empty: none
 NOTIFY_CONTENT=full         # full|link: what an ask carries (the ping, the PR body block); link: its first line and the link only
+# the notifications (docs/reference/notify.md): where an ask of the product owner goes; locked
+NOTIFY=github               # github (the ping, PING on), telegram, both, or off (nothing, no ping either)
+TELEGRAM_CHAT_ID=''         # the chat the bot writes to: a group with topics (-100…) or a private chat
+TELEGRAM_USER_ID=''         # the product owner's Telegram user id: only their replies reach the inbox
+TELEGRAM_TOKEN_FILE=$HOME/.config/canccu/telegram-token   # the bot token, mode 600, outside every repo
 # the leader (an optional AI session that watches the project): which waiting items are its, and
 # not the product owner's (docs/reference/leader.md). LEADER=off: every item is the product owner's
 LEADER=off                  # on or off

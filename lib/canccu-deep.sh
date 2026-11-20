@@ -159,6 +159,7 @@ deep_read() {
   if [ -n "${2:-}" ]; then step_set "$m" round_blocking="$b" round_polish="$i" round_phase=polish round_from="$(step_get "$m" round_head)"
   else step_set "$m" deep=merged deep_blocking="$b" polish="$i" phase=idle; fi
   log "step $t: the deep review found $b blocking finding(s); polish issue #${i:-?} filed"
+  [ -z "$i" ] || feed - info polish - - "https://github.com/$REPO/issues/$i" "step $t: the deep review found $b blocking finding(s); polish issue #$i filed" >/dev/null
 }
 # polish_lookup <title>: the newest open issue with exactly this title (a create that printed no link)
 polish_lookup() {

@@ -170,6 +170,7 @@ ack=""; while l=$(canccu-dispatcher wait --owner leader ${ack:+--ack "$ack"}); d
 | `hold` | Nothing new starts: low disk or `STEP_BUDGET` (class `ask`), the usage back-off or a GitHub rate limit (class `info`, the end time in the text) | Free disk, raise `STEP_BUDGET`; a timer ends the others |
 | `dispatcher` | The dispatcher started after a stop it did not plan (killed, a crash, a reboot) | The log's last lines before the start |
 | `step-done` | A step is done (class `info`) | Nothing |
+| `polish` | The deep review filed a step's polish issue (class `info`; the link is the issue) | Nothing |
 | `handover` | A leader's item went unacknowledged for 60 minutes and is now the product owner's | The product owner clears it as the item it replaces |
 | `closed` | An item no longer waits (class `info`) | Nothing: drop the item it closes |
 
