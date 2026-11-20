@@ -11,17 +11,21 @@ feed_file() { echo "$CANCCU_HOME/events"; }
 feed_open_file() { echo "$CANCCU_HOME/feed.open"; }
 
 # feed <owner> <class> <kind> <unit> <pr> <url> <text>: appends one line and prints its id. The
-# id is read and the line written under the file's own lock: two writers never share an id.
+# id is read and the line written under the file's own lock: two writers never share an id. The
+# Telegram message goes after the lock (a slow API never holds up another writer), never to the
+# caller's output (it reads the id); `wait` sources this file alone, with no notifier.
 feed() {
-  local f a=() x; f=$(feed_file)
+  local f a=() x id; f=$(feed_file)
   (( ${CANCCU_DRY:-0} )) && return 0
   for x in "$@"; do x=${x//[$'\t\n\r']/ }; a+=("${x:--}"); done
-  ( flock -w 30 9 || exit 1
+  id=$( ( flock -w 30 9 || exit 1
     id=$(tail -n 1 "$f" 2>/dev/null | cut -f2)
     [[ $id =~ ^[0-9]+$ ]] || id=0
     id=$((id + 1))
     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$(iso "$(now)")" "$id" "${a[@]:0:6}" "${a[6]:0:200}" >> "$f" || exit 1
-    echo "$id" ) 9>>"$(kv_lock "$f")"
+    echo "$id" ) 9>>"$(kv_lock "$f")" ) || return 1
+  echo "$id"
+  ! declare -F notify_event >/dev/null || notify_event "$id" >/dev/null 2>&1 || true
 }
 # feed_closed <id> <new state> [unit]: the line that settles item <id>
 feed_closed() { feed - info closed "${3:--}" - - "closes $1: $2" >/dev/null; }

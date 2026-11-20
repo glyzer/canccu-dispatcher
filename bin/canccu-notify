@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# canccu-notify [--project <name>] <command> — the leader's side of the Telegram topics
+# (docs/reference/notify.md):
+#   reply <topic> <text>     a message in the topic (t<thread> or m<message>, as the inbox names it)
+#   note <topic> <text>      the leader's note, as a reply to the dispatcher's message
+#   close <topic>            posts Closed. and closes the topic: later replies there are dropped
+#   topics                   the open topics: <topic> <unit> <PR> <feed line>
+#   photos <unit> <png...>   images into the unit's topic, ten to an album, with the PR's link
+#   ids                      the chats and senders the bot saw lately, for TELEGRAM_CHAT_ID and
+#                            TELEGRAM_USER_ID (reads without moving the offset: the pass reads them again)
+#   test                     one test message in the chat
+# A run never notifies: CANCCU_ACTOR=run is refused.
+set -uo pipefail
+self=$(realpath "$0")
+case ${1:-} in --help|-h|"") sed -n '3,13s/^# \{0,1\}//p' "$self"; [ -n "${1:-}" ]; exit $? ;; esac
+# shellcheck source=../lib/canccu-common.sh
+. "$(dirname "$self")/../lib/canccu-common.sh"
+die() { echo "canccu-notify: $*" >&2; ACT_WHY=$*; exit 1; }
+[ "${CANCCU_ACTOR:-}" = run ] && { echo "canccu-notify: refused: a run never notifies (CANCCU_ACTOR=run)" >&2; exit 1; }
+act_track canccu-notify
+cmd=${1:-}; shift
+# ids is how the chat id is found: it needs the token only
+if [ "$cmd" = ids ]; then p=$(tg_token_problem); else p=$(notify_ready); fi
+[ -z "$p" ] || die "$p"
+case $cmd in
+  reply|note)
+    [ $# -eq 2 ] && [ -n "$2" ] || die "usage: canccu-notify $cmd <topic> <text>"
+    t=$2; [ "$cmd" = note ] && t="Leader's note: $2"
+    m=$(notify_post "$1" "$t" "$([ "$cmd" = note ] && echo note)") || die "$m"
+    echo "sent message $m in $1" ;;
+  close)
+    [ $# -eq 1 ] || die "usage: canccu-notify close <topic>"
+    notify_close "$1" say || die "no open topic $1"
+    echo "closed $1" ;;
+  topics)
+    awk -F '\t' -v OFS='\t' '$5 == "open" { print $1, ($3 == "-" ? "-" : "#" $3), ($4 == "-" ? "-" : "PR #" $4), ($2 == "-" ? "-" : "feed line " $2) }' \
+      "$(notify_dir)/topics" 2>/dev/null ;;
+  photos)
+    [ $# -ge 2 ] && [[ $1 =~ ^[0-9]+$ ]] || die "usage: canccu-notify photos <unit> <png...>"
+    k=$1; shift
+    for f in "$@"; do [ -f "$f" ] && [ -r "$f" ] || die "no image file $f"; done
+    pr=$(st_get "$k" pr); cap="#$k"
+    [ -z "$pr" ] || cap="#$k, PR #$pr"$'\n'"$(pr_url "$pr")"
+    m=$(notify_photos "$k" "$cap" "$@") || die "sending the images failed: $m"
+    echo "sent $# image(s) for #$k" ;;
+  ids)
+    r=$(tg_updates 0) || die "reading the updates failed: $r"
+    jq -r '[.[] | .message // empty | "chat \(.chat.id) · from \(.from.id) (\(.chat.title // .chat.type // "?"), \(.from.username // .from.first_name // "?"))"] | unique | .[]' <<<"$r"
+    [ -n "$(jq '.[]' <<<"$r")" ] || echo "no messages yet: write one to the bot (or in the group), then run this again" ;;
+  test)
+    m=$(tg_send "canccu: a test message for project $CANCCU_PROJECT" - -) || die "sending failed: $m"
+    echo "sent test message $m to chat $TELEGRAM_CHAT_ID" ;;
+  *) die "unknown command '$cmd' (canccu-notify --help)" ;;
+esac

@@ -160,6 +160,7 @@ pass() {
   # 6. after merge
   for n in "${closed[@]}"; do finish_unit "$n"; done
   feed_tick "${open[@]}"
+  notify_tick
   # 7. digest
   digest
   # the wait for a shared slot, then the status snapshot for canccu-monitor

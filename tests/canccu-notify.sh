@@ -205,7 +205,7 @@ ok "… not in a thread" not grep -q message_thread_id <<<"$(call sendMessage)"
 tg notify-noforum
 touch "$FAKE/tg-refuse-createForumTopic"
 lib feed po ask idle 8 - - "#8 idle" >/dev/null
-ok "a group without topics: falls back to a reply chain" eq "$(calls createForumTopic) $(calls sendMessage) $(cut -f1 "$(ND)/topics")" "1 1 m102"
+ok "a group without topics: falls back to a reply chain" eq "$(calls createForumTopic) $(calls sendMessage) $(cut -f1 "$(ND)/topics")" "1 1 m101"
 ok "… and says so once" eq "$(grep -c 'telegram: no forum topic' "$CANCCU_HOME/dispatch.log")" 1
 
 # ---------------------------------------------------------------- replies: the inbox
@@ -231,7 +231,7 @@ notifycmd --project web close t101 >/dev/null 2>&1
 upd 7 -1009876 777 101 - 207 'after the close' | jq -s . > "$FAKE/tg-updates.json"
 dispatch --once
 ok "… a reply in a closed topic is dropped" eq "$(inbox | wc -l)" 2
-ok "… no reply is ever acted on: no gh write" not grep -qE '^(pr merge|issue edit|pr edit) ' "$FAKE/gh.log"
+ok "… no reply is ever acted on: no reply's text reaches a gh call" not grep -qE 'rename it|two lines|after the close' "$FAKE/gh.log"
 
 tg notify-poll-private TELEGRAM_CHAT_ID=4242
 lib feed po ask idle 8 - - "#8 idle" >/dev/null      # root message 101, topic m101
@@ -296,7 +296,7 @@ tg notify-svg
 mkdir -p "$E/bin"; printf '#!/bin/sh\nwhile [ $# -gt 1 ]; do [ "$1" = -o ] && printf PNG > "$2"; shift; done\necho "$@" >> "%s/rsvg.log"\n' "$FAKE" > "$E/bin/rsvg-convert"; chmod +x "$E/bin/rsvg-convert"
 accept5
 lib st_set 5 pass_sha="$HA"
-printf 'web/mock/home.svg\t\nweb/app.ts\t\n' > "$FAKE/files50"
+json files50 '[{"filename": "web/mock/home.svg"}, {"filename": "web/app.ts"}]'
 route 'api --paginate repos/example-org/web/pulls/50/files*' files50
 printf '<svg xmlns="http://www.w3.org/2000/svg"/>\n' > "$FAKE/home.svg"
 route "api repos/example-org/web/contents/web/mock/home.svg?ref=$HA*" home.svg

@@ -11,6 +11,8 @@
 # canccu-init --leader <name> — give an existing project a leader: its kit (CLAUDE.md and
 # .claude/settings.json) in ~/.canccu/projects/<name>/leader/, and LEADER=on in its config
 # (docs/reference/leader.md, "The leader kit").
+# canccu-init --check <name> — check a project's notify setup: with NOTIFY telegram or both, the
+# bot token file, the chat id, the bot (getMe) and one test message (docs/reference/notify.md).
 set -uo pipefail
 self=$(realpath "$0")
 here=$(dirname "$self")/..
@@ -18,8 +20,8 @@ die() { echo "canccu-init: $*" >&2; exit 1; }
 # shellcheck source=../lib/canccu-projects.sh
 . "$here/lib/canccu-projects.sh"
 
-usage() { sed -n '3,13s/^# \{0,1\}//p' "$self" >&2; exit 2; }
-[ "${1:-}" = --help ] && { sed -n '3,13s/^# \{0,1\}//p' "$self"; exit 0; }
+usage() { sed -n '3,15s/^# \{0,1\}//p' "$self" >&2; exit 2; }
+[ "${1:-}" = --help ] && { sed -n '3,15s/^# \{0,1\}//p' "$self"; exit 0; }
 
 if [ "${1:-}" = --leader ]; then
   [ $# -eq 2 ] || usage
@@ -45,6 +47,33 @@ if [ "${1:-}" = --leader ]; then
     die "${err#canccu-dispatcher: }; no kit written"
   fi
   echo "leader kit written to $kt; canccu-up starts the leader there"
+  exit 0
+fi
+
+if [ "${1:-}" = --check ]; then
+  [ $# -eq 2 ] || usage
+  canccu_valid_name "$2" && [ -f "$CANCCU_ROOT/projects/$2/config" ] || die "no project '$2'"
+  # shellcheck disable=SC2034  # read by the lib
+  CANCCU_PROJECT=$2
+  # shellcheck source=../lib/canccu-common.sh
+  . "$here/lib/canccu-common.sh"
+  notify_on telegram || { echo "NOTIFY=${NOTIFY:-github}: nothing to check for Telegram"; exit 0; }
+  p=$(notify_ready)
+  if [ -n "$p" ]; then
+    echo "Telegram: $p"
+    cat <<EOT
+To set it up:
+  1. In Telegram, ask @BotFather for /newbot; put the token it gives in $(canccu_tilde "${TELEGRAM_TOKEN_FILE:-~/.config/canccu/telegram-token}") (one line, chmod 600).
+  2. Write to the bot, or add it to a group with topics on (as an admin that manages topics) and write there.
+  3. canccu-notify --project $2 ids lists the chats and senders it saw: set TELEGRAM_CHAT_ID and
+     TELEGRAM_USER_ID (canccu-dispatcher config set --project $2 ...), then run this check again.
+EOT
+    exit 1
+  fi
+  b=$(tg_call getMe) || { echo "Telegram: the bot does not answer ($b): check the token"; exit 1; }
+  m=$(tg_send "canccu: the setup check of project $2 reaches this chat" - -) || { echo "Telegram: the test message to chat $TELEGRAM_CHAT_ID failed ($m)"; exit 1; }
+  echo "Telegram: the bot @$(jq -r '.username' <<<"$b") reaches chat $TELEGRAM_CHAT_ID (test message $m)"
+  [ -n "${TELEGRAM_USER_ID:-}" ] || echo "Telegram: TELEGRAM_USER_ID is not set: no reply reaches the inbox (canccu-notify --project $2 ids)"
   exit 0
 fi
 
