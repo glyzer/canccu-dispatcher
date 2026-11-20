@@ -41,7 +41,7 @@ account's default model.
 Keys that differ between hosts but not between plans. A profile never sets them: put them in
 `~/.canccu/config`. [`../hosts.md`](../hosts.md) has a Max and a Pro example.
 
-- `CLONE_ROOT` (default `~/code`): where `canccu-init` clones a new project, and where
+- `CLONE_ROOT` (default `$HOME/code`): where `canccu-init` clones a new project, and where
   `canccu-up`'s panes start. The engine finds each project's repos from its own `CLONE`.
 - `EXTRA_PATH` (default empty): dirs put first on `PATH` for every command and run, for the
   tools cron and a fresh tmux server do not find (`claude` in `~/.local/bin`, `bun`).

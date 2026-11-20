@@ -38,7 +38,7 @@ pacing are in [`config-steps.md`](config-steps.md).
 | `HOST_PROFILE` | empty | The host profile, `hosts/<name>.conf` (`max` or `pro`); empty: none. Set it in `~/.canccu/config`, or `CANCCU_HOST_PROFILE` for one command. An unknown name is refused with the list |
 | `CAP` | `3` | The project's workers, reviewers and answerers running at once |
 | `TOTAL_CAP` | `3` | The same over all projects of this host together (they share one Claude account), shared by need ([`projects.md`](projects.md#fair-share-of-total_cap)). Up to `~/.canccu/config` only |
-| `CLONE_ROOT` | `~/code` | Where `canccu-init` clones a new project, and where `canccu-up`'s panes start. A host key ([`../hosts.md`](../hosts.md)). The engine finds each project's repos from its own `CLONE` |
+| `CLONE_ROOT` | `$HOME/code` | Where `canccu-init` clones a new project, and where `canccu-up`'s panes start. A host key ([`../hosts.md`](../hosts.md)). The engine finds each project's repos from its own `CLONE` |
 | `EXTRA_PATH` | empty | Dirs put first on `PATH` for every command and run, colon-separated: cron and a fresh tmux server start with a bare `PATH`. A host key |
 | `GUARD_VMEM_KB` | `2000000` | The virtual-memory cap, in KB, of every `gh`, `jq` and `python3` call (`guard`): a runaway kills itself, not the host. A host key: raise it on a host with much memory and big repos |
 | `WORKER_SKILLS` | empty | The skill sentence of the worker, package and health prompts, and of the plan-OK resume. Empty: the prompts name no skill. [`../hosts.md`](../hosts.md#skills) has the sentence for the superpowers plugin. Locked |
