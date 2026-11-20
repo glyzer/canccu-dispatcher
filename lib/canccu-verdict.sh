@@ -35,7 +35,7 @@ review_format_text() {
 # heading or stop line are its own (Evidence:, Fix:). Text on a heading's line is an item too,
 # unless it says none. mode: parse (review_parse), keptpre (the Pre-existing: items kept), eff ("<kept> <n> <p> <demoted> <classes>", nothing
 # without a count line or when it does not match), kept / moved (the items' text: the blocking ones
-# left / all others, in file order; keptn: the kept ones as "Finding <i>: <item>"), presec (1 when a Pre-existing: item is a security one), keys
+# left / all others, in file order; keptn: the kept ones as "Finding <i>: <item>"), presec (the first line of each Pre-existing: security item), keys
 # (the blocking ones left: "<class> <file> <line>"), why ("<plain> <settled> <unchanged>": the
 # demoted by class or Evidence:, by the history, by the pass rule), items ("<class> <file> <the
 # item's first line>" per item, tab-separated: the recurring-finding issue's lines).
@@ -143,12 +143,12 @@ _REVIEW_AWK='
       # a settled item was fixed or answered already: the follow-up issue would only repeat it
       if (mode == "moved" && !k && y != 2) out = out (out == "" ? "" : "\n") tx[i]
       # a pre-existing security item the brake keeps blocks this PR: no follow-up issue for it
-      if (sec[i] == "preexisting" && cl[i] == "security" && !k) psec = 1
+      if (sec[i] == "preexisting" && cl[i] == "security" && !k) { l = tx[i]; sub(/\n.*/, "", l); psec = psec (psec == "" ? "" : "\n") l }
       if (sec[i] == "preexisting" && k) kp++
     }
     if (mode == "keptpre") { print kp + 0; exit }
     if (mode == "kept" || mode == "keptn" || mode == "moved") { if (out != "") print out; exit }
-    if (mode == "presec") { if (psec) print 1; exit }
+    if (mode == "presec") { if (psec != "") print psec; exit }
     if (mode == "keys") exit
     if (mode == "why") { printf "%d %d %d\n", dw[0], dw[2], dw[3]; exit }
     if (hasc && w["blocking"] + 0 == cb && w["nonblocking"] + 0 == cn && w["preexisting"] + 0 == cp)
@@ -253,8 +253,9 @@ reviews_log() {
     >> "$CANCCU_HOME/reviews.log" || log "#$1 PR #$2: cannot append to reviews.log"
 }
 
-# preexisting_security <body>: a valid block lists a security finding under Pre-existing:
-preexisting_security() { review_valid "$1" && [ -n "$(_review_awk presec <<<"$1")" ]; }
+# preexisting_security <body>: the first line of each security finding a valid block lists under
+# Pre-existing: (each gets an issue of its own); nothing, and false, without one
+preexisting_security() { local l; review_valid "$1" && l=$(_review_awk presec <<<"$1") && [ -n "$l" ] && printf '%s\n' "$l"; }
 
 # review_md <pr>: the sections Also check, Never blocks and Known false positives of the repo's
 # REVIEW.md (contracts §8), cut at 4000 characters; empty without one. Read from origin/$BASE_BRANCH in the

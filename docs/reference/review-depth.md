@@ -28,7 +28,7 @@ Explicit asks still review:
 The worker's merge run for a conflict that pushed nothing (the head is still the one it started
 on) is no reuse: it goes to `needs-you`, as before.
 
-A head's non-blocking findings go to the follow-up issue once per review kind: a second verdict
+A head's non-blocking findings go to the follow-up ticket once per review kind: a second verdict
 of the same kind on the same head (an explicit re-review) files none (the full review after a
 light one on that head files its own), and logs
 `#<n> PR #<pr>: non-blocking findings of <sha7> are filed already; not filed again`.

@@ -19,6 +19,13 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
   - `PACE=off` (now `cap`);
   - `CADENCE_DAYS=0` (now `14`; a round runs only in a milestone marked `Cadence: on`);
   - `FIXCHECK_COUNT_RESOLVED=0` (now `1`).
+- One follow-up ticket per step (#223): non-blocking findings go into the body of
+  `Follow-ups: step <title>` (in the step's milestone) or `Follow-ups: fast lane`, one
+  `### PR #<pr> (…)` section per verdict, one `- [ ]` line per finding; a body past 60000
+  characters opens `(part 2)`. A pre-existing security finding gets an issue of its own, labelled
+  `security`, instead of labelling the ticket. **Upgrade:** the per-wave issues get nothing new;
+  close them when they are triaged. An open fast-lane issue recorded before gets the new sections
+  in its body.
 - Fix-check by number (#229): the fix run and the fix-check get the blocking findings as
   `Finding 1:` to `Finding <c>:`, and the fix-check answers each on its own line. A `pass` that
   leaves one out, or calls one not fixed or broken, is `needs-you`, not a pass.

@@ -40,7 +40,7 @@ tag matching `STEP_TAG` exactly, `{n}` as digits only, so no round tag, with the
 below the step's own number, since with parallel tracks a later step's tag can be newer; with none
 below it, the step's merged PRs from `steps/<m>.packages`, since any other such tag is the step's
 own or a later step's), the head it reads (`origin/main`'s sha, the step field `deep_head`), the
-step's issues and its follow-up issues (the `followups` keys `step-<m>-*`). It writes
+step's issues and its follow-up tickets (the `followups` key `step-<m>`, and the older `step-<m>-*`). It writes
 `docs/reports/step-<n>-deep-review.md` (`<n>`: the leading number of the milestone's title, else
 the milestone number) with the sections Architecture, Security, Contracts and Test quality, then
 the finding block of contracts §8 ending in `Review verdict: pass|changes <deep_head>`, and opens

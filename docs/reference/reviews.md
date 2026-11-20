@@ -33,13 +33,11 @@ breaks a contract or holds a destructive migration; for a package, `Risk: <low|n
 Every review and fix-check file ends with the finding block of `docs/plan/contracts.md` §8; its
 classes, its rules and how the dispatcher decides what blocks are in [`findings.md`](findings.md).
 
-**Non-blocking findings go to a follow-up issue.** From every verdict comment (a review's or a
-fix-check's, `pass` or `changes`, once per verdict) the dispatcher takes the items under
-"Non-blocking:" (with the demoted and the pre-existing ones) and files them in one open issue per wave: `Follow-ups: non-blocking review
-findings, step <title>, wave <w>` for a package, `…, health pass` for the health pass, and
-`… (fast lane)` for every other issue. The first findings make the issue (not labelled `ready`:
-you decide), later ones are comments on it while it is open; a closed one makes a new issue.
-A PR that closes the follow-up issue files its own findings in a new one. The
+**Non-blocking findings go to a follow-up ticket.** From every verdict comment (a review's or a
+fix-check's, `pass` or `changes`, once per verdict and head) the dispatcher files the items under
+"Non-blocking:" (with the demoted and the pre-existing ones) as checklist lines in the body of one
+ticket per step, `Follow-ups: step <title>`, or `Follow-ups: fast lane` for an issue outside a
+step ([`findings.md`](findings.md#the-follow-up-ticket)). The
 fix run of a `changes` verdict gets only the blocking findings, and the fix-check checks only
 those (its file opens with `Change:` too). They are saved to `reviews/<pr>/<head>.findings.md`
 before the fix run starts; its prompt names that file and inlines at most their first 3,000
@@ -96,11 +94,8 @@ only what is still open or newly broken; it looks for nothing new except a corre
 bug the fix introduced, and ignores changes that came from merging `origin/main`. It copies the
 review's `Maintainer accept:` and `Risk:` lines into the block, and adds its own for a breaking
 change in the fix diff.
-The fix run and the fix-check get the review's blocking findings numbered, `Finding 1:` to
-`Finding <c>:`, and the fix-check answers each on its own line, `Finding <i>: fixed`, `not fixed`
-or `broken` (#229). A fix-check `pass` that leaves a finding out, or calls one not fixed or broken,
-is no pass: the dispatcher saves its file as the open items and raises `needs-you` (`needs-work`
-gives one more fix round). A review without the finding block has no numbers and is not checked.
+The findings come numbered (`Finding 1:`…), and each gets its line, `Finding <i>: fixed`, `not
+fixed` or `broken` (#229): a `pass` that leaves one out or calls one open is `needs-you`.
 Its file is posted like a review, so `review-gate` passes on the new head.
 
 **Effort:** `low` by default; `medium` above 300 changed lines in the fix diff, when it touches
