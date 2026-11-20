@@ -98,8 +98,8 @@ dispatch --once
 ok "a Pre-existing: [security] item: the PR passes" eq "$(grep -c '^pr merge 50' "$FAKE/gh.log")" 1
 ok "… the item gets an issue of its own, labelled security (#223)" \
   grep -q '^issue create -R example-org/web --title Security (pre-existing): \[security\] src/old.ts:9 .*--label security --body .*PR #50' "$FAKE/gh.log"
-ok "… the follow-up ticket's line links it; the ticket has no label" \
-  eq "$(grep -cxF -- "- [ ] ${PRE#- } (security: #901)" "$FAKE/created-900") $(grep -c -- '--title Follow-ups.*--label' "$FAKE/gh.log")" "1 0"
+ok "… the follow-up ticket's line links it; the ticket's label is follow-up, not security" \
+  eq "$(grep -cxF -- "- [ ] ${PRE#- } (security: #901)" "$FAKE/created-900") $(grep -c -- '--title Follow-ups.*--label follow-up' "$FAKE/gh.log") $(grep -c -- '--title Follow-ups.*--label security' "$FAKE/gh.log")" "1 1 0"
 ok "security is one of the dispatcher's labels" grep -qw security <<<"$(lib eval 'echo $CANCCU_LABELS')"
 
 venv pre-security-comment "$(review pass "0 0 1" "" "" "$PRE")"
