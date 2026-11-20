@@ -8,7 +8,7 @@ Part of the reference; the index is [`README.md`](README.md).
 You learn at once, on your phone, when something needs you: the dispatcher posts one comment as
 `REVIEWER_LOGIN` that starts with `@USER_LOGIN` and carries [the ask form](#the-ask-form), so the
 GitHub mobile app sends a push (your own comments notify nobody). Only items whose owner is the product owner ping: one of owner `leader`
-([`leader.md`](leader.md#the-owner-of-a-waiting-item)) is the leader's to read. No run, no Claude tokens. `PING=off` turns them off.
+([`leader.md`](leader.md#the-owner-of-a-waiting-item)) is the leader's to read. No run, no Claude tokens. `PING=off` turns them off; so does `NOTIFY` `telegram` or `off` ([`notify.md`](notify.md): the same asks on Telegram).
 
 The rules' `PING_KINDS` names the states that ping: `all` (the default), or a list. For example
 `PING_KINDS='accept checkpoint plan'` pings only what is yours alone to decide, and leaves
