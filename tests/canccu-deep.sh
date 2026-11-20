@@ -147,6 +147,34 @@ dpass
 ok "the polish issue closed → the health pass starts, no second deep review" \
   eq "$(grep -c -- '--key pkg-12-health' "$FAKE/worker.log") $(grep -c -- '--key pkg-12-deep' "$FAKE/worker.log")" "1 0"
 
+# #239: the polish wave is over (phase idle) while its PR merges, and the step has no checkpoint
+# issue: once the PR closes the polish issue, the step stays current for its health pass
+merged deep-polish-nocp 'the cache is never cleared'
+echo '[]' > "$FAKE/cps.json"
+dpass
+{ issue 90 epic "" "4 Search"; issue 41 ready "" "5 Later"; } | issues
+jq -s . > "$FAKE/ms.json" < <(ms 12 "4 Search" 4; ms 13 "5 Later")
+sed -i 's/^phase=.*/phase=idle/' "$CANCCU_HOME/steps/12"; printf 'wave=11\n' >> "$CANCCU_HOME/steps/12"
+dpass
+ok "#239: the polish merged, no checkpoint issue → the health pass starts; the next step waits" \
+  eq "$(grep -c -- '--key pkg-12-health' "$FAKE/worker.log") $(grep -c -- '--key plan-13' "$FAKE/worker.log") $(dlog 'step 5 Later is current')" "1 0 0"
+rm -f "$WORKERS_DIR/web-pkg-12-health.lock"; last pkg-12-health done $'all clean\nHealth: nothing to do'
+dpass; dpass
+ok "… the health pass done → the step is done (no checkpoint pause), and only then the next step plans" \
+  eq "$(sf phase) $(sf health) $(grep -c -- '--key plan-13' "$FAKE/worker.log")" "done skipped 1"
+
+# … with a checkpoint issue open: the health pass, then the checkpoint pause, the next step waits
+merged deep-polish-cp 'the cache is never cleared'
+dpass
+{ issue 90 epic "" "4 Search"; issue 41 ready "" "5 Later"; } | issues
+jq -s . > "$FAKE/ms.json" < <(ms 12 "4 Search" 4; ms 13 "5 Later")
+sed -i 's/^phase=.*/phase=idle/' "$CANCCU_HOME/steps/12"
+dpass
+rm -f "$WORKERS_DIR/web-pkg-12-health.lock"; last pkg-12-health done $'all clean\nHealth: nothing to do'
+dpass; dpass
+ok "#239: … with a checkpoint open: health pass, then the checkpoint pause; the next step waits" \
+  eq "$(sf phase) $(grep -c -- '--key pkg-12-health' "$FAKE/worker.log") $(grep -c -- '--key plan-13' "$FAKE/worker.log")" "checkpoint 1 0"
+
 # the first polish create fails: the retry files it from deep_tick, and the same pass's stale
 # snapshot (no open work) must not start the health pass with the polish issue open
 merged deep-polish-retry 'the cache is never cleared'

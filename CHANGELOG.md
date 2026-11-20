@@ -6,6 +6,9 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 
 ## Unreleased
 
+- A step whose last work issue closes after its wave ended (a polish PR still merging) keeps its
+  turn (#239): it gets its health pass and checkpoint pause before the next step starts, with or
+  without a checkpoint issue.
 - A step at its checkpoint with new open work in its milestone goes back to planning (#243): the
   work no longer waits for the `checkpoint-ok` it is meant to earn; the health pass and a fresh
   summary follow once it is closed.

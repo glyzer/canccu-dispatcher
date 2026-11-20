@@ -22,17 +22,19 @@ fetch_steps() {
   STEPS_OK=1
 }
 
-# step_phases: {"<m>": "<phase>"} of every step with a state file
+# step_phases: {"<m>": {"phase": …, "health": …}} of every step with a state file
 step_phases() {
   local f m
   { for f in "$CANCCU_HOME"/steps/*; do
-      m=${f##*/}; [[ $m =~ ^[0-9]+$ ]] && [ -f "$f" ] && printf '%s\t%s\n' "$m" "$(step_get "$m" phase)"
-    done; } | jq -Rn '[inputs | split("\t") | {key: .[0], value: .[1]}] | from_entries'
+      m=${f##*/}; [[ $m =~ ^[0-9]+$ ]] && [ -f "$f" ] && printf '%s\t%s\t%s\n' "$m" "$(step_get "$m" phase)" "$(step_get "$m" health)"
+    done; } | jq -Rn '[inputs | split("\t") | {key: .[0], value: {phase: .[1], health: .[2]}}] | from_entries'
 }
 
 # STEP_JQ: per open milestone, in milestone order: its track, work issues open and closed, epic,
 # checkpoint (the open one, else the newest closed one) and whether it is pending. Its values come
-# by --slurpfile (step_jq), each one as [value]
+# by --slurpfile (step_jq), each one as [value]. A step's phase is a string or {phase, health}.
+# An idle step with work done and no health pass yet is pending (#239): its last issue can close
+# after its wave ended, and the step keeps its turn until step_tick sets health-due.
 STEP_JQ="$MILESTONE_KEY_JQ"'
   def work: [.labels[]?.name] | (index("epic") or index("checkpoint")) | not;
   [ $ms[0][] | select(.number != null) | .title as $t
@@ -46,9 +48,11 @@ STEP_JQ="$MILESTONE_KEY_JQ"'
         checkpoint: (([ $cp[] | select(.state == "OPEN") ] | sort_by(.number) | first)
                      // ([ $cp[] ] | sort_by(.number) | last)
                      | if . == null then null else {issue: .number, state: (.state | ascii_downcase)} end),
-        phase: ($ph[0][(.number | tostring)] // null) }
+        st: ($ph[0][(.number | tostring)] // null | if type == "object" then . else {phase: .} end) }
+    | .phase = (.st.phase // null)
     | .pending = (.work_open > 0 or (.checkpoint.state == "open")
-                  or (.phase | IN("planning", "running", "health-due", "deep", "health", "checkpoint", "needs-you"))) ]
+                  or (.phase | IN("planning", "running", "health-due", "deep", "health", "checkpoint", "needs-you"))
+                  or (.phase == "idle" and .work_closed > 0 and ((.st.health // "") == ""))) | del(.st) ]
   | sort_by(.k, .title) | map(del(.k))'
 
 # current_steps_pure <milestones> <checkpoints> <open issues> <step phases> → the current steps:
