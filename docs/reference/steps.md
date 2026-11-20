@@ -75,6 +75,12 @@ event must be by `USER_LOGIN`, after the summary) or close it; the dispatcher th
 the step is done. The fast lane runs on during the pause. A step without an open checkpoint
 skips the pause. The step's epic closes once the step is done and its sub-issues are closed.
 
+**New work at the checkpoint** (#243). An open work issue in the step while it waits (your "not
+yet, polish these first") takes it back to `idle`: the checkpoint's `needs-you` goes and the
+planner plans that work like any. Once it is closed, the health pass and the checkpoint come
+again, with a fresh summary; the deep review is not redone. Logged: `step <title>: new open work
+at its checkpoint (#a, #b); back to planning`.
+
 **Step tag.** With `STEP_TAG` set (locked: a tag push can start a release workflow; the default
 `step-{n}`, `{n}` as above), the checkpoint OK fetches, tags `origin/main`'s head and pushes the
 tag with the project's own login, as a merge of main is pushed. An existing tag is never moved.

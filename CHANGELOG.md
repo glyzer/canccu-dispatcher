@@ -6,6 +6,9 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 
 ## Unreleased
 
+- A step at its checkpoint with new open work in its milestone goes back to planning (#243): the
+  work no longer waits for the `checkpoint-ok` it is meant to earn; the health pass and a fresh
+  summary follow once it is closed.
 - A worker that stops at its turn or time budget while its PR moves on continues on its own
   (#127): up to `CONTINUE_MAX` (default `3`, `0` turns it off) fresh runs with its handoff, each
   with a run's turns and minutes and the USD the unit's work budget has left; `needs-you` only

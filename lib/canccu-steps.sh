@@ -459,20 +459,35 @@ step_holds_epic() {
 # there is none. A finished package's issue open again is not one: like any issue of the step, the
 # planner takes it with `ready` (merged_left leaves one with needs-you until a person looked).
 step_stop_reason() {
-  local m=$1 t c e
-  t=$(step_title "$m")
+  local m=$1 c e
   if [ -n "$(step_get "$m" done_at)" ]; then
     c=$(cur "$m" 'select(.checkpoint.state == "open") | .checkpoint.issue')
     [ -n "$c" ] && { echo "checkpoint #$c is open again, but the step was done"; return 0; }
     if (( $(cur "$m" .work_open) > 0 )); then
-      echo "the step was done and has new open work: $(jqr --arg t "$t" '[.[] | select((.milestone.title // null) == $t)
-        | select([.labels[].name] | (index("epic") or index("checkpoint")) | not) | "#\(.number)"] | join(", ")' <<<"$ISSUES")"
+      echo "the step was done and has new open work: $(step_open_work "$m")"
       return 0
     fi
   fi
   e=$(step_get "$m" epic)
   [ -n "$e" ] && [ "$(step_get "$m" phase)" != "done" ] && ! _issue_open "$e" && echo "its epic #$e is closed while the step runs"
   return 0
+}
+
+# step_open_work <m>: its open work issues, "#a, #b"
+step_open_work() {
+  jqr --arg t "$(step_title "$1")" '[.[] | select((.milestone.title // null) == $t)
+    | select([.labels[].name] | (index("epic") or index("checkpoint")) | not) | "#\(.number)"] | join(", ")' <<<"$ISSUES"
+}
+# checkpoint_back <m>: the checkpoint's "not yet, polish these first" is new work in the step
+# (#243), which must not wait for the checkpoint-ok it is meant to earn: the step plans it like
+# any, and once it is closed the health pass and the checkpoint come again, with a fresh summary.
+# The deep review is not redone: the polish is what it asked for.
+checkpoint_back() {
+  local m=$1 c; c=$(cur "$m" '.checkpoint.issue // empty')
+  [ -z "$c" ] || mut gh issue edit "$c" -R "$REPO" --remove-label needs-you || true
+  step_set "$m" phase=idle health= health_pr= checkpoint_at= checkpoint_url=
+  feed_settle "checkpoint-$m" "new work"
+  log "step $(step_title "$m"): new open work at its checkpoint ($(step_open_work "$m")); back to planning"
 }
 
 # ---------------------------------------------------------------- one step, once per pass
@@ -508,7 +523,8 @@ step_tick() {
     # a polish issue filed just now is not in this pass's snapshot (work_open 0): the health
     # pass would start with it open, so the step waits for the next pass's snapshot
     deep) deep_tick "$m"; [ "$(step_get "$m" phase)" = idle ] && return 0 ;;
-    health|checkpoint) checkpoint_tick "$m" ;;
+    checkpoint) if (( $(cur "$m" .work_open) > 0 )); then checkpoint_back "$m"; else checkpoint_tick "$m"; fi ;;
+    health) checkpoint_tick "$m" ;;
   esac
   ph=$(step_get "$m" phase)
   # every work issue closed: the step stays current (health-due) until its health pass starts
