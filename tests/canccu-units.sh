@@ -301,6 +301,8 @@ ok "canccu-run <member> resumes the package, never a run of the issue alone" \
   eq "$(grep -c -- '--key pkg-12-auth' "$FAKE/worker.log") $(grep -c -- '--name #103' "$FAKE/worker.log")" "1 0"
 PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-stop" 103 > "$E/out" 2>&1
 ok "canccu-stop <member> stops the package" grep -q -- '--kill web pkg-12-auth' "$FAKE/worker.log"
+# a head with a review pass: canccu-ship arms only such a head (an unreviewed one gets its fix-check first)
+echo "pass_sha=$HA" >> "$CANCCU_HOME/state/pkg-12-auth"
 PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-ship" 101 > "$E/out" 2>&1
 ok "canccu-ship <member> ships the package's PR" grep -q "^pr merge 50 -R example-org/web --auto --match-head-commit $HA" "$FAKE/gh.log"
 

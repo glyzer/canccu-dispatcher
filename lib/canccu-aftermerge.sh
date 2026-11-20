@@ -113,7 +113,7 @@ unit_merged() {
   findings_record "$pr"
   log "#$n merged (PR #$pr, ${how:-by hand})"
   unit_cleanup "$n" "$pr"
-  [ "$(guard 10 git -C "$CLONE" branch --show-current)" = main ] && { mut git -C "$CLONE" pull -q --ff-only || log "git pull in $CLONE failed"; }
+  [ "$(guard 10 git -C "$CLONE" branch --show-current)" = "$BASE_BRANCH" ] && { mut git -C "$CLONE" pull -q --ff-only || log "git pull in $CLONE failed"; }
   for m; do advance "$m"; close_epics "$m"; done
 }
 

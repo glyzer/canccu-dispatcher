@@ -6,32 +6,50 @@ Part of the reference; the index is [`README.md`](README.md). Every config key i
 
 ## Host profiles
 
-A host profile pins the values that depend on the Claude plan and the host, so a later change to
-the defaults does not move a running host. `hosts/max.conf` (a Claude Max plan) sets today's
-defaults of `CAP`, `TOTAL_CAP`, every `BUDGET_*` key, `STEP_BUDGET`, `USAGE_SLOW`, `USAGE_STOP`
-and `USAGE_WEEKLY_DRAIN`. `hosts/pro.conf` (a Claude Pro plan) sets the same keys for one run
-at a time with the same budgets as max (the Pro limit is parallelism, not run length), its own
-usage throttle, and `REVIEW_EFFORT_MAX=medium`. `~/.canccu/config` overrides any
-of them. `install.sh --host-profile <name>` adds `HOST_PROFILE=<name>` to a config without that
-key.
-
-Both profiles also set the run models, so a host gets a sensible split from its plan alone:
+A host profile pins only the values that depend on the Claude plan: the caps, the budgets, the
+usage throttle, the run models and the review effort. Every other key is the same under both
+(`tests/canccu-hosts.sh` checks), so a later change to the defaults does not move a running host.
+`~/.canccu/config` overrides any of them. `install.sh --host-profile <name>` adds
+`HOST_PROFILE=<name>` to a config without that key.
 
 | Key | `max` | `pro` |
 | --- | --- | --- |
+| `CAP`, `TOTAL_CAP` | `2`, `2` | `1`, `1` |
+| every `BUDGET_*` key, `STEP_BUDGET` | today's defaults | the same as `max` |
+| `USAGE_SLOW`, `USAGE_STOP`, `USAGE_WEEKLY_DRAIN` | `60`, `90`, `90` | `80`, `95`, `90` |
 | `MODEL` (workers) | `claude-opus-5-5` | `claude-sonnet-5-5` |
 | `FIX_MODEL` | empty: `MODEL` | `claude-sonnet-5-5` |
 | `PLAN_MODEL` | `claude-opus-5-5` | `claude-opus-5-5` |
 | `REVIEW_MODEL` | `claude-opus-5-5` | `claude-opus-5-5` |
-| `REVIEW_MODEL_LIGHT` | `claude-sonnet-5-5` | `claude-sonnet-5-5` |
-| `FIXCHECK_MODEL` | `claude-sonnet-5-5` | `claude-sonnet-5-5` |
+| `REVIEW_MODEL_LIGHT` | empty: `REVIEW_MODEL` | empty: `REVIEW_MODEL` |
+| `FIXCHECK_MODEL` | empty: `MODEL` | `claude-opus-5-5` |
 | `HEALTH_MODEL` | empty: `MODEL` | `claude-sonnet-5-5` |
-| `REVIEW_EFFORT_MAX` | `medium` | `medium` |
+| `REVIEW_EFFORT_MAX`, `DEEP_REVIEW_EFFORT` | `high`, `high` | `medium`, `medium` |
 
-To use another model, set its key in `~/.canccu/config` (every project of the host) or in a
+The Pro limit is parallelism, not run length: one run at a time, with the same budgets as
+`max` (the product owner's decision in #168). Under v2 a Max host runs two at once. A Pro
+review never runs above medium effort, a risky or gated path included (`medium capped` in the
+review's log line).
+
+To use another value, set its key in `~/.canccu/config` (every project of the host) or in a
 project's `config` (that project only); either wins over the profile, for example
 `MODEL=claude-opus-5-5` on a Pro host. Without a profile every model key stays empty: the
 account's default model.
+
+## Host keys
+
+Keys that differ between hosts but not between plans. A profile never sets them: put them in
+`~/.canccu/config`. [`../hosts.md`](../hosts.md) has a Max and a Pro example.
+
+- `CLONE_ROOT` (default `$HOME/code`): where `canccu-init` clones a new project, and where
+  `canccu-up`'s panes start. The engine finds each project's repos from its own `CLONE`.
+- `EXTRA_PATH` (default empty): dirs put first on `PATH` for every command and run, for the
+  tools cron and a fresh tmux server do not find (`claude` in `~/.local/bin`, `bun`).
+- `GUARD_VMEM_KB` (default `2000000`): the memory cap of every `gh`, `jq` and `python3` call.
+- `WORKER_SKILLS`, `REVIEW_SKILLS`: the skills the prompts name
+  ([`../hosts.md`](../hosts.md#skills)).
+- `HEALTH_CHECKLIST`, `MERGE_METHOD`, `BASE_BRANCH`: per project as much as per host
+  ([`config.md`](config.md)).
 
 The tools read `HOST_PROFILE` from `~/.canccu/config` in a subshell, so nothing else in that
 file applies before the profile. A tmux server keeps the environment it started with: a

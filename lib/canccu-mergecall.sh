@@ -6,11 +6,11 @@
 
 # merge_flags <direct 0|1>: MF is the method a merge passes (merge_method_read): none for the
 # merge queue; unknown → none for auto-merge, --squash for a direct merge (as before). Not run in
-# $(…), so MERGE_METHOD stays read for the rest of the pass.
+# $(…), so MERGE_FLAG stays read for the rest of the pass.
 merge_flags() {
   merge_method_read
   MF=()
-  case $MERGE_METHOD in --*) MF=("$MERGE_METHOD") ;; unknown) (( $1 )) && MF=(--squash) ;; esac
+  case $MERGE_FLAG in --*) MF=("$MERGE_FLAG") ;; unknown) (( $1 )) && MF=(--squash) ;; esac
   return 0
 }
 

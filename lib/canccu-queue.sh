@@ -50,12 +50,12 @@ blocked_ours() { [ -e "$CANCCU_HOME/blocked/$1" ]; }
 blocked_unmark() { (( CANCCU_DRY )) || rm -f "$CANCCU_HOME/blocked/$1"; }
 
 # is_exclusive <n>: the issue is of the one-at-a-time kind (the rules): it has EXCLUSIVE_LABEL,
-# or its body or its plan on origin/main matches EXCLUSIVE_PATTERN
+# or its body or its plan on origin/$BASE_BRANCH matches EXCLUSIVE_PATTERN
 is_exclusive() {
   [ -n "$EXCLUSIVE_LABEL" ] && has_label "$1" "$EXCLUSIVE_LABEL" && return 0
   [ -n "$EXCLUSIVE_PATTERN" ] || return 1
   jqr --argjson n "$1" '.[] | select(.number == $n) | .body // ""' <<<"$ISSUES" | grep -qE "$EXCLUSIVE_PATTERN" && return 0
-  guard 10 git -C "$CLONE" show "origin/main:docs/plans/issue-$1.md" 2>/dev/null | grep -qE "$EXCLUSIVE_PATTERN"
+  guard 10 git -C "$CLONE" show "origin/$BASE_BRANCH:docs/plans/issue-$1.md" 2>/dev/null | grep -qE "$EXCLUSIVE_PATTERN"
 }
 exclusive_busy() {
   local m

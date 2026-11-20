@@ -32,11 +32,60 @@ To move a project to another host:
 - A usage-limit back-off (`~/.canccu/backoff`) stops only the host that hit the limit. The other
   host's runs hit it too and back off on their own.
 
-## Host profiles
+## What a host decides
 
-`HOST_PROFILE` in each host's `~/.canccu/config` picks the values that suit that host's Claude
-plan: caps, budgets and the throttle ([`reference/config.md`](reference/hosts.md#host-profiles)).
-Two hosts on different plans get different profiles.
+One release runs unchanged on every host: what differs between hosts is a setting, never a value
+in the code. Each host's `~/.canccu/config` decides:
+
+- **the plan profile**, `HOST_PROFILE`: `max` or `pro`. It sets the caps, budgets, usage
+  thresholds, run models and review effort of that Claude plan
+  ([`reference/hosts.md`](reference/hosts.md#host-profiles));
+- **caps and thresholds** beyond the profile: `TOTAL_CAP` (this host's share of the account),
+  `USAGE_SLOW`, `USAGE_STOP`, `USAGE_WEEKLY_DRAIN`;
+- **the model**: `MODEL` and the other model keys, when the profile's split does not suit;
+- **paths**: `CLONE_ROOT` (where projects are cloned and the panes start) and `EXTRA_PATH`
+  (dirs a bare `PATH` lacks);
+- **the memory guard**: `GUARD_VMEM_KB`, the memory cap of every `gh`, `jq` and `python3`
+  call;
+- **skills**: `WORKER_SKILLS` and `REVIEW_SKILLS` (below).
+
+A project's own `config` still wins over the host's for every key but `TOTAL_CAP` and
+`HOST_PROFILE`. `canccu-dispatcher doctor` prints the profile and each key the host's config
+overrides.
+
+### A Max host
+
+```sh
+# ~/.canccu/config
+HOST_PROFILE=max
+TOTAL_CAP=2                          # the profile's; lower it when another host shares the account
+CLONE_ROOT=$HOME/code
+EXTRA_PATH=$HOME/.local/bin:$HOME/.bun/bin
+WORKER_SKILLS='Use the superpowers skills test-driven-development, systematic-debugging and verification-before-completion. On the plan tier use writing-plans for the plan, and executing-plans after plan-ok.'
+```
+
+### A Pro host
+
+```sh
+# ~/.canccu/config
+HOST_PROFILE=pro                     # one run at a time, Sonnet workers, reviews at medium effort
+CLONE_ROOT=$HOME/src
+EXTRA_PATH=$HOME/.local/bin
+GUARD_VMEM_KB=1500000                # a small machine
+```
+
+### Skills
+
+The prompts name a skill only when the host has it. `WORKER_SKILLS` (default empty) is the
+sentence the worker, package and health prompts and the plan-OK resume carry: empty, they name
+none. A host with the [superpowers](https://github.com/obra/superpowers) plugin sets the sentence
+the Max example shows, which is what every prompt said before the setting existed. The list of
+skills a worker must not use (brainstorming, worktrees, subagents and the like) stays in every
+prompt either way: the dispatcher owns those steps.
+
+`REVIEW_SKILLS` (default `code-review security-review`) names the reviewer's two skills: the
+first reviews the diff, in the full review and the fix-check; the second is the security review
+its trigger asks for. Both defaults are Claude Code's own skills.
 
 ## The reviewer bot
 

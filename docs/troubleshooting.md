@@ -7,6 +7,9 @@ Start with the two checks that cover most problems:
   install and each project (dependencies, links, `PATH`, the host profile, the logins, the
   reviewer token and its deny rule, the clone, the `gh` credential, the dispatcher lock, the
   snapshot's age, stale run locks, run temp dirs over 5 GB) and `no problems found` when clean.
+  Lines starting `host: ` follow: the host profile, each key `~/.canccu/config` sets with the
+  value the profile (or the default) gives it, and each issue's runs of the last 24 h with their
+  cost, more than 3 marked.
 - `canccu-status [--project <name>]` says what the dispatcher is doing and why something waits.
 
 The project's `dispatch.log` (`~/.canccu/projects/<name>/dispatch.log`) has one line per action
