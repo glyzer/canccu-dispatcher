@@ -231,6 +231,14 @@ else
   ok "monitor: draws the snapshot the dispatcher wrote (the Summary)" \
     eq "$(grep -cE '^✖ NEEDS YOU · 1$|^NOW · running 1 of 3$|^  #3  work ◉ .* · Issue 3$|^ \[1 Summary ✖1\] ' <<<"$(sed 's/\x1b\[[0-9;]*m//g' <<<"$out")")" 4
   ok "monitor: reads only the snapshot: no gh, no git" eq "$(cat "$FAKE/gh.log" "$FAKE/git.log" | wc -l)" 0
+  last() { CANCCU_PROJECT=web mon --once --width 100 "$@" | sed 's/\x1b\[[0-9;]*m//g' | tail -1; }
+  ok "monitor: --view projects starts on Projects, also with --once" grep -qF '[2 Projects' <<<"$(last --view projects)"
+  ok "monitor: --view 4 (a number) starts on Activity" grep -qF '[4 Activity' <<<"$(last --view 4)"
+  ok "monitor: --view=roadmap starts on Roadmap" grep -qF '[3 Roadmap' <<<"$(last --view=roadmap)"
+  out=$(CANCCU_PROJECT=web mon --once --view nope); rc=$?
+  ok "monitor: an unknown --view exits non-zero and names it" eq "$((rc != 0)) $(grep -c "no view 'nope'" <<<"$out")" "1 1"
+  ok "monitor: --rotate alone is 30 s" grep -qF 'rotate 30s' <<<"$(last --rotate)"
+  ok "monitor: --rotate 5 is 5 s" grep -qF 'rotate 5s' <<<"$(last --rotate 5)"
   mkdir -p "$CANCCU_ROOT/projects/tools"; echo 'REPO=example-user/tools' > "$CANCCU_ROOT/projects/tools/config"
   echo '{"schema": 1, "needs_you": [{"kind": "accept", "issue": 1}, {"kind": "plan", "issue": 2}]}' > "$CANCCU_ROOT/projects/tools/status.json"
   out=$(CANCCU_PROJECT="" mon --project web --once --width 160 | sed 's/\x1b\[[0-9;]*m//g')
