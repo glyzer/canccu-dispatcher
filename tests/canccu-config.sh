@@ -197,7 +197,7 @@ ok "… default 100" grep -qE '^FIXCHECK_FULL_LINES=100( |$)' "$root/lib/canccu-
 ok "FIXCHECK_COUNT_MAIN is in the table, 0|1, locked (#150)" grep -qxP 'FIXCHECK_COUNT_MAIN\tenum:0\|1\tproject\tlocked' "$TSV"
 ok "… default 0" grep -qE '^FIXCHECK_COUNT_MAIN=0( |$)' "$root/lib/canccu-config.default"
 ok "KEEP_ACCEPT_ON_MAIN_MERGE is in the table, locked (#92)" grep -qxP 'KEEP_ACCEPT_ON_MAIN_MERGE\tenum:0\|1\tproject\tlocked' "$TSV"
-ok "… default 0" grep -qE '^KEEP_ACCEPT_ON_MAIN_MERGE=0( |$)' "$root/lib/canccu-config.default"
+ok "… default 1 (#244)" grep -qE '^KEEP_ACCEPT_ON_MAIN_MERGE=1( |$)' "$root/lib/canccu-config.default"
 ok "MERGE_MAIN_ANY_PHASE is in the table, open (#149)" grep -qxP 'MERGE_MAIN_ANY_PHASE\tenum:0\|1\tproject\topen' "$TSV"
 ok "… default 1" grep -qE '^MERGE_MAIN_ANY_PHASE=1( |$)' "$root/lib/canccu-config.default"
 ok "USER_VISIBLE_PATHS is in the table, a locked rules regex (#78)" grep -qxP 'USER_VISIBLE_PATHS\tregex\trules\tlocked' "$TSV"
@@ -243,8 +243,8 @@ ok "TOTAL_CAP in a project config does not show: the global layer's value and or
 TOTAL_CAP	4	3	global	"
 
 cfgenv host HOST_PROFILE=max ""
-# the shipped max.conf pins today's defaults (no value differs): a copy sets one that does
-src_copy "$E/src"; sed -i 's/^CAP=3$/CAP=4/' "$E/src/hosts/max.conf"
+# a copy of max.conf with a CAP no other layer sets, so its origin can only be the profile
+src_copy "$E/src"; sed -i 's/^CAP=2$/CAP=4/' "$E/src/hosts/max.conf"
 CFG_BIN=$E/src/bin/canccu-dispatcher show --origin CAP HOST_PROFILE
 ok "HOST_PROFILE=max: a key max.conf sets comes from host:max; HOST_PROFILE from global" eq "$out" "$H
 HOST_PROFILE	max		global	

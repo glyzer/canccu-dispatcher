@@ -104,9 +104,10 @@ rule keeps personal paths out of this repo (`tests/leak-check.sh`).
 - **Narrow the accepts with `ACCEPT_CHANNELS`.** `ACCEPT_CHANNELS=ship` makes `canccu-ship`, with
   its record on the host, the only accept; the label any session can add no longer counts
   ([`reference/merging.md`](reference/merging.md#the-accept-channels)).
-- **A merge of main can carry an accept.** With `KEEP_ACCEPT_ON_MAIN_MERGE=1` your accept holds
-  over a push that is a clean merge of main only; a run can push such a merge as easily as it
-  adds the label, so keep the setting `0` until package S2.
+- **A merge of main can carry an accept.** With `KEEP_ACCEPT_ON_MAIN_MERGE=1` (the default) your
+  accept holds over clean merges of main, and over merges whose conflicts were resolved inside the
+  PR's own files once their fix-check passes. A resolution that changes any other file, or a
+  commit of the PR's own, asks again. Set `0` to be asked after every push.
 - **A worker trusts its issue.** Label `ready` only issues whose text you have read; on a public
   repo, comments by others are part of what a worker reads.
 - **Locked settings are refused by a marker, not a boundary.** `config set` and `config unset`
