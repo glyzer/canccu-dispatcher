@@ -118,6 +118,8 @@ ok "a merged report with 2 blocking items → one polish issue, ready, in the mi
 ok "… it lists the items, the report and the PR" grep -qF 'PR #60, `docs/reports/step-4-deep-review.md`) left 2 blocking finding(s)' "$FAKE/gh.log"
 ok "… step fields and phase idle" eq "$(sf deep) $(sf polish) $(sf deep_blocking) $(sf phase)" "merged 900 2 idle"
 ok "… logged" eq "$(dlog 'step 4 Search: the deep review found 2 blocking finding(s); polish issue #900 filed')" 1
+ok "… one feed line of kind polish, class info, linking the issue (#39)" \
+  eq "$(awk -F '\t' '$5 == "polish" { print $3, $4, $8 }' "$CANCCU_HOME/events")" "- info https://github.com/example-org/web/issues/900"
 ok "… the deep unit is finished" test ! -e "$CANCCU_HOME/state/pkg-12-deep"
 { issue 90 epic "" "4 Search"; issue 900 ready "" "4 Search"; issue 41 ready "" "5 Later"; } | issues
 dpass
