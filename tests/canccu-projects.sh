@@ -180,7 +180,7 @@ STEP_TAG=step-{n}
 PACE=cap
 REVIEW_LIGHT=1"
 ok "canccu-init: the only project so far becomes the default (it keeps session canccu)" eq "$(cat "$CANCCU_ROOT/default-project")" tools
-ok "canccu-init: creates the missing labels in the repo" eq "$(grep -c '^label create .* -R example-org/web' "$FAKE/gh.log")" 12
+ok "canccu-init: creates the missing labels in the repo" eq "$(grep -c '^label create .* -R example-org/web' "$FAKE/gh.log")" 13
 ok "… none that exist" not grep -q '^label create ready' "$FAKE/gh.log"
 ok "canccu-init: no other gh call (rulesets, secrets, variables, collaborators)" eq "$(grep -cvE '^(label (list|create)|api user|repo view example-org/web) ' "$FAKE/gh.log")" 0
 for w8 in 'as a collaborator' 'repo scope' 'repo variable REVIEWER_LOGIN' 'review-gate workflow and its script' 'required checks' \
@@ -329,12 +329,12 @@ ok "init with a relative clone path: refused" eq "$rc $(test -e "$CANCCU_ROOT/pr
 penv init-labels
 echo '[{"name": "ready"}]' > "$FAKE/labels.json"; route 'label list*' labels.json
 out=$(PATH="$fb:$PATH" "$root/bin/canccu-init" web example-org/web 2>&1)
-ok "canccu-init: lists the labels it created" grep -qx 'labels: created blocked in-progress epic needs-you plan-ok awaiting-accept needs-work accepted manual-accept checkpoint checkpoint-ok fast security' <<<"$out"
+ok "canccu-init: lists the labels it created" grep -qx 'labels: created blocked in-progress epic needs-you plan-ok awaiting-accept needs-work accepted manual-accept checkpoint checkpoint-ok fast security follow-up' <<<"$out"
 ok "canccu-init: lists the labels once" eq "$(grep -c '^label list' "$FAKE/gh.log")" 1
 penv init-labels-fail
 echo '[{"name": "ready"}]' > "$FAKE/labels.json"; route 'label list*' labels.json; echo 'fail:label create' >> "$FAKE/routes"
 out=$(PATH="$fb:$PATH" "$root/bin/canccu-init" web example-org/web 2>&1); rc=$?
-ok "canccu-init: a failed label create is not called created" eq "$(grep -c '^labels: created' <<<"$out") $(grep -c '^labels: could not create blocked .* security (canccu-dispatch tries again' <<<"$out")" "0 1"
+ok "canccu-init: a failed label create is not called created" eq "$(grep -c '^labels: created' <<<"$out") $(grep -c '^labels: could not create blocked .* follow-up (canccu-dispatch tries again' <<<"$out")" "0 1"
 penv init-labels-all
 route 'label list*' labels.json
 out=$(PATH="$fb:$PATH" "$root/bin/canccu-init" web example-org/web 2>&1)

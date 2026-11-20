@@ -279,7 +279,7 @@ env_new() {
     'api repos/example-org/web/issues/*/dependencies/blocking' empty.json \
     'run list*' runs.json  'api user*' user.json > "$FAKE/routes.default"
   echo '[]' > "$FAKE/ms.json"; echo '[]' > "$FAKE/cps.json"; echo '[]' > "$FAKE/empty.json"; echo '[]' > "$FAKE/issues.json"; echo '[]' > "$FAKE/prs.json"; echo '[]' > "$FAKE/runs.json"
-  jq -n '["ready","blocked","in-progress","epic","needs-you","plan-ok","awaiting-accept","needs-work","accepted","manual-accept","checkpoint","checkpoint-ok","fast","security"] | map({name: .})' \
+  jq -n '["ready","blocked","in-progress","epic","needs-you","plan-ok","awaiting-accept","needs-work","accepted","manual-accept","checkpoint","checkpoint-ok","fast","security","follow-up"] | map({name: .})' \
     > "$FAKE/labels.json"
   : > "$FAKE/routes"; : > "$FAKE/gh.log"; : > "$FAKE/worker.log"
 }
@@ -360,7 +360,7 @@ penv() {
   printf '%s\n' "$FAKE_TOKEN" > "$E/reviewer-token"; chmod 600 "$E/reviewer-token"
   jq -n --arg l "$BOT" '{login: $l}' > "$FAKE/user.json"
   echo '[]' > "$FAKE/empty.json"; echo '[]' > "$FAKE/runs.json"
-  jq -n '["ready","blocked","in-progress","epic","needs-you","plan-ok","awaiting-accept","needs-work","accepted","manual-accept","checkpoint","checkpoint-ok","fast","security"] | map({name: .})' \
+  jq -n '["ready","blocked","in-progress","epic","needs-you","plan-ok","awaiting-accept","needs-work","accepted","manual-accept","checkpoint","checkpoint-ok","fast","security","follow-up"] | map({name: .})' \
     > "$FAKE/labels.json"
   : > "$FAKE/routes"; : > "$FAKE/gh.log"; : > "$FAKE/worker.log"
   # gh's own login (canccu-init writes it as USER_LOGIN), with or without projects
