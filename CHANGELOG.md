@@ -6,6 +6,27 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 
 ## Unreleased
 
+- Host settings (#14): one release runs on a Max and a Pro host, and what differs is a setting
+  ([`docs/hosts.md`](docs/hosts.md#what-a-host-decides)). New keys: `BASE_BRANCH`, `CLONE_ROOT`,
+  `EXTRA_PATH`, `GUARD_VMEM_KB`, `WORKER_SKILLS`, `REVIEW_SKILLS`, `HEALTH_CHECKLIST` and
+  `MERGE_METHOD`. A merge queue is optional: without one an accepted PR merges with
+  `MERGE_METHOD`. `canccu-init` writes `USER_LOGIN` (from gh's login; it refuses without one)
+  and `BASE_BRANCH` (the repo's default branch). `canccu-dispatcher doctor` adds the host report:
+  the profile, the keys the host's config overrides, and the last day's runs per issue with their
+  cost. The profiles: v2 models, and review effort by plan (Max high, Pro medium); Pro keeps the
+  budgets and usage thresholds of #168. **Upgrade:**
+  - the `max` profile's `CAP` is now `2` (was `3`); set `CAP=3` in `~/.canccu/config` to keep it;
+  - the prompts name no superpowers skill unless the host sets it: to keep today's sentence, set
+    `WORKER_SKILLS` as the Max example in `docs/hosts.md` does;
+  - `~/.local/bin` and `~/.bun/bin` are no longer put on `PATH` by themselves: set
+    `EXTRA_PATH=$HOME/.local/bin:$HOME/.bun/bin` to keep them;
+  - `BASE_BRANCH` defaults to `main` and `MERGE_METHOD` to `squash`, as before.
+- An accept survives the dispatcher's merges of main (#244). **Upgrade:** `KEEP_ACCEPT_ON_MAIN_MERGE`
+  now defaults to `1`: an accept by the label or by `canccu-ship` carries over clean merges of
+  main, and merges whose conflicts were resolved inside the PR's own files once their fix-check
+  passes. Set it to `0` in the project's config to be asked after every push, as before.
+  `canccu-ship` on a head with no review pass records the accept and arms nothing: the head gets
+  its fix-check first.
 - `canccu-init --leader <project>` writes a leader kit (`CLAUDE.md` and `.claude/settings.json`)
   to `~/.canccu/projects/<project>/leader/` and sets `LEADER=on`; with `LEADER=on`, `canccu-up`
   starts the left pane's `claude` there, titled `leader`, with `CANCCU_ACTOR=leader`. The

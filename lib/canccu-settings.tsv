@@ -5,9 +5,17 @@
 # docs/reference/config.md, "The settings table".
 REPO	name	fixed	open
 CLONE	text	fixed	open
+BASE_BRANCH	name	project	locked
 HOST_PROFILE	name	fixed	open
 CAP	int:1:20	project	open
 TOTAL_CAP	int:1:20	global	open
+CLONE_ROOT	text	global	locked
+EXTRA_PATH	text	global	locked
+GUARD_VMEM_KB	int:200000:64000000	global	locked
+WORKER_SKILLS	text	project	locked
+REVIEW_SKILLS	text	project	locked
+HEALTH_CHECKLIST	text	project	locked
+MERGE_METHOD	enum:squash|merge|rebase	project	locked
 MODEL	name	project	open
 USER_LOGIN	name	project	locked
 REVIEWER_LOGIN	name	project	locked

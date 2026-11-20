@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # canccu-dispatcher — the installed tool itself (docs/install.md):
 #   canccu-dispatcher --version                       the version; plus the commit from a checkout
-#   canccu-dispatcher doctor [--project <name>]       one line per problem; exit 0 when clean
+#   canccu-dispatcher doctor [--project <name>]       one line per problem, then the host report; exit 0 when clean
 #   canccu-dispatcher config show [--project <name>] [--global] [--origin] [KEY…]   every setting, its default and where it comes from
 #   canccu-dispatcher config set [--project <name> | --global] KEY=VALUE [--why <text>]   checks and writes one setting
 #   canccu-dispatcher config unset [--project <name> | --global] KEY [--why <text>]       removes one setting's line
@@ -38,6 +38,8 @@ CANCCU_USER_PATH=$PATH
 . "$here/lib/canccu-doctor.sh"
 # shellcheck source=../lib/canccu-configcmd.sh
 . "$here/lib/canccu-configcmd.sh"
+# shellcheck source=../lib/canccu-doctor-host.sh
+. "$here/lib/canccu-doctor-host.sh"
 # shellcheck source=../lib/canccu-kv.sh
 . "$here/lib/canccu-kv.sh"
 # shellcheck source=../lib/canccu-feed.sh
@@ -76,7 +78,9 @@ case $cmd in
     if [ -n "$only" ] && ! canccu_profiles | grep -qxF -- "$only"; then
       _cmd_die "no project '$only'. Projects: $(canccu_profiles | tr '\n' ' ' | sed 's/ $//')"
     fi
-    canccu_doctor "$here" "$only" "$prefix" ;;
+    canccu_doctor "$here" "$only" "$prefix"; rc=$?
+    canccu_doctor_host "$only"
+    exit "$rc" ;;
   config)
     case ${1:-} in
       show) shift; cfg_show "$@" ;;

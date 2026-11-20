@@ -264,37 +264,13 @@ merging_step() {
 # shellcheck source=canccu-mqueue.sh
 . "$_canccu_lib/canccu-mqueue.sh"
 
-# ---------------------------------------------------------------- a merge of main only
-
-# pr_fetch <pr>: the PR head and main into the main clone, for the reads below
-pr_fetch() { mut git -C "$CLONE" fetch -q origin main "pull/$1/head" || log "PR #$1: git fetch failed"; }
-
-# main_merge_only <base> <head>: what head adds to base is nothing but merges of main: from head,
-# at most 5 steps, each commit has two parents, the second on origin/main, and its tree is the
-# one git makes of merging the two (merge-tree, no worktree); its first parent is the next step,
-# and the walk reaches base. Such a tree holds nothing a person or a run wrote by hand. Any git
-# error (a git older than 2.38 has no merge-tree --write-tree) is false: that only costs a review.
-main_merge_only() {
-  local base=$1 c=$2 i p1 p2 more t
-  for ((i = 0; i < 5; i++)); do
-    read -r _ p1 p2 more <<<"$(guard 20 git -C "$CLONE" rev-list --parents -n 1 "$c" 2>/dev/null)"
-    [ -n "$p2" ] && [ -z "$more" ] || return 1
-    guard 20 git -C "$CLONE" merge-base --is-ancestor "$p2" origin/main 2>/dev/null || return 1
-    t=$(guard 60 git -C "$CLONE" merge-tree --write-tree "$p1" "$p2" 2>/dev/null) && [ -n "$t" ] || return 1
-    [ "${t%%$'\n'*}" = "$(guard 20 git -C "$CLONE" rev-parse "$c^{tree}" 2>/dev/null)" ] || return 1
-    c=$p1
-    [ "$c" = "$base" ] && return 0
-  done
-  return 1
-}
-
 # postpass_full <base> <head>: why the change base..head needs a full review, not a fix-check; nothing
 # when it does not. Only the files of the PR's own diff at head count (all, when that list cannot be
 # read; a rename's two paths). The count starts at count_from.
 postpass_full() {
   local base=$1 head=$2 mb stats total p re max=${FIXCHECK_FULL_LINES:-100} files=()
   [[ $max =~ ^[0-9]+$ ]] || max=100
-  mb=$(guard 20 git -C "$CLONE" merge-base origin/main "$head" 2>/dev/null)
+  mb=$(guard 20 git -C "$CLONE" merge-base origin/$BASE_BRANCH "$head" 2>/dev/null)
   [ -n "$mb" ] && mapfile -t files < <(guard 20 git -C "$CLONE" -c core.quotePath=off diff --name-only --no-renames "$mb" "$head" 2>/dev/null)
   stats=$(change_stats "$(count_from "$base" "$head")" "$head" "${files[@]}") || { echo "the change cannot be read"; return; }
   total=$(awk -F '\t' '{ for (i = 1; i <= 2; i++) if ($i ~ /^[0-9]+$/) t += $i } END { print t + 0 }' <<<"$stats")

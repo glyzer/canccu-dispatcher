@@ -25,7 +25,7 @@ usage() { sed -n '3,8s/^# \{0,1\}//p' "$self" >&2; exit 2; }
 # ---------------------------------------------------------------- 7. digest
 
 main_ci() {
-  local j; j=$(ghj run list -R "$REPO" -b main -L 20 --json headSha,status,conclusion,workflowName) || { echo "unknown (gh error)"; return; }
+  local j; j=$(ghj run list -R "$REPO" -b "$BASE_BRANCH" -L 20 --json headSha,status,conclusion,workflowName) || { echo "unknown (gh error)"; return; }
   jqr '(.[0].headSha // "") as $s | [.[] | select(.headSha == $s)]
     | [.[] | select(.conclusion | IN("failure", "timed_out", "cancelled", "startup_failure")) | .workflowName] as $bad
     | if length == 0 then "no runs" elif ($bad | length) > 0 then "red (\($bad | join(", ")))"

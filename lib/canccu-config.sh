@@ -24,6 +24,8 @@ canccu_load_config() {
   # shellcheck source=/dev/null
   . "$CANCCU_HOME/config"
   TOTAL_CAP=$total HOST_PROFILE=$_canccu_hp
+  # an emptied BASE_BRANCH would make every origin/<branch> a bare origin/
+  BASE_BRANCH=${BASE_BRANCH:-main}
 }
 # canccu_cfg_files: the four files a user edits (the defaults change only with an update, which
 # restarts the dispatcher anyway)

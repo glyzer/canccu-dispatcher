@@ -107,8 +107,7 @@ In a repo without auto-merge the accept request names only the label. Only an `a
 event by `USER_LOGIN`, newer than the accept request, counts: a label left from an older head
 never does. An `accepted` label on the unit's issue (any issue of a package) is taken as well,
 by the same checks, and removed from the issue once it counts; a new push removes it from the
-PR and from the issues (with `KEEP_ACCEPT_ON_MAIN_MERGE=1`, a push that is a clean merge of main
-only keeps the PR's own label and merges: [`config.md`](config.md)). Everything except reviews and pings is authored as you, so the dispatcher never
+PR and from the issues, except for the merges of main below. Everything except reviews and pings is authored as you, so the dispatcher never
 requests a review from you and never relies on approvals.
 
 ### The accept channels
@@ -130,6 +129,29 @@ issue, PR, head sha, actor `po` or `leader`: [`state.md`](state.md)). A PR waiti
 accept with auto-merge armed on its head and a record of that PR and head, by an actor whose
 channel is listed, has the `ship` accept: `canccu-ship` armed it before the dispatcher managed
 the PR.
+
+### An accept over merges of main
+
+With `KEEP_ACCEPT_ON_MAIN_MERGE=1` (the default, [`config.md`](config.md)) an accept carries over
+the merges of main the PR gets after it, by any channel that counts: the PR's own `accepted` by
+you, or a `canccu-ship` record of the accepted head (`ship`, or `leader` for the leader):
+
+- **Clean merges of main only** (each tree is git's own merge of its parents): auto-merge on the
+  new head at once, logged `` `accepted` carried over from <old> to <new>: a merge of main only
+  (KEEP_ACCEPT_ON_MAIN_MERGE=1) ``.
+- **Merges with conflicts resolved** inside the files of the PR's own diff at the accepted head
+  (counted as `FIXCHECK_COUNT_RESOLVED` counts them): the new head gets its fix-check (or full
+  review) as any push does, and the accept is held until then (`` the accept of <old> holds until
+  its fix-check ``). Its pass merges with the same line and `(conflicts resolved, fix-check pass)`;
+  its `changes` voids the accept, and the fix round runs as before.
+- **Anything else asks again**: a commit of the PR's own, or a resolution that changes a file
+  outside the PR's diff (`` <new> resolves a conflict outside the PR's own files (<files>); a new
+  accept is asked ``).
+
+`canccu-ship` never arms a head the dispatcher has not let through (the head the accept was asked
+on, the armed one, the last pass, or clean merges of main since it). On any other head it writes
+its record, arms nothing, and says `` <head> has no review pass yet; sent to the fix-check first,
+and the accept carries over once it passes ``; that head's pass merges it.
 
 A comment by `USER_LOGIN` posted while a run of the unit was alive (from the run's start to its
 end: the state's `started` for the live run, the spend log's end and `secs` for finished ones) is

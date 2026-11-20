@@ -104,14 +104,17 @@ blocked_held() { unit_blocked "$1" || return 1; warn_once "blocked-$1" "#$1 is l
 # a new worker's whole task for issue n; with its plan merged (plan_back), the order to execute it.
 # An issue started before its branch was kept gets the name from its title, as then.
 issue_prompt() {
-  local n=$1 title=${2:-} p=${3:-$(st_get "$1" plan_ok)} br=${4:-$(st_get "$1" branch)} prompt
+  local n=$1 title=${2:-} p=${3:-$(st_get "$1" plan_ok)} br=${4:-$(st_get "$1" branch)} prompt wp
   if [ -z "$br" ]; then
     [ -n "$title" ] || title=$(title_of "$n")
     [ -n "$title" ] || title=$(safe_title "$(ghj issue view "$n" -R "$REPO" --json title | jqr .title)")
     br=$(issue_branch "$n" "$title")
   fi
+  wp=${WORKER_PROMPT//@BASE@/"$BASE_BRANCH"}
   # shellcheck disable=SC2059
-  printf -v prompt "$WORKER_PROMPT" "$REPO" "$n" "$n" "$n" "$br" "${WORKER_EXTRA:+ $WORKER_EXTRA}"
+  printf -v prompt "$wp" "$REPO" "$n" "$n" "$br" "${WORKER_EXTRA:+ $WORKER_EXTRA}"
+  # after printf: a % in the host's sentence is text, not a format
+  prompt=${prompt//@SKILLS@/"$(worker_skills)"}
   prompt+=" $(contract_rule "$br")"
   [ "$p" = 1 ] && prompt+=" $(plan_merged_text "docs/plans/issue-$n.md")"
   printf '%s' "$prompt"
@@ -145,7 +148,7 @@ start_issue() {
 }
 
 # plan_merged_text <plan file>: what a worker starting on a merged, approved plan is told
-plan_merged_text() { echo "The plan $1 is approved and merged on main: execute it with the superpowers skill executing-plans; the PR closes the issue."; }
+plan_merged_text() { echo "The plan $1 is approved and merged on $BASE_BRANCH: execute it; the PR closes the issue.$(worker_skills)"; }
 
 # accept_lines <n>: the Accept: and Reject: lines of the accept's form (ask_block). Only the
 # channels that count are offered; canccu-ship arms auto-merge: not in a repo without it.
@@ -173,10 +176,11 @@ to_accept() {
 }
 
 # new_cycle <n>: a new start, an adoption, plan-ok or needs-work: the next review is a full one
-new_cycle() { st_set "$1" accept_sha= stage= reviewed_sha= review_maccept= review_risk= open_sha= full_sha= pass_sha= extra_fix=; }
+new_cycle() { st_set "$1" accept_sha= carry_sha= carry_by= carried= carried_by= stage= reviewed_sha= review_maccept= review_risk= open_sha= full_sha= pass_sha= extra_fix=; }
 
 # after_pass <n> <pr> <head> <how>: that head passed (a review, a fix-check, or a merge of main only
-# after a pass): classify, then merge it or wait for the accept. 1 when nothing was done (classify
+# after a pass): classify, then merge it, carry an accept held for it over (carry_accept), or wait
+# for the accept. 1 when nothing was done (classify
 # could not read the PR, or the merge failed): the caller sees the pass again next pass.
 after_pass() {
   local n=$1 pr=$2 head=$3 c
@@ -186,8 +190,9 @@ after_pass() {
   # the open items are fixed: cleared before the merge step, so a failed merge or accept
   # leaves none behind for a later needs-work, which then starts a new cycle
   st_set "$n" open_sha=
-  if [ "$c" = auto ]; then merge_auto "$n" "$pr" auto "$head" || return 1
-  else to_accept "$n" "$pr" "$c" "$head"; fi
+  if [ "$c" = auto ]; then merge_auto "$n" "$pr" auto "$head" || return 1; return 0; fi
+  carry_accept "$n" "$pr" "$head" "$4"
+  case $? in 0) ;; 2) return 1 ;; *) to_accept "$n" "$pr" "$c" "$head" ;; esac
 }
 
 # save_findings <n> <pr> <file> <text>: the items a fix-check checks (findings_file), or the open
@@ -228,6 +233,9 @@ act_verdict() {
       after_pass "$n" "$pr" "$head" "$what" || return 0
       st_set "$n" verdict_at="$at" ;;
     changes)
+      # an accept held for this head's check (carry_accept) is void: the fix round's commits are
+      # the PR's own, and their pass asks again
+      st_set "$n" carry_sha= carry_by=
       # a light review rated high gets the full review first: its verdict drives the fix round
       light_upgrade "$n" "$pr" "$head" "$j" "$at" && return 0
       case $stage in

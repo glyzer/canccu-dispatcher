@@ -41,7 +41,7 @@ ok "… the next pass, the read working, merges it automatically" has gh.log "pr
 review_env method-squash-only 'Review verdict: pass' review
 repo_settings false true false false
 dispatch --once
-ok "squash-only repo, no queue → --auto --squash pinned to the head" has gh.log "pr merge 50 -R example-org/web --auto --squash --match-head-commit $HA"
+ok "squash-only repo, no queue → --auto --squash pinned to the head: auto-merge without a merge queue (#14)" has gh.log "pr merge 50 -R example-org/web --auto --squash --match-head-commit $HA"
 review_env method-queue 'Review verdict: pass' review
 repo_settings true true false false
 dispatch --once
@@ -51,6 +51,20 @@ repo_settings false true true true
 dispatch --once
 ok "a repo that allows everything → squash" has gh.log "pr merge 50 -R example-org/web --auto --squash --match-head-commit $HA"
 ok "… the settings are read once in the pass" eq "$(grep -c 'mergeQueue {' "$FAKE/gh.log")" 1
+review_env method-setting 'Review verdict: pass' review MERGE_METHOD=rebase
+repo_settings false true true true
+dispatch --once
+ok "MERGE_METHOD=rebase, allowed → --rebase (#14)" has gh.log "pr merge 50 -R example-org/web --auto --rebase --match-head-commit $HA"
+ok "… no warning" not grep -q "MERGE_METHOD" "$CANCCU_HOME/dispatch.log"
+review_env method-setting-refused 'Review verdict: pass' review MERGE_METHOD=merge
+repo_settings false true false true
+dispatch --once
+ok "MERGE_METHOD=merge, not allowed → the repo's first allowed method (#14)" has gh.log "pr merge 50 -R example-org/web --auto --squash --match-head-commit $HA"
+ok "… with a warning that names both" grep -qF "MERGE_METHOD=merge: example-org/web does not allow it; merging with --squash" "$CANCCU_HOME/dispatch.log"
+review_env method-setting-queue 'Review verdict: pass' review MERGE_METHOD=rebase
+repo_settings true true true true
+dispatch --once
+ok "a merge queue wins over MERGE_METHOD: no method passed (#14)" has gh.log "pr merge 50 -R example-org/web --auto --match-head-commit $HA"
 review_env method-merge-only 'Review verdict: pass' review
 repo_settings false false true true
 dispatch --once

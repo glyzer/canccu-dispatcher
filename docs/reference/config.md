@@ -33,10 +33,18 @@ pacing are in [`config-steps.md`](config-steps.md).
 | Key | Default | Meaning |
 |---|---|---|
 | `REPO` | none | The only repo (`owner/repo`) the project's dispatcher works on. Project config only |
-| `CLONE` | none | Its main clone; every worktree hangs off it. `canccu-init` writes `~/code/<repo>` or the path it was given |
+| `CLONE` | none | Its main clone; every worktree hangs off it. `canccu-init` writes `$CLONE_ROOT/<repo>` or the path it was given |
+| `BASE_BRANCH` | `main` | The repo's base branch: worktrees and prompts start from `origin/<it>`, merges of it go into a PR, PRs merge into it, its CI is the one `canccu-status` shows, and the main clone pulls it after a merge. `canccu-init` writes the repo's default branch. Locked |
 | `HOST_PROFILE` | empty | The host profile, `hosts/<name>.conf` (`max` or `pro`); empty: none. Set it in `~/.canccu/config`, or `CANCCU_HOST_PROFILE` for one command. An unknown name is refused with the list |
 | `CAP` | `3` | The project's workers, reviewers and answerers running at once |
 | `TOTAL_CAP` | `3` | The same over all projects of this host together (they share one Claude account), shared by need ([`projects.md`](projects.md#fair-share-of-total_cap)). Up to `~/.canccu/config` only |
+| `CLONE_ROOT` | `$HOME/code` | Where `canccu-init` clones a new project, and where `canccu-up`'s panes start. A host key ([`../hosts.md`](../hosts.md)). The engine finds each project's repos from its own `CLONE` |
+| `EXTRA_PATH` | empty | Dirs put first on `PATH` for every command and run, colon-separated: cron and a fresh tmux server start with a bare `PATH`. A host key |
+| `GUARD_VMEM_KB` | `2000000` | The virtual-memory cap, in KB, of every `gh`, `jq` and `python3` call (`guard`): a runaway kills itself, not the host. A host key: raise it on a host with much memory and big repos |
+| `WORKER_SKILLS` | empty | The skill sentence of the worker, package and health prompts, and of the plan-OK resume. Empty: the prompts name no skill. [`../hosts.md`](../hosts.md#skills) has the sentence for the superpowers plugin. Locked |
+| `REVIEW_SKILLS` | `code-review security-review` | The reviewer's two skills: the first reviews the diff (the full review and the fix-check), the second is the security review its trigger asks for. Locked |
+| `HEALTH_CHECKLIST` | the four points | The health pass's checklist, and nothing else on it: by default files over the size limit split, dead code removed, comments to the comment rule, duplicated logic merged. Locked |
+| `MERGE_METHOD` | `squash` | How a PR merges when the repo has no merge queue: `squash`, `merge` or `rebase`. One the repo does not allow: the repo's own method, with a warning. With a merge queue the queue's method applies. Locked |
 | `MODEL` | empty | Passed as `--model` to every run; empty: no `--model`, the account's default model |
 | `USER_LOGIN` | empty | Your GitHub login: whose PRs are ours, who is assigned and pinged, whose comments resume a worker. Unset: the dispatcher does nothing |
 | `REVIEWER_LOGIN` | empty | The reviewer bot's login: reviews and pings post as it, and only its verdicts count. The same login is the repo variable the `review-gate` check reads. Unset: no review starts |
@@ -74,7 +82,7 @@ pacing are in [`config-steps.md`](config-steps.md).
 | `MERGE_CLOSE_MIN` | `2` | An issue a merged PR names as closing that GitHub left open this many minutes is closed by the dispatcher |
 | `MERGE_RETRY` | `3` | A merge that fails on an error that looks transient (a GitHub 5xx, a timeout, a dropped connection) is tried again on this many later passes before it goes to `needs-you`; `0`: never ([`merging.md`](merging.md#a-github-error-on-the-merge)) |
 | `ACCEPT_CHANNELS` | `all` | The accepts that count, space-separated: `label` (the `accepted` label), `ship` (`canccu-ship`), `reply` (an answer comment), `leader` (the leader's `canccu-ship`), or `all`. Locked. `canccu-status` shows it ([`merging.md`](merging.md#the-accept-channels)) |
-| `KEEP_ACCEPT_ON_MAIN_MERGE` | `0` | `1`: your `accepted` on the PR carries over a push that is only a clean merge of main, and the PR merges without a new accept; one more changed line drops it. Until the hardened setup (package S2) a run can forge it as easily as the label: keep it `0` |
+| `KEEP_ACCEPT_ON_MAIN_MERGE` | `1` | `1`: an accept (your `accepted` on the PR, or a `canccu-ship` record) carries over clean merges of main, and merges with conflicts resolved inside the PR's own files once their fix-check passes ([`merging.md`](merging.md#an-accept-over-merges-of-main)); `0`: every push asks again |
 | `MERGE_MAIN_ANY_PHASE` | `1` | `1`: a PR that conflicts with main gets main merged in by script in every phase (CI, a fix round, after its contract PR merged), not only at the accept and merge steps ([`merging.md`](merging.md#a-pr-that-conflicts-with-main)); `0`: only at the accept and merge steps |
 | `POST_WAIT` | `600` | Seconds a posted review may take to show up on GitHub before it counts as missing |
 | `DISK_MIN_MB` | `200` | Free MB on the worktrees' file system (`workers/`) below which a pass starts nothing new; reaping, reviews and merges go on. Logged once; `canccu-status` shows `disk low` ([`pipeline.md`](pipeline.md)) |

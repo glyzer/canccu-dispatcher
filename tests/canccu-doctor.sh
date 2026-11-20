@@ -25,20 +25,23 @@ clean_host() {
   mkdir -p "$C/projects/web/gh"; printf 'github.com:\n    oauth_token: fake-project-token\n' > "$C/projects/web/gh/hosts.yml"
 }
 doctor() { hrun "$P/bin/canccu-dispatcher" doctor "$@"; }
-line() { grep -c -- "$1" "$E/out"; }
+# the problem lines, and the host report (lines "host: ") after them
+probs() { grep -v "^host: " "$E/out"; }
+line() { probs | grep -c -- "$1"; }
+hline() { grep -c -- "$1" "$E/out"; }
 
 clean_host clean
 doctor
 ok "a clean host: exit 0" eq "$rc" 0
-ok "… one line that says so" eq "$(cat "$E/out")" "no problems found"
+ok "… one line that says so" eq "$(probs)" "no problems found"
 mkdir -p "$C/projects/web/workers"
 printf 'repo=web\nkey=5\nkind=worker\npid=%s\nwindow=\nstarted=1\n' "$$" > "$C/projects/web/workers/web-5.lock"
 jq -n --argjson at "$(date +%s)" '{schema: 2, version: "9.9.0", pass: {at: $at, ok: true}}' > "$C/projects/web/status.json"
 doctor
-ok "… a live run and a fresh snapshot are no problem" eq "$rc $(cat "$E/out")" "0 no problems found"
+ok "… a live run and a fresh snapshot are no problem" eq "$rc $(probs)" "0 no problems found"
 mkdir -p "$C/projects/web/workers/tmp/web-5.$$"; truncate -s 4G "$C/projects/web/workers/tmp/web-5.$$/big"   # sparse: no disk used
 doctor
-ok "… run temp dirs under 5 GB are no problem" eq "$rc $(cat "$E/out")" "0 no problems found"
+ok "… run temp dirs under 5 GB are no problem" eq "$rc $(probs)" "0 no problems found"
 # Claude's own path forms, not shell paths: ~ is Claude's to expand
 # shellcheck disable=SC2088
 for pat in '~/.canccu/**' '/'"$H"'/.canccu/reviewer-token' '~/.canccu/*-token'; do
@@ -50,9 +53,9 @@ clean_host no-login
 rm -r "$C/projects/web/gh"; doctor
 ok "a project without its own gh login: named, with the steps" \
   eq "$rc $(line '^project web: no gh login of its own (GH_CONFIG_DIR) and ALLOW_DEFAULT_GH_LOGIN=0: it starts no run; to set one up, create a fine-grained token for example-org/web only (Repository permissions: Contents, Issues and Pull requests, read and write), then GH_CONFIG_DIR=~/.canccu/projects/web/gh gh auth login --with-token --insecure-storage < <the token file>$')" "1 1"
-ok "… on one line" eq "$(wc -l < "$E/out")" 1
+ok "… on one line" eq "$(probs | wc -l)" 1
 echo ALLOW_DEFAULT_GH_LOGIN=1 >> "$C/projects/web/config"; doctor
-ok "… ALLOW_DEFAULT_GH_LOGIN=1: no problem" eq "$rc $(cat "$E/out")" "0 no problems found"
+ok "… ALLOW_DEFAULT_GH_LOGIN=1: no problem" eq "$rc $(probs)" "0 no problems found"
 
 clean_host off-path
 IPATH=${IPATH#"$P/bin:"}; hrun "$P/bin/canccu-dispatcher" doctor
@@ -66,7 +69,7 @@ rule=$(grep -o 'add "Read([^)]*)"' "$E/out" | sed 's/^add "//; s/"$//')
 ok "a token outside HOME: the suggested rule is Claude's absolute form" eq "$rule" "Read(/$E/tokens/rt)"
 jq -n --arg r "$rule" '{permissions: {deny: [$r]}}' > "$H/.claude/settings.json"
 doctor
-ok "… and with it the host is clean" eq "$rc $(cat "$E/out")" "0 no problems found"
+ok "… and with it the host is clean" eq "$rc $(probs)" "0 no problems found"
 
 # PREFIX/bin itself a link (~/.local/bin → ~/bin), on PATH as ~/.local/bin
 inst_env bin-link
@@ -79,7 +82,7 @@ ok "PREFIX/bin a link: no command called another install's" eq "$(grep -c 'on PA
 clean_host no-project
 rm -rf "$C/projects"
 doctor
-ok "no project yet, the logins in ~/.canccu/config: clean" eq "$rc $(cat "$E/out")" "0 no problems found"
+ok "no project yet, the logins in ~/.canccu/config: clean" eq "$rc $(probs)" "0 no problems found"
 sed -i 's/^USER_LOGIN=octo$//' "$C/config"; chmod 644 "$C/reviewer-token"
 doctor
 ok "… without USER_LOGIN: named, with the token's mode" eq "$rc $(line 'USER_LOGIN is not set in ~/.canccu/config') $(line 'has mode 644')" "1 1 1"
@@ -119,7 +122,7 @@ ok "… an old snapshot while the lock is held" eq "$(line 'project web: the sta
 ok "… a failed last pass" eq "$(line 'project web: the last pass failed: gh error')" 1
 ok "… a stale run lock" eq "$(line 'project web: stale run lock ~/.canccu/projects/web/workers/web-6.lock')" 1
 ok "… run temp dirs over 5 GB" eq "$(line 'project web: run temp dirs use 6.0G; a run may leak, check ~/.canccu/projects/web/workers/tmp$')" 1
-ok "… one line per problem, nothing else" eq "$(grep -cvE '^(claude|release|canccu-|HOST_PROFILE|project |reviewer token|~)' "$E/out")" 0
+ok "… one line per problem, nothing else" eq "$(grep -cvE '^(claude|release|canccu-|HOST_PROFILE|project |reviewer token|~)' <(probs))" 0
 ok "… the token never shows" notoken "$E/out"
 doctor --project tools
 ok "--project tools: that project's lines only" eq "$(line 'project web:') $(line 'project tools: TOKEN MISSING')" "0 1"
@@ -140,6 +143,24 @@ ok "an unknown host profile: named with the list" eq "$rc $(line "no host profil
 clean_host not-installed
 rm -rf "$B"; hrun bash "$T/src0/bin/canccu-dispatcher" doctor
 ok "nothing installed: said" eq "$rc $(line 'not installed in ~/.local')" "1 1"
+
+# the host report (#14): the profile, what ~/.canccu/config changes, and the last day's runs
+clean_host host-report
+echo CAP=1 >> "$C/config"
+mkdir -p "$C/projects/web/workers"; now=$(date +%s)
+for k in 5 review-5 5 fix-5 7; do printf '%s\tweb\t%s\t0.50\tbuild\tm\n' "$((now - 600))" "$k"; done > "$C/projects/web/workers/spend.log"
+printf '%s\tweb\t5\t?\tbuild\tm\n%s\tweb\t9\t1.00\tbuild\tm\n' "$((now - 300))" "$((now - 90000))" >> "$C/projects/web/workers/spend.log"
+doctor
+ok "host report: the problems are unchanged" eq "$rc $(probs)" "0 no problems found"
+ok "… the profile" eq "$(hline '^host: profile max$')" 1
+ok "… a key the host's config changes, with the profile's value" eq "$(hline '^host: ~/.canccu/config sets CAP=1; max: 2$')" 1
+ok "… one the profile leaves at the default" eq "$(hline '^host: ~/.canccu/config sets USER_LOGIN=octo; max: (empty)$')" 1
+ok "… not the profile's own keys, nor HOST_PROFILE" eq "$(hline 'sets MODEL=\|sets HOST_PROFILE=')" 0
+ok "… an issue's runs of every kind, more than 3 marked" eq "$(hline '^host: project web: #5: 5 runs, \$2.00 (1 without a cost); more than 3 runs')" 1
+ok "… one run, unmarked" eq "$(hline '^host: project web: #7: 1 run, \$0.50$')" 1
+ok "… a run older than a day: left out" eq "$(hline '#9')" 0
+rm "$C/projects/web/workers/spend.log"; doctor
+ok "… no runs: said" eq "$(hline '^host: project web: no runs in the last 24 h$')" 1
 
 echo "canccu-doctor tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
