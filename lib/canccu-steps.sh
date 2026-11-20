@@ -36,7 +36,7 @@ step_phases() {
 # An idle step with work done and no health pass yet is pending (#239): its last issue can close
 # after its wave ended, and the step keeps its turn until step_tick sets health-due.
 STEP_JQ="$MILESTONE_KEY_JQ"'
-  def work: [.labels[]?.name] | (index("epic") or index("checkpoint")) | not;
+  def work: [.labels[]?.name] | (index("epic") or index("checkpoint") or index("follow-up")) | not;
   [ $ms[0][] | select(.number != null) | .title as $t
     | ([ $is[0][] | select((.milestone.title // null) == $t) ]) as $mine
     | ([ $cps[0][] | select((.milestone.title // null) == $t) ]) as $cp
@@ -480,7 +480,7 @@ step_stop_reason() {
 # step_open_work <m>: its open work issues, "#a, #b"
 step_open_work() {
   jqr --arg t "$(step_title "$1")" '[.[] | select((.milestone.title // null) == $t)
-    | select([.labels[].name] | (index("epic") or index("checkpoint")) | not) | "#\(.number)"] | join(", ")' <<<"$ISSUES"
+    | select([.labels[].name] | (index("epic") or index("checkpoint") or index("follow-up")) | not) | "#\(.number)"] | join(", ")' <<<"$ISSUES"
 }
 # checkpoint_back <m>: the checkpoint's "not yet, polish these first" is new work in the step
 # (#243), which must not wait for the checkpoint-ok it is meant to earn: the step plans it like

@@ -109,4 +109,12 @@ state 5 phase=limited pr=50 branch=5-thing "used=250 79 9000" "started=$NOW"
 dispatch --once
 ok "… never less than BUDGET_RESUME" grep -qE ' turns=80 cost=20(\.0+)? min=45$' <<<"$(wlast)"
 
+# ---------------------------------------------------------------- a one-issue package keeps its scaled budget
+
+env_new cont-onepkg
+state 5 pkg=a step=12 members=5 plan_lines=900
+bud() { lib eval ". \"\$_canccu_lib/canccu-pipeline.sh\"; BUDGET_LINES=300 BUDGET_PACKAGE_MAX='9000 9000 9000' BUDGET_WORK='100 10 60' BUDGET_RESUME='10 2 20'; $1 5"; }
+ok "a one-issue package (numeric key, pkg set): its work budget is scaled by its planned lines" eq "$(bud work_full)" "300 30 180"
+ok "… and its resume budget" eq "$(bud resume_budget)" "30 6 60"
+
 echo "canccu-continue tests: $npass passed, $nfail failed"; (( nfail == 0 ))

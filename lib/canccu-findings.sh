@@ -141,7 +141,7 @@ file_nonblocking() {
   if [ -z "$m" ]; then w="the fast lane (issues outside any step)"; else w="step $(step_title "$m")"; fi
   text="Non-blocking review findings of $w, collected by the dispatcher instead of a fix round: a section per review, a line per finding. Pick what is worth building into issues of its own, and tick a line once it is handled."
   text+=$'\n\n'"$lead$(home_tilde "$sec")"$'\n\n'"$CANCCU_MARK"
-  mut_out gh issue create -R "$REPO" --title "$(followup_title "$k" "$part")" ${ms:+--milestone "$ms"} --body "$text" ||
+  mut_out gh issue create -R "$REPO" --title "$(followup_title "$k" "$part")" --label follow-up ${ms:+--milestone "$ms"} --body "$text" ||
     { log "#$k PR #$pr: creating the follow-up ticket failed (gh); its non-blocking findings stay in the review comment"; return 0; }
   (( CANCCU_DRY )) && return 0
   n2=$(grep -oE '/issues/[0-9]+' <<<"$MUT_OUT" | grep -oE '[0-9]+$' | tail -1)
@@ -152,7 +152,7 @@ file_nonblocking() {
     mut gh issue edit "$f" -R "$REPO" --body "$body"$'\n\n'"Continued in #$n2."$'\n\n'"$CANCCU_MARK" || log "#$k PR #$pr: linking #$n2 from #$f failed (gh)"
   fi
   # this pass's list too: a second PR passing in the same pass files into it instead of making another
-  ISSUES=$(jq -c --argjson n "$n2" --arg t "$(followup_title "$k" "$part")" --arg b "$text" '. + [{number: $n, title: $t, labels: [], milestone: null, body: $b}]' <<<"$ISSUES")
+  ISSUES=$(jq -c --argjson n "$n2" --arg t "$(followup_title "$k" "$part")" --arg b "$text" '. + [{number: $n, title: $t, labels: [{name: "follow-up"}], milestone: null, body: $b}]' <<<"$ISSUES")
   log "#$k PR #$pr: $n non-blocking finding(s) filed in #$n2"
 }
 

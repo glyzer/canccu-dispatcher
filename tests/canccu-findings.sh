@@ -39,7 +39,7 @@ ok "… a later heading ends the section" eq "$(lib nonblocking_of $'## Non-bloc
 nbenv pass-nb pass
 dispatch --once
 ok "a pass with non-blocking findings merges (no fix round)" eq "$(grep -c 'pr merge 50' "$FAKE/gh.log") $(wc -l < "$FAKE/worker.log")" "1 0"
-ok "… a follow-up issue is created for them" eq "$(grep -c '^issue create -R example-org/web --title Follow-ups: fast lane --body' "$FAKE/gh.log")" 1
+ok "… a follow-up issue is created for them" eq "$(grep -c '^issue create -R example-org/web --title Follow-ups: fast lane --label follow-up --body' "$FAKE/gh.log")" 1
 ok "… not ready" not grep -q 'issue create.*ready' "$FAKE/gh.log"
 ok "… it names the PR and each finding's file:line" grep -q 'issue create.*PR #50.*src/b.ts:9 the name.*docs/a.md:2 a typo' "$FAKE/gh.log"
 ok "… and is recorded" eq "$(cat "$CANCCU_HOME/followups")" $'fast\t900\t1'
@@ -86,7 +86,7 @@ state 5 phase=review pr=50 review_sha=$HA stage=review step=12 wave=2 pkg=one me
 ms 12 "4 Search" | jq -s . > "$FAKE/ms.json"
 dispatch --once
 ok "a package's findings go to its step's follow-up ticket, in the step's milestone" \
-  grep -q '^issue create -R example-org/web --title Follow-ups: step 4 Search --milestone 4 Search --body' "$FAKE/gh.log"
+  grep -q '^issue create -R example-org/web --title Follow-ups: step 4 Search --label follow-up --milestone 4 Search --body' "$FAKE/gh.log"
 ok "… recorded per step" eq "$(cut -f1 "$CANCCU_HOME/followups")" "step-12"
 
 nbenv pass-none pass
@@ -157,7 +157,7 @@ issue 900 "" "$(head -c 59950 /dev/zero | tr '\0' x)"$'\n\n'"$MARK" "4 Search" |
 printf 'step-12\t900\t1\n' > "$CANCCU_HOME/followups"; echo 901 > "$FAKE/new-issues"
 lib fu_pass pkg-12-a 60 "$HA" '- src/a.ts:1 a nit'
 ok "a body that would pass 60000 characters: part 2 opens" \
-  grep -q '^issue create -R example-org/web --title Follow-ups: step 4 Search (part 2) --milestone 4 Search --body' "$FAKE/gh.log"
+  grep -q '^issue create -R example-org/web --title Follow-ups: step 4 Search (part 2) --label follow-up --milestone 4 Search --body' "$FAKE/gh.log"
 ok "… with the findings, and a link to part 1" eq "$(grep -cxF -- '- [ ] src/a.ts:1 a nit' "$FAKE/created-901") $(grep -c 'part 1 is #900' "$FAKE/created-901")" "1 1"
 ok "… the full one links it and gains no findings" \
   eq "$(grep -cxF 'Continued in #901.' "$FAKE/body-900") $(grep -c 'src/a.ts' "$FAKE/body-900") $(tail -1 "$FAKE/body-900")" "1 0 $MARK"

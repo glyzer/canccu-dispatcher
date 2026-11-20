@@ -25,9 +25,9 @@ used_add() {
 }
 
 # work_full <K>: the unit's work budget (a package's scaled by its size, #216)
-work_full() { if is_pkg "$1"; then pkg_budget "$BUDGET_WORK" "$(budget_factor "$1")"; else echo "$BUDGET_WORK"; fi; }
+work_full() { if [ -n "$(st_get "$1" pkg)" ]; then pkg_budget "$BUDGET_WORK" "$(budget_factor "$1")"; else echo "$BUDGET_WORK"; fi; }
 # resume_budget <K>: a follow-up run's budget
-resume_budget() { if is_pkg "$1"; then pkg_budget "$BUDGET_RESUME" "$(budget_factor "$1")"; else echo "$BUDGET_RESUME"; fi; }
+resume_budget() { if [ -n "$(st_get "$1" pkg)" ]; then pkg_budget "$BUDGET_RESUME" "$(budget_factor "$1")"; else echo "$BUDGET_RESUME"; fi; }
 # work_left <K> [floor]: the work budget less what the unit used, each part at least the floor's
 work_left() {
   local f u l; f=$(work_full "$1") u=$(st_get "$1" used) l=${2:-0 0 0}

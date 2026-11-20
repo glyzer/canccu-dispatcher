@@ -307,7 +307,7 @@ act_verdict() {
 }
 
 # ensure_labels: the labels the dispatcher uses, created in REPO where missing
-CANCCU_LABELS="ready blocked in-progress epic needs-you plan-ok awaiting-accept needs-work accepted manual-accept checkpoint checkpoint-ok fast security"
+CANCCU_LABELS="ready blocked in-progress epic needs-you plan-ok awaiting-accept needs-work accepted manual-accept checkpoint checkpoint-ok fast security follow-up"
 ensure_labels() {
   local have l
   have=$(ghj label list -R "$REPO" -L 300 --json name | jqr '.[].name') || return 0
