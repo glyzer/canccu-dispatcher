@@ -34,6 +34,7 @@ RESUME_ON=answer,plan       # follow-ups that resume the session (answer plan fi
 FIX_ATTEMPTS=2              # automatic fix runs per PR (review fix rounds plus red-CI fixes), then needs-you
 FIX_EXTRA_IF_FEWER=1        # 1: one more automatic fix round when the last verdict has fewer blocking findings than the one before; 0: stop as today
 CRASH_RETRY=1               # fresh runs with the handoff after a worker crashed, stalled or was killed, then needs-you
+CONTINUE_MAX=3              # fresh runs with the handoff after a worker stopped at its turn or time budget with its PR moved on, within the USD of BUDGET_WORK; 0: needs-you at once
 FIX_MODEL=                  # the fix run's model (review fixes, red CI, needs-work); empty: MODEL
 FIX_EFFORT=                 # the fix run's --effort (low, medium, high, xhigh, max); empty: none, the account's
 BUDGET_REVIEW="60 15 40"    # the independent reviewer

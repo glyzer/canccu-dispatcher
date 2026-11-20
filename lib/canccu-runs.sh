@@ -251,7 +251,7 @@ window_before() {
 
 # the test and run rules of every worker prompt. A headless run exits when its turn ends, so work
 # left running in the background is lost, and a long local suite is what sent it there (#26)
-RUN_RULES='Tests: while working and before marking the PR ready, run only the tests of the files you change (the affected-tests command CLAUDE.md names, when it has one), in the foreground; do not run the full suite locally: CI runs it on every push. Before every push run the repo checks (tests/run repo in this repo, or the check CLAUDE.md names) and split any source file that went over the size limit; never add a size exemption. Never paste whole test logs into the conversation. Never run a command in the background (no run_in_background, no trailing &, no background subagents): your run ends with your turn, and work still running is lost. A foreground command may run 10 minutes at most: bound a long one with timeout under that. Commit and push early: push the branch after the tests-first commit and again when the tests pass, so a run that dies leaves its work on the remote.'
+RUN_RULES='Tests: while working and before marking the PR ready, run only the tests of the files you change (the affected-tests command CLAUDE.md names, when it has one), in the foreground; do not run the full suite locally: CI runs it on every push. Before every push run the repo checks (tests/run repo in this repo, or the check CLAUDE.md names) and split any source file that went over the size limit; never add a size exemption. Never paste whole test logs into the conversation. Never run a command in the background (no run_in_background, no trailing &, no background subagents): your run ends with your turn, and work still running is lost. A foreground command may run 10 minutes at most: bound a long one with timeout under that. Commit and push early: push the branch after the tests-first commit and again when the tests pass, so a run that dies leaves its work on the remote. On a long task push at least every 30 turns, and when the turn or time budget nears, end with a short handoff (done, left, next step): a run that stops at its budget after pushing continues on its own.'
 # the last %s is the project's WORKER_EXTRA (its rules)
 # SKILL_RULES: the skills no worker uses, single issue or package (no subagents: their cost, and a
 # headless run loses background work)
@@ -336,7 +336,7 @@ run_worker() {
   # finds (reap_worker). A refused or failed start puts the unit back as it was.
   local prev="" prev_started="" was=0 rc
   if is_managed "$n"; then was=1 prev=$(st_get "$n" phase) prev_started=$(st_get "$n" started); fi
-  st_set "$n" prev_phase="$prev" phase=starting started="$(now)"
+  st_set "$n" prev_phase="$prev" phase=starting started="$(now)"; run_mark "$n"
   MODEL=$model RUN_EFFORT=$effort RUN_TYPE=$type engine "worker $w" "$n" "${args[@]}" "$REPO_NAME" "$n $(oneline 8000 "$2")" \
     "turns=$turns" "cost=$cost" "min=$mins" || {
     rc=$?   # the engine's exit: SLOT_REFUSED is a wait

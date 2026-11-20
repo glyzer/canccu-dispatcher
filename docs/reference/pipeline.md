@@ -23,8 +23,7 @@ Every `INTERVAL` seconds, under the project's lock:
    answers and resumes. Backing off from a usage limit: nothing starts and nothing resumes.
    A GitHub rate limit (a failed `gh` call that says so) writes `gh_limit` with the reset (the
    primary limit's from `gh api rate_limit`, else 15 minutes): until then every pass returns at
-   once, with no `gh` call, logging `GitHub rate limit: passes pause until <time>` once and
-   `GitHub rate limit over; passes resume` when it ends. Free space below `DISK_MIN_MB` on the
+   once, with no `gh` call, logged once when it starts and once when it ends. Free space below `DISK_MIN_MB` on the
    worktrees' file system: nothing new starts (step 3), logged once when it starts and once when
    it ends; reaping, running reviews, resumes of started work and merges go on.
 2. **Reap.** For each managed issue whose run has finished:
@@ -93,7 +92,9 @@ Every `INTERVAL` seconds, under the project's lock:
      with its handoff, never its own session: phase `retry`, and the run starts once a slot is
      free. Past that → `needs-you`. A unit in phase `starting` (its engine was being started)
      whose run is gone after 60 s counts as killed while starting.
-   - A blocked, over-budget, stalled or crashed run past its retries → `needs-you` with the reason.
+   - A run stopped at its turn or time budget whose PR moved on → phase `continue`
+     ([`usage.md`](usage.md#continuations)). A blocked, over-budget, stalled or crashed run past
+     its retries → `needs-you` with the reason.
    - A usage limit in any run's output → phase `limited` and a global back-off until the reset
      the message names ([`usage.md`](usage.md)). No `needs-you`, no comment.
    - **Unblock.** Each open issue with the dispatcher's own `blocked` (a `waiting` run's) whose
@@ -129,7 +130,7 @@ Every `INTERVAL` seconds, under the project's lock:
    next pass. `needs-work` may be put on the unit's PR too: the pass first moves it to the lead
    issue (added there, then removed from the PR; logged), then handles it as above in the same
    pass; a `gh` error on the move leaves it on the PR for the next pass. A `needs-you` issue whose issue or PR got a new comment
-   from `USER_LOGIN` → that comment. `limited` after the back-off → a fresh session from its handoff ([`usage.md`](usage.md#after-the-reset)). `waiting` whose
+   from `USER_LOGIN` → that comment. `limited` after the back-off, and `continue`, → a fresh session from its handoff ([`usage.md`](usage.md)). `waiting` whose
    `blocked` is gone → "check its blockers again, then do the work". An issue labelled `blocked`
    is never started or resumed, and gets no answerer. A run that finished with no PR is not
    `--resume`d: a fresh session gets the whole task (with `plan_ok`, the order to execute the
@@ -157,14 +158,13 @@ Every `INTERVAL` seconds, under the project's lock:
    worktrees, local branch, session id and question file go; `in-progress`, `awaiting-accept`
    and `needs-you` come off; the main clone is fast-forwarded. An epic whose sub-issues are all
    closed is closed (a step's epic only once its step is done). An issue closed without a merged
-   PR logs "closed without a merged PR; its worktree is kept": only its question file goes; no
-   `merged.log` line, and its worktree, branch and session id stay.
+   PR logs "closed without a merged PR; its worktree is kept": only its question file goes.
 7. **Digest.** On the first pass at or after `DIGEST_HOUR_UTC` each day: `digest/<date>.md` and,
    with `DIGEST_ISSUE` set, one comment there: the merges of the last 24 hours, the questions the
    answerer answered (with links, so you can overrule them), PRs awaiting accept, issues that need
    you, CI on main and the running workers. None on a day with no activity. A failed post
    removes the file, so the next pass writes and posts it again.
-8. **Log and snapshot.** One line per action in `dispatch.log` (also in the pane, coloured);
+8. **Log and snapshot.** One line per action in `dispatch.log`;
    the raw output of the commands goes to the file only, prefixed `  │ `. Then `status.json`
    ([`snapshot.md`](snapshot.md)), also after a pass that failed or ended early.
 
@@ -173,4 +173,4 @@ Every `INTERVAL` seconds, under the project's lock:
 `starting` (the engine is being started; a start that fails puts back the phase it had) → `work` (worker running) → `check` (waiting for the PR and CI) → `review` (reviewer or
 fix-check running) → `merging` (merge armed) or `accept` (waiting for your accept). A question:
 `question` (waiting for a slot) → `answer` → `work` or `needs-you`. Waiting: `needs-you`,
-`limited` (usage limit), `retry` (a crashed run waits for a slot for its fresh run), `waiting` (blocked, until `blocked` goes) and `stopped` (`canccu-stop`).
+`limited` (usage limit), `continue` (a continuation), `retry` (a crashed run waits for a slot for its fresh run), `waiting` (blocked, until `blocked` goes) and `stopped` (`canccu-stop`).

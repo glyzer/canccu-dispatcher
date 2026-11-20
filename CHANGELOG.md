@@ -6,6 +6,12 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 
 ## Unreleased
 
+- A worker that stops at its turn or time budget while its PR moves on continues on its own
+  (#127): up to `CONTINUE_MAX` (default `3`, `0` turns it off) fresh runs with its handoff, each
+  with a run's turns and minutes and the USD the unit's work budget has left; `needs-you` only
+  without progress (no PR, no new pushed commits) or once those are used. A resume after the
+  usage limit gets the rest of the work budget, never less than `BUDGET_RESUME`
+  ([`usage.md`](docs/reference/usage.md#continuations)).
 - The v2 workflow is on by default (#242): light package reviews, the step deep review at
   `medium` effort (capped by `REVIEW_EFFORT_MAX` now, like every review), step tags, budgets by
   size, weekly pacing and cadence rounds. **Upgrade:** a project that sets none of these keys

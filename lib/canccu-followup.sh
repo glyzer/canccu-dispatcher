@@ -76,8 +76,8 @@ handoff() {
     stat=$(guard 20 git -C "$wt" diff --stat origin/$BASE_BRANCH...HEAD 2>/dev/null | tail -n 25)
     dirty=$(guard 20 git -C "$wt" status --short 2>/dev/null | head -n 20)
   fi
-  # a limited run's task carries its own handoff already: its last report would repeat it
-  [ "${2:-}" = limited ] || rep=$(run_msg "$k" | tail -n 12)
+  # a limited run's or a continuation's task carries its own handoff already: its last report would repeat it
+  case ${2:-} in limited|continue) ;; *) rep=$(run_msg "$k" | tail -n 12) ;; esac
   printf '%s' "This run is a fresh session, not a resume of your earlier one: your earlier work is in this worktree, on its branch. Build on it; never create the branch again or open a second PR."
   [ -n "$pr" ] && printf ' The PR: %s.' "$(pr_url "$pr")"
   [ -n "$body" ] && printf ' Its body: %s' "$(oneline 1500 "$body")"

@@ -55,7 +55,7 @@ cenv cont-spend run_head="$HB" cont=2
 printf '%s\tweb\t5\t1.00\tbuild\n' "$((NOW + 30))" > "$WORKERS_DIR/spend.log"
 last 5 done 'PR ready.'
 dispatch --once
-ok "the spend log marks a continuation's run" grep -qP '\tcont=2(,|$)' "$WORKERS_DIR/spend.log"
+ok "the spend log marks a continuation's run" grep -qP '[\t,]cont=2(,|$)' "$WORKERS_DIR/spend.log"
 ok "… a run that finished ends the chain" eq "$(st 5 cont)" ""
 
 # ---------------------------------------------------------------- no progress, or nothing left

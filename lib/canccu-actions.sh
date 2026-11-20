@@ -68,7 +68,7 @@ needs_you() {
 # a fix kind runs on FIX_MODEL and FIX_EFFORT. A PR armed for auto-merge is disarmed first
 # (armed), and `accepted` dropped: the worker is about to change it.
 resume() {
-  local n=$1 pr msg=$2 kind=${3:-user} q how=resume fl=() model=$MODEL effort="" type; pr=$(st_get "$n" pr)
+  local n=$1 pr msg=$2 kind=${3:-user} q how=resume fl=() model=$MODEL effort="" type budget; pr=$(st_get "$n" pr)
   blocked_held "$n" "the resumed worker" && return 1
   step_run_held "$n" "the resumed worker" && return 1
   if [ -n "$pr" ] && [ "$(st_get "$n" phase)" = merging ]; then
@@ -89,9 +89,15 @@ resume() {
   # the run type spend.log names: a fix kind is a fix, a merge a merge, the rest build
   type=build; [ "$kind" = merge ] && type=merge
   if fix_kind "$kind"; then model=${FIX_MODEL:-$MODEL} effort=$(run_effort FIX_EFFORT) type=fix; fi
+  # after the usage limit the run goes on with what is left of the work budget, never less than a
+  # resume's (#127)
+  case $kind in
+    continue) budget=$(continue_budget "$n") ;;
+    limited) budget=$(work_left "$n" "$(resume_budget "$n")") ;;
+    *) budget=$(resume_budget "$n") ;;
+  esac
   # workers never review: a resumed worker is told so as well
-  MODEL=$model RUN_EFFORT=$effort run_worker "$n" "$msg Do not review your own work; run the checks only." \
-    "$( [ -n "$(st_get "$n" pkg)" ] && pkg_budget "$BUDGET_RESUME" "$(budget_factor "$n")" || echo "$BUDGET_RESUME")" "$type" "${fl[@]}" || return 1
+  MODEL=$model RUN_EFFORT=$effort run_worker "$n" "$msg Do not review your own work; run the checks only." "$budget" "$type" "${fl[@]}" || return 1
   has_label "$n" needs-you && edit_issue "$n" --remove-label needs-you
   if [ "$how" = fresh ]; then log "#$n resumed (fresh session, $kind): $(oneline 100 "$2")"
   else log "#$n resumed: $(oneline 100 "$2")"; fi
@@ -143,7 +149,7 @@ start_issue() {
   is_exclusive "$n" && c=1
   run_worker "$n" "$prompt" "$BUDGET_WORK" || return   # SLOT_REFUSED: no shared slot, the issue waits
   edit_issue "$n" --add-label in-progress --remove-label ready --add-assignee "$USER_LOGIN" "${pl[@]}"
-  st_set "$n" exclusive=$c plan_ok=$p branch="$br"; new_cycle "$n"
+  st_set "$n" exclusive=$c plan_ok=$p branch="$br" used= cont=; new_cycle "$n"
   log "#$n started: $title"
 }
 

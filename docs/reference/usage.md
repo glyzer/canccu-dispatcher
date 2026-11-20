@@ -87,8 +87,31 @@ saying the limit was hit) has no handoff: its fresh session gets the same commit
 and is told to check `git status` for uncommitted work. The handoff file goes once the fresh run
 has started.
 
+Its budget is what the unit's work budget (`BUDGET_WORK`, a package's scaled by size) has left
+after the runs so far (state `used`), each part at least `BUDGET_RESUME`: a long build cut off by
+the limit picks up with room to finish, not with a small follow-up budget.
+
 The throttle and the back-off are per host: two hosts on one Claude account each read only their
 own runs ([`../hosts.md`](../hosts.md)).
+
+## Continuations
+
+A worker that stops at its turn or time budget (`stopped: turn budget …`, `stopped: time budget
+…`) while it makes progress continues on its own (#127): a big build can need several runs, and
+a `needs-you` between each would wait for a person. Progress means its PR's head moved, or the PR
+left draft, since the run started (state `run_head`, `run_draft`, read when it starts). Then the
+unit goes to phase `continue` and the next resume (step 4 of the pass, under `CAP`) starts a fresh
+session with the run's handoff: "this is continuation N of `CONTINUE_MAX`", the handoff, and "push
+at least every 30 turns". Its budget: a run's turns and minutes afresh (the budget it stopped at
+is per run) and only the USD the unit's work budget has left. A paused dispatcher (or
+`PACE=pause`) holds it. The log says `#<n> stopped at its turn budget with progress (PR #<p> at
+<sha>); continuation N of M`; the spend log marks the run with `cont=N`.
+
+Otherwise `needs-you`, saying which: no PR, no new pushed commits on the PR, the
+`CONTINUE_MAX` continuations used (`0`: never continue), the work budget's USD used, a cost-budget
+stop, or a deep review's run. A run that finishes ends the chain (`cont` is cleared). The worker's
+rules ask it, on a long task, to push at least every 30 turns and to end with a short handoff when
+the budget nears.
 
 ## Pacing
 
