@@ -323,7 +323,11 @@ run_worker() {
   blocked_held "$n" "the worker" && return 1
   read -r turns cost mins <<<"$3"
   if is_health "$n"; then model=${HEALTH_MODEL:-$MODEL} effort=$(run_effort HEALTH_EFFORT) type=health; fi
-  if is_deep "$n"; then model=${DEEP_REVIEW_MODEL:-${REVIEW_MODEL:-$MODEL}} effort=$(run_effort DEEP_REVIEW_EFFORT) type=deep; fi
+  if is_deep "$n"; then
+    model=${DEEP_REVIEW_MODEL:-${REVIEW_MODEL:-$MODEL}} effort=$(run_effort DEEP_REVIEW_EFFORT) type=deep
+    # a review like the others: REVIEW_EFFORT_MAX caps it (a host profile sets both by plan)
+    [ -z "$effort" ] || { effort=$(effort_cap "$effort"); effort=${effort% capped}; }
+  fi
   local w args; w=$(unit_window "$n"); args=(--name "$w" "${@:5}")
   (( CANCCU_DRY )) || rm -f "$WORKERS_DIR/$REPO_NAME-$n.nudge"; is_managed "$n" && st_set "$n" nudged=
   # a package runs in the worktree the dispatcher made and keeps its session for the fix round

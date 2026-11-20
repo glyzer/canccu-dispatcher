@@ -35,7 +35,7 @@ light one on that head files its own), and logs
 
 ## The light review
 
-With `REVIEW_LIGHT=1` (rules, locked; [`rules.md`](rules.md)) a full review (never a fix-check)
+With `REVIEW_LIGHT=1` (rules, locked, the default; [`rules.md`](rules.md)) a full review (never a fix-check)
 is light when the unit is a package (not the health pass or a step's deep review), its class
 (the highest of the plan, the PR's `Risk:` line and earlier reviews) is `low` or `normal`, no
 `full review` was asked for, and no path of the PR (a rename's old path too) is gated or agent
@@ -69,7 +69,7 @@ head with main, so main's lines drop out. When that merge conflicts, the count s
 passed head today: main's lines in the PR's files count, and a big main change or a risky path
 only main touched makes it a full review.
 
-With `FIXCHECK_COUNT_RESOLVED=1` (project config, locked) the count starts instead from the tree
+With `FIXCHECK_COUNT_RESOLVED=1` (project config, locked, the default) the count starts instead from the tree
 `git merge-tree --write-tree` writes for that merge with its conflict markers (git ≥ 2.38). The
 diff from it to the head holds the hand-resolved hunks and the PR's later commits; the size, gated
 and risky checks see only those. The fix-check's effort (`FIXCHECK_BIG`, `FIXCHECK_RISKY`) counts

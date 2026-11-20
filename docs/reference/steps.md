@@ -31,9 +31,9 @@ and the line `Health: nothing to do`. Once per step. It runs on `HEALTH_MODEL` a
 
 ## Deep review and polish
 
-With `STEP_DEEP_REVIEW=1`, a step whose work issues are all closed gets a deep review before its
+With `STEP_DEEP_REVIEW=1` (the default), a step whose work issues are all closed gets a deep review before its
 health pass: one worker run (`pkg-<m>-deep`, window `deep#<m>`, a fresh session on
-`DEEP_REVIEW_MODEL`, else `REVIEW_MODEL`, else `MODEL`, at `DEEP_REVIEW_EFFORT` (`high`), budget
+`DEEP_REVIEW_MODEL`, else `REVIEW_MODEL`, else `MODEL`, at `DEEP_REVIEW_EFFORT` (`medium`, capped by `REVIEW_EFFORT_MAX`), budget
 `BUDGET_DEEP_REVIEW`), charged to the step. The step's phase is `deep`: it stays current. The log
 says `#pkg-<m>-deep started: the deep review of step <title>`. Its prompt names the base (the
 tag matching `STEP_TAG` exactly, `{n}` as digits only, so no round tag, with the highest `{n}`
@@ -75,7 +75,7 @@ event must be by `USER_LOGIN`, after the summary) or close it; the dispatcher th
 the step is done. The fast lane runs on during the pause. A step without an open checkpoint
 skips the pause. The step's epic closes once the step is done and its sub-issues are closed.
 
-**Step tag.** With `STEP_TAG` set (locked: a tag push can start a release workflow; for example
+**Step tag.** With `STEP_TAG` set (locked: a tag push can start a release workflow; the default
 `step-{n}`, `{n}` as above), the checkpoint OK fetches, tags `origin/main`'s head and pushes the
 tag with the project's own login, as a merge of main is pushed. An existing tag is never moved.
 Logged: `step <title>: tagged <tag> at <sha7>`, `step <title>: tag <tag> exists already; not
@@ -84,7 +84,7 @@ no valid tag name after it (`git check-ref-format`): no tag, one warning.
 
 ## Cadence rounds
 
-A long-running step can be checked while it runs. With `CADENCE_DAYS` above 0 (project config),
+A long-running step can be checked while it runs. With `CADENCE_DAYS` above 0 (project config; default 14),
 a step whose milestone description has the line `Cadence: on` (any case; the title keeps its
 ordering number) starts a **round** every `CADENCE_DAYS` days, counted from the end of the last
 round (step field `cadence_at`), else from the step's start, while the step runs or is idle with

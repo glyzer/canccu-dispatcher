@@ -93,7 +93,7 @@ own runs ([`../hosts.md`](../hosts.md)).
 ## Pacing
 
 A week's limit runs out early when the work spends it faster than the week goes by. With `PACE`
-on (project config, open: `notify`, `cap` or `pause`; default `off`) each pass compares the weekly
+on (project config, open: `notify`, `cap` or `pause`; default `cap`; `off`: none) each pass compares the weekly
 share of the newest reading with the share of the week gone since its weekly window started
 (its reset minus 7 days, rounded): `gone = 100 × (now − (reset − 604800)) / 604800`. The project is
 **ahead** when the weekly share is more than `PACE_MARGIN` points (10) above that. An unknown or

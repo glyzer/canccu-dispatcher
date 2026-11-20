@@ -6,6 +6,19 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 
 ## Unreleased
 
+- The v2 workflow is on by default (#242): light package reviews, the step deep review at
+  `medium` effort (capped by `REVIEW_EFFORT_MAX` now, like every review), step tags, budgets by
+  size, weekly pacing and cadence rounds. **Upgrade:** a project that sets none of these keys
+  changes with the update. To keep the old value, set it in the project's `config` (rules key:
+  its `rules`):
+  - `REVIEW_LIGHT=0` (rules; was `0`, now `1`);
+  - `STEP_DEEP_REVIEW=0` (now `1`);
+  - `DEEP_REVIEW_EFFORT=high` (now `medium`; the `max` host profile keeps `high`);
+  - `STEP_TAG=''` (now `step-{n}`);
+  - `BUDGET_LINES=0` (now `300`);
+  - `PACE=off` (now `cap`);
+  - `CADENCE_DAYS=0` (now `14`; a round runs only in a milestone marked `Cadence: on`);
+  - `FIXCHECK_COUNT_RESOLVED=0` (now `1`).
 - Host settings (#14): one release runs on a Max and a Pro host, and what differs is a setting
   ([`docs/hosts.md`](docs/hosts.md#what-a-host-decides)). New keys: `BASE_BRANCH`, `CLONE_ROOT`,
   `EXTRA_PATH`, `GUARD_VMEM_KB`, `WORKER_SKILLS`, `REVIEW_SKILLS`, `HEALTH_CHECKLIST` and

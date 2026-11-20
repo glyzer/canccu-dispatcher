@@ -231,6 +231,19 @@ chmod +x "$T/tmuxrec/tmux"
 
 # ---------------------------------------------------------------- helpers
 
+# OLD_DEFAULTS: the workflow keys whose defaults #242 turned on, at their values before it. Every
+# test project pins them, so a test written against the old defaults keeps its coverage; a test of
+# the new defaults drops them with new_defaults. REVIEW_LIGHT, a rules key, is pinned in the rules
+# (tests/fixtures/rules/web, and the generic template's copies here).
+OLD_DEFAULTS=(STEP_DEEP_REVIEW=0 DEEP_REVIEW_EFFORT=high "STEP_TAG=''" BUDGET_LINES=0 PACE=off CADENCE_DAYS=0 FIXCHECK_COUNT_RESOLVED=0)
+# new_defaults [config file]: the project (default: CANCCU_HOME's) on the shipped defaults again
+new_defaults() {
+  local f=${1:-$CANCCU_HOME/config} r k
+  r=${f%/config}/rules
+  for k in "${OLD_DEFAULTS[@]}"; do sed -i "/^${k%%=*}=/d" "$f"; done
+  [ -f "$r" ] && sed -i '/^REVIEW_LIGHT=0 *# pinned/d' "$r"
+}
+
 # env_new <name> [config lines...]: a fresh CANCCU_HOME and fixture dir for one test
 env_new() {
   tname=$1; shift
@@ -245,7 +258,7 @@ env_new() {
     echo "REVIEWER_TOKEN_FILE=$E/reviewer-token"
     # the suite runs on the fake gh's default login; tests/canccu-projects.sh tests the refusal
     echo "ALLOW_DEFAULT_GH_LOGIN=1"
-    printf '%s\n' "$@"
+    printf '%s\n' "${OLD_DEFAULTS[@]}" "$@"
   } > "$CANCCU_HOME/config"
   printf '%s\n' "$FAKE_TOKEN" > "$E/reviewer-token"; chmod 600 "$E/reviewer-token"
   jq -n --arg l "$BOT" '{login: $l}' > "$FAKE/user.json"
@@ -345,8 +358,8 @@ penv() {
   for p; do
     mkdir -p "$CANCCU_ROOT/projects/$p/state" "$CANCCU_ROOT/projects/$p/workers" "$E/code/$p"
     { echo "REPO=$(prepo "$p")"; echo "CLONE=$E/code/$p"; echo "USER_LOGIN=octo"; echo "REVIEWER_LOGIN=review-bot"; echo "DIGEST_HOUR_UTC=24"
-      echo "REVIEWER_TOKEN_FILE=$E/reviewer-token"; echo "ALLOW_DEFAULT_GH_LOGIN=1"; } > "$CANCCU_ROOT/projects/$p/config"
-    sed "s/@NAME@/$p/g" "$root/profiles/default/rules" > "$CANCCU_ROOT/projects/$p/rules"
+      echo "REVIEWER_TOKEN_FILE=$E/reviewer-token"; echo "ALLOW_DEFAULT_GH_LOGIN=1"; printf '%s\n' "${OLD_DEFAULTS[@]}"; } > "$CANCCU_ROOT/projects/$p/config"
+    { sed "s/@NAME@/$p/g" "$root/profiles/default/rules"; echo "REVIEW_LIGHT=0   # pinned (OLD_DEFAULTS)"; } > "$CANCCU_ROOT/projects/$p/rules"
     echo '[]' > "$FAKE/issues-$p.json"; echo '[]' > "$FAKE/prs-$p.json"
     printf '%s\t%s\n' "issue list -R $(prepo "$p") *" "issues-$p.json" "pr list -R $(prepo "$p") -s open*" "prs-$p.json" \
       'label list*' labels.json 'api repos/*/dependencies/*' empty.json 'run list*' runs.json 'api user*' user.json \

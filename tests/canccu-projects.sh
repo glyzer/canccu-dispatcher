@@ -169,6 +169,16 @@ ok "canccu-init checklist: the ruleset on the base branch, the merge queue optio
 ok "canccu-init: the config names the repo and its clone" eq "$(grep -E '^(REPO|CLONE)=' "$w/config" | tr '\n' ' ')" 'REPO=example-org/web CLONE=$HOME/code/web '
 ok "canccu-init: the rules from the generic template" eq "$(grep -v '^#' "$w/rules")" "$(grep -v '^#' "$root/profiles/default/rules")"
 ok "canccu-init: says which template" grep -q "^wrote .*/projects/web/config and rules (from the template default: .*profiles/default)$" <<<"$out"
+# the v2 workflow is on for a new project (#242): the shipped defaults, no project setting
+ok "canccu-init: config show has the v2 defaults (#242)" eq "$(env -u CANCCU_HOST_PROFILE PATH="$fb:$PATH" "$root/bin/canccu-dispatcher" config show --project web \
+  REVIEW_LIGHT STEP_DEEP_REVIEW DEEP_REVIEW_EFFORT STEP_TAG BUDGET_LINES PACE CADENCE_DAYS FIXCHECK_COUNT_RESOLVED 2>&1)" "BUDGET_LINES=300
+FIXCHECK_COUNT_RESOLVED=1
+STEP_DEEP_REVIEW=1
+DEEP_REVIEW_EFFORT=medium
+CADENCE_DAYS=14
+STEP_TAG=step-{n}
+PACE=cap
+REVIEW_LIGHT=1"
 ok "canccu-init: the only project so far becomes the default (it keeps session canccu)" eq "$(cat "$CANCCU_ROOT/default-project")" tools
 ok "canccu-init: creates the missing labels in the repo" eq "$(grep -c '^label create .* -R example-org/web' "$FAKE/gh.log")" 12
 ok "… none that exist" not grep -q '^label create ready' "$FAKE/gh.log"

@@ -101,6 +101,23 @@ dpass
 ok "… no tag below it: the step's merged PRs, not a later step's tag" \
   eq "$(grep -c 'from the tag step-7' "$FAKE/worker.log") $(grep -c "from the step's merged PRs #50, #51 (read them" "$FAKE/worker.log")" "0 1"
 
+# the shipped defaults (#242): the deep review is on, at medium effort, under REVIEW_EFFORT_MAX
+deff() { awk '/^=== / { h = ($0 ~ /--key pkg-12-deep/) } h && index($0, "WORKER_EFFORT=") == 1 { sub(/^[^=]*=/, ""); print }' "$FAKE/worker.envdump"; }
+denv deep-default; new_defaults
+dpass
+ok "no project setting: a step whose work is done starts pkg-12-deep at effort medium (#242)" \
+  eq "$(grep -c -- '--key pkg-12-deep' "$FAKE/worker.log") $(deff)" "1 medium"
+denv deep-capped REVIEW_EFFORT_MAX=low; new_defaults
+dpass
+ok "… REVIEW_EFFORT_MAX=low caps the deep review to low" eq "$(deff)" low
+denv deep-own; new_defaults; echo DEEP_REVIEW_EFFORT=high >> "$CANCCU_HOME/config"
+dpass
+ok "… a project's own DEEP_REVIEW_EFFORT stays" eq "$(deff)" high
+denv deep-own-off; new_defaults; echo STEP_DEEP_REVIEW=0 >> "$CANCCU_HOME/config"
+dpass
+ok "… and its own STEP_DEEP_REVIEW=0: the health pass, no deep review" \
+  eq "$(grep -c -- '--key pkg-12-deep' "$FAKE/worker.log") $(grep -c -- '--key pkg-12-health' "$FAKE/worker.log")" "0 1"
+
 # ---------------------------------------------------------------- its PR merged: polish or health
 
 # merged <name> [blocking items...]: the deep review's PR 60 merged with that report
