@@ -35,8 +35,8 @@ push to it, or when the tag `scenario-base` is missing.
 tests/scenarios/run --repo <owner/sandbox> [--keep] [scenario...]
 ```
 
-- No scenario named: all eight, in order: `single`, `package`, `contract-first`,
-  `conflict-waiting`, `queue-removal`, `push-after-pass`, `denied-push`, `crash`.
+- No scenario named: all nine, in order: `single`, `package`, `contract-first`,
+  `conflict-waiting`, `queue-removal`, `push-after-pass`, `denied-push`, `denied-pr`, `crash`.
 - Each scenario gets its own temp dispatcher home (`CANCCU_ROOT`, project `sandbox`, `CAP=3`), so
   the host's real projects are never touched. `--keep` keeps the temp dir and prints its path.
 - One `canccu-dispatch --once` pass every `SCENARIO_PASS_SEC` (default 20) seconds, until the end
@@ -52,6 +52,7 @@ tests/scenarios/run --repo <owner/sandbox> [--keep] [scenario...]
 | `queue-removal` | the merge queue drops the PR once | queued again by the dispatcher, merged |
 | `push-after-pass` | a push lands on the PR after the review passed | a fix-check ran, then the merge |
 | `denied-push` | the worker's `git push` is denied | the issue `needs-you`, naming `git push` |
+| `denied-pr` | the worker pushed, but its `gh pr create` is denied | the dispatcher opens the PR from the worker's body file (the body says so); it merges and the issue closes |
 | `crash` | the worker crashes twice | one fresh retry, then `needs-you` |
 
 ## The fake engine

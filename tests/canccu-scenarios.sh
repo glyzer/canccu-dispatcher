@@ -58,6 +58,13 @@ ok "push-denied: done, nothing pushed" eval '[ "$(lastx 9)" = "done|done" ] && !
 ok "push-denied: the denials block denied_ok reads names the push" \
   eq "$(lib run_msg 9 | sed -n '/^Permission denials (information):$/,$p' | tail -n +2)" "Bash git push -u origin 9-scenario"
 
+fe_env worker-pr-denied; key=11
+printf '%s\n' 'worker 1 pr-denied' > "$SCENARIO_DIR/script"
+fe --quiet --name '#11' web "11 take" turns=1 cost=1 min=1
+ok "pr-denied: done, the branch pushed, no PR opened" eval '[ "$(lastx 11)" = "done|done" ] && git -C "$E/origin.git" rev-parse -q --verify 11-scenario >/dev/null && ! grep -q "^pr create" "$FAKE/gh.log"'
+ok "pr-denied: the denials name gh pr create with the body file, which holds Closes #11" \
+  eval 'lib run_msg 11 | grep -qx "Bash gh pr create --head 11-scenario --title \"scenario: 11\" --body-file pr-body.md" && grep -qx "Closes #11" "$WORKERS_DIR/worktrees/web/issue-11/pr-body.md"'
+
 fe_env worker-contract; key=10
 printf '%s\n' 'worker 1 contract' > "$SCENARIO_DIR/script"
 fe --quiet --name '#10' web "10 take" turns=1 cost=1 min=1
@@ -187,6 +194,12 @@ ok "push-after-pass: a fix-check, then the merge: passes" eq "$rc $(cat "$E/out"
 
 run_env denied; world_is "$I_NEEDS" "[]"; srun --repo example-org/web denied-push
 ok "denied-push: needs-you naming the push passes" eq "$rc $(cat "$E/out")" "0 denied-push: pass"
+
+run_env denied-pr; world_is "$I_CLOSED" "[$(pr_ 50 MERGED 5-scenario $'Closes #5\n\nThe dispatcher opened this PR: the worker pushed `5-scenario` but did not open it.' 2030-11-05T12:00:00Z)]"
+srun --repo example-org/web denied-pr
+ok "denied-pr: the PR the dispatcher opened, merged: passes" eq "$rc $(cat "$E/out")" "0 denied-pr: pass"
+run_env denied-pr-worker; world_is "$I_CLOSED" "$MERGED"; srun --repo example-org/web denied-pr
+ok "denied-pr: a merged PR that does not say the dispatcher opened it fails" eq "$rc $(grep -c 'does not say the dispatcher opened it' "$E/out")" "1 1"
 
 run_env crash; world_is "$I_NEEDS" "[]"; printf '%s\n' 'worker 1 5 crash' 'worker 2 5 crash' > "$FAKE/engine.lines"
 srun --repo example-org/web crash

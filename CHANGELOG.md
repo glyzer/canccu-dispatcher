@@ -6,6 +6,11 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 
 ## Unreleased
 
+- A worker that pushed its branch but could not open the PR (its `gh pr create` denied, or a
+  finish run spent) no longer ends in `needs-you` (#237): the dispatcher opens the PR itself, from
+  the worker's body file inside its worktree or a body built from the issue and the run's
+  Testing:/Revert: lines, as a draft if the worker asked for one, and says so in the PR and the
+  log. `needs-you` stays without a pushed branch of the issue with commits ahead of main.
 - A ready step issue outside the running wave no longer waits unseen (#236): `canccu-status`, the
   brief and the monitor list it as `waiting for the next wave of step <n> (label fast to run it
   now)`. It is not added to the running wave; the next wave plans it

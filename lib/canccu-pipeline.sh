@@ -184,6 +184,8 @@ check_pr() {
     is_step_run "$n" && pr=$(st_get "$n" pr) && [ -n "$pr" ] && ! pr_is_open "$pr" && return 0
     if is_health "$n" && grep -qE '^[[:space:]*_]*Health: nothing to do' <<<"$(run_msg "$n")"; then health_nothing "$n"; return; fi
     finish_once "$n" && return 0
+    # pushed with commits ahead: the dispatcher opens the PR; the next pass checks it (#237)
+    dispatcher_pr "$n" && return 0
     needs_you "$n" "the worker finished without an open PR" "$(run_msg "$n")" "" work; return
   fi
   st_set "$n" pr="$pr" finish_tried=
