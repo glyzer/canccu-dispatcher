@@ -6,6 +6,13 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 
 ## Unreleased
 
+- Notifications on Telegram: `NOTIFY` (`github`, the default, `telegram`, `both`, `off`) sends
+  each ask of the product owner, a step done, a hold and a polish issue as one Telegram message at
+  the change of state, in a forum topic per item (a reply chain in a private chat). The product
+  owner's replies in an open topic land in `$CANCCU_HOME/inbox` for the leader; `canccu-notify`
+  answers, notes, closes topics and sends images; `canccu-init --check <project>` checks the
+  setup. New settings `TELEGRAM_CHAT_ID`, `TELEGRAM_USER_ID`, `TELEGRAM_TOKEN_FILE`; new feed kind
+  `polish` ([`docs/reference/notify.md`](docs/reference/notify.md), #39).
 - `canccu-init --leader <project>` writes a leader kit (`CLAUDE.md` and `.claude/settings.json`)
   to `~/.canccu/projects/<project>/leader/` and sets `LEADER=on`; with `LEADER=on`, `canccu-up`
   starts the left pane's `claude` there, titled `leader`, with `CANCCU_ACTOR=leader`. The

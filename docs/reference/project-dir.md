@@ -18,6 +18,7 @@ fields are in [`state.md`](state.md). Every file in `~/.canccu/projects/<name>/`
 | `handoffs/<K>.md` | The handoff a run stopped by the usage limit ended with, for the fresh session after the reset ([`usage.md`](usage.md#after-the-reset)) |
 | `questions/<K>.txt` | The question a worker stopped with, for its answerer |
 | `pings/<n>` | The state issue n was last pinged for ([`pings.md`](pings.md)) |
+| `notify/`, `inbox` | The Telegram records, and the product owner's replies for the leader ([`notify.md`](notify.md)) |
 | `digest/<date>.md` | The daily digest |
 | `findings.log` | One tab-separated line per key (class + file) of a merged PR's posted verdicts, written once per PR when it merges, append only: `<time> <pr> <class> <file>` (epoch seconds); `FINDINGS_RECUR=0` writes nothing ([`findings.md`](findings.md#recurring-findings)) |
 | `merged.log` | One line per merged PR of a managed issue: time, issue, PR, how (`auto`, `accepted`, or `by hand` when the dispatcher did not arm it), title |
