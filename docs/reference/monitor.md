@@ -5,15 +5,84 @@ Part of the reference; the index is [`README.md`](README.md).
 
 ## canccu-monitor
 
-`canccu-monitor [--project <name>]` draws the project's `status.json` every 2 s, with the other
-projects' snapshots in the same view. It never calls GitHub, git or tmux, never changes anything,
-and reads no keys (Ctrl-C ends it). It is `lib/canccu-monitor.py` with its parts in
-`lib/canccu_monitor/` (`data` reads the snapshots, `inbox` the header and the NEEDS YOU box,
-`now`, `roadmap`, `recent`, `draw` lays them out, `screen` the terminal, `selftest`), run with
-the venv's Python and `rich` (`CANCCU_VENV`, default `~/.local/share/canccu/venv`).
+`canccu-monitor [--project <name>] [--view <name>] [--rotate [secs]]` draws the project's
+`status.json` every 2 s and at once after a key, with the other projects' snapshots in the same
+view. It never calls GitHub, git or tmux and never changes anything. It is `lib/canccu-monitor.py`
+with its parts in `lib/canccu_monitor/` (`data` reads the snapshots, `views` the state, the
+strip, the view bar and the loop, `summary`, `projects`, `roadmap` and `activity` the four views,
+`inbox`, `now` and `recent` the parts they share, `keys` the keyboard, `screen` the terminal,
+`selftest`), run with the venv's Python and `rich` (`CANCCU_VENV`, default
+`~/.local/share/canccu/venv`).
+
+## The views
+
+Four views, one screen each. Line 1 of every view is a one-line strip (each project's pass age
+and `✓`/`⚠`, the slots, today's spend, the 5-hour and weekly usage, or `usage unknown`); the
+Summary has the full 2-line header instead. The last line is the view bar:
+
+```
+ [1 Summary ✖2]    2 Projects     3 Roadmap     4 Activity    ? help   q quit     ↑↓ scroll   rotate off
+```
+
+The current view is in brackets (and reverse), the needs-you count is the red badge on the
+Summary tab, the view's key hints and `rotate off` or `rotate 30s` sit on the right when they
+fit. Up to 80 columns the names are short (`Sum`, `Proj`, `Road`, `Act`).
+
+- **1 Summary** (the default): the most important things, one line each. NEEDS YOU (one line per
+  item with a `how:` line under it), NOW (a line per run with its stage, minutes and turns against
+  their caps), STEPS (a line per current step of every project; a project without steps says
+  `no steps (simple workflow)` with its open PRs and queue), RECENT (every project's events,
+  newest first) and the glyph legend. It never scrolls: when the terminal is short it drops the
+  `how:` lines, then RECENT, the legend, the blank lines, then the steps down to the main track's.
+  The needs-you lines never drop. It is the only view that cuts text with `…`, and only titles and
+  reasons.
+- **2 Projects**: a block per project. The head line
+  `━━ name · repo · pass · runs n of CAP · today $ · queue n ━━`; the runs table (Run · Kind ·
+  Stage · Age · Turns · Min · Cost · Title; Cost is `–` while a run is live, a run started by
+  hand has Kind `other`); the needs-you lines; the current step's line and its packages table
+  (Package · Issues · Risk · Wave · Status · Waiting on; a package carried from an earlier wave
+  reads `6→8`); the queue table; the parallel tracks on one line. Only the Title column is cut.
+  `p` cycles the focus: all projects, then one at full detail with the others on their head line.
+- **3 Roadmap**: every project's roadmap at full detail, stacked, with the legend; nothing is
+  cut. A project without steps says `no steps (simple workflow)`.
+- **4 Activity**: a today line (merged, runs ended, spend per project, needs you); RUNS ENDED
+  TODAY from the snapshot's `finished[]` (a dim line says so while a dispatcher does not write
+  it); EVENTS of every project, newest first, repeats folded `×N`, `⚠` on failures, merges green,
+  needs-you red, the steps' `Follow-up:` and `Roadmap note:` items among them, a URL as a terminal
+  link on the number.
+
+Projects, Roadmap and Activity scroll. Up to 80 columns every view has its phone form: no boxes
+and no tables, a line per row.
+
+### Keys
+
+| Key | What it does |
+|---|---|
+| `1` `2` `3` `4` | that view |
+| `Tab` `→` / `Shift-Tab` `←` | the next / the previous view (wrapping around) |
+| `↑` `↓` `j` `k` | scroll a line |
+| `PgUp` `PgDn` / `Home` `End` | scroll a page / to the top, to the end |
+| `p` | Projects: cycle the focus |
+| `a` | rotate the views on or off |
+| `r` | redraw the whole screen now |
+| `?` | the help overlay (any key closes it) |
+| `q` `Ctrl-C` | quit |
+
+The view, the scroll and the focus stay across redraws, new snapshots and resizes. Keys are read
+only when stdin is a terminal, in cbreak mode (no echo, Ctrl-C still a signal); the terminal's
+settings are restored on every way out (q, Ctrl-C, an error, SIGTERM) before the alternate screen
+is left. They work with or without tmux; from outside the pane,
+`tmux send-keys -t <session>:main.1 2` switches the monitor to Projects.
+
+`--view <name>` (`summary`, `projects`, `roadmap`, `activity`, or `1`–`4`) picks the start view,
+also with `--once`. `--rotate [secs]` cycles the views (default 30 s, the Summary twice as long),
+skipping a view with nothing to show; any key but `a` stops it.
+
+## The parts
 
 It is made for the right half of a PC screen (120×55, scaling to about 140×65) and still works on
-a phone over ssh (80×30). Top to bottom:
+a phone over ssh (80×30). The views are built from these parts (the Inbox First layout of
+`draw.py`, which the self-test still renders, stacks them all in one screen):
 
 - **Header**: each project with its last pass's age and `✓` (or `⚠`: a failed or stale pass), the
   slots in use against `TOTAL_CAP`, the clock, today's spend (`≥` while a run had no reported
@@ -49,9 +118,11 @@ text. A snapshot older than 3 passes shows a red "dispatcher not running?"; a mi
 written snapshot shows one red line and is read again 2 s later; a section with odd data shows
 "(unreadable)". It never crashes on a snapshot.
 
-`canccu-monitor --self-test` renders every fixture in `tests/fixtures/monitor/` at several sizes
-and checks the words, links, order, colours and the drop order; the local check runs it.
-`canccu-monitor --file <snapshot> --once [--width N] [--height N]` prints one frame.
+`canccu-monitor --self-test` renders every fixture in `tests/fixtures/monitor/` in every view at
+160×60, 120×40, 100×40, 80×30 and 60×20, checks the words, links, order, colours and the drop
+order, and drives the keys on a fake terminal; the local check runs it.
+`canccu-monitor --file <snapshot> --once [--view <name>] [--width N] [--height N]` prints one
+frame.
 
 ### Moving to the command-center layout
 

@@ -98,6 +98,10 @@ def self_test():
     owner_checks(mock, check)
     title_checks(mock, check)
     brake_checks(mock, check)
+    from .keytest import key_checks
+    from .viewtest import view_checks
+    key_checks(mock["tools"], check)
+    view_checks(mock, fx, check)
     for f in fails:
         print("FAIL " + f)
     print("canccu-monitor self-test: %d checks failed" % len(fails) if fails else "canccu-monitor self-test: ok")

@@ -1,22 +1,28 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""canccu-monitor [--project <name>] — the live command center of the dispatchers.
+"""canccu-monitor [--project <name>] [--view <name>] [--rotate [secs]] — the live command center
+of the dispatchers.
 
 Run through bin/canccu-monitor, which picks the venv's Python (rich). Reads only the status
 snapshots canccu-dispatch writes after every pass (~/.canccu/projects/<name>/status.json; schema
-in docs/canccu-dispatch.md, "Status snapshot"): the project's, and the other projects' for the
-one view of all. It never calls GitHub, git or tmux and never changes anything. Redraws
-every 2 s and reads no keys (Ctrl-C ends it). The cursor stays hidden the whole run: a redraw
-writes only the lines that changed. The layout is "Inbox First", top to bottom: the header,
-the NEEDS YOU box, NOW, ROADMAP (one column per project), RECENT; it fits the terminal's height,
-dropping the less important parts first (never the NEEDS YOU box). Up to 80 columns it uses the
-phone form. NO_COLOR turns colour off. The parts are in lib/canccu_monitor/.
+in docs/reference/snapshot.md): the project's, and the other projects' for the one view of all.
+It never calls GitHub, git or tmux and never changes anything. Four views (lib/canccu_monitor/
+views.py): Summary (the default), Projects, Roadmap and Activity; keys 1-4, Tab and the arrows
+switch, the arrows, j/k, PgUp/PgDn and Home/End scroll, p cycles the Projects focus, a rotates
+the views, r redraws, ? shows the keys, q or Ctrl-C quits. Keys are read only when stdin is a
+tty. Redraws every 2 s and at once after a key; the cursor stays hidden the whole run and a
+redraw writes only the lines that changed. Up to 80 columns every view has its phone form.
+NO_COLOR turns colour off.
 
-  canccu-monitor --self-test   renders the #62 mockup (tests/fixtures/monitor/inbox/) at 120x55,
-                               140x65, 100x40, 80x30 and 60x30 and every fixture in
-                               tests/fixtures/monitor/, offline; exit 0 when every check passes
-  canccu-monitor --file <snapshot> --once [--width N] [--height N] [--now EPOCH]
+  --view <name>                the start view: summary, projects, roadmap, activity (or 1-4)
+  --rotate [secs]              cycle the views (default 30 s, the Summary twice as long); any
+                               key but a stops it
+  canccu-monitor --self-test   renders the mockup (tests/fixtures/monitor/inbox/) and every
+                               fixture in tests/fixtures/monitor/ in every view at several
+                               sizes, and drives the keys on a fake terminal, offline; exit 0
+                               when every check passes
+  canccu-monitor --file <snapshot> --once [--view <name>] [--width N] [--height N] [--now EPOCH]
                                one frame of that file to stdout (for tests and a quick look;
-                               no --height: no limit)
+                               no --height: no limit; reads no keys)
 
 --project <name> picks the project (else CANCCU_PROJECT, ~/.canccu/default-project, the only one).
 """
@@ -29,7 +35,7 @@ import time
 # the tool's checkout
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
-from canccu_monitor.data import canccu_root, check_project, load, others, pick_project  # noqa: E402
+from canccu_monitor.data import canccu_root, check_project, load, others, pick_project, txt  # noqa: E402
 
 
 def load_rich():
@@ -43,12 +49,13 @@ def load_rich():
                  "(see README.md)" % (req.replace(os.path.expanduser("~"), "~", 1),
                                       os.environ.get("CANCCU_VENV") or "~/.local/share/canccu/venv"))
     from rich.console import Console
-    from canccu_monitor import draw, screen, selftest
-    return Console, draw, screen, selftest
+    from canccu_monitor import keys, screen, selftest, views
+    return Console, keys, screen, selftest, views
 
 
 def main(argv):
     args, project, path, once, width, height, now = list(argv), None, None, False, None, None, None
+    view, rotate = "summary", None
     while args:
         a = args.pop(0)
         if a == "--project" and args:
@@ -67,6 +74,12 @@ def main(argv):
             height = int(args.pop(0))
         elif a == "--now" and args:
             now = float(args.pop(0))
+        elif a == "--view" and args:
+            view = args.pop(0)
+        elif a.startswith("--view="):
+            view = a.split("=", 1)[1]
+        elif a == "--rotate":
+            rotate = int(args.pop(0)) if args and args[0].isdigit() and int(args[0]) > 0 else 30
         else:
             print(__doc__.strip(), file=sys.stderr)
             return 2
@@ -74,27 +87,31 @@ def main(argv):
     if path is None:
         project = pick_project(root, project)
         path = os.path.join(root, "projects", project, "status.json")
-    Console, draw, screen, _ = load_rich()
+    Console, keys, screen, _, views = load_rich()
+    start = views.view_index(view)
+    if start is None:
+        sys.exit("canccu-monitor: no view '%s' (views: %s)" % (view, ", ".join(n.lower() for n in views.NAMES)))
+    state = views.State(start, rotate)
+
+    def frame(st, width_, height_, now_):
+        snap, err = load(path)
+        projects = [(project or txt(snap, "project", "?"), snap)] + (others(root, project) if project else [])
+        return views.render_view(st, projects, now_, width_, height_, err)
     if once:
         con = Console(width=width) if width else Console()
-        snap, err = load(path)
-        con.print(draw.render(snap, err, now or time.time(), con.width, others(root, project) if project else [], project,
-                              height))
+        con.print(frame(state, con.width, height, now or time.time()))
         return 0
     con = Console()
 
-    def frame():
-        snap, err = load(path)
-        return draw.render(snap, err, time.time(), con.width, others(root, project) if project else [], project,
-                           con.height)
-
     def stop(*_):
         raise SystemExit(0)
-    signal.signal(signal.SIGTERM, stop)  # so a kill shows the cursor again too
+    signal.signal(signal.SIGTERM, stop)  # so a kill restores the tty and shows the cursor too
     try:
-        screen.live(screen.Display(con, con.file), frame)
+        views.run(screen.Display(con, con.file), keys.Keyboard(sys.stdin.fileno()), state,
+                  lambda st: frame(st, con.width, con.height, time.time()))
     except KeyboardInterrupt:
         return 0
+    return 0
 
 
 if __name__ == "__main__":
