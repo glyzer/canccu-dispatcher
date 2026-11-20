@@ -612,8 +612,8 @@ ok "flow 2: no second full review" not grep -q 'You are the independent reviewer
 ok "flow 2: the fix-check starts in a fresh session (key review-50, untrusted, never the worker's)" \
   grep -q -- "^--quiet --key review-50 --dir $WORKERS_DIR/worktrees/web/review-50 --name fixcheck#50 --untrusted web You run the FIX-CHECK" <<<"$fc"
 ok "flow 2: the fix-check prompt has the reviewed sha and the fix diff" grep -qF "git diff $HA..$HB" <<<"$fc"
-ok "flow 2: … and the findings" grep -qF "The findings of the review of $HA: 1. [correctness] src/a.ts:3 off by one; fix: use <=" <<<"$fc"
-ok "flow 2: … per finding: fixed / not fixed / the fix broke something" grep -qF 'fixed / not fixed / the fix broke something' <<<"$fc"
+ok "flow 2: … and the findings, numbered (#229)" grep -qF "The findings of the review of $HA: Finding 1: [correctness] src/a.ts:3 off by one; fix: use <=" <<<"$fc"
+ok "flow 2: … one line per finding: fixed / not fixed / broken" grep -qF "one line per finding, 'Finding <i>: fixed', 'Finding <i>: not fixed' or 'Finding <i>: broken'" <<<"$fc"
 ok "flow 2: … nothing new except a bug the fix introduced" grep -qF 'Look for nothing new, except a correctness or security bug introduced by that diff' <<<"$fc"
 ok "flow 2: … the verdict line for the new head" grep -qF "'Review verdict: pass $HB' if every blocking finding is fixed and nothing broke, otherwise 'Review verdict: changes $HB'" <<<"$fc"
 ok "flow 2: … low effort for a small plain fix" grep -qF 'Run the code-review skill at low effort on that diff only' <<<"$fc"
@@ -623,7 +623,7 @@ ok "flow 2: state: fix-check running on the new head" eq "$(st 5 phase) $(st 5 s
 PATH="$fb:$PATH" "$root/bin/canccu-status" > "$E/status" 2>&1
 ok "flow 2: canccu-status shows the fix-check and its effort" grep -q '^  fix-check PR #50 (low) ' "$E/status"
 # the fix-check found the finding fixed
-runend review-50 "$HB" $'1. src/a.ts:3 off by one — fixed (src/a.ts:3)\n\n'"$VB0"$'Review verdict: pass '"$HB"
+runend review-50 "$HB" $'Finding 1: fixed (src/a.ts:3)\n\n'"$VB0"$'Review verdict: pass '"$HB"
 : > "$FAKE/gh.env"; dispatch --once
 ok "flow 3: the fix-check is posted as the bot, like a review" eq "$(grep -P '^pr comment\t' "$FAKE/gh.env")" "pr comment	reviewer"
 ok "flow 3: outcome logged" grep -q "#5 PR #50: fix-check of ${HB:0:7}: posted as $BOT" "$CANCCU_HOME/dispatch.log"

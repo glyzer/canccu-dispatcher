@@ -202,6 +202,24 @@ save_findings() {
   mkdir -p "${3%/*}" && printf '%s\n' "$4" > "$3" || log "#$1 PR #$2: cannot save ${3##*/}"
 }
 
+# fixcheck_short <n> <pr> <head> <fix-check body> <at>: a fix-check's pass that leaves a numbered
+# finding of the review it checks without an outcome, or calls one not fixed or broken, is no pass
+# (#229): needs-you with its text as the open items, as a changes would. 1: every finding fixed.
+fixcheck_short() {
+  local n=$1 pr=$2 head=$3 rsha g miss open r=""
+  rsha=$(st_get "$n" reviewed_sha)
+  g=$(fixcheck_gaps "$(cat "$(findings_file "$pr" "$rsha")" 2>/dev/null)" "$4"); [ -n "$g" ] || return 1
+  miss=${g% | *} open=${g#* | }
+  [ -n "$miss" ] && r="names no outcome for $(findings_word "$miss") of the review of ${rsha:0:7}"
+  [ -n "$open" ] && r+="${r:+, and }says $(findings_word "$open") of the review of ${rsha:0:7} $( [[ $open == *' '* ]] && echo are || echo is) not fixed or broken"
+  save_findings "$n" "$pr" "$(open_file "$pr" "$head")" "$4"
+  needs_you "$n" "the fix-check of PR #$pr passed but $r: that is no pass. Check those findings on the PR. \`needs-work\` gives one more fix round and a fix-check of the review's findings; with \`needs-work\`, a line \`full review\` in your comment asks for a new full review instead" "$4"
+  st_set "$n" verdict_at="$5" open_sha="$head"
+  log "#$n PR #$pr: the fix-check of ${head:0:7} $r; needs-you"
+}
+# findings_word <numbers>: "finding 2", "findings 2, 3"
+findings_word() { if [[ $1 == *' '* ]]; then echo "findings ${1// /, }"; else echo "finding $1"; fi; }
+
 # act_verdict <n> <pr> <pr_detail json>. The flow is one full review, one fix by the worker, one
 # fix-check, then merge or the product owner: no further loop. A `changes` from the full review
 # resumes the worker once with the findings (stage fixing; the next review is the fix-check of
@@ -226,6 +244,7 @@ act_verdict() {
       history_record "$n" "$pr" "$head" "$body" "$at"; blocking_note "$n" "$body" "$at" "$head" ;; esac
   case $v in
     pass)
+      [ "$mode" = fixcheck ] && fixcheck_short "$n" "$pr" "$head" "$body" "$at" && return 0
       light_upgrade "$n" "$pr" "$head" "$j" "$at" && return 0
       # any pass leaves the fix round: the next push is again measured against full_sha
       # (postpass_step), not taken for a fix of findings
@@ -269,7 +288,7 @@ act_verdict() {
           may_start "$n" || return 0
           # only the blocking findings: the fix run fixes them and the fix-check checks them
           # saved before the run, which reads the whole of long ones there (findings_inline)
-          b=$(blocking_of "$body") ff=$(findings_file "$pr" "$head")
+          b=$(blocking_numbered "$body") ff=$(findings_file "$pr" "$head")
           save_findings "$n" "$pr" "$ff" "$b"
           resume "$n" "The independent reviewer asked for changes on PR #$pr (full comment: gh pr view $pr -R $REPO --comments). This is your one fix round: fix every blocking finding below, rerun the checks, push once and stop: the dispatcher watches CI. Leave its non-blocking findings alone: they went to a follow-up issue. A narrow fix-check of your fix diff follows, then the merge or the product owner. The blocking findings: $(findings_inline "$b" "$ff")" fix || return 0
           fix_count "$n" "$pr"

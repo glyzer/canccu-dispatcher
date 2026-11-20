@@ -35,7 +35,7 @@ review_format_text() {
 # heading or stop line are its own (Evidence:, Fix:). Text on a heading's line is an item too,
 # unless it says none. mode: parse (review_parse), keptpre (the Pre-existing: items kept), eff ("<kept> <n> <p> <demoted> <classes>", nothing
 # without a count line or when it does not match), kept / moved (the items' text: the blocking ones
-# left / all others, in file order), presec (1 when a Pre-existing: item is a security one), keys
+# left / all others, in file order; keptn: the kept ones as "Finding <i>: <item>"), presec (1 when a Pre-existing: item is a security one), keys
 # (the blocking ones left: "<class> <file> <line>"), why ("<plain> <settled> <unchanged>": the
 # demoted by class or Evidence:, by the history, by the pass rule), items ("<class> <file> <the
 # item's first line>" per item, tab-separated: the recurring-finding issue's lines).
@@ -139,6 +139,7 @@ _REVIEW_AWK='
       if (k) { nk++; if (!(c in seen)) { seen[c] = 1; cls = cls (cls == "" ? "" : ",") c } }
       else if (sec[i] == "blocking") nd++
       if (mode == "kept" && k) out = out (out == "" ? "" : "\n") tx[i]
+      if (mode == "keptn" && k) { t = tx[i]; sub(/^([0-9]+[.)]|[-*+])[[:space:]]+/, "", t); out = out (out == "" ? "" : "\n") "Finding " nk ": " t }
       # a settled item was fixed or answered already: the follow-up issue would only repeat it
       if (mode == "moved" && !k && y != 2) out = out (out == "" ? "" : "\n") tx[i]
       # a pre-existing security item the brake keeps blocks this PR: no follow-up issue for it
@@ -146,7 +147,7 @@ _REVIEW_AWK='
       if (sec[i] == "preexisting" && k) kp++
     }
     if (mode == "keptpre") { print kp + 0; exit }
-    if (mode == "kept" || mode == "moved") { if (out != "") print out; exit }
+    if (mode == "kept" || mode == "keptn" || mode == "moved") { if (out != "") print out; exit }
     if (mode == "presec") { if (psec) print 1; exit }
     if (mode == "keys") exit
     if (mode == "why") { printf "%d %d %d\n", dw[0], dw[2], dw[3]; exit }

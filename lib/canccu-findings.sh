@@ -31,6 +31,29 @@ blocking_of() {
   if review_valid "$1"; then _review_awk kept <<<"$1"; return; fi
   awk -v want=0 "$_NB_AWK" <<<"$1" | cat -s
 }
+# blocking_numbered <review body>: blocking_of with each finding as "Finding <i>: <item>", so the
+# fix-check can be held to one line per finding (fixcheck_gaps). Without the block of §8 there
+# are no items to number: blocking_of's text as it is.
+blocking_numbered() {
+  if review_valid "$1"; then _review_awk keptn <<<"$1"; return; fi
+  blocking_of "$1"
+}
+# finding_count <findings>: the highest "Finding <i>:" number; 0 for unnumbered findings
+finding_count() { grep -oE '^Finding [0-9]+:' <<<"$1" | grep -oE '[0-9]+' | sort -n | tail -1 | grep . || echo 0; }
+# fixcheck_gaps <findings> <fix-check body>: "<missing> | <open>", the numbers (space-separated)
+# the fix-check gives no outcome for, and those it says are not fixed or broken; nothing when it
+# says each one is fixed. The reviewer may bold or list the line: only its number and word count.
+fixcheck_gaps() {
+  local n i w miss="" open=""
+  n=$(finding_count "$1")
+  for ((i = 1; i <= n; i++)); do
+    w=$(grep -ioE "^[[:space:]>*_-]*finding[[:space:]]+$i[*_]*:[*_[:space:]]*(fixed|not fixed|broken)" <<<"$2" | head -1)
+    w=${w,,}
+    case $w in *'not fixed'|*broken) open+=" $i" ;; *fixed) ;; *) miss+=" $i" ;; esac
+  done
+  [ -n "$miss$open" ] && echo "${miss# } | ${open# }"
+  return 0
+}
 
 # followup_key <K>: whose follow-up issue the unit's findings go to: its step's wave, the step's
 # health pass, or the fast lane (an issue outside any wave)

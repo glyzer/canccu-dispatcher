@@ -169,5 +169,43 @@ dispatch --once
 ok "needs-work on a refused accept: the worker resumes as before" grep -q 'web 5 Rules for this run: .* The user rejected PR #50 (needs-work)' "$FAKE/worker.log"
 ok "… a new cycle: the next review is a full one" eq "$(st 5 stage)|$(st 5 reviewed_sha)|$(st 5 open_sha)" "||"
 
+# ---------------------------------------------------------------- every blocking finding answered (#229)
+
+# VB2: a review with two blocking findings; F2: what the fix round fixes, numbered
+VB2=$'Blocking:\n1. [correctness] src/a.ts:3 the scene condition is inverted\n   Evidence: the test of a hidden scene shows it\n2. [correctness] src/b.ts:9 lock order deadlocks on save\n   Evidence: save takes b then a, load a then b\nNon-blocking: none\nPre-existing: none\nFindings: 2 blocking, 0 non-blocking, 0 pre-existing\n'
+F2=$'Finding 1: [correctness] src/a.ts:3 the scene condition is inverted\n   Evidence: the test of a hidden scene shows it\nFinding 2: [correctness] src/b.ts:9 lock order deadlocks on save\n   Evidence: save takes b then a, load a then b'
+ok "blocking_numbered: each blocking finding of the review gets its number" eq "$(lib blocking_numbered "$VB2"$'Review verdict: changes '"$HA")" "$F2"
+ok "… finding_count reads them back" eq "$(lib finding_count "$F2")" 2
+ok "… a review without the block: no numbers, as blocking_of" eq "$(lib blocking_numbered $'1. src/a.ts:3 off\n\nReview verdict: changes '"$HA")" "$(lib blocking_of $'1. src/a.ts:3 off\n\nReview verdict: changes '"$HA")"
+
+# the full review's changes: the fix round gets the findings numbered, the fix-check asks a line each
+review_env fc-numbered $'x' review
+json pr50.json "$(detail "$(pr 50 5 $HA)" 2030-11-05T10:00:00Z "$(vcomment 2030-11-05T11:00:00Z "$VB2"$'Review verdict: changes '"$HA")")"
+dispatch --once
+ok "the fix round's findings are numbered (#229)" eq "$(cat "$CANCCU_HOME/reviews/50/$HA.findings.md")" "$F2"
+ok "… and the worker reads them so" grep -qF 'The blocking findings: Finding 1: [correctness] src/a.ts:3' "$FAKE/worker.log"
+rm -f "$WORKERS_DIR/web-5.lock"; last 5 "done" 'fixed, CI green'; sethead "$HB"
+printf '3\t1\tsrc/a.ts\n' > "$FAKE/numstat"; : > "$FAKE/worker.log"
+dispatch --once
+fc=$(grep -- '--name fixcheck#50 ' "$FAKE/worker.log")
+ok "the fix-check prompt counts the review's blocking findings" grep -qF 'The review has 2 blocking findings, Finding 1 to Finding 2' <<<"$fc"
+ok "… and asks one line per finding" grep -qF "one line per finding, 'Finding <i>: fixed', 'Finding <i>: not fixed' or 'Finding <i>: broken', each with file:line" <<<"$fc"
+
+# fcenv <name> <fix-check comment>: the fix-check of HA..HB checked the two numbered findings
+fcenv() { fxenv "$1" "$2"; printf '%s\n' "$F2" > "$CANCCU_HOME/reviews/50/$HA.findings.md"; }
+fcenv fc-missing $'Finding 1: fixed — src/a.ts:3\n\n'"$VB0"$'Review verdict: pass '"$HB"
+dispatch --once
+ok "a fix-check pass that leaves out a blocking finding: no merge (#229)" hasnt gh.log "pr merge"
+ok "… needs-you naming the finding" has gh.log "the fix-check of PR #50 passed but names no outcome for finding 2 of the review of ${HA:0:7}"
+ok "… phase needs-you, the head kept for a needs-work round, no pass recorded" eq "$(st 5 phase) $(st 5 open_sha) [$(st 5 pass_sha)]" "needs-you $HB []"
+ok "… logged" grep -qF "#5 PR #50: the fix-check of ${HB:0:7} names no outcome for finding 2" "$CANCCU_HOME/dispatch.log"
+fcenv fc-notfixed $'Finding 1: fixed — src/a.ts:3\nFinding 2: not fixed — src/b.ts:9 still takes b first\n\n'"$VB0"$'Review verdict: pass '"$HB"
+dispatch --once
+ok "a fix-check pass with a finding not fixed: needs-you, no merge" eq "$(grep -c 'pr merge' "$FAKE/gh.log") $(st 5 phase)" "0 needs-you"
+ok "… naming it" has gh.log "says finding 2 of the review of ${HA:0:7} is not fixed"
+fcenv fc-all $'**Finding 1:** fixed — src/a.ts:3\n- Finding 2: fixed — src/b.ts:9\n\n'"$VB0"$'Review verdict: pass '"$HB"
+dispatch --once
+ok "a fix-check pass with a line for every finding merges" has gh.log "pr merge 50 -R example-org/web --auto --match-head-commit $HB"
+
 echo "canccu-review2 tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

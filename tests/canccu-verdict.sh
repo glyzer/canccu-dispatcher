@@ -84,9 +84,11 @@ ok "… in the format of §8" eq "$(cat "$CANCCU_HOME/reviews.log")" "$(printf '
 venv valid "$(review changes "4 0 0" "$DEMOTED"$'\n'"$VALID")"
 dispatch --once
 ok "one valid blocking item: posted as the reviewer wrote it" eq "$(cat "$FAKE/posted-50")" "$(review changes "4 0 0" "$DEMOTED"$'\n'"$VALID")"
-ok "… the fix round gets only that item" grep -qF "The blocking findings: $(lib oneline 999 "$VALID") (also in" "$FAKE/worker.log"
+# numbered as the first finding left, its list mark dropped (#229)
+VALIDN="Finding 1: ${VALID#4. }"
+ok "… the fix round gets only that item" grep -qF "The blocking findings: $(lib oneline 999 "$VALIDN") (also in" "$FAKE/worker.log"
 ok "… none of the demoted ones" not grep -q 'src/a.ts:3\|src/c.ts:5' "$FAKE/worker.log"
-ok "… the findings file holds only it" eq "$(cat "$CANCCU_HOME/reviews/50/$HA.findings.md")" "$VALID"
+ok "… the findings file holds only it" eq "$(cat "$CANCCU_HOME/reviews/50/$HA.findings.md")" "$VALIDN"
 ok "… the demoted items go to the follow-up issue" grep -q '^issue create .*src/a.ts:3.*src/b.ts:4.*src/c.ts:5' "$FAKE/gh.log"
 ok "… reviews.log: changes 1, the class left" eq "$(cut -f4- "$CANCCU_HOME/reviews.log")" "$(printf 'full\tchanges\t1\t0\t0\t3\tcorrectness\t0')"
 

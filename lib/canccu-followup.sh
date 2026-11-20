@@ -50,7 +50,7 @@ extra_fix_round() {
   local k=$1 pr=$2 head=$3 b ff
   extra_fix_due "$k" || return 1
   may_start "$k" || return 2
-  b=$(blocking_of "$4") ff=$(findings_file "$pr" "$head")
+  b=$(blocking_numbered "$4") ff=$(findings_file "$pr" "$head")
   save_findings "$k" "$pr" "$ff" "$b"
   resume "$k" "The $5 of PR #$pr still finds blocking items, fewer than the verdict before it: this is one more automatic fix round, the last one. Fix every blocking finding below, rerun the checks, push once and stop: the dispatcher watches CI. Leave its non-blocking findings alone: they went to a follow-up issue. A narrow fix-check of this fix diff follows, then the merge or the product owner. The blocking findings: $(findings_inline "$b" "$ff")" fix || return 2
   fix_count "$k" "$pr"
