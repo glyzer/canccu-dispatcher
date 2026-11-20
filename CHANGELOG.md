@@ -6,6 +6,15 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 
 ## Unreleased
 
+- The dispatcher claim (#15): one dispatcher per repo across hosts. A pinned issue labelled
+  `dispatcher-claim` names the host that runs the repo; another host's dispatcher does nothing
+  while the claim is fresh, and `canccu-dispatch --take-over` takes it
+  ([`docs/hosts.md`](docs/hosts.md#the-dispatcher-claim)). New keys: `HOST_LABEL`,
+  `CLAIM_RENEW_MIN`, `CLAIM_EXPIRY_MIN`. New file: `~/.canccu/host-id`.
+- The upgrade between passes (#20): once `current` points at a new release, the loop starts
+  nothing new and, with no run live, runs the new release in its place
+  ([`docs/upgrading.md`](docs/upgrading.md#between-passes)). New key: `UPGRADE` (`auto`, or
+  `manual` to only show it).
 - Host settings (#14): one release runs on a Max and a Pro host, and what differs is a setting
   ([`docs/hosts.md`](docs/hosts.md#what-a-host-decides)). New keys: `BASE_BRANCH`, `CLONE_ROOT`,
   `EXTRA_PATH`, `GUARD_VMEM_KB`, `WORKER_SKILLS`, `REVIEW_SKILLS`, `HEALTH_CHECKLIST` and

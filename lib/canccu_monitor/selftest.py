@@ -122,6 +122,10 @@ def brake_checks(mock, check):
     snap["pass"]["brake"] = None
     plain, _ = frame(snap, None, 120, 40, (), False, MOCK_NOW, "web")
     check("brake:onsince" not in flat(plain), "brake: a banner while the brake is off")
+    snap["pass"].update(claim="CLAIMED BY ANOTHER HOST: f0e1d2c3b4a59687 on #99", upgrade="0.3.0")
+    plain, _ = frame(snap, None, 120, 40, (), False, MOCK_NOW, "web")
+    check(flat("CLAIMED BY ANOTHER HOST") in flat(plain), "claim: no banner while another host holds the claim (#15)")
+    check(flat("upgrade to 0.3.0 pending") in flat(plain), "upgrade: no banner while an upgrade is pending (#20)")
 
 
 def title_checks(mock, check):

@@ -8,8 +8,8 @@ nothing but GitHub and, often, one Claude account and one reviewer bot.
 
 **Never run a project for the same repo on two hosts.** Both dispatchers would adopt, review and
 merge its PRs, and both could start a worker on the same ready issue. `canccu-init`
-refuses a second project for a repo on one host, but nothing checks across hosts yet: keep a list
-of which host runs which repo.
+refuses a second project for a repo on one host, and [the dispatcher claim](#the-dispatcher-claim)
+keeps a second host's dispatcher from acting.
 
 To move a project to another host:
 
@@ -22,6 +22,35 @@ To move a project to another host:
 3. On the new host, `canccu-init` the project and set up its narrow token and clone
    ([`reference/projects.md`](reference/projects.md)). An open PR of ours for an `in-progress`
    issue is adopted on its first pass.
+
+## The dispatcher claim
+
+Each repo has one issue titled "Dispatcher claim", labelled `dispatcher-claim` and pinned; the
+first dispatcher to find none creates it. Its body names the host whose dispatcher runs the repo:
+
+```
+host: a1b2c3d4e5f60718
+label: lab-1
+at: 2030-11-05T12:00:00Z
+```
+
+- `host` is the host id, 16 random hex characters written once to `~/.canccu/host-id`. `label`
+  is the host's `HOST_LABEL` (empty when unset), `at` the time of the last write. The body never
+  holds a hostname, a path or a user name.
+- Each pass reads the claim. Its own claim is renewed by an edit of the body (never a comment), at
+  most every `CLAIM_RENEW_MIN` minutes (default 10). A claim older than `CLAIM_EXPIRY_MIN`
+  minutes (default 30), or one with no host, is free: the next pass takes it.
+- A clean stop of the dispatcher (Ctrl-C, or a TERM) releases the claim: it empties `host`.
+- While another host's claim is fresh, this dispatcher does nothing for the repo. It says so once
+  in its log, and `canccu-status`, the monitor and the snapshot (`pass.claim`) show it.
+  `canccu-init` warns before it adds a claimed repo.
+- `canccu-dispatch --take-over` prints whose the claim is and takes it for this host. Use it after a
+  host move, when the old host is gone for good and you do not want to wait for the expiry.
+- On a gh error reading or writing the claim, a dispatcher whose own claim is still fresh works on
+  under it, until it would have expired; it never takes a foreign claim it cannot read.
+
+The claim issue is not work: the queue and the product owner's list leave it out.
+Leave it open; closing it only makes the next pass create another.
 
 ## One Claude account on several hosts
 

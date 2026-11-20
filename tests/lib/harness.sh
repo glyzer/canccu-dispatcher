@@ -50,6 +50,26 @@ if [ "$1 $2" = "pr edit" ] && [ -n "$bf" ] && [ -f "$bf" ]; then
   a=${a/--body-file $bf/--body-file $(< "$bf")}
   cp "$bf" "$FAKE/prbody-$3"
 fi
+# an `issue edit` or `issue create` with --body-file is logged with the file's text too; on the
+# claim issue ($FAKE/claim.json, the answer to the claim read) it changes the body there, and a
+# new issue labelled dispatcher-claim joins it, as on GitHub
+if [ "$1 $2" = "issue edit" ] && [ -n "$bf" ] && [ -f "$bf" ]; then
+  a=${a/--body-file $bf/--body-file $(< "$bf")}
+  { routes=$(< "$FAKE/routes"); } 2>/dev/null
+  if [ -e "$FAKE/claim.json" ] && ! grep -qxF "fail:issue edit" <<<"$routes"; then
+    jq --argjson n "$3" --rawfile b "$bf" 'map(if .number == $n then .body = $b else . end)' "$FAKE/claim.json" > "$FAKE/claim.tmp" &&
+      mv "$FAKE/claim.tmp" "$FAKE/claim.json"
+  fi
+fi
+if [ "$1 $2" = "issue create" ] && [ -n "$bf" ] && [ -f "$bf" ]; then
+  a=${a/--body-file $bf/--body-file $(< "$bf")}
+  { routes=$(< "$FAKE/routes"); } 2>/dev/null
+  if [[ " $* " == *" --label dispatcher-claim "* ]] && ! grep -qxF "fail:issue create" <<<"$routes"; then
+    [ -e "$FAKE/claim.json" ] || echo '[]' > "$FAKE/claim.json"
+    jq --argjson n "$(cat "$FAKE/new-issue" 2>/dev/null || echo 900)" --rawfile b "$bf" '. + [{number: $n, body: $b}]' "$FAKE/claim.json" > "$FAKE/claim.tmp" &&
+      mv "$FAKE/claim.tmp" "$FAKE/claim.json"
+  fi
+fi
 printf '%s\n' "${a//$'\n'/ }" >> "$FAKE/gh.log"
 { tok=$(< "$FAKE/../reviewer-token"); } 2>/dev/null
 if [ -z "${GH_TOKEN:-}" ]; then id=user; elif [ "$GH_TOKEN" = "$tok" ]; then id=reviewer; else id=other; fi
@@ -82,7 +102,7 @@ q=""
 for ((i = 0; i < ${#args[@]}; i++)); do case ${args[i]} in -q|--jq) q=${args[i+1]} ;; esac; done
 { routes=$(< "$FAKE/routes"); routes+=$'\n'$(< "$FAKE/routes.default"); } 2>/dev/null
 case "$1 $2" in
-  "issue edit"|"issue comment"|"issue close"|"issue create"|"pr edit"|"pr merge"|"pr comment"|"label create")
+  "issue edit"|"issue comment"|"issue close"|"issue create"|"issue pin"|"pr edit"|"pr merge"|"pr comment"|"label create")
     grep -qxF "fail:$1 $2" <<<"$routes" && exit 1
     grep -qxF "fail124:$1 $2" <<<"$routes" && exit 124
     # $FAKE/merge-error: a merge fails with that error, as gh prints it
@@ -231,6 +251,17 @@ chmod +x "$T/tmuxrec/tmux"
 
 # ---------------------------------------------------------------- helpers
 
+# the claim (lib/canccu-claim.sh): this host's id, another host's, and claim_json <host> <label>
+# <at ISO> [issue]: the claim read's answer, one claim issue (default #99). claim_default: a fresh
+# claim of this host's, so a test that is not about the claim sees it held and never written.
+HOST_ME=a1b2c3d4e5f60718 HOST_OTHER=f0e1d2c3b4a59687
+claim_body() { printf '<!-- canccu-claim -->\nOne dispatcher at a time.\n\nhost: %s\nlabel: %s\nat: %s\n' "$1" "$2" "$3"; }
+claim_json() { jq -n --argjson n "${4:-99}" --arg b "$(claim_body "$1" "$2" "$3")" '[{number: $n, body: $b}]' > "$FAKE/claim.json"; }
+claim_default() {
+  mkdir -p "$CANCCU_ROOT"; echo "$HOST_ME" > "$CANCCU_ROOT/host-id"
+  claim_json "$HOST_ME" "" 2030-11-05T12:00:00Z
+}
+
 # env_new <name> [config lines...]: a fresh CANCCU_HOME and fixture dir for one test
 env_new() {
   tname=$1; shift
@@ -251,14 +282,16 @@ env_new() {
   jq -n --arg l "$BOT" '{login: $l}' > "$FAKE/user.json"
   printf '%s\t%s\n' \
     'api repos/example-org/web/milestones*' ms.json  'issue list -R example-org/web -s * -l checkpoint*' cps.json \
+    'issue list -R example-org/web -s open -l dispatcher-claim*' claim.json \
     'issue list*' issues.json  'pr list -R example-org/web -s open*' prs.json  'label list*' labels.json \
     'api repos/example-org/web/issues/*/dependencies/blocked_by' empty.json \
     'api repos/example-org/web/issues/*/dependencies/blocking' empty.json \
     'run list*' runs.json  'api user*' user.json > "$FAKE/routes.default"
   echo '[]' > "$FAKE/ms.json"; echo '[]' > "$FAKE/cps.json"; echo '[]' > "$FAKE/empty.json"; echo '[]' > "$FAKE/issues.json"; echo '[]' > "$FAKE/prs.json"; echo '[]' > "$FAKE/runs.json"
-  jq -n '["ready","blocked","in-progress","epic","needs-you","plan-ok","awaiting-accept","needs-work","accepted","manual-accept","checkpoint","checkpoint-ok","fast","security"] | map({name: .})' \
+  jq -n '["ready","blocked","in-progress","epic","needs-you","plan-ok","awaiting-accept","needs-work","accepted","manual-accept","checkpoint","checkpoint-ok","fast","security","dispatcher-claim"] | map({name: .})' \
     > "$FAKE/labels.json"
   : > "$FAKE/routes"; : > "$FAKE/gh.log"; : > "$FAKE/worker.log"
+  claim_default
 }
 route() { printf '%s\t%s\n' "$1" "$2" >> "$FAKE/routes"; }
 json() { printf '%s\n' "$2" > "$FAKE/$1"; }
@@ -337,11 +370,12 @@ penv() {
   printf '%s\n' "$FAKE_TOKEN" > "$E/reviewer-token"; chmod 600 "$E/reviewer-token"
   jq -n --arg l "$BOT" '{login: $l}' > "$FAKE/user.json"
   echo '[]' > "$FAKE/empty.json"; echo '[]' > "$FAKE/runs.json"
-  jq -n '["ready","blocked","in-progress","epic","needs-you","plan-ok","awaiting-accept","needs-work","accepted","manual-accept","checkpoint","checkpoint-ok","fast","security"] | map({name: .})' \
+  jq -n '["ready","blocked","in-progress","epic","needs-you","plan-ok","awaiting-accept","needs-work","accepted","manual-accept","checkpoint","checkpoint-ok","fast","security","dispatcher-claim"] | map({name: .})' \
     > "$FAKE/labels.json"
   : > "$FAKE/routes"; : > "$FAKE/gh.log"; : > "$FAKE/worker.log"
   # gh's own login (canccu-init writes it as USER_LOGIN), with or without projects
-  printf '%s\t%s\n' 'api user*' user.json > "$FAKE/routes.default"
+  printf '%s\t%s\n' 'api user*' user.json 'issue list -R * -s open -l dispatcher-claim*' claim.json > "$FAKE/routes.default"
+  claim_default
   for p; do
     mkdir -p "$CANCCU_ROOT/projects/$p/state" "$CANCCU_ROOT/projects/$p/workers" "$E/code/$p"
     { echo "REPO=$(prepo "$p")"; echo "CLONE=$E/code/$p"; echo "USER_LOGIN=octo"; echo "REVIEWER_LOGIN=review-bot"; echo "DIGEST_HOUR_UTC=24"

@@ -79,7 +79,7 @@ candidates() {
            | select(test("^\\s*\\**Order:")) | [scan("#([0-9]+)")[] | tonumber] ]
          | map(to_entries | map({ key: (.value | tostring), value: .key })) | add // [] | from_entries ) as $ord
     | [ .[] | select([.labels[].name] as $l | ($l | index("ready")) and
-                     ([$l[] | select(IN("epic", "checkpoint", "blocked", "in-progress", "needs-you", "awaiting-accept"))] | length == 0)
+                     ([$l[] | select(IN("epic", "checkpoint", "blocked", "in-progress", "needs-you", "awaiting-accept", "dispatcher-claim"))] | length == 0)
                      and (.milestone == null or ($l | index("fast"))))
         | { n: .number, o: ($ord[.number | tostring] // 99999),
             m: (.milestone.title // null | milestone_key) } ]
@@ -88,12 +88,12 @@ candidates() {
 }
 
 # waiting_for_po: open issues the user has not released yet: not an epic, neither ready nor
-# blocked, not in progress or managed, and not the digest issue
+# blocked, not in progress or managed, and neither the digest issue nor the claim issue
 waiting_for_po() {
   local n
   jqr --argjson d "${DIGEST_ISSUE:-0}" '.[] | select(.number != $d) | select([.labels[].name] as $l
       | ($l | index("ready") | not) and ($l | index("blocked") | not) and ($l | index("epic") | not)
-        and ($l | index("in-progress") | not)) | .number' <<<"$ISSUES" |
+        and ($l | index("in-progress") | not) and ($l | index("dispatcher-claim") | not)) | .number' <<<"$ISSUES" |
     while read -r n; do is_managed "$n" || echo "$n"; done
 }
 

@@ -6,6 +6,7 @@
 #   canccu-dispatch --once     one pass
 #   canccu-dispatch --dry-run  the runnable queue, every open PR's classification and what one pass
 #                          would do; writes nothing (no labels, comments, merges, state or log)
+#   canccu-dispatch --take-over  print whose the repo's dispatcher claim is, take it for this host
 #   --project <name> first picks the project (else CANCCU_PROJECT, ~/.canccu/default-project, the only one)
 set -uo pipefail
 self=$(realpath "$0")
@@ -20,7 +21,7 @@ self=$(realpath "$0")
 # shellcheck source=../lib/canccu-aftermerge.sh
 . "$(dirname "$self")/../lib/canccu-aftermerge.sh"
 
-usage() { sed -n '3,8s/^# \{0,1\}//p' "$self" >&2; exit 2; }
+usage() { sed -n '3,9s/^# \{0,1\}//p' "$self" >&2; exit 2; }
 
 # ---------------------------------------------------------------- 7. digest
 
@@ -97,6 +98,8 @@ pass() {
     want_write; write_status "$cred"; return 1
   fi
   (( CANCCU_DRY )) || rm -f "$CANCCU_HOME/.warned-user-login"
+  # one dispatcher per repo across hosts: another host's fresh claim means this one does nothing
+  claim_tick || return 1
   fetch || { log "gh error reading issues or PRs; skipping this pass"; want_write; write_status "gh error reading issues or PRs"; return 1; }
   usage_tick; pace_tick; brake_tick
   if fetch_steps; then (( CANCCU_DRY )) || rm -f "$CANCCU_HOME/.warned-steps"
@@ -126,6 +129,7 @@ pass() {
   if paused; then go=0; (( CANCCU_DRY )) && echo "  paused: nothing new starts"
   elif backing_off; then go=0; (( CANCCU_DRY )) && echo "  backing off (usage limit) until $(iso "$(backoff_until)")"
   elif draining; then go=0; (( CANCCU_DRY )) && echo "  draining: nothing new starts"
+  elif upgrade_holds; then go=0; (( CANCCU_DRY )) && echo "  upgrade to $(upgrade_pending) pending: nothing new starts"
   elif disk_tick; then go=0
   else
     wn=$(wanting "${open[@]}")
@@ -208,11 +212,13 @@ case ${1:-} in
     CANCCU_DRY=1 CANCCU_DRY_TMP=$(mktemp -d) || die "cannot make a temp dir"
     trap 'rm -rf "$CANCCU_DRY_TMP"' EXIT
     dry_run; exit ;;
+  --take-over) claim_take_over; exit ;;
   --once|"") ;;
   *) usage ;;
 esac
 mkdir -p "$CANCCU_HOME"
-exec 8>"$CANCCU_HOME/.dispatch.lock"
+# a re-exec for an upgrade (#20) keeps the lock its earlier release held on fd 8: never let go of it
+if [ -z "${CANCCU_REEXEC:-}" ] || [ ! /proc/$$/fd/8 -ef "$CANCCU_HOME/.dispatch.lock" ]; then exec 8>"$CANCCU_HOME/.dispatch.lock"; fi
 flock -n 8 || die "another canccu-dispatch is running for project $CANCCU_PROJECT (lock $CANCCU_HOME/.dispatch.lock)"
 echo $$ > "$CANCCU_HOME/dispatch.pid"   # for canccu-status and canccu-up; they never touch the lock
 state_migrate
@@ -249,10 +255,19 @@ if [ "${1:-}" = --once ]; then run_pass; exit; fi
 log "canccu-dispatch started: project $CANCCU_PROJECT ($REPO), every ${INTERVAL}s, CAP $CAP, TOTAL_CAP $TOTAL_CAP"
 # .running outlives only a stop that skipped the EXIT trap (killed, a crash, a reboot): the feed
 # tells of that one; a planned stop or restart runs the trap
-[ -e "$CANCCU_HOME/.running" ] && feed po ask dispatcher - - - "the dispatcher started after a stop it did not plan" >/dev/null
+[ -z "${CANCCU_REEXEC:-}" ] && [ -e "$CANCCU_HOME/.running" ] && feed po ask dispatcher - - - "the dispatcher started after a stop it did not plan" >/dev/null
 : > "$CANCCU_HOME/.running"
-trap 'rm -f "$CANCCU_HOME/want" "$CANCCU_HOME/.running"' EXIT   # a stopped dispatcher waits for no slot
+# a stopped dispatcher waits for no slot, and hands its claim back (--once never does: the loop
+# that runs it goes on)
+trap 'rm -f "$CANCCU_HOME/want" "$CANCCU_HOME/.running" "$CANCCU_HOME/upgrade"; quiet claim_release' EXIT
+unset CANCCU_REEXEC
 while :; do
+  # between passes: current points at another release, and no run is live: it runs in this place
+  # (an exec runs no EXIT trap: the claim, the lock and the pane go on to it)
+  if upgrade_check "$self"; then
+    log "upgrade to $(upgrade_pending): no run of project $CANCCU_PROJECT is live; the new release runs"
+    exec env CANCCU_REEXEC=1 "$(upgrade_current "$self")/bin/canccu-dispatch" --project "$CANCCU_PROJECT"
+  fi
   run_pass
   sleep "$INTERVAL"
 done
