@@ -19,6 +19,9 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
   - `PACE=off` (now `cap`);
   - `CADENCE_DAYS=0` (now `14`; a round runs only in a milestone marked `Cadence: on`);
   - `FIXCHECK_COUNT_RESOLVED=0` (now `1`).
+- Fix-check by number (#229): the fix run and the fix-check get the blocking findings as
+  `Finding 1:` to `Finding <c>:`, and the fix-check answers each on its own line. A `pass` that
+  leaves one out, or calls one not fixed or broken, is `needs-you`, not a pass.
 - Host settings (#14): one release runs on a Max and a Pro host, and what differs is a setting
   ([`docs/hosts.md`](docs/hosts.md#what-a-host-decides)). New keys: `BASE_BRANCH`, `CLONE_ROOT`,
   `EXTRA_PATH`, `GUARD_VMEM_KB`, `WORKER_SKILLS`, `REVIEW_SKILLS`, `HEALTH_CHECKLIST` and
