@@ -135,18 +135,25 @@ merge_method_read() {
 # is_full_sha <sha>: a full 40-character commit sha, the only kind --match-head-commit is given
 is_full_sha() { [[ $1 =~ ^[0-9a-f]{40}$ ]]; }
 
+# CI_CHECKS: a jq prelude for the "jqr --argjson p <pr> --arg ign <REVIEW_CHECKS>" calls that read
+# CI from $PRS. ci_checks is the newest run per check of PR $p, REVIEW_CHECKS left out (nothing
+# when $PRS lacks the PR); ci_bad its red conclusions. ci_state and the red-CI flow
+# (lib/canccu-followup.sh) share them, so a needs-you or a log line names exactly the checks that
+# made CI red, and a cancelled one is rerun like a failed one.
+# shellcheck disable=SC2016  # jq code, its $ are jq's
+CI_CHECKS='def ci_bad: IN("FAILURE", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED", "ERROR", "STARTUP_FAILURE");
+  def ci_checks: ($ign | split(" ") | map(select(. != ""))) as $ig | .[] | select(.number == $p) |
+    [ .statusCheckRollup[]? | { n: (.name // .context), c: ((.conclusion // .state // "") | ascii_upcase),
+      s: ((.status // "COMPLETED") | ascii_upcase), t: (.completedAt // .startedAt // ""), u: (.detailsUrl // .targetUrl // "") }
+    | select(.n as $x | $ig | index($x) | not) ] | group_by(.n) | map(max_by(.t));'
+
 # ci_state <pr>: green, red, pending (a check is running or queued) or none (no check reported:
-# no CI, or a path filter skipped it; never green). The newest run per check counts.
+# no CI, or a path filter skipped it; never green).
 # The checks in REVIEW_CHECKS wait for the review verdict, so they are left out here.
 ci_state() {
-  jqr --argjson p "$1" --arg ign "${REVIEW_CHECKS:-}" '($ign | split(" ") | map(select(. != ""))) as $ig
-    | .[] | select(.number == $p) |
-    [ .statusCheckRollup[]? | { n: (.name // .context), c: ((.conclusion // .state // "") | ascii_upcase),
-        s: ((.status // "COMPLETED") | ascii_upcase), t: (.completedAt // .startedAt // "") }
-      | select(.n as $x | $ig | index($x) | not) ]
-    | group_by(.n) | map(max_by(.t))
+  jqr --argjson p "$1" --arg ign "${REVIEW_CHECKS:-}" "$CI_CHECKS"' ci_checks
     | if length == 0 then "none"
-      elif any(.[]; .s == "COMPLETED" and (.c | IN("FAILURE", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED", "ERROR", "STARTUP_FAILURE"))) then "red"
+      elif any(.[]; .s == "COMPLETED" and (.c | ci_bad)) then "red"
       elif all(.[]; .s == "COMPLETED" and (.c | IN("SUCCESS", "NEUTRAL", "SKIPPED"))) then "green"
       else "pending" end' <<<"$PRS"
 }

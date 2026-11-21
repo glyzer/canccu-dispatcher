@@ -60,7 +60,10 @@ Every `INTERVAL` seconds, under the project's lock:
        session resolves it; still red with main in → the failed Actions jobs rerun once per head;
        still red → a fresh fix session with the failing job's
        log tail, at most `FIX_ATTEMPTS` automatic fix runs per PR (review fix rounds included),
-       then `needs-you`. Checks in `REVIEW_CHECKS` are ignored here. A `needs-you`
+       then `needs-you`. A cancelled check counts as red and is rerun like a failed one; one
+       cancelled by its job's own time limit is named "timed out" (in the log, the fix run's
+       task and the `needs-you`), and its fix run is told so. Checks in `REVIEW_CHECKS` are
+       ignored here, and never named as failed. A `needs-you`
        that only waited on CI goes back to `check` by itself once CI is green or red;
      - CI green, no verdict, body lacking `Testing:`/`Revert:` (no contract, no `Tier: plan`)
        → worker resumed once (`body_lines`; no fix round; no back-off), then review;
