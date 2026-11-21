@@ -222,10 +222,11 @@ notify_listen_problem() {
   echo "the Telegram listener is down (its last read $(iso "$(stat -c %Y "$(notify_beat)")")): replies wait for the next pass; canccu-up starts it again"
 }
 # notify_listen: canccu-notify listen: a long poll (getUpdates timeout 50) that writes the inbox as
-# the pass does, under the lock the pass's read takes, so only one reader runs. CANCCU_LISTEN_ROUNDS
-# ends it after that many reads (the tests).
+# the pass does, under the lock the pass's read takes, so only one reader runs. It stops once its
+# parent (the window's shell) is gone, so no loop outlives its window. CANCCU_LISTEN_ROUNDS ends it
+# after that many reads (the tests).
 notify_listen() {
-  local f n=0
+  local f n=0 parent=$PPID
   [ -n "${TELEGRAM_USER_ID:-}" ] || { echo "TELEGRAM_USER_ID is not set: no reply is read"; return 1; }
   f=$(notify_dir); mkdir -p "$f"
   exec 7>>"$f/.listen.lock"
@@ -233,6 +234,10 @@ notify_listen() {
   flock -w 15 7 || { echo "another listener reads the replies of project $CANCCU_PROJECT"; return 1; }
   log "telegram: the listener runs (pid $$)"
   while :; do
+    # an orphan goes to init or a subreaper: its parent pid changes
+    if [ "$(ps -o ppid= -p $$ 2>/dev/null | tr -d ' ')" != "$parent" ]; then
+      log "telegram: the listener stops: its parent (pid $parent) is gone"; break
+    fi
     touch "$(notify_beat)"
     notify_read 50 || sleep 5
     n=$((n + 1))

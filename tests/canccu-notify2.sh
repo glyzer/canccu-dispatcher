@@ -6,6 +6,7 @@
 #   bash tests/canccu-notify2.sh    one line per failure and a summary; exit 1 on failure
 # shellcheck source=lib/harness.sh
 . "$(dirname "$0")/lib/harness.sh"
+track_left
 
 TG_TOKEN=123456:fake-telegram-token-for-tests
 EV() { echo "$CANCCU_HOME/events"; }
@@ -198,6 +199,21 @@ ok "… the doctor says it is down" grep -q 'the Telegram listener is down' <<<"
 ok "… and so does canccu-status" grep -q 'the Telegram listener is down' <<<"$(PATH="$fb:$PATH" "$root/bin/canccu-status" 2>&1)"
 tg notify2-listen-none NOTIFY_BATCH_MIN=0
 ok "no listener ever ran: the doctor says nothing about one" not grep -q 'listener' <<<"$(lib notify_problem)"
+
+# the listener's parent (the tmux window's shell) is gone: it stops after that read
+tg notify2-listen-orphan NOTIFY_BATCH_MIN=0
+bash -c '"$@" > /dev/null 2>&1 & sleep 1' _ env PATH="$fb:$PATH" "$root/bin/canccu-notify" --project web listen
+for _ in $(seq 100); do lib notify_listening || break; sleep 0.1; done
+ok "the listener's parent is gone: the listener stops" not lib notify_listening
+ok "… and says so" grep -q 'telegram: the listener stops: its parent' "$CANCCU_HOME/dispatch.log"
+
+# ---------------------------------------------------------------- nothing outlives the tests
+
+sleep 30 & sl=$!
+ok "left sees a child that still runs" grep -q "^$sl sleep 30$" <<<"$(left)"
+{ kill "$sl"; wait "$sl"; } 2>/dev/null
+ok "no process of these tests is left running" eq "$(left)" ""
+left | cut -d' ' -f1 | xargs -r kill 2>/dev/null
 
 echo "canccu-notify2 tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

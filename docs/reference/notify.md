@@ -85,7 +85,8 @@ or to a reply in the chain, belongs to that item.
 
 The listener reads the bot's new messages as they come: `canccu-notify --project <name> listen`,
 a long poll (`getUpdates` with `timeout=50`) that `canccu-up` starts in the window `listen` of the
-project's session, and starts again when it is down. It holds the lock `notify/.listen.lock` and
+project's session, and starts again when it is down. It stops once its parent (the window's
+shell) is gone, so it never outlives its window. It holds the lock `notify/.listen.lock` and
 touches `notify/listen.beat` on each read. While it lives, the pass does not read; without one,
 the pass reads once. When the beat file exists and no listener holds the lock,
 `canccu-dispatcher doctor` and `canccu-status` say the listener is down. A message is kept only when it is in `TELEGRAM_CHAT_ID`, from `TELEGRAM_USER_ID`, and in an open
@@ -109,7 +110,7 @@ The leader watches the inbox with `canccu-dispatcher watch --file <inbox>` and a
 | `canccu-notify close <topic>` | Posts `Closed.` and closes the topic: later replies there are dropped |
 | `canccu-notify topics` | The open topics: topic, unit, PR, feed line |
 | `canccu-notify photos <unit> <png…>` | Images into the unit's topic, ten to an album at most, captioned with the PR's link |
-| `canccu-notify listen` | The listener: reads the replies as they come, until stopped |
+| `canccu-notify listen` | The listener: reads the replies as they come, until stopped or its parent is gone |
 | `canccu-notify ids` | The chats and senders the bot saw lately: where `TELEGRAM_CHAT_ID` and `TELEGRAM_USER_ID` come from |
 | `canccu-notify test` | One test message |
 

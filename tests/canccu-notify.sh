@@ -5,6 +5,7 @@
 #   bash tests/canccu-notify.sh    one line per failure and a summary; exit 1 on failure
 # shellcheck source=lib/harness.sh
 . "$(dirname "$0")/lib/harness.sh"
+track_left
 
 TG_TOKEN=123456:fake-telegram-token-for-tests
 EV() { echo "$CANCCU_HOME/events"; }
@@ -327,6 +328,8 @@ ok "a passed PR that changes an SVG: it is rendered and sent into the unit's top
 PATH="$E/bin:$PATH" dispatch --once
 ok "… once per head" eq "$(calls sendPhoto)" 1
 ok "… the PR body's image links are never fetched" not grep -qi 'user-images\|user-attachments' "$FAKE/gh.log"
+ok "no process of these tests is left running" eq "$(left)" ""
+left | cut -d' ' -f1 | xargs -r kill 2>/dev/null
 
 echo "canccu-notify tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
