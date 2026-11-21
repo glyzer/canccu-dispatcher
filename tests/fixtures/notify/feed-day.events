@@ -1,0 +1,18 @@
+2030-11-05T06:02:00Z	1	po	ask	accept	5	50	https://github.com/example-org/web/pull/50	#5 PR #50 waits for your accept
+2030-11-05T06:40:00Z	2	po	ask	idle	6	-	https://github.com/example-org/web/issues/6	#6 sits in check for 61 min with nothing running
+2030-11-05T07:15:00Z	3	-	info	hold	-	-	-	usage back-off: nothing new starts until 2030-11-05T09:00:00Z
+2030-11-05T07:41:00Z	4	po	ask	idle	6	-	https://github.com/example-org/web/issues/6	#6 sits in check for 122 min with nothing running
+2030-11-05T08:03:00Z	5	po	ask	idle	5	-	https://github.com/example-org/web/issues/5	#5 sits in accept for 121 min with nothing running
+2030-11-05T09:00:00Z	6	-	info	closed	-	-	-	closes 3: usage back-off over
+2030-11-05T09:05:00Z	7	-	info	merged	7	70	https://github.com/example-org/web/pull/70	#7 merged
+2030-11-05T09:30:00Z	8	po	ask	question	8	-	https://github.com/example-org/web/issues/8	#8 question for the product owner
+2030-11-05T10:12:00Z	9	po	ask	idle	6	-	https://github.com/example-org/web/issues/6	#6 sits in check for 271 min with nothing running
+2030-11-05T10:40:00Z	10	-	info	hold-pace	-	-	-	PACE: nothing new starts ahead of the week
+2030-11-05T11:02:00Z	11	po	ask	idle	9	-	https://github.com/example-org/web/issues/9	#9 sits in review for 60 min with nothing running
+2030-11-05T11:30:00Z	12	-	info	closed	5	-	-	closes 1: merging
+2030-11-05T12:05:00Z	13	-	info	step-done	-	-	https://github.com/example-org/web/milestone/3	step 3 Events is done: all closed
+2030-11-05T13:20:00Z	14	-	info	hold	-	-	-	disk: nothing new starts below 200 MB free
+2030-11-05T14:00:00Z	15	po	ask	idle	6	-	https://github.com/example-org/web/issues/6	#6 sits in check for 500 min with nothing running
+2030-11-05T15:10:00Z	16	leader	ask	idle	10	-	-	#10 sits in fixing for 60 min with nothing running
+2030-11-05T16:45:00Z	17	-	info	closed	8	-	-	closes 8: answered
+2030-11-05T18:00:00Z	18	po	ask	idle	9	-	https://github.com/example-org/web/issues/9	#9 sits in review for 480 min with nothing running
