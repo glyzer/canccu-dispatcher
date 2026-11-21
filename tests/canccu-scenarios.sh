@@ -156,7 +156,16 @@ ok "single: its end state passes" eq "$rc $(cat "$E/out")" "0 single: pass"
 ok "single: the reset closed the open PRs and issues, then moved main to the tag" eval \
   'grep -q "^pr list -R example-org/web -s open" "$FAKE/gh.log" && grep -q "^issue list -R example-org/web -s open -l scenario" "$FAKE/gh.log"'
 ok "single: the issue it made is labelled scenario and ready" grep -qE '^issue create -R example-org/web --title scenario single: .* --label scenario --label ready' "$FAKE/gh.log"
-run_env single-open; world_is '[{"number": 5, "state": "OPEN", "labels": [], "comments": []}]' "$MERGED"
+ok "single: the preflight makes the label scenario (the sandbox may lack it)" grep -qx 'label create scenario -R example-org/web --force' "$FAKE/gh.log"
+run_env single-keep; world_is "$I_CLOSED" "$MERGED"; srun --repo example-org/web --keep single
+kept=$(sed -n 's/^kept //p' "$E/out")
+ok "single: the temp project uses the suite's own gh login" grep -qx 'ALLOW_DEFAULT_GH_LOGIN=1' "$kept/single/root/projects/sandbox/config"
+rm -rf "$kept"
+ok "single: the PR list stays under GitHub's 500,000-node limit (40 PRs with their commits)" \
+  grep -q '^pr list -R example-org/web -s all -L 40 --json .*commits' "$FAKE/gh.log"
+run_env single-setup; route 'fail:issue create' x; srun --repo example-org/web single
+ok "single: a failed setup names the failing command" eq "$rc $(grep -c '^single: FAIL setup: gh issue create -R example-org/web --title scenario single: one issue to merge .* failed (exit 1)' "$E/out")" "1 1"
+run_env single-open;world_is '[{"number": 5, "state": "OPEN", "labels": [], "comments": []}]' "$MERGED"
 srun --repo example-org/web single
 ok "single: an issue left open fails, saying why" eq "$rc $(grep -c "single: FAIL timed out after 0 s: #5 is still open" "$E/out")" "1 1"
 run_env single-ny; world_is "$I_NEEDS" "$OPEN"; srun --repo example-org/web single
