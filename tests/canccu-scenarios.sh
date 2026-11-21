@@ -117,6 +117,7 @@ run_env() {
   route 'pr list -R example-org/web -s open*' empty.txt; route 'issue list -R example-org/web -s open*' empty.txt
   route 'api repos/example-org/web/milestones*' ms9.json
   route 'api repos/example-org/web/git/ref/tags/scenario-base' repo.json; route 'api graphql*' prnode
+  echo '[{"type": "merge_queue"}]' > "$FAKE/mq.json"; route 'api repos/example-org/web/rules/branches/main*' mq.json
   route 'pr list -R example-org/web -s all*' prs-all.json
   cat > "$E/stub" <<'STUB'
 #!/usr/bin/env bash
@@ -193,6 +194,13 @@ tmo=3 srun --repo example-org/web queue-removal
 ok "queue-removal: dropped once from the queue, then merged: passes" eq "$rc $(cat "$E/out")" "0 queue-removal: pass"
 ok "queue-removal: the suite dequeued the PR through GraphQL" grep -q '^api graphql -f query=mutation { dequeuePullRequest(input: {id: "PR_node"})' "$FAKE/gh.log"
 
+run_env queue-none; echo '[{"type": "required_status_checks"}]' > "$FAKE/mq.json"; srun --repo example-org/web queue-removal single
+ok "queue-removal: no merge queue on main: skipped, not a failure; the next scenario runs" \
+  eq "$rc $(head -1 "$E/out")" "1 queue-removal: SKIP no merge queue"
+ok "… and no reset for it (the skip comes before its home)" not grep -q '^issue create .*dropped by the merge queue' "$FAKE/gh.log"
+world_is "$I_CLOSED" "$MERGED"; srun --repo example-org/web queue-removal single
+ok "… with the rest passing, the run exits 0" eq "$rc $(tr '\n' '|' < "$E/out")" "0 queue-removal: SKIP no merge queue|single: pass|"
+
 run_env late; world_is "$I_CLOSED" "$OPEN"; printf '%s\n' "$MERGED" > "$FAKE/prs-next.json"
 echo 'review 1 review-50 pass' > "$FAKE/engine.lines"
 tmo=3 srun --repo example-org/web push-after-pass
@@ -218,6 +226,34 @@ ok "crash: two runs, then needs-you: passes" eq "$rc $(head -1 "$E/out")" "0 cra
 run_env crash1; world_is "$I_NEEDS" "[]"; echo 'worker 1 5 crash' > "$FAKE/engine.lines"
 srun --repo example-org/web crash
 ok "crash: needs-you without the retry fails" eq "$rc $(grep -c 'not one retry' "$E/out")" "1 1"
+
+# ---------------------------------------------------------------- setup: the sandbox's standing setup
+
+SETUP=$root/tests/scenarios/setup
+run_env setup
+echo '{"permissions": {"push": true, "admin": true}}' > "$FAKE/repo.json"; route 'api repos/example-org/web' repo.json
+echo '[{"name": "ready"}]' > "$FAKE/labels.json"; route 'label list*' labels.json
+echo '[]' > "$FAKE/rulesets.json"; route 'api repos/example-org/web/rulesets --jq*' rulesets.json
+route 'api -X*' empty.txt; route 'variable set*' empty.txt
+sup() { PATH="$gb:$PATH" SCENARIO_CLONE_URL=$E/sandbox.git "$SETUP" "$@" > "$E/out" 2>&1; rc=$?; }
+base0=$(git -C "$E/sandbox.git" rev-parse scenario-base)
+sup --repo example-org/web
+ok "setup: exits 0" eq "$rc" 0
+ok "… scenario-base moved to a commit on the old one with the snippets, the review gate and CI" eval \
+  '[ "$(git -C "$E/sandbox.git" rev-parse scenario-base~1)" = "$base0" ] &&
+   [ "$(git -C "$E/sandbox.git" ls-tree -r --name-only scenario-base | sort | tr "\n" " ")" = ".github/scripts/review-gate .github/workflows/ci.yml .github/workflows/review-gate.yml AGENTS.md CLAUDE.md " ] &&
+   [ "$(git -C "$E/sandbox.git" show scenario-base:AGENTS.md)" = "$(cat "$root/templates/repo/AGENTS.snippet.md")" ]'
+ok "… the missing labels created, scenario among them; one there is left" eval \
+  'grep -qx "label create scenario -R example-org/web" "$FAKE/gh.log" && grep -qx "label create dispatcher-claim -R example-org/web" "$FAKE/gh.log" && ! grep -q "^label create ready " "$FAKE/gh.log"'
+ok "… auto-merge allowed, REVIEWER_LOGIN set, the ruleset created" eval \
+  'grep -qx "api -X PATCH repos/example-org/web -F allow_auto_merge=true" "$FAKE/gh.log" && grep -q "^variable set REVIEWER_LOGIN -R example-org/web --body " "$FAKE/gh.log" && grep -qx "api -X POST repos/example-org/web/rulesets --input -" "$FAKE/gh.log"'
+base1=$(git -C "$E/sandbox.git" rev-parse scenario-base)
+echo '[{"name": "scenario main", "id": 7}]' > "$FAKE/rulesets.json"
+sup --repo example-org/web
+ok "setup: run again, the tag stays where it is and the ruleset is set again, not made twice" eval \
+  '[ "$rc $(git -C "$E/sandbox.git" rev-parse scenario-base)" = "0 $base1" ] && grep -qx "api -X PUT repos/example-org/web/rulesets/7 --input -" "$FAKE/gh.log" && grep -q "scenario-base: up to date" "$E/out"'
+echo '{"permissions": {"push": true, "admin": false}}' > "$FAKE/repo.json"; sup --repo example-org/web
+ok "setup: a login that is no admin of the sandbox is refused, exit 1" eq "$rc $(grep -c 'no admin' "$E/out")" "1 1"
 
 ok "tests/run never runs the live suite" eq "$("$root/tests/run" --list 2>/dev/null | grep -c 'tests/scenarios/')" 0
 
