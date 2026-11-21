@@ -328,6 +328,18 @@ ok "a passed PR that changes an SVG: it is rendered and sent into the unit's top
 PATH="$E/bin:$PATH" dispatch --once
 ok "… once per head" eq "$(calls sendPhoto)" 1
 ok "… the PR body's image links are never fetched" not grep -qi 'user-images\|user-attachments' "$FAKE/gh.log"
+
+tg notify-svg-link NOTIFY_CONTENT=link
+mkdir -p "$E/bin"; printf '#!/bin/sh\nwhile [ $# -gt 1 ]; do [ "$1" = -o ] && printf PNG > "$2"; shift; done\n' > "$E/bin/rsvg-convert"; chmod +x "$E/bin/rsvg-convert"
+accept5
+lib st_set 5 pass_sha="$HA"
+json files50 '[{"filename": "web/mock/home.svg"}]'
+route 'api --paginate repos/example-org/web/pulls/50/files*' files50
+printf '<svg xmlns="http://www.w3.org/2000/svg"/>\n' > "$FAKE/home.svg"
+route "api repos/example-org/web/contents/web/mock/home.svg?ref=$HA*" home.svg
+PATH="$E/bin:$PATH" dispatch --once
+ok "NOTIFY_CONTENT=link: a passed PR that changes an SVG sends no photo" eq "$(calls sendPhoto)" 0
+ok "… and its SVGs are not read" not grep -qF 'contents/web/mock/home.svg' "$FAKE/gh.log"
 ok "no process of these tests is left running" eq "$(left)" ""
 left | cut -d' ' -f1 | xargs -r kill 2>/dev/null
 
