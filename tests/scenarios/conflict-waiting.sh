@@ -9,8 +9,11 @@ sc_setup() {
   printf '%s\n' 'review 1 pass-accept' 'worker 2 merge-main' > "$SCENARIO_DIR/script"
 }
 sc_tick() {
+  local b
   q "issue($N) | labelled(\"awaiting-accept\")" || return 0
-  once main-moved push_main "scenario/$N-scenario.txt" "main's side"
+  # the fake worker's file is scenario/<its branch>.txt
+  b=$(jq -r '.prs[] | select(.state == "OPEN") | .headRefName' "$SCENARIO_DIR/world.json" | head -1)
+  [ -n "$b" ] && once main-moved push_main "scenario/$b.txt" "main's side"
   # the accept, once the PR holds a merge of main: the product owner's label on the PR
   if q '[.prs[] | select(.state == "OPEN") | .commits[].messageHeadline | startswith("Merge")] | any'; then
     once accepted gh pr edit "$(jq -r '.prs[] | select(.state == "OPEN") | .number' "$SCENARIO_DIR/world.json" | head -1)" \

@@ -196,6 +196,12 @@ ok "contract-first: the unit's PR merged first fails" eq "$rc $(grep -c 'merged 
 run_env conflict; world_is "$I_CLOSED" "[$(pr_ 50 MERGED 5-scenario 'Closes #5' 2030-11-05T12:00:00Z "Merge remote-tracking branch 'origin/main' into 5-scenario")]"
 srun --repo example-org/web conflict-waiting
 ok "conflict-waiting: its end state passes" eq "$rc $(cat "$E/out")" "0 conflict-waiting: pass"
+run_env conflict-tick
+world_is '[{"number": 5, "state": "OPEN", "labels": [{"name": "awaiting-accept"}], "comments": []}]' "[$(pr_ 50 OPEN 5-scenario-long-name 'Closes #5')]"
+printf '%s\n' "[$(pr_ 50 MERGED 5-scenario-long-name 'Closes #5' 2030-11-05T12:00:00Z 'Merge main')]" > "$FAKE/prs-next.json"
+tmo=3 srun --repo example-org/web conflict-waiting
+ok "conflict-waiting: main's commit touches the file of the PR's own branch" \
+  eq "$(git -C "$E/sandbox.git" show main:scenario/5-scenario-long-name.txt 2>/dev/null)" "main's side"
 
 run_env queue; world_is "$I_CLOSED" "$OPEN"; printf '%s\n' "$MERGED" > "$FAKE/prs-next.json"
 tmo=3 srun --repo example-org/web queue-removal
