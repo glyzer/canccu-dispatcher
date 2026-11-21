@@ -394,6 +394,24 @@ last() {
 dispatch() { PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-dispatch" "$@" > "$E/out" 2>&1; }
 lib() { ( PATH="$fb:$PATH"; CANCCU_WORKER="$fb/worker"; . "$root/lib/canccu-common.sh"; "$@" ) 2>/dev/null; }
 not() { ! "$@"; }
+# track_left: every process the test file starts from now on carries its mark (TEST_LEFT_MARK);
+# left: the ones of them that still run, one "<pid> <command>" line each (nothing may outlive its
+# test: a leaked loop takes the CI container's process slots). Read with builtins only, so the
+# scan itself never shows.
+track_left() { export TEST_LEFT_MARK=$T; }
+left() {
+  local e p v a
+  [ -n "${TEST_LEFT_MARK:-}" ] && [ -r /proc/self/environ ] || return 0
+  for e in /proc/[0-9]*/environ; do
+    p=${e#/proc/} p=${p%/environ}
+    [ "$p" = $$ ] || [ "$p" = "$BASHPID" ] && continue
+    while IFS= read -r -d '' v; do
+      [ "$v" = "TEST_LEFT_MARK=$TEST_LEFT_MARK" ] || continue
+      a=(); { mapfile -d '' a; } 2>/dev/null < "/proc/$p/cmdline"
+      echo "$p ${a[*]:-?}"; break
+    done 2>/dev/null < "$e"
+  done
+}
 # dead <pid>: gone or a zombie (a killed child of this shell stays a zombie until waited for)
 dead() { local st; st=$(sed 's/.*) //' "/proc/$1/stat" 2>/dev/null | cut -d' ' -f1); [ -z "$st" ] || [ "$st" = Z ]; }
 

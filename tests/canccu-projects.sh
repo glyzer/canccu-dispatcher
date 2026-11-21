@@ -288,6 +288,18 @@ HOME=$E/home PATH="$T/tmuxup:$fb:$PATH" "$root/bin/canccu-up" --project shop > "
 ok "canccu-up shop, the session exists: never killed or rearranged" not grep -qE '^(kill|new-|split|send-keys|select-|move|swap|rename|set)' "$FAKE/tmux.log"
 ok "… and says where to start the dispatcher" grep -qF 'start it in its window dispatch (or any window): canccu-dispatch --project shop' "$E/out"
 ok "a pane's CANCCU_PROJECT picks shop over the default" eq "$(CANCCU_PROJECT=shop pick)" "shop canccu-shop example-org/shop"
+penv up-listen shop; mkdir -p "$E/home"; pconf shop NOTIFY=telegram TELEGRAM_USER_ID=777
+HOME=$E/home PATH="$T/tmuxup:$fb:$PATH" "$root/bin/canccu-up" --project shop > "$E/out" 2>&1
+ok "canccu-up shop (the default project), replies read on Telegram: window listen runs the listener" \
+  grep -qE -- "^new-window -d .* -t =canccu: -n listen .*/bin/canccu-notify --project shop listen$" "$FAKE/tmux.log"
+: > "$FAKE/tmux.log"; touch "$FAKE/has-session"
+HOME=$E/home PATH="$T/tmuxup:$fb:$PATH" "$root/bin/canccu-up" --project shop > "$E/out" 2>&1
+ok "… the session exists, the listener down: canccu-up starts it again, in a window of its own" \
+  eq "$(grep -c -- '-n listen ' "$FAKE/tmux.log") $(grep -cE '^(kill|split|send-keys|select-|move|swap|rename)' "$FAKE/tmux.log")" "1 0"
+mkdir -p "$CANCCU_ROOT/projects/shop/notify"; : > "$FAKE/tmux.log"
+( exec 8>>"$CANCCU_ROOT/projects/shop/notify/.listen.lock"; flock -n 8
+  HOME=$E/home PATH="$T/tmuxup:$fb:$PATH" "$root/bin/canccu-up" --project shop > "$E/out" 2>&1 )
+ok "… a live listener: none started" not grep -q -- '-n listen ' "$FAKE/tmux.log"
 penv up-gh tools; mkdir -p "$E/home" "$CANCCU_ROOT/projects/tools/gh"
 HOME=$E/home PATH="$T/tmuxup:$fb:$PATH" "$root/bin/canccu-up" --project tools > "$E/out" 2>&1
 ok "canccu-up tools (its own gh login): every pane gets its config dir and git's helper" \

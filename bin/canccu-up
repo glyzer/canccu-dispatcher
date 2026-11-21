@@ -4,7 +4,8 @@
 # default project, "canccu-<name>" for the others. Window main: claude on the left (with LEADER=on
 # the leader, in its kit dir; else your own session, pane "lead"), canccu-monitor --project <name>
 # on the right; window dispatch: canccu-dispatch --project <name>;
-# window shell. Every pane has CANCCU_PROJECT=<name> and the project's gh login (GH_CONFIG_DIR, with
+# window shell; with Telegram notifications, window listen: canccu-notify listen (started again
+# when it is down). Every pane has CANCCU_PROJECT=<name> and the project's gh login (GH_CONFIG_DIR, with
 # git's credential helper for it), when it has one. Then attach. Never kills or rearranges an
 # existing session (docs/canccu-dispatch.md, "Moving to the command-center layout").
 set -uo pipefail
@@ -15,16 +16,16 @@ self=$(realpath "$0")
 S=$TMUX_SESSION H=$CANCCU_HOME
 mkdir -p "$H" "$CLONE_ROOT" || exit 1
 touch "$H/dispatch.log"
+# every pane (and every later window: the session environment) acts on this project: a
+# canccu-stop typed in canccu-<name> never falls back to the default project
+P="CANCCU_PROJECT=$CANCCU_PROJECT"
+# … and with the project's own gh login (tmux_gh_env: GH_CONFIG_DIR, its owner and git's
+# credential helper for it; sent empty without one), so the left pane's gh and git use it too. With
+# one, the token variables go empty as well: gh prefers a token the server inherited. The
+# client that may start the server runs without them (without_gh_env): never the global
+# environment of every later session. -e on new-session sets the session environment too.
+mapfile -d '' GE < <(tmux_gh_env; [ -n "$CANCCU_GH_DIR" ] && tmux_token_blanks)
 if ! tmux has-session -t "=$S" 2>/dev/null; then
-  # every pane (and every later window: the session environment) acts on this project: a
-  # canccu-stop typed in canccu-<name> never falls back to the default project
-  P="CANCCU_PROJECT=$CANCCU_PROJECT"
-  # … and with the project's own gh login (tmux_gh_env: GH_CONFIG_DIR, its owner and git's
-  # credential helper for it; sent empty without one), so the left pane's gh and git use it too. With
-  # one, the token variables go empty as well: gh prefers a token the server inherited. The
-  # client that may start the server runs without them (without_gh_env): never the global
-  # environment of every later session. -e on new-session sets the session environment too.
-  mapfile -d '' GE < <(tmux_gh_env; [ -n "$CANCCU_GH_DIR" ] && tmux_token_blanks)
   lead=$(without_gh_env tmux new-session -d -P -F '#{pane_id}' -e "$P" "${GE[@]}" -s "$S" -n main -c "$CLONE_ROOT") || die "tmux new-session $S failed"
   tmux set-environment -t "=$S" CANCCU_PROJECT "$CANCCU_PROJECT"
   mon=$(tmux split-window -h -l 40% -P -F '#{pane_id}' -e "$P" "${GE[@]}" -t "$lead" -c "$CLONE_ROOT") || die "tmux split-window failed"
@@ -47,6 +48,12 @@ if ! tmux has-session -t "=$S" 2>/dev/null; then
   tmux select-pane -t "$lead"
 elif ! dispatcher_running; then
   echo "canccu-up: session $S exists but canccu-dispatch is not running for project $CANCCU_PROJECT; start it in its window dispatch (or any window): canccu-dispatch --project $CANCCU_PROJECT" >&2
+fi
+# the Telegram listener (replies at once): in a window of its own, started again when it is down
+if notify_on telegram && [ -n "${TELEGRAM_USER_ID:-}" ] && ! notify_listening; then
+  tmux new-window -d -e "$P" "${GE[@]}" -t "=$S:" -n listen -c "$CLONE_ROOT" \
+    "$(printf %q "$(dirname "$self")/canccu-notify") --project $CANCCU_PROJECT listen" ||
+    echo "canccu-up: tmux new-window listen failed: Telegram replies wait for the next pass" >&2
 fi
 if [ -t 1 ]; then
   if [ -n "${TMUX:-}" ]; then tmux switch-client -t "=$S"; else exec tmux attach -t "=$S"; fi

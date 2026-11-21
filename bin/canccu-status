@@ -5,7 +5,8 @@
 # ("waiting for a slot held by <project>"), running workers and reviewers
 # (issue, stage: review / fixing / fix-check or the phase, minutes, last log line), the runs it did
 # not start (a worker started by hand: key, kind, age), PRs awaiting
-# accept, issues needing you (a review that could not be posted too), open PRs that are not ours
+# accept, issues needing you (a review that could not be posted too), a Telegram listener that is
+# down, open PRs that are not ours
 # (never reviewed, merged or commented on), the next 5 runnable issues and the latest digest.
 # canccu-status [--project <name>] --spend — the cost of every merged PR, every run of it (lost
 # runs and fix rounds too), grouped by model and run type (lib/canccu-spend.sh, spend_report).
@@ -46,6 +47,7 @@ tp=$(reviewer_token_problem)
 fp=$(automerge_until_problem)
 [ -n "$fp" ] && echo "AUTO-MERGE OFF: $fp; every PR waits for your accept"
 brake_status
+! notify_on telegram || notify_listen_problem
 
 # the runs the dispatcher did not start (a worker started by hand) are listed apart
 others=$(other_runs)
