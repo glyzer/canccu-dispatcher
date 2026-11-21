@@ -6,6 +6,14 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 
 ## Unreleased
 
+- The dispatcher claim: a pass that creates the claim issue keeps it when GitHub does not list
+  it yet (a new issue shows a few seconds late). It closed its own claim, and every pass after
+  it did nothing on a repo with no claim yet (#271).
+- The scenario suite (#271): preflight creates the label `scenario`; each scenario's project
+  sets `ALLOW_DEFAULT_GH_LOGIN=1` (the default-login refusal of #173 stopped every pass); the
+  reset closes the dispatcher claims of earlier scenarios; the end-state check reads 40 PRs, not
+  100 (GitHub's GraphQL node limit); a setup that fails names the failing command
+  ([`scenarios.md`](docs/reference/scenarios.md#what-a-fail-prints)).
 - Telegram stays quiet (#252): only the kinds in `NOTIFY_KINDS` are sent (`idle` and `hold` are
   off by default, and an `idle` never goes while its unit has an open item); items within
   `NOTIFY_BATCH_MIN` minutes go as one message with one line each and the reply that settles them

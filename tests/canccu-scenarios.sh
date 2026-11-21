@@ -156,6 +156,8 @@ ok "single: its end state passes" eq "$rc $(cat "$E/out")" "0 single: pass"
 ok "single: the reset closed the open PRs and issues, then moved main to the tag" eval \
   'grep -q "^pr list -R example-org/web -s open" "$FAKE/gh.log" && grep -q "^issue list -R example-org/web -s open -l scenario" "$FAKE/gh.log"'
 ok "single: the issue it made is labelled scenario and ready" grep -qE '^issue create -R example-org/web --title scenario single: .* --label scenario --label ready' "$FAKE/gh.log"
+ok "single: the reset closes the claims of earlier scenarios (each one is a host of its own)" \
+  grep -q '^issue list -R example-org/web -s open -l dispatcher-claim' "$FAKE/gh.log"
 ok "single: the preflight makes the label scenario (the sandbox may lack it)" grep -qx 'label create scenario -R example-org/web --force' "$FAKE/gh.log"
 run_env single-keep; world_is "$I_CLOSED" "$MERGED"; srun --repo example-org/web --keep single
 kept=$(sed -n 's/^kept //p' "$E/out")

@@ -38,14 +38,18 @@ home() {
     > "$CANCCU_HOME/config"
 }
 
-# reset: close every open PR (its branch deleted) and every open issue labelled scenario, then
-# move main back to the tag scenario-base: the one force-push of the suite, to the sandbox only
+# reset: close every open PR (its branch deleted), every open issue labelled scenario and every
+# open dispatcher claim, then move main back to the tag scenario-base: the one force-push of the
+# suite, to the sandbox only
 reset() {
   local n
   for n in $(gh pr list -R "$REPO" -s open -L 100 --json number -q '.[].number'); do
     gh pr close "$n" -R "$REPO" --delete-branch >/dev/null 2>&1
   done
-  for n in $(gh issue list -R "$REPO" -s open -l scenario -L 100 --json number -q '.[].number'); do
+  # the dispatcher claims too: each scenario's home is a host of its own, and an earlier one's
+  # fresh claim would leave this one doing nothing for CLAIM_EXPIRY_MIN
+  for n in $(gh issue list -R "$REPO" -s open -l scenario -L 100 --json number -q '.[].number') \
+           $(gh issue list -R "$REPO" -s open -l dispatcher-claim -L 100 --json number -q '.[].number'); do
     gh issue close "$n" -R "$REPO" >/dev/null 2>&1
   done
   must git -C "$CLONE" fetch -q origin tag scenario-base &&
