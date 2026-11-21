@@ -37,6 +37,9 @@ found` (it names a process left on an older release).
   `profiles/default/rules` when you want to change it.
 - A host profile (`HOST_PROFILE`) pins the plan-dependent values, so a changed default does not
   move them.
+- A changed default moves every project that does not set the key. The release's CHANGELOG entry
+  names each one and the line that keeps the old value: put it in the project's `config` (or, for
+  a rules key, its `rules`) before you restart.
 
 ## Going back
 

@@ -31,16 +31,16 @@ and the line `Health: nothing to do`. Once per step. It runs on `HEALTH_MODEL` a
 
 ## Deep review and polish
 
-With `STEP_DEEP_REVIEW=1`, a step whose work issues are all closed gets a deep review before its
+With `STEP_DEEP_REVIEW=1` (the default), a step whose work issues are all closed gets a deep review before its
 health pass: one worker run (`pkg-<m>-deep`, window `deep#<m>`, a fresh session on
-`DEEP_REVIEW_MODEL`, else `REVIEW_MODEL`, else `MODEL`, at `DEEP_REVIEW_EFFORT` (`high`), budget
+`DEEP_REVIEW_MODEL`, else `REVIEW_MODEL`, else `MODEL`, at `DEEP_REVIEW_EFFORT` (`medium`, capped by `REVIEW_EFFORT_MAX`), budget
 `BUDGET_DEEP_REVIEW`), charged to the step. The step's phase is `deep`: it stays current. The log
 says `#pkg-<m>-deep started: the deep review of step <title>`. Its prompt names the base (the
 tag matching `STEP_TAG` exactly, `{n}` as digits only, so no round tag, with the highest `{n}`
 below the step's own number, since with parallel tracks a later step's tag can be newer; with none
 below it, the step's merged PRs from `steps/<m>.packages`, since any other such tag is the step's
 own or a later step's), the head it reads (`origin/main`'s sha, the step field `deep_head`), the
-step's issues and its follow-up issues (the `followups` keys `step-<m>-*`). It writes
+step's issues and its follow-up tickets (the `followups` key `step-<m>`, and the older `step-<m>-*`). It writes
 `docs/reports/step-<n>-deep-review.md` (`<n>`: the leading number of the milestone's title, else
 the milestone number) with the sections Architecture, Security, Contracts and Test quality, then
 the finding block of contracts §8 ending in `Review verdict: pass|changes <deep_head>`, and opens
@@ -75,7 +75,13 @@ event must be by `USER_LOGIN`, after the summary) or close it; the dispatcher th
 the step is done. The fast lane runs on during the pause. A step without an open checkpoint
 skips the pause. The step's epic closes once the step is done and its sub-issues are closed.
 
-**Step tag.** With `STEP_TAG` set (locked: a tag push can start a release workflow; for example
+**New work at the checkpoint** (#243). An open work issue in the step while it waits (your "not
+yet, polish these first") takes it back to `idle`: the checkpoint's `needs-you` goes and the
+planner plans that work like any. Once it is closed, the health pass and the checkpoint come
+again, with a fresh summary; the deep review is not redone. Logged: `step <title>: new open work
+at its checkpoint (#a, #b); back to planning`.
+
+**Step tag.** With `STEP_TAG` set (locked: a tag push can start a release workflow; the default
 `step-{n}`, `{n}` as above), the checkpoint OK fetches, tags `origin/main`'s head and pushes the
 tag with the project's own login, as a merge of main is pushed. An existing tag is never moved.
 Logged: `step <title>: tagged <tag> at <sha7>`, `step <title>: tag <tag> exists already; not
@@ -84,7 +90,7 @@ no valid tag name after it (`git check-ref-format`): no tag, one warning.
 
 ## Cadence rounds
 
-A long-running step can be checked while it runs. With `CADENCE_DAYS` above 0 (project config),
+A long-running step can be checked while it runs. With `CADENCE_DAYS` above 0 (project config; default 14),
 a step whose milestone description has the line `Cadence: on` (any case; the title keeps its
 ordering number) starts a **round** every `CADENCE_DAYS` days, counted from the end of the last
 round (step field `cadence_at`), else from the step's start, while the step runs or is idle with

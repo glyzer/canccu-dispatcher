@@ -29,9 +29,9 @@ checked on the PR and leave the accept to the product owner.
 
 ## The step's deep review and polish
 
-You file them. Before a step's work issues are all closed, decide whether it gets a deep review
-(`canccu-dispatcher config set --project @NAME@ STEP_DEEP_REVIEW=1 --why <reason>`): the
-dispatcher then reviews the step's whole change and files its blocking findings as one issue,
+You file them. A step gets a deep review by default once its work issues are all closed (turn it
+off with `canccu-dispatcher config set --project @NAME@ STEP_DEEP_REVIEW=0 --why <reason>`): the
+dispatcher reviews the step's whole change and files its blocking findings as one issue,
 `Step <title>: polish (deep review)`. Once the report merged, check that issue holds every
 blocking item; file what it missed as an issue in the step's milestone (`gh issue create`), and
 the report's non-blocking items you want built too. Scope stays the product owner's: a finding

@@ -6,6 +6,50 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 
 ## Unreleased
 
+- A worker that pushed its branch but could not open the PR (its `gh pr create` denied, or a
+  finish run spent) no longer ends in `needs-you` (#237): the dispatcher opens the PR itself, from
+  the worker's body file inside its worktree or a body built from the issue and the run's
+  Testing:/Revert: lines, as a draft if the worker asked for one, and says so in the PR and the
+  log. `needs-you` stays without a pushed branch of the issue with commits ahead of main.
+- A ready step issue outside the running wave no longer waits unseen (#236): `canccu-status`, the
+  brief and the monitor list it as `waiting for the next wave of step <n> (label fast to run it
+  now)`. It is not added to the running wave; the next wave plans it
+  ([`packages.md`](docs/reference/packages.md#the-planner)).
+- A step whose last work issue closes after its wave ended (a polish PR still merging) keeps its
+  turn (#239): it gets its health pass and checkpoint pause before the next step starts, with or
+  without a checkpoint issue.
+- A step at its checkpoint with new open work in its milestone goes back to planning (#243): the
+  work no longer waits for the `checkpoint-ok` it is meant to earn; the health pass and a fresh
+  summary follow once it is closed.
+- A worker that stops at its turn or time budget while its PR moves on continues on its own
+  (#127): up to `CONTINUE_MAX` (default `3`, `0` turns it off) fresh runs with its handoff, each
+  with a run's turns and minutes and the USD the unit's work budget has left; `needs-you` only
+  without progress (no PR, no new pushed commits) or once those are used. A resume after the
+  usage limit gets the rest of the work budget, never less than `BUDGET_RESUME`
+  ([`usage.md`](docs/reference/usage.md#continuations)).
+- The v2 workflow is on by default (#242): light package reviews, the step deep review at
+  `medium` effort (capped by `REVIEW_EFFORT_MAX` now, like every review), step tags, budgets by
+  size, weekly pacing and cadence rounds. **Upgrade:** a project that sets none of these keys
+  changes with the update. To keep the old value, set it in the project's `config` (rules key:
+  its `rules`):
+  - `REVIEW_LIGHT=0` (rules; was `0`, now `1`);
+  - `STEP_DEEP_REVIEW=0` (now `1`);
+  - `DEEP_REVIEW_EFFORT=high` (now `medium`; the `max` host profile keeps `high`);
+  - `STEP_TAG=''` (now `step-{n}`);
+  - `BUDGET_LINES=0` (now `300`);
+  - `PACE=off` (now `cap`);
+  - `CADENCE_DAYS=0` (now `14`; a round runs only in a milestone marked `Cadence: on`);
+  - `FIXCHECK_COUNT_RESOLVED=0` (now `1`).
+- One follow-up ticket per step (#223): non-blocking findings go into the body of
+  `Follow-ups: step <title>` (in the step's milestone) or `Follow-ups: fast lane`, one
+  `### PR #<pr> (…)` section per verdict, one `- [ ]` line per finding; a body past 60000
+  characters opens `(part 2)`. A pre-existing security finding gets an issue of its own, labelled
+  `security`, instead of labelling the ticket. **Upgrade:** the per-wave issues get nothing new;
+  close them when they are triaged. An open fast-lane issue recorded before gets the new sections
+  in its body.
+- Fix-check by number (#229): the fix run and the fix-check get the blocking findings as
+  `Finding 1:` to `Finding <c>:`, and the fix-check answers each on its own line. A `pass` that
+  leaves one out, or calls one not fixed or broken, is `needs-you`, not a pass.
 - Notifications on Telegram: `NOTIFY` (`github`, the default, `telegram`, `both`, `off`) sends
   each ask of the product owner, a step done, a hold and a polish issue as one Telegram message at
   the change of state, in a forum topic per item (a reply chain in a private chat). The product

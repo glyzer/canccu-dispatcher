@@ -188,7 +188,7 @@ env_new reap-budget
 state 5 phase=work "started=$NOW"; last 5 'stopped: time budget 150m' 'I was still running tests'
 dispatch --once
 ok "budget stop → needs-you label" has gh.log "issue edit 5 -R example-org/web --add-label needs-you"
-ok "comment carries the reason and last message" has gh.log "the worker stopped: stopped: time budget 150m  > I was still running tests"
+ok "comment carries the reason and last message" has gh.log "the worker stopped: stopped: time budget 150m, with no PR to show progress  > I was still running tests"
 ok "phase needs-you" eq "$(st 5 phase)" needs-you
 
 env_new reap-usage

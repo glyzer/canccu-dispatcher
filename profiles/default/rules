@@ -55,7 +55,7 @@
 # HIGH_RISK_TEXT='migrations, sign-in or auth, rights, sessions, secrets, tenancy/RLS, deploy/ or CI configuration'
 # REVIEW_LIGHT: 1 gives a package of class low or normal a light review (a checklist at low
 # effort, no code-review skill); one that rates the PR high is followed by a full review
-# REVIEW_LIGHT=0
+# REVIEW_LIGHT=1
 # which states ping USER_LOGIN (PING=on): all, or some of accept checkpoint plan question
 # needs-you pr-needs-you. The rest stays in needs-you, the status and the monitor, unpinged.
 # PING_KINDS=all

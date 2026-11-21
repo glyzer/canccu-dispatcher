@@ -113,11 +113,11 @@ issue_own_status() {
 }
 
 # snap_step_issues <m> [peek]: one JSON line per open work issue of step m (no epic, no checkpoint),
-# by number: issue, title, url, status (done, running, accept, needs-you, ready, blocked), waits_on,
+# by number: issue, title, url, status (done, running, accept, needs-you, ready, next-wave, blocked), waits_on,
 # package (its key in the current plan, or null). An issue of the plan has its package's status.
 # peek (the next step): no GitHub read for an issue's blockers (issue_own_status).
 snap_step_issues() {
-  local m=$1 peek=${2:-} nm is rk dep k s why n title labels st
+  local m=$1 peek=${2:-} nm is rk dep k s why n title labels st ph
   local -A pst=() pwhy=() pkey=()
   while IFS=$'\t' read -r nm is rk dep; do
     [ -n "$nm" ] || continue
@@ -132,12 +132,16 @@ snap_step_issues() {
     esac
     for n in $is; do pst[$n]=$s pwhy[$n]=$why pkey[$n]=$k; done
   done < <(plan_packages "$m")
+  ph=$(step_get "$m" phase)
   jqr --arg t "$(step_title "$m")" '.[] | select((.milestone.title // null) == $t)
         | select([.labels[].name] | (index("epic") or index("checkpoint")) | not)
         | [.number, (.title | gsub("[\t\n]"; " ")), ([.labels[].name] | join(","))] | @tsv' <<<"$ISSUES" | sort -n |
     while IFS=$'\t' read -r n title labels; do
       st=${pst[$n]:-} why=${pwhy[$n]:-}
       [ -n "$st" ] || IFS=$'\t' read -r st why <<<"$(issue_own_status "$n" "$labels" "$peek")"
+      # a ready issue outside the running wave waits for the next one, not for a slot (#236)
+      [ "$st" = ready ] && [ -z "${pkey[$n]:-}" ] && [[ ,$labels, != *,fast,* ]] && [ "$ph" = running ] &&
+        st=next-wave why=$(next_wave_why "$m")
       printf '%s\t%s\t%s\t%s\t%s\n' "$n" "$title" "$st" "$why" "${pkey[$n]:-}"
     done | jq -Rc --arg r "$REPO" 'split("\t") | {issue: (.[0] | tonumber), title: .[1], url: "https://github.com/\($r)/issues/\(.[0])",
         status: .[2], waits_on: (if .[3] == "" then null else .[3] end), package: (if .[4] == "" then null else .[4] end)}'

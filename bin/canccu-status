@@ -134,6 +134,7 @@ if fetch; then
         pr=$(st_get "$k" pr)
         echo "  package $nm · $rk risk · $st · ${is// /, }${pr:+ · PR #$pr}"
       done < <(plan_packages "$m")
+      status_step_waiting "$m"
       n=$(grep -c . "$CANCCU_HOME/steps/$m.notes" 2>/dev/null); n=${n:-0}
       echo "  notes: $n"; (( n )) && head -5 "$CANCCU_HOME/steps/$m.notes" | awk -F '\t' '{ printf "    %s: %s (PR #%s)\n", $2, $4, $3 }'
     done

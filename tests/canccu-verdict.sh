@@ -84,24 +84,30 @@ ok "… in the format of §8" eq "$(cat "$CANCCU_HOME/reviews.log")" "$(printf '
 venv valid "$(review changes "4 0 0" "$DEMOTED"$'\n'"$VALID")"
 dispatch --once
 ok "one valid blocking item: posted as the reviewer wrote it" eq "$(cat "$FAKE/posted-50")" "$(review changes "4 0 0" "$DEMOTED"$'\n'"$VALID")"
-ok "… the fix round gets only that item" grep -qF "The blocking findings: $(lib oneline 999 "$VALID") (also in" "$FAKE/worker.log"
+# numbered as the first finding left, its list mark dropped (#229)
+VALIDN="Finding 1: ${VALID#4. }"
+ok "… the fix round gets only that item" grep -qF "The blocking findings: $(lib oneline 999 "$VALIDN") (also in" "$FAKE/worker.log"
 ok "… none of the demoted ones" not grep -q 'src/a.ts:3\|src/c.ts:5' "$FAKE/worker.log"
-ok "… the findings file holds only it" eq "$(cat "$CANCCU_HOME/reviews/50/$HA.findings.md")" "$VALID"
+ok "… the findings file holds only it" eq "$(cat "$CANCCU_HOME/reviews/50/$HA.findings.md")" "$VALIDN"
 ok "… the demoted items go to the follow-up issue" grep -q '^issue create .*src/a.ts:3.*src/b.ts:4.*src/c.ts:5' "$FAKE/gh.log"
 ok "… reviews.log: changes 1, the class left" eq "$(cut -f4- "$CANCCU_HOME/reviews.log")" "$(printf 'full\tchanges\t1\t0\t0\t3\tcorrectness\t0')"
 
 venv pre-security "$(review pass "0 1 1" "" "$NBI" "$PRE")"
+printf '901\n900\n' > "$FAKE/new-issues"
 dispatch --once
 ok "a Pre-existing: [security] item: the PR passes" eq "$(grep -c '^pr merge 50' "$FAKE/gh.log")" 1
-ok "… the item is filed to the follow-up issue, labelled security" grep -q '^issue create .*--label security.*src/old.ts:9' "$FAKE/gh.log"
+ok "… the item gets an issue of its own, labelled security (#223)" \
+  grep -q '^issue create -R example-org/web --title Security (pre-existing): \[security\] src/old.ts:9 .*--label security --body .*PR #50' "$FAKE/gh.log"
+ok "… the follow-up ticket's line links it; the ticket's label is follow-up, not security" \
+  eq "$(grep -cxF -- "- [ ] ${PRE#- } (security: #901)" "$FAKE/created-900") $(grep -c -- '--title Follow-ups.*--label follow-up' "$FAKE/gh.log") $(grep -c -- '--title Follow-ups.*--label security' "$FAKE/gh.log")" "1 1 0"
 ok "security is one of the dispatcher's labels" grep -qw security <<<"$(lib eval 'echo $CANCCU_LABELS')"
 
 venv pre-security-comment "$(review pass "0 0 1" "" "" "$PRE")"
 printf 'fast\t77\n' > "$CANCCU_HOME/followups"
 { issue 5 in-progress; issue 77 ""; } | issues
 dispatch --once
-ok "… an open follow-up issue gets the comment and the label" \
-  eq "$(grep -c '^issue comment 77 .*src/old.ts:9' "$FAKE/gh.log") $(grep -c '^issue edit 77 -R example-org/web --add-label security' "$FAKE/gh.log")" "1 1"
+ok "… an open follow-up ticket: its line links the item's issue, no label on the ticket" \
+  eq "$(grep -cxF -- "- [ ] ${PRE#- } (security: #900)" "$FAKE/body-77") $(grep -c -- '--add-label security' "$FAKE/gh.log")" "1 0"
 
 venv no-security "$(review pass "0 1 0" "" "$NBI")"
 dispatch --once

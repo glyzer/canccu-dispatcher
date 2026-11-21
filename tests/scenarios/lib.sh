@@ -17,9 +17,13 @@ home() {
   # the reviewer's verdicts are posted as the same login that runs the suite: the token file is
   # the login's own token, mode 600, inside the temp dir the run removes
   ( umask 077; gh auth token > "$W/$1/token" 2>/dev/null ) || : > "$W/$1/token"
-  sed "s/@NAME@/sandbox/g" "$root/profiles/default/rules" > "$CANCCU_HOME/rules"
+  # the scenarios were written against the defaults before #242: they pin them (as the harness's
+  # OLD_DEFAULTS do)
+  { sed "s/@NAME@/sandbox/g" "$root/profiles/default/rules"; echo "REVIEW_LIGHT=0"; } > "$CANCCU_HOME/rules"
   printf '%s\n' "REPO=$REPO" "CLONE=$CLONE" "CAP=3" "USER_LOGIN=$LOGIN" "REVIEWER_LOGIN=$LOGIN" \
-    "REVIEWER_TOKEN_FILE=$W/$1/token" "DIGEST_HOUR_UTC=24" 'ADD_DIRS=""' > "$CANCCU_HOME/config"
+    "REVIEWER_TOKEN_FILE=$W/$1/token" "DIGEST_HOUR_UTC=24" 'ADD_DIRS=""' \
+    STEP_DEEP_REVIEW=0 DEEP_REVIEW_EFFORT=high "STEP_TAG=''" BUDGET_LINES=0 PACE=off CADENCE_DAYS=0 FIXCHECK_COUNT_RESOLVED=0 \
+    > "$CANCCU_HOME/config"
 }
 
 # reset: close every open PR (its branch deleted) and every open issue labelled scenario, then

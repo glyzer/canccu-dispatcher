@@ -20,3 +20,4 @@ REVIEW_CHECKS="review-gate"
 HIGH_RISK_PATHS='^(\.github|deploy|setup|contracts)/|migration|sign-?in|login|auth|rights|permission|session|secret|tenan|rls'
 HIGH_RISK_TEXT='migrations, sign-in or auth, rights, sessions, secrets, tenancy/RLS, deploy/, setup/, contract changes or CI configuration'
 PING_KINDS='accept checkpoint plan'
+REVIEW_LIGHT=0   # pinned (OLD_DEFAULTS in tests/lib/harness.sh): the default before #242

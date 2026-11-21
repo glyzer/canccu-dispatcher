@@ -28,14 +28,14 @@ Explicit asks still review:
 The worker's merge run for a conflict that pushed nothing (the head is still the one it started
 on) is no reuse: it goes to `needs-you`, as before.
 
-A head's non-blocking findings go to the follow-up issue once per review kind: a second verdict
+A head's non-blocking findings go to the follow-up ticket once per review kind: a second verdict
 of the same kind on the same head (an explicit re-review) files none (the full review after a
 light one on that head files its own), and logs
 `#<n> PR #<pr>: non-blocking findings of <sha7> are filed already; not filed again`.
 
 ## The light review
 
-With `REVIEW_LIGHT=1` (rules, locked; [`rules.md`](rules.md)) a full review (never a fix-check)
+With `REVIEW_LIGHT=1` (rules, locked, the default; [`rules.md`](rules.md)) a full review (never a fix-check)
 is light when the unit is a package (not the health pass or a step's deep review), its class
 (the highest of the plan, the PR's `Risk:` line and earlier reviews) is `low` or `normal`, no
 `full review` was asked for, and no path of the PR (a rename's old path too) is gated or agent
@@ -69,7 +69,7 @@ head with main, so main's lines drop out. When that merge conflicts, the count s
 passed head today: main's lines in the PR's files count, and a big main change or a risky path
 only main touched makes it a full review.
 
-With `FIXCHECK_COUNT_RESOLVED=1` (project config, locked) the count starts instead from the tree
+With `FIXCHECK_COUNT_RESOLVED=1` (project config, locked, the default) the count starts instead from the tree
 `git merge-tree --write-tree` writes for that merge with its conflict markers (git ≥ 2.38). The
 diff from it to the head holds the hand-resolved hunks and the PR's later commits; the size, gated
 and risky checks see only those. The fix-check's effort (`FIXCHECK_BIG`, `FIXCHECK_RISKY`) counts

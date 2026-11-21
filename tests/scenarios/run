@@ -22,7 +22,7 @@ while (( $# )); do
   shift
 done
 [[ $REPO =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || usage
-all=(single package contract-first conflict-waiting queue-removal push-after-pass denied-push crash)
+all=(single package contract-first conflict-waiting queue-removal push-after-pass denied-push denied-pr crash)
 (( ${#want[@]} )) || want=("${all[@]}")
 for s in "${want[@]}"; do [ -f "$here/$s.sh" ] || die2 "no scenario $s (the scenarios: ${all[*]})"; done
 

@@ -7,7 +7,7 @@
 # reap_worker, reap_review, reap_answer: the pass read the phase before the run ended; canccu-stop
 # sets phase=stopped before it kills the run, so a run whose phase moved on meanwhile is not reaped
 reap_worker() {
-  local n=$1 started last kind status q r b="" p ph
+  local n=$1 started last kind status q r b="" p ph c
   run_alive "$n" && return 0
   # starting: run_worker set it before the engine call, so a dispatcher killed in between leaves
   # a unit the reap still finds
@@ -25,13 +25,15 @@ reap_worker() {
   # an older worker's report says `blocked` for the classifier's denials even when the run worked
   # around them: an open PR is the proof of the work, so check_pr judges it like any done run
   [ "$kind" = blocked ] && [ -n "$(pr_for "$n")" ] && kind="done"
-  p=$(pr_for "$n"); spend_note "$n" "${started:-0}" "pr=${p:-none}" "rounds=$(fix_rounds "$n")"
+  # a continuation's line says which it is (#127); what the run used counts against the work budget
+  c=$(st_get "$n" cont); is_deep "$n" || used_add "$n"
+  p=$(pr_for "$n"); spend_note "$n" "${started:-0}" "pr=${p:-none}" "rounds=$(fix_rounds "$n")" ${c:+"cont=$c"}
   if [ "$kind" = "done" ] && run_msg "$n" | grep -qxF 'Permission denials (information):'; then
     denied_ok "$n" "$p" || return 0
   fi
   case $kind in
     done)
-      st_set "$n" crash_tries= retry_status=
+      st_set "$n" crash_tries= retry_status= cont=
       q=$(worker_question "$(run_msg "$n")")
       # a run that finished with no PR is resumed afresh (resume); one nudged to stop mid-work is not
       p=$(pr_for "$n")
@@ -61,6 +63,7 @@ reap_worker() {
     crashed|none|stalled)
       # an error result (run_exit's crashed too) is the run's own outcome: a retry would meet it again
       { [[ $status != error* ]] && crash_retry "$n" "$status"; } || needs_you "$n" "the worker stopped: $status" "$(run_msg "$n")" ;;
+    budget) budget_stop "$n" "$status" ;;
     *) needs_you "$n" "the worker stopped: $status" "$(run_msg "$n")" ;;
   esac
 }
@@ -181,6 +184,8 @@ check_pr() {
     is_step_run "$n" && pr=$(st_get "$n" pr) && [ -n "$pr" ] && ! pr_is_open "$pr" && return 0
     if is_health "$n" && grep -qE '^[[:space:]*_]*Health: nothing to do' <<<"$(run_msg "$n")"; then health_nothing "$n"; return; fi
     finish_once "$n" && return 0
+    # pushed with commits ahead: the dispatcher opens the PR; the next pass checks it (#237)
+    dispatcher_pr "$n" && return 0
     needs_you "$n" "the worker finished without an open PR" "$(run_msg "$n")" "" work; return
   fi
   st_set "$n" pr="$pr" finish_tried=
@@ -375,6 +380,10 @@ resume_step() {
     [ -n "$c" ] && room "$n" && resume "$n" "The user answered: $c" "$([ "$(st_get "$n" ny_kind)" = question ] && echo answer || echo user)"
   elif [ "$phase" = limited ]; then
     room "$n" && resume "$n" "$(limited_task "$n")" limited && handoff_keep "$n" ""
+  elif [ "$phase" = continue ]; then
+    # PACE=pause holds it like a new start: a continuation is a whole new run (#127)
+    pace_holds && { warn_once "pace-continue-$n" "#$n: PACE=pause holds its continuation"; return 0; }
+    room "$n" && resume "$n" "$(continue_task "$n")" continue && handoff_keep "$n" ""
   elif [ "$phase" = retry ]; then
     room "$n" && resume "$n" "$(crash_task "$n")" crash
   elif [ "$phase" = waiting ]; then
@@ -383,6 +392,8 @@ resume_step() {
   return 0
 }
 
+# shellcheck source=canccu-continue.sh
+. "$_canccu_lib/canccu-continue.sh"
 # shellcheck source=canccu-exits.sh
 . "$_canccu_lib/canccu-exits.sh"
 # shellcheck source=canccu-prbody.sh

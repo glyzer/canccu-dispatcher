@@ -30,6 +30,11 @@ not managed, in no package, with no open blocker. It hands the planner exactly t
 with the earlier waves' packages (the running ones with their `areas`) and the leader's comments on
 the epic.
 
+A ready issue that joins the step while a wave runs is not added to that wave (#236): a wave is
+planned as a whole, and the next one takes it. Until then `canccu-status`, the brief and the
+monitor list it as `waiting for the next wave of step <n> (label fast to run it now)`; the `fast`
+label runs it alone in the fast lane at once.
+
 The planner is a fresh session (window `plan#<m>`, `--untrusted`, `PLAN_MODEL`, `BUDGET_PLAN`)
 in a fresh worktree at `origin/main`. It gets no directory the dispatcher reads: its plan is its
 final message, which the dispatcher parses as JSON, validates (`lib/canccu-plan.jq`) and writes

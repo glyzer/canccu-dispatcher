@@ -28,7 +28,7 @@ dispatcher; `tests/canccu-snapshot2.sh` checks that it has every field the dispa
 | `events[]` | The last 20 rows of the dispatcher's own log lines: `at`, `issue`, `package`, `text`, and `count` and `first_at` when consecutive lines that differ only in a counter fold into one row |
 | `steps[]` | Each current step, and each other step with a state file that is not done (below) |
 | `current_step` | The main track's current step (its milestone number), or null |
-| `step_overview[]` | Every open milestone, for the monitor's roadmap: `milestone`, `title`, `track`, `place` (`done`, `current`, `next`, `later`), `work_open`, `work_closed`, `issues[]` (the current and next steps' open work issues: `issue`, `title`, `url`, `status`, `waits_on`, `package`) |
+| `step_overview[]` | Every open milestone, for the monitor's roadmap: `milestone`, `title`, `track`, `place` (`done`, `current`, `next`, `later`), `work_open`, `work_closed`, `issues[]` (the current and next steps' open work issues: `issue`, `title`, `url`, `status`, `waits_on`, `package`; `status` `next-wave`: a ready issue outside the step's running wave, which waits for the next one unless labelled `fast`) |
 | `other_runs[]` | Live runs in the project's workers dir the dispatcher did not start (a worker started by hand): `repo`, `key`, `kind`, `started` |
 | `usage` | `five_hour` and `seven_day` (percent, or null), `resets_at`, `weekly_resets_at`, `at`, `state` (`normal`, `slow`, `stop`, `drain`), `text` ([`usage.md`](usage.md)) |
 | `stale[]` | The sections copied from the previous snapshot because this pass could not read them fresh |
