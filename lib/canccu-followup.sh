@@ -94,9 +94,23 @@ handoff() {
   else unit="issue #$k"; fi
   printf ' This run is on %s, branch %s. The repo'"'"'s AGENTS.md and CLAUDE.md hold the full rules.' "$unit" "${br:-$k}"
   # the first prompt's test rule (RUN_RULES) is the dispatcher's, not the repo's: it goes again
-  printf ' %s' "$HANDOFF_TEST_RULE"
+  printf ' %s' "$(test_rule handoff)"
 }
-HANDOFF_TEST_RULE='Tests: run only the tests of the files you change, in the foreground; CI runs the full suite on every push. Never paste whole test logs; never run a command in the background.'
+
+# test_rule [worker|handoff|fixcheck]: the test rule of TEST_TIER (#250) for the first prompt, a
+# follow-up run's or the fix-check's. Any value but full is targeted: a typo must not turn a
+# host's runs into full-suite runs. CI runs the full suite on every push at either tier.
+test_rule() {
+  local t=targeted; [ "${TEST_TIER:-}" = full ] && t=full
+  case ${1:-worker}-$t in
+    worker-targeted) echo 'Tests (test tier targeted): while working and before marking the PR ready, run only the test files of the areas you touched (the affected-tests command CLAUDE.md names, when it has one), in the foreground; do not run the full suite locally: CI runs it on every push.' ;;
+    worker-full) echo 'Tests (test tier full): while working, run only the tests of the files you change, in the foreground; before marking the PR ready, run the full suite once, in the foreground, bounded with timeout (CI runs it on every push too).' ;;
+    handoff-targeted) echo 'Tests (test tier targeted): run only the test files of the areas you touched and the repo checks, in the foreground; CI runs the full suite on every push. Never paste whole test logs; never run a command in the background.' ;;
+    handoff-full) echo 'Tests (test tier full): run the tests of the files you change, and the full suite once before you push, in the foreground, bounded with timeout; CI runs it on every push too. Never paste whole test logs; never run a command in the background.' ;;
+    fixcheck-targeted) echo 'Tests (test tier targeted): run at most the test files of the files the fix diff touches, in the foreground; never the full suite: CI runs it.' ;;
+    fixcheck-full) echo 'Tests (test tier full): you may run the full suite once, in the foreground, bounded with timeout; CI runs it too.' ;;
+  esac
+}
 
 
 # handoff_file <K>: the handoff a run nudged at the usage stop ended with (its final message); kept

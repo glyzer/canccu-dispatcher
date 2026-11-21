@@ -161,6 +161,11 @@ ok "… one run, unmarked" eq "$(hline '^host: project web: #7: 1 run, \$0.50$')
 ok "… a run older than a day: left out" eq "$(hline '#9')" 0
 rm "$C/projects/web/workers/spend.log"; doctor
 ok "… no runs: said" eq "$(hline '^host: project web: no runs in the last 24 h$')" 1
+# #250: the test tier the workers are told, the host's and a project's own
+ok "… the test tier, from the profile" eq "$(hline '^host: test tier targeted$')" 1
+ok "… no project line while a project keeps it" eq "$(hline '^host: project web: test tier')" 0
+echo TEST_TIER=full >> "$C/projects/web/config"; doctor
+ok "… a project's own tier" eq "$(hline '^host: project web: test tier full$')" 1
 
 echo "canccu-doctor tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

@@ -67,7 +67,8 @@ One release runs unchanged on every host: what differs between hosts is a settin
 in the code. Each host's `~/.canccu/config` decides:
 
 - **the plan profile**, `HOST_PROFILE`: `max` or `pro`. It sets the caps, budgets, usage
-  thresholds, run models and review effort of that Claude plan
+  thresholds, run models, review effort and test tier (`TEST_TIER`: what a run tests locally) of
+  that Claude plan
   ([`reference/hosts.md`](reference/hosts.md#host-profiles));
 - **caps and thresholds** beyond the profile: `TOTAL_CAP` (this host's share of the account),
   `USAGE_SLOW`, `USAGE_STOP`, `USAGE_WEEKLY_DRAIN`;

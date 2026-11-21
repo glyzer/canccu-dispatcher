@@ -109,6 +109,16 @@ ok "HOST_PROFILE=pro: Sonnet runs, fixes and health; Opus plans, every review an
 printf 'HOST_PROFILE=pro\nMODEL=x\n' > "$CANCCU_ROOT/config"
 ok "… MODEL in ~/.canccu/config overrides it" eq "$(load '$MODEL|$REVIEW_MODEL')" "x|claude-opus-5-5"
 
+# ---------------------------------------------------------------- the test tier (#250)
+
+tname=test-tier
+for h in max pro; do
+  ok "hosts/$h.conf sets TEST_TIER=targeted" eq "$( (CANCCU_ROOT=/nonexistent; . "$root/hosts/$h.conf"; echo "${TEST_TIER-unset}") )" targeted
+done
+env_new tier-load
+printf 'HOST_PROFILE=pro\nTEST_TIER=full\n' > "$CANCCU_ROOT/config"
+ok "… ~/.canccu/config overrides it" eq "$(load '$TEST_TIER')" full
+
 # ---------------------------------------------------------------- the same project on both (#14)
 
 tname=both
@@ -122,8 +132,8 @@ keys_of() {
 env_new both
 sed -i '/^CAP=/d' "$CANCCU_HOME/config"
 ok "the same project on a pro and a max host gets the same features" eq "$(keys_of pro | md5sum)" "$(keys_of max | md5sum)"
-ok "… a profile sets only caps, budgets, thresholds, models and effort" \
-  eq "$(cat "$root/hosts/max.conf" "$root/hosts/pro.conf" | grep -oE '^[A-Z_]+=' | tr -d = | grep -vE '^(CAP|TOTAL_CAP|BUDGET_[A-Z_]+|STEP_BUDGET|USAGE_[A-Z_]+|[A-Z_]*MODEL[A-Z_]*|REVIEW_EFFORT_MAX|DEEP_REVIEW_EFFORT)$')" ""
+ok "… a profile sets only caps, budgets, thresholds, models, effort and the test tier (#250)" \
+  eq "$(cat "$root/hosts/max.conf" "$root/hosts/pro.conf" | grep -oE '^[A-Z_]+=' | tr -d = | grep -vE '^(CAP|TOTAL_CAP|BUDGET_[A-Z_]+|STEP_BUDGET|USAGE_[A-Z_]+|[A-Z_]*MODEL[A-Z_]*|REVIEW_EFFORT_MAX|DEEP_REVIEW_EFFORT|TEST_TIER)$')" ""
 # the throttle at each profile's thresholds (usage_state)
 ustate() { ( CANCCU_HOST_PROFILE=$1; . "$root/lib/canccu-common.sh"
   for v in "${@:2}"; do USAGE_NOW="$v - - $NOW"; printf '%s ' "$(usage_state)"; done ) 2>/dev/null; }
