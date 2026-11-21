@@ -419,6 +419,41 @@ ok "the rerun head turned green → rerun-green and its ci_wait on the worker's 
 ok "ci_names: a REVIEW_CHECKS check (it waits for the verdict) is no CI failure" \
   eq "$(lib eval 'REVIEW_CHECKS=review-gate; PRS=$(jq -n "[{number: 50, statusCheckRollup: [{name: \"review-gate\", conclusion: \"FAILURE\"}, {name: \"test\", conclusion: \"FAILURE\"}]}]"); ci_names 50')" "test"
 
+# #256: the names are the checks ci_state counted red: a cancelled or timed-out one too, the
+# newest run per check, never a REVIEW_CHECKS check
+cin() { lib eval "REVIEW_CHECKS=review-gate; PRS=\$(jq -n '[{number: 50, statusCheckRollup: $1}]'); ci_names 50"; }
+ok "ci_names: a cancelled check next to a red review-gate → the cancelled one, said so" \
+  eq "$(cin '[{name: "review-gate", conclusion: "FAILURE"}, {name: "CI", status: "COMPLETED", conclusion: "CANCELLED"}]')" "CI (cancelled)"
+ok "ci_names: a TIMED_OUT check → said so" eq "$(cin '[{name: "CI", status: "COMPLETED", conclusion: "TIMED_OUT"}]')" "CI (timed out)"
+ok "ci_names: a check red before, green on its newest run → not named" \
+  eq "$(cin '[{name: "CI", conclusion: "FAILURE", completedAt: "2030-11-05T10:00:00Z"}, {name: "CI", conclusion: "SUCCESS", completedAt: "2030-11-05T11:00:00Z"}, {name: "lint", conclusion: "FAILURE"}]')" "lint"
+
+# toenv <name> [config...]: PR 50's head has review-gate red and CI cancelled by its own
+# 12-minute timeout (GitHub says so only in the job's annotation), job 77 of run 700
+toenv() {
+  rrenv "$@"
+  pr 50 5 $HA red | jq '.statusCheckRollup = [{name: "review-gate", status: "COMPLETED", conclusion: "FAILURE", completedAt: "2030-11-05T10:00:00Z", detailsUrl: "https://github.com/example-org/web/actions/runs/701/job/90"},
+    {name: "CI", status: "COMPLETED", conclusion: "CANCELLED", completedAt: "2030-11-05T10:12:00Z", detailsUrl: "https://github.com/example-org/web/actions/runs/700/job/77"}]' | prs
+  json ann77.json '[{"message": "The job running on runner GitHub Actions 3 has exceeded the maximum execution time of 12 minutes."}]'
+  route 'api repos/example-org/web/check-runs/77/annotations*' ann77.json
+}
+toenv timeout-rerun
+dispatch --once
+ok "CI cancelled by its timeout, review-gate red → the CI run reruns once, review-gate's never" \
+  eq "$(grep -c '^run rerun 700 --failed' "$FAKE/gh.log") $(grep -c '^run rerun 701' "$FAKE/gh.log") $(wc -l < "$FAKE/worker.log")" "1 0 0"
+ok "… logged as timed out, review-gate not named" grep -qF "#5 PR #50: CI red on ${HA:0:7} (CI (timed out)); failed jobs rerun once" "$CANCCU_HOME/dispatch.log"
+toenv timeout-fix
+state 5 phase=check pr=50 "check_at=$NOW" ci_rerun=$HA
+dispatch --once
+ok "still timed out after the rerun → the fix run says it timed out" \
+  grep -qF 'CI was cancelled at its own time limit (timed out)' <<<"$(wline)"
+ok "… its log line too" grep -qF '#5 PR #50: CI red; fix run 1 of 2; failed: CI (timed out)' "$CANCCU_HOME/dispatch.log"
+toenv timeout-cap
+state 5 phase=check pr=50 "check_at=$NOW" fixes=2 fixes_pr=50 ci_rerun=$HA
+dispatch --once
+ok "the needs-you names CI as timed out, never review-gate" has gh.log "CI is red on PR #50 after 2 automatic fix runs (FIX_ATTEMPTS); failed: CI (timed out)"
+ok "… review-gate is in no needs-you" eq "$(grep -c 'failed: .*review-gate' "$FAKE/gh.log")" 0
+
 # a red run whose other jobs still run: GitHub refuses `rerun --failed` then, so it waits for them
 rrenv rerun-busy
 pr 50 5 $HA red | jq '.statusCheckRollup[0].detailsUrl = "https://github.com/example-org/web/actions/runs/700/job/77"
