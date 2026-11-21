@@ -14,9 +14,16 @@ _doc_runs() {
     sort -t $'\t' -k2,2nr -k1,1
 }
 
+# _doc_tier <project or empty>: the TEST_TIER its runs are told, as test_rule reads it (any value
+# but full is targeted)
+_doc_tier() {
+  local v; v=$(cfg_values "$1" 2>/dev/null | awk -F '\t' '$1 == "TEST_TIER" { print $2 }')
+  if [ "$v" = full ]; then echo full; else echo targeted; fi
+}
+
 # canccu_doctor_host <project or empty>: the report; never fails
 canccu_doctor_host() {
-  local hp k v base p f since n c s u
+  local hp k v base p f since n c s u tier
   local -A was=()
   hp=$(canccu_host_profile)
   echo "host: profile ${hp:-none (the defaults apply)}"
@@ -27,6 +34,12 @@ canccu_doctor_host() {
     base=${was[$k]-}
     echo "host: $(canccu_tilde "$CANCCU_ROOT")/config sets $k=${v:-(empty)}; ${hp:-the defaults}: ${base:-(empty)}"
   done < <(cfg_values "" 2>/dev/null | awk -F '\t' '$4 == "global" && $1 != "HOST_PROFILE"' | cut -f1,2)
+  tier=$(_doc_tier "")
+  echo "host: test tier $tier"
+  for p in $(canccu_profiles); do
+    [ -z "$1" ] || [ "$p" = "$1" ] || continue
+    v=$(_doc_tier "$p"); [ "$v" = "$tier" ] || echo "host: project $p: test tier $v"
+  done
   since=$(( ${CANCCU_NOW:-$(date +%s)} - 86400 ))
   for p in $(canccu_profiles); do
     [ -z "$1" ] || [ "$p" = "$1" ] || continue

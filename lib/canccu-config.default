@@ -37,6 +37,7 @@ CRASH_RETRY=1               # fresh runs with the handoff after a worker crashed
 CONTINUE_MAX=3              # fresh runs with the handoff after a worker stopped at its turn or time budget with its PR moved on, within the USD of BUDGET_WORK; 0: needs-you at once
 FIX_MODEL=                  # the fix run's model (review fixes, red CI, needs-work); empty: MODEL
 FIX_EFFORT=                 # the fix run's --effort (low, medium, high, xhigh, max); empty: none, the account's
+TEST_TIER=targeted          # what a run tests locally: targeted (the touched areas' test files and the repo checks) or full (the full suite once before ready); CI runs the full suite either way
 BUDGET_REVIEW="60 15 40"    # the independent reviewer
 BUDGET_FIXCHECK="30 6 20"   # the fix-check after the worker fixed the review's findings
 BUDGET_ANSWER="40 10 20"    # the answerer of a worker's question

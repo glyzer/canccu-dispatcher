@@ -89,6 +89,9 @@ resume() {
   # the run type spend.log names: a fix kind is a fix, a merge a merge, the rest build
   type=build; [ "$kind" = merge ] && type=merge
   if fix_kind "$kind"; then model=${FIX_MODEL:-$MODEL} effort=$(run_effort FIX_EFFORT) type=fix; fi
+  # a resumed fix round has its first prompt's rule, but TEST_TIER may have changed since (a fresh
+  # one gets it in the handoff)
+  fix_kind "$kind" && [ "$how" = resume ] && msg+=" $(test_rule handoff)"
   # after the usage limit the run goes on with what is left of the work budget, never less than a
   # resume's (#127)
   case $kind in
@@ -120,7 +123,7 @@ issue_prompt() {
   # shellcheck disable=SC2059
   printf -v prompt "$wp" "$REPO" "$n" "$n" "$br" "${WORKER_EXTRA:+ $WORKER_EXTRA}"
   # after printf: a % in the host's sentence is text, not a format
-  prompt=${prompt//@SKILLS@/"$(worker_skills)"}
+  prompt=${prompt//@SKILLS@/"$(worker_skills)"}; prompt=${prompt//@TESTS@/"$(test_rule)"}
   prompt+=" $(contract_rule "$br")"
   [ "$p" = 1 ] && prompt+=" $(plan_merged_text "docs/plans/issue-$n.md")"
   printf '%s' "$prompt"
