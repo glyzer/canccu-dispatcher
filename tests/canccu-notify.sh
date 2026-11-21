@@ -14,7 +14,7 @@ ND() { echo "$CANCCU_HOME/notify"; }
 tg() {
   local n=$1; shift
   env_new "$n" NOTIFY=telegram TELEGRAM_CHAT_ID=-1009876 TELEGRAM_USER_ID=777 "TELEGRAM_TOKEN_FILE=$T/$n/telegram-token" \
-    NOTIFY_BATCH_MIN=0 "NOTIFY_KINDS=accept plan question needs-you checkpoint step-done idle hold polish" "$@"
+    NOTIFY_BATCH_MIN=0 "NOTIFY_KINDS='accept plan question needs-you checkpoint step-done idle hold polish'" "$@"
   printf '%s\n' "$TG_TOKEN" > "$E/telegram-token"; chmod 600 "$E/telegram-token"
   : > "$FAKE/tg.log"
 }

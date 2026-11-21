@@ -290,8 +290,8 @@ ok "… and says where to start the dispatcher" grep -qF 'start it in its window
 ok "a pane's CANCCU_PROJECT picks shop over the default" eq "$(CANCCU_PROJECT=shop pick)" "shop canccu-shop example-org/shop"
 penv up-listen shop; mkdir -p "$E/home"; pconf shop NOTIFY=telegram TELEGRAM_USER_ID=777
 HOME=$E/home PATH="$T/tmuxup:$fb:$PATH" "$root/bin/canccu-up" --project shop > "$E/out" 2>&1
-ok "canccu-up shop, replies read on Telegram: window listen runs the listener" \
-  grep -qE -- "^new-window -d .* -t =canccu-shop: -n listen .*/bin/canccu-notify --project shop listen$" "$FAKE/tmux.log"
+ok "canccu-up shop (the default project), replies read on Telegram: window listen runs the listener" \
+  grep -qE -- "^new-window -d .* -t =canccu: -n listen .*/bin/canccu-notify --project shop listen$" "$FAKE/tmux.log"
 : > "$FAKE/tmux.log"; touch "$FAKE/has-session"
 HOME=$E/home PATH="$T/tmuxup:$fb:$PATH" "$root/bin/canccu-up" --project shop > "$E/out" 2>&1
 ok "… the session exists, the listener down: canccu-up starts it again, in a window of its own" \

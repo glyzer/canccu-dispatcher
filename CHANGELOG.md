@@ -6,6 +6,16 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 
 ## Unreleased
 
+- Telegram stays quiet (#252): only the kinds in `NOTIFY_KINDS` are sent (`idle` and `hold` are
+  off by default, and an `idle` never goes while its unit has an open item); items within
+  `NOTIFY_BATCH_MIN` minutes go as one message with one line each and the reply that settles them
+  all; nothing but an interrupt goes in `QUIET_HOURS`; `NOTIFY_MAX_PER_DAY` caps the messages that
+  ring; `NOTIFY_DIGEST_HOUR` sends a daily digest in a topic of its own, where `NOTIFY_REMIND_H`
+  lists the items open too long. `canccu-notify listen` reads replies as they come (`canccu-up`
+  starts it in the window `listen`); the doctor and `canccu-status` say when it is down
+  ([`docs/reference/notify.md`](docs/reference/notify.md#when-it-is-sent)). New keys:
+  `NOTIFY_KINDS`, `NOTIFY_BATCH_MIN`, `QUIET_HOURS`, `QUIET_TZ`, `NOTIFY_MAX_PER_DAY`,
+  `NOTIFY_DIGEST_HOUR`, `NOTIFY_REMIND_H`.
 - CI: the `CI` job's time limit is 20 minutes, not 12: the suite now takes about 12 minutes on
   `ubuntu-latest`, and the job was cancelled at its limit.
 - The dispatcher claim (#15): one dispatcher per repo across hosts. A pinned issue labelled

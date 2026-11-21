@@ -78,6 +78,13 @@ pacing are in [`config-steps.md`](config-steps.md).
 | `TELEGRAM_CHAT_ID` | empty | The chat the bot writes to: a group with topics on (`-100…`), or a private chat (reply chains). Locked |
 | `TELEGRAM_USER_ID` | empty | The product owner's Telegram user id: only their replies, in an open topic, reach the inbox; empty: no reply is read. Locked |
 | `TELEGRAM_TOKEN_FILE` | `$HOME/.config/canccu/telegram-token` | The bot token, mode 600, outside every repo; only the dispatcher's `curl` reads it, on stdin. Not settable with `config set` |
+| `NOTIFY_KINDS` | `accept plan question needs-you checkpoint step-done` | The kinds of ask and info line sent to Telegram ([`notify.md`](notify.md#notifications)); also `idle`, `hold`, `polish`, `handover`. An interrupt always goes |
+| `NOTIFY_BATCH_MIN` | `10` | Minutes in which Telegram items gather into one message, one line each ([`notify.md`](notify.md#when-it-is-sent)); `0`: each at once |
+| `QUIET_HOURS` | empty | `<from>-<to>` hours (for example `22-07`) in which only an interrupt goes to Telegram; what waited goes as one batch at their end |
+| `QUIET_TZ` | empty | The time zone of `QUIET_HOURS` and `NOTIFY_DIGEST_HOUR` (for example `Europe/Rome`); empty: the host's |
+| `NOTIFY_MAX_PER_DAY` | `12` | Telegram messages that ring a day (a batch counts once, an interrupt never); over it, items wait for the digest |
+| `NOTIFY_DIGEST_HOUR` | empty | The hour (0-23) of the daily Telegram digest: merged, running, spend, waiting for you; empty: none |
+| `NOTIFY_REMIND_H` | `0` | An item open longer than this many hours is listed again in the next digest, never as a message of its own; `0`: never |
 | `LEADER` | `off` | `on`: the owner rule gives a leader the waiting items that are not the product owner's ([`leader.md`](leader.md#the-owner-of-a-waiting-item)); `canccu-init --leader` sets it with the kit. Locked |
 | `LEADER_ACCEPTS` | `none` | `technical`: the leader owns the accepts the rule does not give the product owner. Locked |
 | `LEADER_ACCEPTS_HIGH_RISK` | `0` | `1`: … a high-risk one too. Locked |

@@ -68,10 +68,10 @@ tick "$(at 23:59)"
 ok "the defaults, a day of the feed: no idle message" not grep -q 'sits in' "$FAKE/tg.log"
 ok "… and no hold message" not grep -qE 'nothing new starts' "$FAKE/tg.log"
 ok "… the accept, the question and the step done went" \
-  eq "$(grep -c 'PR #50 waits for your accept' "$FAKE/tg.log") $(grep -c 'question here needs the product owner' "$FAKE/tg.log") $(grep -c 'step 3 Events is done' "$FAKE/tg.log")" "1 1 1"
+  eq "$(grep -c '^sendMessage .*PR #50 waits for your accept' "$FAKE/tg.log") $(grep -c '^sendMessage .*question here needs the product owner' "$FAKE/tg.log") $(grep -c '^sendMessage .*step 3 Events is done' "$FAKE/tg.log")" "1 1 1"
 ok "… and no digest: NOTIFY_DIGEST_HOUR is empty" not grep -q 'Daily digest' "$FAKE/tg.log"
 
-tg notify2-idle-open NOTIFY_BATCH_MIN=0 "NOTIFY_KINDS=accept idle"
+tg notify2-idle-open NOTIFY_BATCH_MIN=0 "NOTIFY_KINDS='accept idle'"
 units 5; acc 5
 lib feed po ask idle 5 - - "#5 sits in accept for 61 min with nothing running" >/dev/null
 lib feed po ask idle 8 - - "#8 sits in check for 61 min with nothing running" >/dev/null
@@ -93,7 +93,7 @@ tick "$(at 12:10)"
 ok "… then one message rings the phone" eq "$(loud | wc -l)" 1
 ok "… with three numbered lines, each with its link" \
   eq "$(loud | grep -o '\\n[123]\. #[567] accept: plan tier https://github.com/example-org/web/pull/[567]0' | wc -l)" 3
-ok "… ending in the one reply that settles them all" grep -q '\\nReply: accept 50 60 70$' <<<"$(loud)"
+ok "… ending in the one reply that settles them all" grep -q '\\nReply: accept 50 60 70 link_preview_options=' <<<"$(loud)"
 ok "… each item still has its topic, its message sent silently" \
   eq "$(calls createForumTopic) $(grep -c '^sendMessage .*disable_notification=true' "$FAKE/tg.log")" "3 3"
 ok "… the batch's message is a topic too, for the reply that settles all" \

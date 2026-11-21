@@ -42,12 +42,14 @@ tg_call() {
   return 1
 }
 
-# tg_send <text> <thread or -> <reply-to message or ->: one plain-text message (no parse mode: no
-# reason or reply text can turn into markup or a link preview); prints its message id
+# tg_send <text> <thread or -> <reply-to message or -> [silent]: one plain-text message (no parse
+# mode: no reason or reply text can turn into markup or a link preview); prints its message id.
+# silent: it does not ring the phone (a batch's items: the batch's own message rings once)
 tg_send() {
   local r rc a=(--form-string "chat_id=$TELEGRAM_CHAT_ID")
   [ "$2" = - ] || a+=(--form-string "message_thread_id=$2")
   [ "$3" = - ] || a+=(--form-string "reply_parameters={\"message_id\":$3}")
+  [ -z "${4:-}" ] || a+=(--form-string disable_notification=true)
   a+=(--form-string "text=${1:0:4000}" --form-string 'link_preview_options={"is_disabled":true}')
   r=$(tg_call sendMessage "${a[@]}"); rc=$?
   if (( rc == 0 )); then jq -r '.message_id' <<<"$r"; else echo "$r"; fi
@@ -100,7 +102,8 @@ tg_photos() {
   rm -rf "$d"; echo "$first"
 }
 
-# tg_updates <offset>: the updates from offset on, without waiting (one call per pass), messages only
+# tg_updates <offset> [seconds]: the updates from offset on, messages only; with seconds, a long
+# poll that waits that long for one (the listener; curl's limit must outlast it)
 tg_updates() {
-  tg_call getUpdates --form-string "offset=$1" --form-string timeout=0 --form-string 'allowed_updates=["message"]'
+  tg_call getUpdates --form-string "offset=$1" --form-string "timeout=${2:-0}" --form-string 'allowed_updates=["message"]'
 }

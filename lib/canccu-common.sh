@@ -342,6 +342,8 @@ run_progress() {
 . "$_canccu_lib/canccu-telegram.sh"
 # shellcheck source=canccu-notify.sh
 . "$_canccu_lib/canccu-notify.sh"
+# shellcheck source=canccu-notifyq.sh
+. "$_canccu_lib/canccu-notifyq.sh"
 # shellcheck source=canccu-units.sh
 . "$_canccu_lib/canccu-units.sh"
 # shellcheck source=canccu-leadtools.sh
