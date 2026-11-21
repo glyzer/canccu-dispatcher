@@ -112,8 +112,8 @@ Thirteen packages, in this order: P1, E1, C1, M1, Q1, R1, F1, N1, S1, S2, L1, P2
 
 ## Release 0.3: the product layout (outline)
 
-- The notifier as its own optional service: batching, a daily digest for `info`, a daily cap, one
-  reminder, quiet hours (empty = off; a dead dispatcher always gets through), captures as images,
+- The notifier as its own optional service: batching, a daily digest for `info`, a daily cap,
+  reminders in the digest, quiet hours (empty = off; a dead dispatcher always gets through), captures as images,
   a reply `ok` that acts only on the head sha asked about and only for normal risk. It has a
   heartbeat; when it is silent the dispatcher says so and falls back to the GitHub mention.
 - `canccu-up`: one tmux session per host, one window per project; workers in their own session.
