@@ -64,7 +64,6 @@ pacing are in [`config-steps.md`](config-steps.md).
 | `CONTINUE_MAX` | `3` | Fresh runs with the handoff (kind `continue`) after a worker stopped at its turn or time budget while its PR moved on (a new head, or out of draft), each with a run's turns and minutes and the USD left of `BUDGET_WORK`; then `needs-you`. `0`: needs-you at once ([`pipeline.md`](pipeline.md)) |
 | `FIX_MODEL` | empty | The fix run's model (a review fix round, a red-CI fix, `needs-work`); empty: `MODEL`. Set it per machine in `~/.canccu/config` |
 | `FIX_EFFORT` | empty | The fix run's `--effort` (`low`, `medium`, `high`, `xhigh`, `max`); empty (or none of those, which is logged): no `--effort`, the account's. Set it per machine in `~/.canccu/config` |
-| `TEST_TIER` | `targeted` | The test rule every worker, package and health prompt, fix round and fix-check states ([`hosts.md`](hosts.md#the-test-tier)): `targeted`, only the test files of the areas the run touched plus the repo checks (`tests/run repo`), never the full suite; `full`, the full suite once before the PR is marked ready. Any other value: `targeted`. CI runs the full suite either way. Both host profiles set `targeted` |
 | `BUDGET_REVIEW` | `60 15 40` | The independent reviewer |
 | `BUDGET_FIXCHECK` | `30 6 20` | The fix-check after the worker fixed the review's findings |
 | `BUDGET_ANSWER` | `40 10 20` | The answerer of a worker's question |
