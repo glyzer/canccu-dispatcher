@@ -338,3 +338,7 @@ notify_tick() {
   notify_images
   notify_poll
 }
+
+# its queue: batching, quiet hours, the cap, the digest and the listener
+# shellcheck source=canccu-notifyq.sh
+. "$_canccu_lib/canccu-notifyq.sh"

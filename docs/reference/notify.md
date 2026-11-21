@@ -46,6 +46,7 @@ else waits in the queue (`notify/queue`) for these rules, checked on each pass:
 
 | Key | Default | What it does |
 |---|---|---|
+| `NOTIFY_KINDS` | `accept plan question needs-you checkpoint step-done` | The kinds of `ask` and `info` line sent ([above](#notifications)) |
 | `NOTIFY_BATCH_MIN` | `10` | Items that arrive within this many minutes of the first queued one go together. `0`: each at once |
 | `QUIET_HOURS` | empty | `<from>-<to>` in hours, for example `22-07`: nothing but an `interrupt` is sent in them; what waited goes out as one batch when they end |
 | `QUIET_TZ` | empty | The clock of `QUIET_HOURS` and `NOTIFY_DIGEST_HOUR`, for example `Europe/Rome`; empty: the host's |

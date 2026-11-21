@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # shellcheck shell=bash disable=SC2034,SC2154  # globals are shared with the other lib/canccu-*.sh parts
-# Part of lib/canccu-common.sh (sourced by it, never run): what keeps Telegram quiet
+# Part of lib/canccu-common.sh (sourced by lib/canccu-notify.sh, never run): what keeps Telegram quiet
 # (docs/reference/notify.md): the queue an item waits in (the batch window, quiet hours, the daily
 # cap), the batch that sends it, the day's digest and the listener that reads replies as they come.
 # Class interrupt never waits: notify_event sends it at once. The records, next to those of

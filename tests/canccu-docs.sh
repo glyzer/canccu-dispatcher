@@ -9,13 +9,13 @@ cd "$root" || exit 1
 tname=docs
 
 R=docs/reference
-# the configuration reference is three topics: config (the defaults and the host profiles), its
-# part config-steps (steps, packages, reviews, usage) and rules
-cfgref="$R/config.md $R/config-steps.md $R/rules.md"
+# the configuration reference is four topics: config (the defaults and the host profiles), its
+# part config-steps (steps, packages, reviews, usage), rules, and notify's table of when Telegram sends
+cfgref="$R/config.md $R/config-steps.md $R/rules.md $R/notify.md"
 # keys <file...>: the KEY of each KEY=value line, commented out (the templates) or not
 keys() { sed -nE 's/^(# )?([A-Z][A-Z0-9_]*)=.*/\2/p' "$@" 2>/dev/null | sort -u; }
 # documented: the key of each table row "| `KEY` | …" of the configuration reference
-# shellcheck disable=SC2086  # two files
+# shellcheck disable=SC2086  # several files
 documented=$(sed -nE 's/^\| `([A-Z][A-Z0-9_]*)` \|.*/\1/p' $cfgref 2>/dev/null | sort -u)
 
 # ---------------------------------------------------------------- the configuration reference
@@ -36,7 +36,7 @@ code_default() {
 # a row's default is compared when it is one value in backticks, or empty/none; a default given in
 # words (the path patterns) is not
 wrong="" compared=0
-# shellcheck disable=SC2086  # two files
+# shellcheck disable=SC2086  # several files
 while IFS='|' read -r _ k d _; do
   k=${k//[\` ]/} d=$(sed -E 's/^ +| +$//g' <<<"$d")
   case $d in empty|none) want="" ;; \`*\`) [[ $d == *\`*\`*\`* ]] && continue; want=${d:1:-1} ;; *) continue ;; esac
