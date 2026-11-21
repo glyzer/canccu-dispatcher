@@ -10,10 +10,12 @@
 #   ids                      the chats and senders the bot saw lately, for TELEGRAM_CHAT_ID and
 #                            TELEGRAM_USER_ID (reads without moving the offset: the pass reads them again)
 #   test                     one test message in the chat
+#   listen                   reads the replies as they come (a long poll), so the pass does not;
+#                            canccu-up runs it in window listen
 # A run never notifies: CANCCU_ACTOR=run is refused.
 set -uo pipefail
 self=$(realpath "$0")
-case ${1:-} in --help|-h|"") sed -n '3,13s/^# \{0,1\}//p' "$self"; [ -n "${1:-}" ]; exit $? ;; esac
+case ${1:-} in --help|-h|"") sed -n '3,15s/^# \{0,1\}//p' "$self"; [ -n "${1:-}" ]; exit $? ;; esac
 # shellcheck source=../lib/canccu-common.sh
 . "$(dirname "$self")/../lib/canccu-common.sh"
 # the refusal is the actions-log line's result (act_track's exit trap reads ACT_WHY)
@@ -50,6 +52,8 @@ case $cmd in
     r=$(tg_updates 0) || die "reading the updates failed: $r"
     jq -r '[.[] | .message // empty | "chat \(.chat.id) · from \(.from.id) (\(.chat.title // .chat.type // "?"), \(.from.username // .from.first_name // "?"))"] | unique | .[]' <<<"$r"
     [ -n "$(jq '.[]' <<<"$r")" ] || echo "no messages yet: write one to the bot (or in the group), then run this again" ;;
+  listen)
+    notify_listen || die "the listener stopped" ;;
   test)
     m=$(tg_send "canccu: a test message for project $CANCCU_PROJECT" - -) || die "sending failed: $m"
     echo "sent test message $m to chat $TELEGRAM_CHAT_ID" ;;

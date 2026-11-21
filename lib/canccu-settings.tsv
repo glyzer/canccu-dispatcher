@@ -121,6 +121,13 @@ NOTIFY	enum:github|telegram|both|off	project	locked
 TELEGRAM_CHAT_ID	text	project	locked
 TELEGRAM_USER_ID	text	project	locked
 TELEGRAM_TOKEN_FILE	text	fixed	locked
+NOTIFY_KINDS	words:accept|plan|question|needs-you|checkpoint|step-done|idle|hold|polish|handover	project	open
+NOTIFY_BATCH_MIN	int:0:1440	project	open
+QUIET_HOURS	text	project	open
+QUIET_TZ	text	project	open
+NOTIFY_MAX_PER_DAY	int:1:1000	project	open
+NOTIFY_DIGEST_HOUR	intopt:0:23	project	open
+NOTIFY_REMIND_H	int:0:720	project	open
 LEADER	enum:on|off	project	locked
 LEADER_ACCEPTS	enum:technical|none	project	locked
 LEADER_ACCEPTS_HIGH_RISK	enum:0|1	project	locked

@@ -13,6 +13,7 @@
 #   sent     <feed id> <message id, ? when the send timed out> <key or ->
 #   text/<feed id>   the text sent, for the edit that marks it closed
 #   retry    the feed ids whose send failed; offset: the next update to read; images: <pr> <sha>
+# The queue, the cap, the digest and the listener: lib/canccu-notifyq.sh.
 
 notify_dir() { echo "$CANCCU_HOME/notify"; }
 _nt_locked() { mkdir -p "$(notify_dir)" && ( flock -w 30 9 || exit 1; "$@" ) 9>>"$(notify_dir)/.lock"; }
@@ -66,18 +67,27 @@ notify_problem() {
     *) echo "$p: nothing goes to Telegram" ;;
   esac
   [ -n "${TELEGRAM_USER_ID:-}" ] || echo "TELEGRAM_USER_ID is not set: no reply on Telegram reaches the inbox (canccu-notify --project $CANCCU_PROJECT ids shows your id)"
+  [ -z "${QUIET_HOURS:-}" ] || notify_quiet_range >/dev/null ||
+    echo "QUIET_HOURS=$QUIET_HOURS is no <hour>-<hour> (for example 22-07): quiet hours are off"
+  notify_listen_problem
   return 0
 }
 
-# notify_wanted <owner> <class> <kind>: the lines that go to Telegram: every ask and interrupt of
-# the product owner, and of class info the step done, the holds and the polish issue. The
-# leader's lines stay in the feed: the leader reads them there.
+# notify_kind <kind>: the word of NOTIFY_KINDS a feed kind goes by: a failed run and a PR that
+# needs you are needs-you items (contracts §2), every hold is a hold
+notify_kind() { case $1 in run-ended|pr-needs-you) echo needs-you ;; hold-*) echo hold ;; *) echo "$1" ;; esac; }
+# notify_wanted <owner> <class> <kind>: the lines that go to Telegram: every interrupt, and the
+# product owner's asks and the info lines of a kind NOTIFY_KINDS names. The leader's lines stay
+# in the feed: the leader reads them there.
 notify_wanted() {
   case $2 in
-    ask|interrupt) [ "$1" = po ] ;;
-    info) case $3 in step-done|hold|polish) return 0 ;; *) return 1 ;; esac ;;
+    interrupt) return 0 ;;
+    ask) [ "$1" = po ] || return 1 ;;
+    info) ;;
     *) return 1 ;;
   esac
+  local k=${NOTIFY_KINDS-accept plan question needs-you checkpoint step-done}
+  [[ " ${k//,/ } " == *" $(notify_kind "$3") "* ]]
 }
 
 # notify_text <class> <kind> <unit> <pr> <url> <text>: the message. A unit's ask is the ask form
@@ -102,7 +112,9 @@ notify_text() {
 }
 
 # notify_event <feed id>: the line's message, once; a closed line marks its item's message closed.
-# 1 when a send failed (it waits in retry).
+# An idle line is dropped while its unit has an open item: the item's own message says it waits.
+# Every item but an interrupt goes through the queue whenever it may not go at once (the batch
+# window, quiet hours, the cap). 1 when a send failed (it waits in retry).
 notify_event() {
   (( ${CANCCU_DRY:-0} )) && return 0
   notify_on telegram || return 0
@@ -118,7 +130,10 @@ notify_event() {
   fi
   notify_wanted "$owner" "$class" "$kind" || return 0
   [ -z "$(nt_get sent "$id" 1)" ] || return 0
-  notify_send "$id" "$kind" "$unit" "$pr" "$(notify_text "$class" "$kind" "$unit" "$pr" "$url" "$text")"
+  [ "$kind" = idle ] && [ "$unit" != - ] && notify_unit_open "$unit" && return 0
+  if [ "$class" != interrupt ] && notify_holds; then notify_queue_add "$id"; return 0; fi
+  notify_send "$id" "$kind" "$unit" "$pr" "$(notify_text "$class" "$kind" "$unit" "$pr" "$url" "$text")" || return 1
+  [ "$class" = interrupt ] || notify_count
 }
 
 # notify_reset_check: the events file was reset when its first line is no longer the one seen
@@ -146,12 +161,12 @@ _nt_reset() {
   [ ! -f "$f/topics" ] || { awk -F '\t' -v OFS='\t' '{ $2 = "-" } { print }' "$f/topics" > "$f/topics.tmp" && mv -f "$f/topics.tmp" "$f/topics"; }
 }
 
-# notify_send <feed id> <kind> <unit> <pr> <text>: opens the item's topic (a forum topic in a
-# group; else the message is the root of a reply chain) and sends the message into it. A topic
-# made by a try whose message failed is used again. A message that timed out is recorded as sent:
-# twice is worse than once missed, as for the GitHub ping.
+# notify_send <feed id> <kind> <unit> <pr> <text> [silent]: opens the item's topic (a forum topic
+# in a group; else the message is the root of a reply chain) and sends the message into it. A
+# topic made by a try whose message failed is used again. A message that timed out is recorded as
+# sent: twice is worse than once missed, as for the GitHub ping.
 notify_send() {
-  local id=$1 kind=$2 unit=$3 pr=$4 text=$5 p key th=- r rc u=""
+  local id=$1 kind=$2 unit=$3 pr=$4 text=$5 silent=${6:-} p key th=- r rc u=""
   [ "$unit" = - ] || u=" #$unit"
   p=$(notify_ready)
   if [ -n "$p" ]; then notify_retry_add "$id"; warn_once notify "telegram: $p; the messages are sent once it works"; return 1; fi
@@ -167,7 +182,7 @@ notify_send() {
       *) warn_once notify-forum "telegram: no forum topic in chat $TELEGRAM_CHAT_ID ($r): each message opens a reply chain instead" ;;
     esac
   fi
-  r=$(tg_send "$text" "$th" -); rc=$?
+  r=$(tg_send "$text" "$th" - "$silent"); rc=$?
   case $rc in
     0)
       if [ -z "$key" ]; then key=m$r; nt_add topics "$key	$id	$unit	$pr	open	$r"; else nt_put topics "$key" 6 "$r"; fi
@@ -184,13 +199,15 @@ notify_send() {
 
 # notify_settle <feed id>: the item no longer waits: its message is edited to start with Closed:,
 # and with no leader its topic closes (with one, the leader closes it once the thread is settled).
-# An item that settled before its send worked is never sent.
+# An item that settled before its send worked, or while it waited in the queue, is never sent.
 notify_settle() {
   local id=$1 m key
-  notify_retry_del "$id"
+  notify_retry_del "$id"; nt_del queue "$id"
+  [ "${LEADER:-off}" = on ] || notify_batch_settle "$id"
   m=$(nt_get sent "$id" 2); key=$(nt_get sent "$id" 3)
   [ -n "$m" ] || return 0
-  if [ "$m" != "?" ] && [ -f "$(notify_dir)/text/$id" ]; then
+  # m -: the item reached the product owner only in a digest
+  if [ "$m" != "?" ] && [ "$m" != - ] && [ -f "$(notify_dir)/text/$id" ]; then
     tg_edit "$m" "Closed: $(cat "$(notify_dir)/text/$id")" || log "telegram: marking the message of feed line $id closed failed"
   fi
   [ "${LEADER:-off}" = on ] || [ "$key" = - ] || notify_close "$key" || true
@@ -268,15 +285,24 @@ notify_images() {
   done
 }
 
-# notify_poll: one read of the bot's updates (no long poll: once per pass). Only a message in
-# the chat, from TELEGRAM_USER_ID, in an open topic (its thread, or a reply to a message of its
-# chain) is kept, as one inbox line: <time> <topic> <unit> <pr> <text>. Every other is dropped.
+# notify_poll: the pass's read of the bot's updates, once per pass, under the listener's lock: a
+# live listener (canccu-notify listen) holds it and reads them as they come, so the pass skips.
 notify_poll() {
   [ -n "${TELEGRAM_USER_ID:-}" ] && [ -z "$(notify_ready)" ] || return 0
+  mkdir -p "$(notify_dir)"
+  ( flock -n 7 || exit 0; notify_read 0 ) 7>>"$(notify_dir)/.listen.lock"
+  return 0
+}
+# notify_read <seconds>: one read of the updates (seconds > 0: a long poll). Only a message in
+# the chat, from TELEGRAM_USER_ID, in an open topic (its thread, or a reply to a message of its
+# chain) is kept, as one inbox line: <time> <topic> <unit> <pr> <text>. Every other is dropped.
+# 1 when the read failed. The caller holds the listener's lock: two readers would share the offset.
+notify_read() {
   local f off r u c fr th re mid tx key max=-1 kept=0 dropped=0
   f=$(notify_dir); mkdir -p "$f"
   off=$(cat "$f/offset" 2>/dev/null); [[ $off =~ ^[0-9]+$ ]] || off=0
-  r=$(tg_updates "$off") || { warn_once notify-poll "telegram: reading replies failed ($r); tried again next pass"; return 0; }
+  r=$(TG_MAX_TIME=$(( ${1:-0} + ${TG_MAX_TIME:-10} )) tg_updates "$off" "$1") ||
+    { warn_once notify-poll "telegram: reading replies failed ($r); tried again next pass"; return 1; }
   rm -f "$CANCCU_HOME/.warned-notify-poll"
   while IFS=$'\t' read -r u c fr th re mid tx; do
     [[ $u =~ ^[0-9]+$ ]] || continue
@@ -300,13 +326,19 @@ notify_poll() {
   (( kept + dropped == 0 )) || log "telegram: $kept replies kept, $dropped other messages dropped"
 }
 
-# notify_tick: the pass's part: the retries (stopping at the first that fails again), the
-# images, the replies
+# notify_tick: the pass's part: the retries (stopping at the first that fails again), the queue,
+# the digest, the images, the replies
 notify_tick() {
   (( ${CANCCU_DRY:-0} )) && return 0
   notify_on telegram || return 0
   local id
   for id in $(cat "$(notify_dir)/retry" 2>/dev/null); do notify_event "$id" || break; done
+  notify_flush
+  notify_digest_tick
   notify_images
   notify_poll
 }
+
+# its queue: batching, quiet hours, the cap, the digest and the listener
+# shellcheck source=canccu-notifyq.sh
+. "$_canccu_lib/canccu-notifyq.sh"

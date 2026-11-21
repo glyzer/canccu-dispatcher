@@ -144,6 +144,15 @@ NOTIFY=github               # github (the ping, PING on), telegram, both, or off
 TELEGRAM_CHAT_ID=''         # the chat the bot writes to: a group with topics (-100…) or a private chat
 TELEGRAM_USER_ID=''         # the product owner's Telegram user id: only their replies reach the inbox
 TELEGRAM_TOKEN_FILE=$HOME/.config/canccu/telegram-token   # the bot token, mode 600, outside every repo
+# what reaches Telegram, and when (docs/reference/notify.md): the product owner gets what needs them,
+# batched, not at night; class interrupt always goes at once
+NOTIFY_KINDS='accept plan question needs-you checkpoint step-done'   # the kinds sent; also idle, hold, polish, handover
+NOTIFY_BATCH_MIN=10         # items that come within this many minutes go as one message; 0: each at once
+QUIET_HOURS=''              # for example 22-07: nothing but class interrupt is sent then; empty: off
+QUIET_TZ=''                 # the time zone of QUIET_HOURS and NOTIFY_DIGEST_HOUR; empty: the host's
+NOTIFY_MAX_PER_DAY=12       # messages a day; over it, the items wait for the digest
+NOTIFY_DIGEST_HOUR=''       # the hour the day's digest goes to Telegram, in a topic of its own; empty: never
+NOTIFY_REMIND_H=0           # an item open longer than this many hours is listed again in the digest; 0: never
 # the leader (an optional AI session that watches the project): which waiting items are its, and
 # not the product owner's (docs/reference/leader.md). LEADER=off: every item is the product owner's
 LEADER=off                  # on or off
