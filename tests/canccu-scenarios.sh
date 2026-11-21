@@ -39,6 +39,7 @@ ok "worker: its .last reads as done to the dispatcher" eq "$(lastx 7)" "done|don
 ok "worker: the lock is gone once the run ended" not test -e "$WORKERS_DIR/web-7.lock"
 ok "worker: a fresh session the first time" grep -qF ' · fresh · done · ' "$WORKERS_DIR/web-7.last"
 ok "worker: its branch is pushed to origin" eval 'git -C "$E/origin.git" rev-parse -q --verify 7-scenario >/dev/null'
+ok "worker: the body has the Testing: and Revert: lines the dispatcher asks for" eval 'grep -q "^pr create --head 7-scenario .*Testing: .*Revert: plain revert" "$FAKE/gh.log"'
 ok "worker: the PR is opened with Closes #7" eval 'grep -E "^pr create --head 7-scenario .*Closes #7" "$FAKE/gh.log" >/dev/null'
 ok "worker: engine.log names the run" eq "$(cat "$SCENARIO_DIR/engine.log")" "worker 1 7 pr"
 fe --quiet --name '#7' web "7 resume" turns=1 cost=1 min=1
@@ -80,10 +81,13 @@ sha=$(git -C "$E/rv" rev-parse HEAD)
 fe --quiet --key review-50 --dir "$E/rv" --name 'review#50' --untrusted web "review PR 50" turns=1 cost=1 min=1
 ok "review: the verdict for the head is the file's last line" \
   eq "$(tail -1 "$CANCCU_HOME/reviews/50/$sha.md" 2>/dev/null)" "Review verdict: pass $sha"
+ok "review: the dispatcher reads a pass from its file (the finding block and its count line)" \
+  eq "$(lib file_verdict "$CANCCU_HOME/reviews/50/$sha.md" "$sha")" pass
 printf '%s\n' 'fixcheck 1 changes' > "$SCENARIO_DIR/script"
 fe --quiet --key review-50 --dir "$E/rv" --name 'fixcheck#50' --untrusted web "fix-check PR 50" turns=1 cost=1 min=1
 ok "fix-check: its own role and round, the scripted verdict" eval \
   '[ "$(tail -1 "$SCENARIO_DIR/engine.log")" = "fixcheck 1 review-50 changes" ] && tail -1 "$CANCCU_HOME/reviews/50/$sha.md" | grep -qx "Review verdict: changes $sha"'
+ok "… which the dispatcher reads as changes" eq "$(lib file_verdict "$CANCCU_HOME/reviews/50/$sha.md" "$sha")" changes
 
 fe_env plan; key=plan-12
 fe --quiet --key plan-12 --name 'plan#12' --untrusted web "Plan wave 2 of step 12. The issues to plan are exactly: 101, 103, 104." turns=1 cost=1 min=1
