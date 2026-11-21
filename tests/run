@@ -31,7 +31,7 @@ tests_for() {
     tests/*.sh) [ -e "$1" ] && echo "$1" ;;   # a deleted test file is not run
     tests/fixtures/monitor/*|lib/canccu-monitor.py|lib/canccu_monitor/*|bin/canccu-monitor|lib/canccu-monitor.requirements.txt)
       echo monitor tests/canccu-pane.sh tests/canccu-snapshot2.sh ;;
-    tests/fixtures/plans/*|lib/canccu-plan.jq|lib/canccu-planner.sh|lib/canccu-steps.sh)
+    tests/fixtures/plans/*|lib/canccu-plan.jq|lib/canccu-planner.sh|lib/canccu-steps.sh|lib/canccu-checkpoint.sh)
       echo tests/canccu-steps.sh tests/canccu-steps2.sh tests/canccu-share.sh ;;
     lib/canccu-snapshot-steps.sh) echo tests/canccu-snapshot2.sh tests/canccu-steps.sh ;;
     lib/canccu-usage.sh|lib/canccu-pace.sh|libexec/canccu-nudge-hook) echo tests/canccu-usage.sh tests/canccu-dispatch.sh ;;
