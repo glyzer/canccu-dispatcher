@@ -29,6 +29,21 @@ For each project (`--project <p>`; the examples use the project `web`):
 Then check: `canccu-dispatcher --version`, and `canccu-dispatcher doctor` prints `no problems
 found` (it names a process left on an older release).
 
+## Between passes
+
+A dispatcher loop started from an install (not from a checkout) compares its own release with
+`current` before each pass. Once an install switched `current`, it logs "upgrade to <version>
+pending", and `canccu-status`, the monitor and the snapshot (`pass.upgrade`) show it.
+
+- With `UPGRADE=auto` (the default) nothing new starts, as under a pause. Runs in flight go on.
+  Once no run of the project is live, the loop runs the new release's `canccu-dispatch` in its own
+  place: the same pane, the same project, the same lock and claim. So an install alone upgrades a
+  running dispatcher; the sequence above is for an upgrade you want to time yourself.
+- With `UPGRADE=manual` the loop only logs and shows the pending upgrade, and goes on with its own
+  release until you restart it.
+
+The monitor is not restarted: restart it by hand as in step 5.
+
 ## Before you upgrade
 
 - Read the release's `CHANGELOG.md` entry. A new config key gets its default by itself, as long

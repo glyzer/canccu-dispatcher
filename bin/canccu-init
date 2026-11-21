@@ -117,6 +117,12 @@ login=$(timeout 30 gh api user -q '.login // empty' 2>/dev/null)
 base=$(timeout 30 gh repo view "$repo" --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null) bnote=""
 [[ $base =~ ^[A-Za-z0-9._/-]+$ ]] || { base=main bnote=" (gh could not read the default branch of $repo: check BASE_BRANCH)"; }
 
+# another host's dispatcher claim on the repo: said before anything is written, never refused
+# (the claim may be about to expire, or be taken over by hand)
+# shellcheck source=../lib/canccu-claim.sh
+. "$here/lib/canccu-claim.sh"
+claim_warning "$repo"
+
 # the config as it will be written, and the clone it names
 render() { sed -e "s|@NAME@|$name|g" -e "s|@REPO@|$repo|g" -e "s|@REPO_NAME@|${repo#*/}|g" "$tpl/$1"; }
 cfg=$(render config) || die "cannot read $tname/config"

@@ -6,14 +6,16 @@
 
 # status_header: the state, model, usage, project and runs lines that open canccu-status
 status_header() {
-  local state="running" free lim rv lp w
-  if pause_holds; then state="PAUSED (canccu-resume to continue)"
+  local state="running" free lim rv lp w ct
+  if paused && pause_holds; then state="PAUSED (canccu-resume to continue)"
   elif paused; then state="PAUSED, work in flight finishes (canccu-resume to continue)"; fi
   dispatcher_running || state+=" · canccu-dispatch is NOT running (canccu-up, or run it in the window dispatch)"
   backing_off && state+=" · usage limit until $(iso "$(backoff_until)")"
   free=$(disk_low) && state+=" · disk low: $free MB (DISK_MIN_MB ${DISK_MIN_MB:-200})"
   lim=$(gh_limit_until); [ -n "$lim" ] && state+=" · GitHub rate limit until $(iso "$lim")"
+  ct=$(upgrade_pending); [ -n "$ct" ] && state+=" · upgrade to $ct pending"
   echo "canccu-dispatcher $CANCCU_VERSION · $REPO · $state"
+  ct=$(claim_text); [ -n "$ct" ] && echo "$ct"
   if [ -n "$REVIEWER_LOGIN" ]; then rv="reviews post as $REVIEWER_LOGIN"; else rv="reviews: REVIEWER_LOGIN is not set"; fi
   echo "model: ${MODEL:-the account default} · $rv"
   echo "accepts: ${ACCEPT_CHANNELS-all}"
