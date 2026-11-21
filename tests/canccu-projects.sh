@@ -180,7 +180,7 @@ STEP_TAG=step-{n}
 PACE=cap
 REVIEW_LIGHT=1"
 ok "canccu-init: the only project so far becomes the default (it keeps session canccu)" eq "$(cat "$CANCCU_ROOT/default-project")" tools
-ok "canccu-init: creates the missing labels in the repo" eq "$(grep -c '^label create .* -R example-org/web' "$FAKE/gh.log")" 13
+ok "canccu-init: creates the missing labels in the repo" eq "$(grep -c '^label create .* -R example-org/web' "$FAKE/gh.log")" 14
 ok "… none that exist" not grep -q '^label create ready' "$FAKE/gh.log"
 ok "canccu-init: no other gh call (rulesets, secrets, variables, collaborators; the claim is read, #15)" eq "$(grep -cvE '^(label (list|create)|api user|repo view example-org/web|issue list -R example-org/web -s open -l dispatcher-claim) ' "$FAKE/gh.log")" 0
 for w8 in 'as a collaborator' 'repo scope' 'repo variable REVIEWER_LOGIN' 'review-gate workflow and its script' 'required checks' \
