@@ -299,8 +299,8 @@ backing_off() { (( $(backoff_until) > $(now) )); }
 paused() { [ -e "$CANCCU_HOME/paused" ]; }
 # pause_holds: the pause holds every new run, a resume, review or answer too (#215): it is how the
 # product owner stops spending. `finish` in the file (canccu-pause --finish) is the old pause, for a
-# host move: work in flight still gets its reviews, answers and resumes.
-pause_holds() { paused && [ "$(cat "$CANCCU_HOME/paused" 2>/dev/null)" != finish ]; }
+# host move: work in flight still gets its reviews, answers and resumes. A pending upgrade holds as it does (#20).
+pause_holds() { { paused && [ "$(cat "$CANCCU_HOME/paused" 2>/dev/null)" != finish ]; } || upgrade_holds; }
 
 # ---------------------------------------------------------------- spend and progress
 
@@ -370,6 +370,8 @@ run_progress() {
 . "$_canccu_lib/canccu-skills.sh"
 # shellcheck source=canccu-share.sh
 . "$_canccu_lib/canccu-share.sh"
+# shellcheck source=/dev/null  # canccu-claim.sh, canccu-upgrade.sh (#15, #20): each is linted on its own
+for _canccu_f in claim upgrade; do . "$_canccu_lib/canccu-$_canccu_f.sh"; done
 # shellcheck source=canccu-answer.sh
 . "$_canccu_lib/canccu-answer.sh"
 # shellcheck source=canccu-github.sh

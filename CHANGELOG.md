@@ -11,6 +11,17 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
   test files of the areas it touched plus `tests/run repo`; `full` has it run the full suite once
   before the PR is ready. CI runs the full suite either way; `doctor` prints the tier
   ([`hosts.md`](docs/reference/hosts.md#the-test-tier)).
+- CI: the `CI` job's time limit is 20 minutes, not 12: the suite now takes about 12 minutes on
+  `ubuntu-latest`, and the job was cancelled at its limit.
+- The dispatcher claim (#15): one dispatcher per repo across hosts. A pinned issue labelled
+  `dispatcher-claim` names the host that runs the repo; another host's dispatcher does nothing
+  while the claim is fresh, and `canccu-dispatch --take-over` takes it
+  ([`docs/hosts.md`](docs/hosts.md#the-dispatcher-claim)). New keys: `HOST_LABEL`,
+  `CLAIM_RENEW_MIN`, `CLAIM_EXPIRY_MIN`. New file: `~/.canccu/host-id`.
+- The upgrade between passes (#20): once `current` points at a new release, the loop starts
+  nothing new and, with no run live, runs the new release in its place
+  ([`docs/upgrading.md`](docs/upgrading.md#between-passes)). New key: `UPGRADE` (`auto`, or
+  `manual` to only show it).
 - A worker that pushed its branch but could not open the PR (its `gh pr create` denied, or a
   finish run spent) no longer ends in `needs-you` (#237): the dispatcher opens the PR itself, from
   the worker's body file inside its worktree or a body built from the issue and the run's
