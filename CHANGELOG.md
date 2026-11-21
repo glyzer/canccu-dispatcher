@@ -6,6 +6,8 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 
 ## Unreleased
 
+- CI: the `CI` job's time limit is 20 minutes, not 12: the suite now takes about 12 minutes on
+  `ubuntu-latest`, and the job was cancelled at its limit.
 - The dispatcher claim (#15): one dispatcher per repo across hosts. A pinned issue labelled
   `dispatcher-claim` names the host that runs the repo; another host's dispatcher does nothing
   while the claim is fresh, and `canccu-dispatch --take-over` takes it

@@ -25,7 +25,8 @@ jobs:
   ci:
     name: CI
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    # the suite now takes about 12 minutes on ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
