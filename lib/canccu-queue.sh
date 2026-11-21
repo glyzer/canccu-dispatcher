@@ -126,3 +126,19 @@ runnable() {
   done < <(queue_list "${1:-999}")
   return 0
 }
+
+# next_wave_why <m>: what a ready issue of step m outside its running wave waits on (#236)
+next_wave_why() { echo "the next wave of step $(step_n "$1") (label fast to run it now)"; }
+# step_waiting <m>: the ready issues of step m that wait for its next wave (#236): its wave runs
+# and they are in none of its packages; only the fast label runs them now. The planner does not
+# add them to the running wave: a wave is planned as a whole, and the next one takes them.
+step_waiting() {
+  local m=$1 nm is inplan=" " n
+  [ "$(step_get "$m" phase)" = running ] || return 0
+  while IFS=$'\t' read -r nm is _; do [ -n "$nm" ] && inplan+="$is "; done < <(plan_packages "$m")
+  jqr --arg t "$(step_title "$m")" '.[] | select((.milestone.title // null) == $t)
+      | select([.labels[].name] as $l | ($l | index("ready")) and ($l | index("fast") | not) and
+               ([$l[] | select(IN("epic", "checkpoint", "blocked", "in-progress", "needs-you", "awaiting-accept"))] | length == 0))
+      | .number' <<<"$ISSUES" | sort -n |
+    while read -r n; do [[ $inplan == *" $n "* ]] || is_managed "$n" || [ "$(unit_of_issue "$n")" != "$n" ] || echo "$n"; done
+}

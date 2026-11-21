@@ -32,6 +32,7 @@ RESUME_ON	words:answer|plan|fix|ci|needs-work|merge|limited|blocked|crash|user|a
 FIX_ATTEMPTS	int:0:10	project	open
 FIX_EXTRA_IF_FEWER	enum:0|1	project	open
 CRASH_RETRY	int:0:10	project	open
+CONTINUE_MAX	int:0:10	project	open
 FIX_MODEL	name	project	open
 FIX_EFFORT	enum:low|medium|high|xhigh|max|	project	open
 BUDGET_REVIEW	budget	project	open

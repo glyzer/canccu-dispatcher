@@ -2,7 +2,7 @@
 # shellcheck shell=bash disable=SC2034,SC2154  # globals are shared with the other lib/canccu-*.sh parts
 # Part of lib/canccu-common.sh (sourced by it, never run): review findings. Only blocking findings
 # start a fix round: a fix round costs a whole worker run, and minor findings rarely justify one.
-# The reviewer lists the rest under `Non-blocking:`; they go to one follow-up issue per wave (the
+# The reviewer lists the rest under `Non-blocking:`; they go to one follow-up ticket per step (the
 # fast lane shares one), and canccu-status --findings counts the common ones across the records.
 
 # The Non-blocking section: its heading line (markdown marks around it allowed, items may follow on
@@ -31,57 +31,129 @@ blocking_of() {
   if review_valid "$1"; then _review_awk kept <<<"$1"; return; fi
   awk -v want=0 "$_NB_AWK" <<<"$1" | cat -s
 }
-
-# followup_key <K>: whose follow-up issue the unit's findings go to: its step's wave, the step's
-# health pass, or the fast lane (an issue outside any wave)
-followup_key() {
-  local m; m=$(st_get "$1" step)
-  if [ -z "$m" ]; then echo fast
-  elif is_health "$1"; then echo "step-$m-health"
-  elif is_deep "$1"; then echo "step-$m-deep"
-  else echo "step-$m-wave-$(st_get "$1" wave)"; fi
+# blocking_numbered <review body>: blocking_of with each finding as "Finding <i>: <item>", so the
+# fix-check can be held to one line per finding (fixcheck_gaps). Without the block of §8 there
+# are no items to number: blocking_of's text as it is.
+blocking_numbered() {
+  if review_valid "$1"; then _review_awk keptn <<<"$1"; return; fi
+  blocking_of "$1"
 }
+# finding_count <findings>: the highest "Finding <i>:" number; 0 for unnumbered findings
+finding_count() { grep -oE '^Finding [0-9]+:' <<<"$1" | grep -oE '[0-9]+' | sort -n | tail -1 | grep . || echo 0; }
+# fixcheck_gaps <findings> <fix-check body>: "<missing> | <open>", the numbers (space-separated)
+# the fix-check gives no outcome for, and those it says are not fixed or broken; nothing when it
+# says each one is fixed. The reviewer may bold or list the line: only its number and word count.
+fixcheck_gaps() {
+  local n i w miss="" open=""
+  n=$(finding_count "$1")
+  for ((i = 1; i <= n; i++)); do
+    w=$(grep -ioE "^[[:space:]>*_-]*finding[[:space:]]+${i}[*_]*:[*_[:space:]]*(fixed|not fixed|broken)" <<<"$2" | head -1)
+    w=${w,,}
+    case $w in *'not fixed'|*broken) open+=" $i" ;; *fixed) ;; *) miss+=" $i" ;; esac
+  done
+  [ -n "$miss$open" ] && echo "${miss# } | ${open# }"
+  return 0
+}
+
+# followup_key <K>: whose follow-up ticket the unit's findings go to: its step's (every wave, the
+# health pass, the deep review and the cadence rounds of it), or the fast lane's (an issue outside
+# any step). The leader triages one ticket per step, not one per wave (#223).
+followup_key() { local m; m=$(st_get "$1" step); if [ -z "$m" ]; then echo fast; else echo "step-$m"; fi; }
+# followup_title <K> [part]
 followup_title() {
-  local m; m=$(st_get "$1" step)
-  case $(followup_key "$1") in
-    fast) echo "Follow-ups: non-blocking review findings (fast lane)" ;;
-    *-health) echo "Follow-ups: non-blocking review findings, step $(step_title "$m"), health pass" ;;
-    *-deep) echo "Follow-ups: non-blocking review findings, step $(step_title "$m"), deep review" ;;
-    *) echo "Follow-ups: non-blocking review findings, step $(step_title "$m"), wave $(st_get "$1" wave)" ;;
-  esac
+  local m t; m=$(st_get "$1" step)
+  if [ -z "$m" ]; then t="Follow-ups: fast lane"; else t="Follow-ups: step $(step_title "$m")"; fi
+  (( ${2:-1} > 1 )) && t+=" (part $2)"
+  echo "$t"
+}
+# GitHub refuses a body over 65536 characters; the margin leaves room for the line to the next part
+FOLLOWUP_BODY_MAX=60000
+
+# followup_lines <items> <links>: the items as checklist lines, so the leader ticks them off in one
+# place; an item's own indented lines stay under it. <links>: "<item's first line>\t<issue>" lines,
+# the security items' own issues. Without list marks, each line is an item.
+followup_lines() {
+  local marked=0
+  grep -qE '^([0-9]+[.)]|[-*+])[[:space:]]' <<<"$1" && marked=1
+  FU_LINKS=$2 awk -v marked=$marked '
+    BEGIN { n = split(ENVIRON["FU_LINKS"], a, "\n"); for (i = 1; i <= n; i++) if (split(a[i], p, "\t") == 2) link[p[1]] = p[2] }
+    /^[[:space:]]*$/ { next }
+    /^([0-9]+[.)]|[-*+])[[:space:]]/ || (!marked && /^[^[:space:]]/) {
+      t = $0; sub(/^([0-9]+[.)]|[-*+])[[:space:]]+/, "", t)
+      print "- [ ] " t (($0 in link) ? " (security: #" link[$0] ")" : ""); next
+    }
+    { sub(/^[[:space:]]+/, ""); print "  " $0 }' <<<"$1"
 }
 
-# file_nonblocking <K> <pr> <sha> <items> [label]: the items go to the unit's follow-up issue: a comment on
-# the recorded one while it is open (this pass's open issues list it), else a new issue, not
-# `ready` (the leader decides what of it gets built). A recorded issue that is the unit or that
-# the PR closes counts as not open: the merge would close the findings with it. A gh error is
-# logged: the items are still in the PR's review comment, and the merge never waits for them. The
-# label (security, for a pre-existing security finding) goes on the issue either way.
+# followup_security <K> <pr> <sha> <items> <first lines>: an issue of its own, labelled security,
+# for each pre-existing security finding: it never blocks the PR, and in a ticket of nits it would
+# wait its turn. Prints "<first line>\t<issue>" for each one made.
+followup_security() {
+  local l t body
+  while IFS= read -r l; do
+    [ -n "$l" ] || continue
+    t=${l#[-*+] }; t=${t:0:90}
+    body="A pre-existing security finding of the review of PR #$2 $(pr_what "$1"), head ${3:0:7}; it does not block that PR:"$'\n\n'
+    body+=$(FU_L=$l awk '$0 == ENVIRON["FU_L"] { on = 1; print; next } on && /^[^[:space:]]/ { exit } on' <<<"$4")
+    mut_out gh issue create -R "$REPO" --title "Security (pre-existing): $t" --label security \
+      --body "$(home_tilde "$body")"$'\n\n'"$CANCCU_MARK" || { log "#$1 PR #$2: creating the security issue failed (gh); the finding stays in the ticket"; continue; }
+    t=$(grep -oE '/issues/[0-9]+' <<<"$MUT_OUT" | grep -oE '[0-9]+$' | tail -1)
+    [ -n "$t" ] && printf '%s\t%s\n' "$l" "$t" && log "#$1 PR #$2: its pre-existing security finding is #$t"
+  done <<<"$5"
+}
+
+# file_nonblocking <K> <pr> <sha> <items> [security first lines]: the items go into the body of the
+# key's follow-up ticket, under a heading per verdict, never into comments: one list to triage
+# (#223). The ticket recorded last for the key (followups: "<key>\t<issue>\t<part>" rows, appended,
+# so the deep review sees each part) while it is open (this pass's open issues list it), else a new
+# one, not `ready` (the leader decides what of it gets built), in the step's milestone. A recorded
+# ticket that is the unit or that the PR closes counts as not open: the merge would close the
+# findings with it. A body that would pass FOLLOWUP_BODY_MAX opens the next part, linked from the
+# full one. A gh error is logged: the items are still in the PR's review comment, and the merge
+# never waits for them.
 file_nonblocking() {
-  local k=$1 pr=$2 sha=$3 items=$4 label=${5:-} key f="" text n
+  local k=$1 pr=$2 sha=$3 items=$4 key f="" part=1 n n2 w sec links="" body new ms="" m lead text
   key=$(followup_key "$k")
-  f=$(awk -F '\t' -v k="$key" '$1 == k { n = $2 } END { print n }' "$CANCCU_HOME/followups" 2>/dev/null)
+  [ -e "$CANCCU_HOME/followups" ] &&
+    IFS=: read -r f part < <(awk -F '\t' -v k="$key" '$1 == k { n = $2; p = $3 } END { print n ":" (p > 1 ? p : 1) }' "$CANCCU_HOME/followups")
   # an item starts at column 0; its own indented lines (a "- Fix:") are not findings of their own
   n=$(grep -cE '^([0-9]+[.)]|[-*])[[:space:]]' <<<"$items"); (( n )) || n=$(grep -c . <<<"$items")
-  text="From the review of PR #$pr ($(pr_what "$k"), head ${sha:0:7}), its non-blocking findings:"$'\n\n'"$items"
+  [ -z "${5:-}" ] || links=$(followup_security "$k" "$pr" "$sha" "$items" "$5")
+  w=$(pr_what "$k"); w=${w#(}; w=${w%)}
+  sec="### PR #$pr ($w, ${sha:0:7})"$'\n\n'"$(followup_lines "$items" "$links")"
   if [ -n "$f" ] && [ "$f" != "$k" ] && [ "$(jqr --argjson n "$f" 'any(.[]; .number == $n)' <<<"$ISSUES")" = true ] &&
      [ "$(pr_get "$pr" '[.closingIssuesReferences[]?.number]' | jqr --argjson n "$f" 'index($n) == null')" != false ]; then
-    mut gh issue comment "$f" -R "$REPO" --body "$(home_tilde "$text")"$'\n\n'"$CANCCU_MARK" ||
-      { log "#$k PR #$pr: filing its non-blocking findings in #$f failed (gh); they stay in the review comment"; return 0; }
-    [ -z "$label" ] || mut gh issue edit "$f" -R "$REPO" --add-label "$label" || log "#$k PR #$pr: labelling #$f $label failed (gh)"
+    body=$(jqr --argjson n "$f" '.[] | select(.number == $n) | .body // ""' <<<"$ISSUES" | tr -d '\r')
+    body=$(printf '%s' "${body%"$CANCCU_MARK"}")
+    new="$body"$'\n\n'"$(home_tilde "$sec")"$'\n\n'"$CANCCU_MARK"
+    if (( ${#new} <= FOLLOWUP_BODY_MAX )); then
+      mut gh issue edit "$f" -R "$REPO" --body "$new" ||
+        { log "#$k PR #$pr: filing its non-blocking findings in #$f failed (gh); they stay in the review comment"; return 0; }
+      ISSUES=$(jq -c --argjson n "$f" --arg b "$new" 'map(if .number == $n then .body = $b else . end)' <<<"$ISSUES")
+      log "#$k PR #$pr: $n non-blocking finding(s) filed in #$f"; return 0
+    fi
+    lead="Part $((part + 1)); part $part is #$f."$'\n\n'; part=$((part + 1))
   else
-    (( CANCCU_DRY )) && { mut gh issue create -R "$REPO" --title "$(followup_title "$k")"; return 0; }
-    mut_out gh issue create -R "$REPO" --title "$(followup_title "$k")" ${label:+--label "$label"} \
-      --body "Non-blocking review findings, collected by the dispatcher instead of a fix round. Pick what is worth building into issues of its own."$'\n\n'"$(home_tilde "$text")"$'\n\n'"$CANCCU_MARK" ||
-      { log "#$k PR #$pr: creating the follow-up issue failed (gh); its non-blocking findings stay in the review comment"; return 0; }
-    f=$(grep -oE '/issues/[0-9]+' <<<"$MUT_OUT" | grep -oE '[0-9]+$' | tail -1)
-    [ -n "$f" ] || { log "#$k PR #$pr: created a follow-up issue but read no number from gh"; return 0; }
-    { grep -v "^$key"$'\t' "$CANCCU_HOME/followups" 2>/dev/null; printf '%s\t%s\n' "$key" "$f"; } > "$CANCCU_HOME/followups.tmp" &&
-      mv "$CANCCU_HOME/followups.tmp" "$CANCCU_HOME/followups"
-    # this pass's list too: a second PR passing in the same pass comments instead of creating another
-    ISSUES=$(jq -c --argjson n "$f" --arg t "$(followup_title "$k")" '. + [{number: $n, title: $t, labels: [], milestone: null, body: ""}]' <<<"$ISSUES")
+    lead="" part=1 body=""
   fi
-  log "#$k PR #$pr: $n non-blocking finding(s) filed in #$f"
+  m=$(st_get "$k" step)
+  [ -z "$m" ] || ms=$(jqr --argjson m "$m" '.[] | select(.number == $m) | .title' <<<"$MILESTONES")
+  if [ -z "$m" ]; then w="the fast lane (issues outside any step)"; else w="step $(step_title "$m")"; fi
+  text="Non-blocking review findings of $w, collected by the dispatcher instead of a fix round: a section per review, a line per finding. Pick what is worth building into issues of its own, and tick a line once it is handled."
+  text+=$'\n\n'"$lead$(home_tilde "$sec")"$'\n\n'"$CANCCU_MARK"
+  mut_out gh issue create -R "$REPO" --title "$(followup_title "$k" "$part")" --label follow-up ${ms:+--milestone "$ms"} --body "$text" ||
+    { log "#$k PR #$pr: creating the follow-up ticket failed (gh); its non-blocking findings stay in the review comment"; return 0; }
+  (( CANCCU_DRY )) && return 0
+  n2=$(grep -oE '/issues/[0-9]+' <<<"$MUT_OUT" | grep -oE '[0-9]+$' | tail -1)
+  [ -n "$n2" ] || { log "#$k PR #$pr: created a follow-up ticket but read no number from gh"; return 0; }
+  printf '%s\t%s\t%s\n' "$key" "$n2" "$part" >> "$CANCCU_HOME/followups"
+  # the full part links the next; its findings stay as they are
+  if [ -n "$lead" ]; then
+    mut gh issue edit "$f" -R "$REPO" --body "$body"$'\n\n'"Continued in #$n2."$'\n\n'"$CANCCU_MARK" || log "#$k PR #$pr: linking #$n2 from #$f failed (gh)"
+  fi
+  # this pass's list too: a second PR passing in the same pass files into it instead of making another
+  ISSUES=$(jq -c --argjson n "$n2" --arg t "$(followup_title "$k" "$part")" --arg b "$text" '. + [{number: $n, title: $t, labels: [{name: "follow-up"}], milestone: null, body: $b}]' <<<"$ISSUES")
+  log "#$k PR #$pr: $n non-blocking finding(s) filed in #$n2"
 }
 
 # collect_nonblocking <K> <pr> <sha> <review body> <verdict at>: file the verdict's non-blocking
@@ -89,7 +161,7 @@ file_nonblocking() {
 # Once per head and kind too (nb_sha <pr>:<sha>:<light|full>): a second verdict of a kind on a
 # head finds the same items (#214), but the full review after a light one looks deeper.
 collect_nonblocking() {
-  local items label="" key kind=full
+  local items sec key kind=full
   [ "$(st_get "$1" nb_at)" = "$5" ] && return 0
   [ "$(cat "$(light_file "$2")" 2>/dev/null)" = "$3" ] && kind=light
   key=$2:$3:$kind
@@ -98,8 +170,8 @@ collect_nonblocking() {
     st_set "$1" nb_at="$5"; return 0
   fi
   items=$(nonblocking_of "$4")
-  preexisting_security "$4" && label=security
-  if [ -n "$items" ]; then file_nonblocking "$1" "$2" "$3" "$items" "$label"; st_set "$1" nb_sha="$key"; fi
+  sec=$(preexisting_security "$4") || sec=""
+  if [ -n "$items" ]; then file_nonblocking "$1" "$2" "$3" "$items" "$sec"; st_set "$1" nb_sha="$key"; fi
   st_set "$1" nb_at="$5"
 }
 

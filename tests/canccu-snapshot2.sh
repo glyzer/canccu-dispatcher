@@ -11,13 +11,13 @@
 env_new snap2 STEP_BUDGET=4
 # the roadmap: a done step before, the current one, the next one, an empty one, one later
 { jq -nc '{number: 11, title: "2 Setup", open_issues: 0, closed_issues: 3, due_on: null}'
-  jq -nc '{number: 12, title: "3 Events", open_issues: 4, closed_issues: 1, due_on: null}'
+  jq -nc '{number: 12, title: "3 Events", open_issues: 5, closed_issues: 1, due_on: null}'
   jq -nc '{number: 13, title: "4 Payments", open_issues: 4, closed_issues: 0, due_on: null}'
   jq -nc '{number: 14, title: "5 Reports", open_issues: 0, closed_issues: 0, due_on: null}'
   jq -nc '{number: 15, title: "6 Later", open_issues: 1, closed_issues: 0, due_on: null}'; } | jq -s . > "$FAKE/ms.json"
 jq -nc '{number: 95, title: "Checkpoint: events", state: "OPEN", milestone: {title: "3 Events"}, labels: [{name: "checkpoint"}]}' | jq -s . > "$FAKE/cps.json"
 { issue 90 epic,needs-you "" "3 Events"; issue 101 in-progress "" "3 Events"; issue 103 in-progress "" "3 Events"
-  issue 104 ready "" "3 Events"; issue 6 ready "Blocked by #104"; issue 107 ready "Blocked by #104" "3 Events"
+  issue 104 ready "" "3 Events"; issue 6 ready "Blocked by #104"; issue 107 ready "Blocked by #104" "3 Events"; issue 108 ready "" "3 Events"
   issue 110 ready "" "4 Payments"; issue 111 "" "" "4 Payments"; issue 112 blocked "" "4 Payments"
   issue 113 ready "Blocked by #110" "4 Payments"; issue 120 "" "" "6 Later"; } | issues
 # the next step's blockers come from the issue's body, not a read per pass: this answer is never asked for
@@ -69,10 +69,13 @@ ok "snapshot: usage" eq "$(sj '.usage | [.five_hour, .seven_day, .state] | map(t
 # the step overview (the monitor's Roadmap), the runs the dispatcher did not start
 ok "snapshot: step_overview: every open milestone in order, its place and work issues done/total" \
   eq "$(sj '[.step_overview[] | "\(.milestone):\(.place):\(.work_closed)/\(.work_open + .work_closed)"] | join(" ")')" \
-  "11:done:3/3 12:current:1/5 13:next:0/4 14:later:0/0 15:later:0/1"
+  "11:done:3/3 12:current:1/6 13:next:0/4 14:later:0/0 15:later:0/1"
 ok "snapshot: step_overview: the current step's open work issues, their status and package (no epic)" \
   eq "$(sj '[.step_overview[] | select(.milestone == 12) | .issues[] | "\(.issue):\(.status):\(.package):\(.waits_on)"] | join(" ")')" \
-  "101:running:pkg-12-auth:null 103:running:pkg-12-auth:null 104:blocked:104:depends on auth 107:blocked:null:blocked by 104"
+  "101:running:pkg-12-auth:null 103:running:pkg-12-auth:null 104:blocked:104:depends on auth 107:blocked:null:blocked by 104 108:next-wave:null:the next wave of step 3 (label fast to run it now)"
+ok "#236: a ready step issue outside the running wave does not start in the fast lane" not grep -q -- '--key 108 ' "$FAKE/worker.log"
+ok "#236: canccu-status lists it under its step: it waits for the next wave, and how to run it now" \
+  grep -qxF '  #108 · Issue 108 · waiting for the next wave of step 3 (label fast to run it now)' <<<"$(PATH="$fb:$PATH" "$root/bin/canccu-status" 2>&1)"
 ok "snapshot: step_overview: the next step's issues, ready or waiting" \
   eq "$(sj '[.step_overview[] | select(.milestone == 13) | .issues[] | "\(.issue):\(.status):\(.waits_on)"] | join(" ")')" \
   "110:ready:null 111:blocked:no ready label 112:blocked:labelled blocked 113:blocked:blocked by 110"
@@ -94,6 +97,8 @@ ok "snapshot: an invalid plan → needs_you plan-invalid" eq "$(
   sed -i 's/^phase=running/phase=needs-you/; s/^budget_ny=1//' "$CANCCU_HOME/steps/12"; echo 'ny_reason=the plan of wave 2 is invalid: x' >> "$CANCCU_HOME/steps/12"
   dispatch --once; sj '[.needs_you[] | select(.kind == "plan-invalid") | .issue, .step, .reason] | map(tostring) | join(" | ")')" \
   "90 | 12 | step 3 Events: the plan of wave 2 is invalid: x"
+# a step waits at its checkpoint only with its work closed: open work sends it back to planning (#243)
+cp "$S" "$E/status.keep"; cp "$FAKE/issues.json" "$E/issues.all"; jq '[.[] | select(.number == 90 or .number == 6)]' "$E/issues.all" > "$FAKE/issues.json"
 ok "snapshot: a checkpoint waiting → needs_you checkpoint, milestone checkpoint ready" eq "$(
   sed -i 's/^phase=needs-you/phase=checkpoint/' "$CANCCU_HOME/steps/12"; echo "checkpoint_at=$NOW" >> "$CANCCU_HOME/steps/12"
   dispatch --once; sj '[(.needs_you[] | select(.kind == "checkpoint") | .issue), (.milestones[1].checkpoints[0].ready), .steps[0].checkpoint.waiting] | map(tostring) | join(" ")')" "95 true true"
@@ -102,6 +107,7 @@ ok "snapshot: a checkpoint waiting without its summary's link → the issue's UR
 ok "snapshot: a checkpoint waiting → its url is the summary comment's link" eq "$(
   echo "checkpoint_url=https://github.com/example-org/web/issues/95#issuecomment-7" >> "$CANCCU_HOME/steps/12"
   dispatch --once; sj '.needs_you[] | select(.kind == "checkpoint") | .url')" "https://github.com/example-org/web/issues/95#issuecomment-7"
+cp "$E/issues.all" "$FAKE/issues.json"; cp "$E/status.keep" "$S"   # the fixture check reads the snapshot with the work open
 
 ok "snapshot #70: the steps' items have an owner too" eq "$(sj '[.needs_you[] | select(.owner != "po")] | length') $(sj '.needs_you | length > 0')" "0 true"
 

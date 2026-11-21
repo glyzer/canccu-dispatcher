@@ -80,6 +80,9 @@ play_worker() {
     push-denied)
       commit_push "$br" "$key denied" nopush &&
         printf 'done|could not push\n\nPermission denials (information):\nBash git push -u origin %s\n' "$br" ;;
+    pr-denied)   # pushed, but its gh pr create is denied: the body file stays in the worktree (#237)
+      commit_push "$br" "$key pr denied" && pr_body Closes "$key" > pr-body.md &&
+        printf 'done|could not open the PR\n\nPermission denials (information):\nBash gh pr create --head %s --title "scenario: %s" --body-file pr-body.md\n' "$br" "$key" ;;
     crash) echo "crashed (exit 1)|the fake engine died" ;;
     *) echo "crashed (exit 1)|unknown worker action $4" ;;
   esac

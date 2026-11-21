@@ -32,8 +32,8 @@ Review verdict: <pass|changes> <sha>
   (`Evidence:`, `Fix:`) are its own. A heading with no finding says `none`: on its line, as a
   list item (`- none`) or in brackets (`(none)`); `none`, `n/a` and `nothing` are no item.
 - **Pre-existing:** the cited line is not in the diff's changed lines and the diff did not make
-  its bug reachable. Such a finding never blocks; it goes to the follow-up issue, and a `security`
-  one gives that issue the label `security`.
+  its bug reachable. Such a finding never blocks; it goes to the follow-up ticket, and a `security`
+  one also gets an issue of its own, labelled `security`, that the ticket's line links.
 - **The count line** counts the items as written under each heading, before any demotion. A file
   without it, or whose numbers do not match the items, has no valid verdict: like a file without
   one, the reviewer's session is asked once per head to write it again, with the reason `no finding
@@ -55,7 +55,7 @@ its count: `<p> never-blocking class, no class or no Evidence:`, `<s> already se
 unchanged since the pass`, separated by `; `. (And, for a `pass` with a blocking item left, `Dispatcher: <b> blocking finding(s) left (a
 blocking class and Evidence:); verdict changes.`). The posted comment then carries the effective
 verdict, so the state and the PR agree. The fix round gets only the blocking items left; the
-demoted, non-blocking and pre-existing items go to the follow-up issue. Each posted verdict adds a
+demoted, non-blocking and pre-existing items go to the follow-up ticket. Each posted verdict adds a
 line to `reviews.log` ([`state.md`](state.md)). A verdict comment posted by hand, without a valid
 block, is read as before: its whole text without the `Non-blocking:` section blocks.
 
@@ -75,11 +75,11 @@ class and the file path, the lines overlapping; no matching of the text).
   `fixed` or `answered` one is not raised again. After a pass, the full review's prompt adds the
   pass rule below.
 - **The dispatcher checks it.** A `Blocking:` item whose key and lines match a `fixed` or
-  `answered` line is demoted (`already settled`); it does not go to the follow-up issue either.
+  `answered` line is demoted (`already settled`); it does not go to the follow-up ticket either.
   A `security` item is never settled: one that comes back blocks again.
   When `pass_sha` is set and the full review is of a later head, a blocking item on lines that
   `git diff <pass_sha>..<head>` did not change is demoted (`unchanged since the pass`), unless its
-  class is `security`; it goes to the follow-up issue. A fix-check is never under the pass rule,
+  class is `security`; it goes to the follow-up ticket. A fix-check is never under the pass rule,
   nor is an item without `file:line`. When that diff cannot be read, the pass rule is off for
   the review (logged), so its findings still block. Both demotions count in `<demoted>` of
   `reviews.log`, and the dispatcher line names them:
@@ -87,6 +87,21 @@ class and the file path, the lines overlapping; no matching of the text).
 ```
 Dispatcher: no blocking finding left (2 moved out of Blocking: 1 already settled; 1 unchanged since the pass); verdict pass.
 ```
+
+## The follow-up ticket
+
+The non-blocking, demoted and pre-existing items of a verdict go to one ticket per step (#223):
+`Follow-ups: step <title>`, in the step's milestone, for its waves, its health pass, its deep
+review and its cadence rounds; `Follow-ups: fast lane`, without a milestone, for every issue
+outside a step. They go into the ticket's body, never into comments: one heading
+`### PR #<pr> (<what it closes>, <head7>)` per verdict, and under it one `- [ ] <finding>` line
+per item (its own indented lines stay under it). The first findings make the ticket (not labelled
+`ready`: you decide what gets built). A body that would pass 60000 characters opens
+`Follow-ups: step <title> (part 2)` (and so on), and the full one gets `Continued in #<n>.`. A
+closed ticket is never edited: the next findings make a new one, and so does a PR that closes the
+ticket. A pre-existing `security` finding gets an issue of its own,
+`Security (pre-existing): <finding>`, labelled `security`; its ticket line ends
+`(security: #<n>)`. The tickets are recorded in `followups` ([`project-dir.md`](project-dir.md)).
 
 ## Recurring findings
 

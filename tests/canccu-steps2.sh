@@ -418,6 +418,15 @@ json ev95.json "$(jq -n --arg t 2030-11-05T13:00:00Z '[{event: "labeled", label:
 route 'api --paginate repos/example-org/web/issues/95/events' ev95.json
 dispatch --once
 ok "checkpoint: checkpoint-ok added by another login → ignored" eq "$(grep -c '^issue close 95 ' "$FAKE/gh.log") $(sed -n 's/^phase=//p' "$CANCCU_HOME/steps/12")" "0 checkpoint"
+# new work filed in the step while it waits ("not yet, polish these first", #243): back to planning
+cpenv cp-new
+{ issue 90 epic "" "3 Events"; issue 106 ready "" "3 Events"; issue 95 checkpoint,needs-you "" "3 Events"; } | issues
+dispatch --once
+ok "checkpoint: new open work in the step → back to planning: its planner starts" eq "$(plans)" 1
+ok "… the health pass and the summary are to come again" \
+  eq "$(sed -n 's/^health=//p; s/^checkpoint_at=//p' "$CANCCU_HOME/steps/12" | grep -c .)" 0
+ok "… the checkpoint's needs-you goes" grep -q '^issue edit 95 -R example-org/web --remove-label needs-you' "$FAKE/gh.log"
+ok "… logged" grep -qF 'step 3 Events: new open work at its checkpoint (#106); back to planning' "$CANCCU_HOME/dispatch.log"
 # the checkpoint waiting for checkpoint-ok is the product owner's: its own ping (canccu
 # PING_KINDS has checkpoint), on the checkpoint, linking the summary comment
 CPLINE='@octo For the product owner: this checkpoint waits for your `checkpoint-ok`: read the summary (https://github.com/example-org/web/issues/95#issuecomment-95), then label this issue `checkpoint-ok`, or close it.'

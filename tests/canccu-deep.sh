@@ -38,7 +38,7 @@ denv() {
   echo start > "$E/code/web/README.md"; rg add -A; rg commit -qm start; rg push -q origin HEAD:main 2>/dev/null; rg fetch -q origin
   mkdir -p "$CANCCU_HOME/steps" "$E/sbin"
   printf 'pkg-12-a\ta\t1\t101 103\tnormal\t50\tmerged\n104\tb\t1\t104\tlow\t51\tmerged\n' > "$CANCCU_HOME/steps/12.packages"
-  printf 'step-12-wave-1\t900\nstep-11-wave-1\t800\n' > "$CANCCU_HOME/followups"
+  printf 'step-12-wave-1\t900\nstep-11-wave-1\t800\nstep-12\t902\t1\n' > "$CANCCU_HOME/followups"
   printf '#!/usr/bin/env bash\ncase " $* " in\n  *" fetch "*|*" rev-parse "*|*" show "*|*" tag "*|*" ls-remote "*|*" push -q origin refs/tags/"*|*" check-ref-format "*)\n    printf "%%s\\n" "$*" >> "$FAKE/git.log"; exec "$FAKE_REAL_GIT" "$@" ;;\nesac\nexec "%s/git" "$@"\n' "$fb" > "$E/sbin/git"
   chmod +x "$E/sbin/git"
 }
@@ -61,7 +61,7 @@ p=$(grep -- '--key pkg-12-deep' "$FAKE/worker.log")
 ok "the prompt names the base (the step's PRs), the head and the issues" \
   grep -qF "from the step's merged PRs #50, #51 (read them with gh pr view <n> -R example-org/web and gh pr diff <n> -R example-org/web) up to origin/main at $(sf deep_head)" <<<"$p"
 ok "… the step's issues" grep -qF "The step's issues: #101, #103, #104." <<<"$p"
-ok "… its follow-up issues only" grep -qF "do not report them again): #900." <<<"$p"
+ok "… its follow-up issues only, the old per-wave ones and the step's ticket (#223)" grep -qF "do not report them again): #900, #902." <<<"$p"
 ok "… the report path, its sections and the verdict line" grep -qF "Write the report docs/reports/step-4-deep-review.md with the sections ## Architecture, ## Security, ## Contracts and ## Test quality" <<<"$p"
 ok "… the PR body lines and no Closes line" grep -qF "\`Package: deep-review\`, \`Step: 4 Search\` and \`Risk: low — the step's deep-review report\`, and no \`Closes\` line" <<<"$p"
 dpass
@@ -101,6 +101,23 @@ dpass
 ok "… no tag below it: the step's merged PRs, not a later step's tag" \
   eq "$(grep -c 'from the tag step-7' "$FAKE/worker.log") $(grep -c "from the step's merged PRs #50, #51 (read them" "$FAKE/worker.log")" "0 1"
 
+# the shipped defaults (#242): the deep review is on, at medium effort, under REVIEW_EFFORT_MAX
+deff() { awk '/^=== / { h = ($0 ~ /--key pkg-12-deep/) } h && index($0, "WORKER_EFFORT=") == 1 { sub(/^[^=]*=/, ""); print }' "$FAKE/worker.envdump"; }
+denv deep-default; new_defaults
+dpass
+ok "no project setting: a step whose work is done starts pkg-12-deep at effort medium (#242)" \
+  eq "$(grep -c -- '--key pkg-12-deep' "$FAKE/worker.log") $(deff)" "1 medium"
+denv deep-capped REVIEW_EFFORT_MAX=low; new_defaults
+dpass
+ok "… REVIEW_EFFORT_MAX=low caps the deep review to low" eq "$(deff)" low
+denv deep-own; new_defaults; echo DEEP_REVIEW_EFFORT=high >> "$CANCCU_HOME/config"
+dpass
+ok "… a project's own DEEP_REVIEW_EFFORT stays" eq "$(deff)" high
+denv deep-own-off; new_defaults; echo STEP_DEEP_REVIEW=0 >> "$CANCCU_HOME/config"
+dpass
+ok "… and its own STEP_DEEP_REVIEW=0: the health pass, no deep review" \
+  eq "$(grep -c -- '--key pkg-12-deep' "$FAKE/worker.log") $(grep -c -- '--key pkg-12-health' "$FAKE/worker.log")" "0 1"
+
 # ---------------------------------------------------------------- its PR merged: polish or health
 
 # merged <name> [blocking items...]: the deep review's PR 60 merged with that report
@@ -131,6 +148,34 @@ jq -s . > "$FAKE/ms.json" < <(ms 12 "4 Search" 4; ms 13 "5 Later")
 dpass
 ok "the polish issue closed → the health pass starts, no second deep review" \
   eq "$(grep -c -- '--key pkg-12-health' "$FAKE/worker.log") $(grep -c -- '--key pkg-12-deep' "$FAKE/worker.log")" "1 0"
+
+# #239: the polish wave is over (phase idle) while its PR merges, and the step has no checkpoint
+# issue: once the PR closes the polish issue, the step stays current for its health pass
+merged deep-polish-nocp 'the cache is never cleared'
+echo '[]' > "$FAKE/cps.json"
+dpass
+{ issue 90 epic "" "4 Search"; issue 41 ready "" "5 Later"; } | issues
+jq -s . > "$FAKE/ms.json" < <(ms 12 "4 Search" 4; ms 13 "5 Later")
+sed -i 's/^phase=.*/phase=idle/' "$CANCCU_HOME/steps/12"; printf 'wave=11\n' >> "$CANCCU_HOME/steps/12"
+dpass
+ok "#239: the polish merged, no checkpoint issue → the health pass starts; the next step waits" \
+  eq "$(grep -c -- '--key pkg-12-health' "$FAKE/worker.log") $(grep -c -- '--key plan-13' "$FAKE/worker.log") $(dlog 'step 5 Later is current')" "1 0 0"
+rm -f "$WORKERS_DIR/web-pkg-12-health.lock"; last pkg-12-health done $'all clean\nHealth: nothing to do'
+dpass; dpass
+ok "… the health pass done → the step is done (no checkpoint pause), and only then the next step plans" \
+  eq "$(sf phase) $(sf health) $(grep -c -- '--key plan-13' "$FAKE/worker.log")" "done skipped 1"
+
+# … with a checkpoint issue open: the health pass, then the checkpoint pause, the next step waits
+merged deep-polish-cp 'the cache is never cleared'
+dpass
+{ issue 90 epic "" "4 Search"; issue 41 ready "" "5 Later"; } | issues
+jq -s . > "$FAKE/ms.json" < <(ms 12 "4 Search" 4; ms 13 "5 Later")
+sed -i 's/^phase=.*/phase=idle/' "$CANCCU_HOME/steps/12"
+dpass
+rm -f "$WORKERS_DIR/web-pkg-12-health.lock"; last pkg-12-health done $'all clean\nHealth: nothing to do'
+dpass; dpass
+ok "#239: … with a checkpoint open: health pass, then the checkpoint pause; the next step waits" \
+  eq "$(sf phase) $(grep -c -- '--key pkg-12-health' "$FAKE/worker.log") $(grep -c -- '--key plan-13' "$FAKE/worker.log")" "checkpoint 1 0"
 
 # the first polish create fails: the retry files it from deep_tick, and the same pass's stale
 # snapshot (no open work) must not start the health pass with the polish issue open

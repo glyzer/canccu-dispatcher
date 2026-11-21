@@ -50,7 +50,7 @@ extra_fix_round() {
   local k=$1 pr=$2 head=$3 b ff
   extra_fix_due "$k" || return 1
   may_start "$k" || return 2
-  b=$(blocking_of "$4") ff=$(findings_file "$pr" "$head")
+  b=$(blocking_numbered "$4") ff=$(findings_file "$pr" "$head")
   save_findings "$k" "$pr" "$ff" "$b"
   resume "$k" "The $5 of PR #$pr still finds blocking items, fewer than the verdict before it: this is one more automatic fix round, the last one. Fix every blocking finding below, rerun the checks, push once and stop: the dispatcher watches CI. Leave its non-blocking findings alone: they went to a follow-up issue. A narrow fix-check of this fix diff follows, then the merge or the product owner. The blocking findings: $(findings_inline "$b" "$ff")" fix || return 2
   fix_count "$k" "$pr"
@@ -76,8 +76,8 @@ handoff() {
     stat=$(guard 20 git -C "$wt" diff --stat origin/$BASE_BRANCH...HEAD 2>/dev/null | tail -n 25)
     dirty=$(guard 20 git -C "$wt" status --short 2>/dev/null | head -n 20)
   fi
-  # a limited run's task carries its own handoff already: its last report would repeat it
-  [ "${2:-}" = limited ] || rep=$(run_msg "$k" | tail -n 12)
+  # a limited run's or a continuation's task carries its own handoff already: its last report would repeat it
+  case ${2:-} in limited|continue) ;; *) rep=$(run_msg "$k" | tail -n 12) ;; esac
   printf '%s' "This run is a fresh session, not a resume of your earlier one: your earlier work is in this worktree, on its branch. Build on it; never create the branch again or open a second PR."
   [ -n "$pr" ] && printf ' The PR: %s.' "$(pr_url "$pr")"
   [ -n "$body" ] && printf ' Its body: %s' "$(oneline 1500 "$body")"

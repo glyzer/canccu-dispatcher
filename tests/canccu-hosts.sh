@@ -95,8 +95,9 @@ done
 ok "… each to max's value" eq "${diff# }" ""
 ok "… and one run at a time" eq "$( (CANCCU_ROOT=/nonexistent; . "$root/hosts/pro.conf"; echo "$CAP|$TOTAL_CAP") )" "1|1"
 env_new pro-load
-# the harness's project config sets CAP, which wins over any profile
-sed -i '/^CAP=/d' "$CANCCU_HOME/config"
+# the harness's project config sets CAP and pins the old defaults (DEEP_REVIEW_EFFORT), which win over
+# any profile
+sed -i '/^CAP=/d' "$CANCCU_HOME/config"; new_defaults
 ok "HOST_PROFILE=pro: one run at a time, max's budgets, a medium review and deep review effort" \
   eq "$(CANCCU_HOST_PROFILE=pro load '$HOST_PROFILE|$CAP|$TOTAL_CAP|$BUDGET_REVIEW|$REVIEW_EFFORT_MAX|$DEEP_REVIEW_EFFORT')" "pro|1|1|60 15 40|medium|medium"
 printf 'HOST_PROFILE=pro\nTOTAL_CAP=2\nREVIEW_EFFORT_MAX=high\n' > "$CANCCU_ROOT/config"

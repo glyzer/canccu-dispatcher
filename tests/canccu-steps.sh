@@ -36,6 +36,14 @@ ok "step: an empty step with an open checkpoint is current (idle); the next wait
 ok "step: a step whose state is still running stays current" \
   eq "$(cs "[$M1,$M2]" "[]" "[$W2]" '{"11":"health"}')" "[11]"
 ok "step: a done step is not current" eq "$(cs "[$M1,$M2]" "[]" "[$W2]" '{"11":"done"}')" "[12]"
+ok "#239: an idle step with work done and no health pass yet stays current (no checkpoint issue)" \
+  eq "$(cs "[$M1,$M2]" "[]" "[$W2]" '{"11":{"phase":"idle","health":""}}')" "[11]"
+ok "#239: … not once its health pass ran" eq "$(cs "[$M1,$M2]" "[]" "[$W2]" '{"11":{"phase":"idle","health":"merged"}}')" "[12]"
+ok "#239: … nor a step with no work done" \
+  eq "$(cs "[$(ms 11 "1 Skeleton"),$M2]" "[]" "[$W2]" '{"11":{"phase":"idle","health":""}}')" "[12]"
+ok "#239: … nor a done step" eq "$(cs "[$M1,$M2]" "[]" "[$W2]" '{"11":{"phase":"done","health":""}}')" "[12]"
+ok "#223: a follow-up ticket is not work: a step with only it open has work_open 0 (health-due can come)" \
+  eq "$(lib current_steps_pure "[$M1]" "[]" "[$(issue 8 follow-up "" "1 Skeleton")]" '{"11":{"phase":"idle","health":""}}' | jq -c '.[0].work_open')" 0
 ok "step: no milestone → no step (the fast lane only)" eq "$(cs "[]" "[]" "[$(issue 5 ready)]")" "[]"
 ok "step: the step data: epic, checkpoint, work counts" \
   eq "$(lib current_steps_pure "[$M1]" "[$(cpi 5 OPEN "1 Skeleton")]" "[$(issue 7 epic "" "1 Skeleton"),$(issue 8 ready "" "1 Skeleton")]" '{}' |

@@ -22,19 +22,21 @@ fetch_steps() {
   STEPS_OK=1
 }
 
-# step_phases: {"<m>": "<phase>"} of every step with a state file
+# step_phases: {"<m>": {"phase": …, "health": …}} of every step with a state file
 step_phases() {
   local f m
   { for f in "$CANCCU_HOME"/steps/*; do
-      m=${f##*/}; [[ $m =~ ^[0-9]+$ ]] && [ -f "$f" ] && printf '%s\t%s\n' "$m" "$(step_get "$m" phase)"
-    done; } | jq -Rn '[inputs | split("\t") | {key: .[0], value: .[1]}] | from_entries'
+      m=${f##*/}; [[ $m =~ ^[0-9]+$ ]] && [ -f "$f" ] && printf '%s\t%s\t%s\n' "$m" "$(step_get "$m" phase)" "$(step_get "$m" health)"
+    done; } | jq -Rn '[inputs | split("\t") | {key: .[0], value: {phase: .[1], health: .[2]}}] | from_entries'
 }
 
 # STEP_JQ: per open milestone, in milestone order: its track, work issues open and closed, epic,
 # checkpoint (the open one, else the newest closed one) and whether it is pending. Its values come
-# by --slurpfile (step_jq), each one as [value]
+# by --slurpfile (step_jq), each one as [value]. A step's phase is a string or {phase, health}.
+# An idle step with work done and no health pass yet is pending (#239): its last issue can close
+# after its wave ended, and the step keeps its turn until step_tick sets health-due.
 STEP_JQ="$MILESTONE_KEY_JQ"'
-  def work: [.labels[]?.name] | (index("epic") or index("checkpoint")) | not;
+  def work: [.labels[]?.name] | (index("epic") or index("checkpoint") or index("follow-up")) | not;
   [ $ms[0][] | select(.number != null) | .title as $t
     | ([ $is[0][] | select((.milestone.title // null) == $t) ]) as $mine
     | ([ $cps[0][] | select((.milestone.title // null) == $t) ]) as $cp
@@ -46,9 +48,11 @@ STEP_JQ="$MILESTONE_KEY_JQ"'
         checkpoint: (([ $cp[] | select(.state == "OPEN") ] | sort_by(.number) | first)
                      // ([ $cp[] ] | sort_by(.number) | last)
                      | if . == null then null else {issue: .number, state: (.state | ascii_downcase)} end),
-        phase: ($ph[0][(.number | tostring)] // null) }
+        st: ($ph[0][(.number | tostring)] // null | if type == "object" then . else {phase: .} end) }
+    | .phase = (.st.phase // null)
     | .pending = (.work_open > 0 or (.checkpoint.state == "open")
-                  or (.phase | IN("planning", "running", "health-due", "deep", "health", "checkpoint", "needs-you"))) ]
+                  or (.phase | IN("planning", "running", "health-due", "deep", "health", "checkpoint", "needs-you"))
+                  or (.phase == "idle" and .work_closed > 0 and ((.st.health // "") == ""))) | del(.st) ]
   | sort_by(.k, .title) | map(del(.k))'
 
 # current_steps_pure <milestones> <checkpoints> <open issues> <step phases> → the current steps:
@@ -459,20 +463,35 @@ step_holds_epic() {
 # there is none. A finished package's issue open again is not one: like any issue of the step, the
 # planner takes it with `ready` (merged_left leaves one with needs-you until a person looked).
 step_stop_reason() {
-  local m=$1 t c e
-  t=$(step_title "$m")
+  local m=$1 c e
   if [ -n "$(step_get "$m" done_at)" ]; then
     c=$(cur "$m" 'select(.checkpoint.state == "open") | .checkpoint.issue')
     [ -n "$c" ] && { echo "checkpoint #$c is open again, but the step was done"; return 0; }
     if (( $(cur "$m" .work_open) > 0 )); then
-      echo "the step was done and has new open work: $(jqr --arg t "$t" '[.[] | select((.milestone.title // null) == $t)
-        | select([.labels[].name] | (index("epic") or index("checkpoint")) | not) | "#\(.number)"] | join(", ")' <<<"$ISSUES")"
+      echo "the step was done and has new open work: $(step_open_work "$m")"
       return 0
     fi
   fi
   e=$(step_get "$m" epic)
   [ -n "$e" ] && [ "$(step_get "$m" phase)" != "done" ] && ! _issue_open "$e" && echo "its epic #$e is closed while the step runs"
   return 0
+}
+
+# step_open_work <m>: its open work issues, "#a, #b"
+step_open_work() {
+  jqr --arg t "$(step_title "$1")" '[.[] | select((.milestone.title // null) == $t)
+    | select([.labels[].name] | (index("epic") or index("checkpoint") or index("follow-up")) | not) | "#\(.number)"] | join(", ")' <<<"$ISSUES"
+}
+# checkpoint_back <m>: the checkpoint's "not yet, polish these first" is new work in the step
+# (#243), which must not wait for the checkpoint-ok it is meant to earn: the step plans it like
+# any, and once it is closed the health pass and the checkpoint come again, with a fresh summary.
+# The deep review is not redone: the polish is what it asked for.
+checkpoint_back() {
+  local m=$1 c; c=$(cur "$m" '.checkpoint.issue // empty')
+  [ -z "$c" ] || mut gh issue edit "$c" -R "$REPO" --remove-label needs-you || true
+  step_set "$m" phase=idle health= health_pr= checkpoint_at= checkpoint_url=
+  feed_settle "checkpoint-$m" "new work"
+  log "step $(step_title "$m"): new open work at its checkpoint ($(step_open_work "$m")); back to planning"
 }
 
 # ---------------------------------------------------------------- one step, once per pass
@@ -508,7 +527,8 @@ step_tick() {
     # a polish issue filed just now is not in this pass's snapshot (work_open 0): the health
     # pass would start with it open, so the step waits for the next pass's snapshot
     deep) deep_tick "$m"; [ "$(step_get "$m" phase)" = idle ] && return 0 ;;
-    health|checkpoint) checkpoint_tick "$m" ;;
+    checkpoint) if (( $(cur "$m" .work_open) > 0 )); then checkpoint_back "$m"; else checkpoint_tick "$m"; fi ;;
+    health) checkpoint_tick "$m" ;;
   esac
   ph=$(step_get "$m" phase)
   # every work issue closed: the step stays current (health-due) until its health pass starts
