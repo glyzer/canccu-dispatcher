@@ -45,6 +45,10 @@ ok "worker: engine.log names the run" eq "$(cat "$SCENARIO_DIR/engine.log")" "wo
 fe --quiet --name '#7' web "7 resume" turns=1 cost=1 min=1
 ok "worker: a later run resumes, round 2" eval 'grep -qF " · resume · done · " "$WORKERS_DIR/web-7.last" && grep -qx "worker 2 7 pr" "$SCENARIO_DIR/engine.log"'
 
+fe_env worker-pkg; key=pkg-3-scenario
+fe --quiet --key pkg-3-scenario --name 'pkg' web "work package \"scenario\": do all the issues of the package on one branch, pkg-3-scenario, created from origin/main" turns=1 cost=1 min=1
+ok "worker: a package's branch is the one its prompt names" eval 'git -C "$E/origin.git" rev-parse -q --verify pkg-3-scenario >/dev/null'
+
 # ---------------------------------------------------------------- fake engine: the scripted failures
 
 fe_env worker-crash; key=8
