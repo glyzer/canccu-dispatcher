@@ -69,6 +69,7 @@ notify_problem() {
   [ -n "${TELEGRAM_USER_ID:-}" ] || echo "TELEGRAM_USER_ID is not set: no reply on Telegram reaches the inbox (canccu-notify --project $CANCCU_PROJECT ids shows your id)"
   [ -z "${QUIET_HOURS:-}" ] || notify_quiet_range >/dev/null ||
     echo "QUIET_HOURS=$QUIET_HOURS is no <hour>-<hour> (for example 22-07): quiet hours are off"
+  notify_digest_problem
   notify_listen_problem
   return 0
 }
@@ -131,6 +132,8 @@ notify_event() {
   notify_wanted "$owner" "$class" "$kind" || return 0
   [ -z "$(nt_get sent "$id" 1)" ] || return 0
   [ "$kind" = idle ] && [ "$unit" != - ] && notify_unit_open "$unit" && return 0
+  # a queued item is the flush's (a failed flush left it in retry too): never sent twice
+  [ -n "$(nt_get queue "$id" 1)" ] && return 0
   if [ "$class" != interrupt ] && notify_holds; then notify_queue_add "$id"; return 0; fi
   notify_send "$id" "$kind" "$unit" "$pr" "$(notify_text "$class" "$kind" "$unit" "$pr" "$url" "$text")" || return 1
   [ "$class" = interrupt ] || notify_count

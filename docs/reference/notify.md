@@ -70,7 +70,7 @@ That message is a topic of its own (its units and PRs joined by commas), so a re
 the inbox; it closes once all its items settled. With no accept among the items, the last line is
 `Reply in an item's topic to answer it.` An item that settles while it waits is never sent.
 
-The digest goes once a day, at the first pass from `NOTIFY_DIGEST_HOUR` on (not in quiet hours),
+The digest goes once a day, at the first pass from `NOTIFY_DIGEST_HOUR` on (not in quiet hours: an hour inside them waits for their end, and the doctor says so),
 in a topic of its own (`Digest <day>`; in a private chat, a message of its own): the PRs merged in
 the last 24 hours and who accepted them, the runs running, the spend of the last 24 hours, and
 what waits for you. The items the cap held are in it, and the digest counts as sent for them. With

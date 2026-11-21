@@ -55,6 +55,10 @@ for kv in "NOTIFY_KINDS='accept plan question needs-you checkpoint step-done'" N
 done
 tg notify2-doctor QUIET_HOURS=late
 ok "doctor: a QUIET_HOURS that is no <hour>-<hour> is a line" grep -q 'QUIET_HOURS=late' <<<"$(lib notify_problem)"
+tg notify2-doctor-digest QUIET_HOURS=22-07 NOTIFY_DIGEST_HOUR=6
+ok "doctor: a NOTIFY_DIGEST_HOUR inside QUIET_HOURS is a line" grep -q 'NOTIFY_DIGEST_HOUR=6 falls inside QUIET_HOURS=22-07' <<<"$(lib notify_problem)"
+tg notify2-doctor-digest-ok QUIET_HOURS=22-07 NOTIFY_DIGEST_HOUR=7
+ok "… not one at the end of them" not grep -q 'NOTIFY_DIGEST_HOUR' <<<"$(lib notify_problem)"
 
 # ---------------------------------------------------------------- kinds
 
@@ -131,6 +135,15 @@ ok "… nothing else while they last, the batch window over or not" eq "$(calls 
 tick "$(at 07:00 1)"
 ok "… at their end the held items go as one batch" eq "$(loud | wc -l) $(loud | tail -1 | grep -c 'Reply: accept 50 60')" "2 1"
 CANCCU_NOW=$NOW
+
+# a held item whose flush failed waits in retry and in the queue: the next pass sends it once
+tg notify2-quiet-fail QUIET_HOURS=22-07 NOTIFY_BATCH_MIN=0
+units 5
+CANCCU_NOW=$(at 23:00) acc 5
+touch "$FAKE/tg-down"; tick "$(at 07:00 1)"; rm -f "$FAKE/tg-down"
+: > "$FAKE/tg.log"; tick "$(at 07:10 1)"; tick "$(at 07:20 1)"
+ok "quiet hours, a failed flush: the next pass sends the item once" eq "$(grep -c '^sendMessage .*PR #50 waits for your accept' "$FAKE/tg.log")" 1
+ok "… and counts it once against the cap" eq "$(grep -c '^2030-11-06	' "$(ND)/pushed")" 1
 
 # ---------------------------------------------------------------- the daily cap and the digest
 

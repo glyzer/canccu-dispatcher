@@ -21,12 +21,17 @@ notify_quiet_range() {
   (( a < 24 && b < 24 && a != b )) || return 1
   echo "$a $b"
 }
-# notify_quiet: now is in the quiet hours (22-07 runs over midnight)
+# notify_quiet [hour]: now (or that hour) is in the quiet hours (22-07 runs over midnight)
 notify_quiet() {
   local r a b h
   r=$(notify_quiet_range) || return 1
-  read -r a b <<<"$r"; h=$(notify_clock +%-H)
+  read -r a b <<<"$r"; h=${1:-$(notify_clock +%-H)}
   if (( a < b )); then (( h >= a && h < b )); else (( h >= a || h < b )); fi
+}
+# notify_digest_problem: the doctor's line when the digest's hour falls in the quiet hours
+notify_digest_problem() {
+  [[ ${NOTIFY_DIGEST_HOUR:-} =~ ^[0-9]{1,2}$ ]] && notify_quiet "$((10#$NOTIFY_DIGEST_HOUR))" || return 0
+  echo "NOTIFY_DIGEST_HOUR=$NOTIFY_DIGEST_HOUR falls inside QUIET_HOURS=$QUIET_HOURS: the digest goes when they end"
 }
 
 notify_day() { notify_clock +%F; }
