@@ -276,9 +276,11 @@ notify_svgs() {
   (( ${#out[@]} )) && { notify_photos "$1" "PR #$2 changes ${#out[@]} SVG file(s), rendered at ${3:0:7}"$'\n'"$(pr_url "$2")" "${out[@]}" >/dev/null || rc=1; }
   rm -rf "$d"; return "$rc"
 }
-# notify_images: once per passed head, the SVGs its PR changes
+# notify_images: once per passed head, the SVGs its PR changes. Only under NOTIFY_CONTENT=full:
+# otherwise only a first line, a last line and a link leave the host (contracts §4).
 notify_images() {
   local k pr sha
+  [ "${NOTIFY_CONTENT:-full}" = full ] || return 0
   for k in $(managed); do
     pr=$(st_get "$k" pr); sha=$(st_get "$k" pass_sha)
     [ -n "$pr" ] && [ -n "$sha" ] || continue

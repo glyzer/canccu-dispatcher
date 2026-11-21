@@ -121,7 +121,7 @@ refused. With no leader (`LEADER=off`), a topic closes by itself when its item s
 
 When a review passes a PR's head, the SVG files the PR changes are read from GitHub at that head,
 rendered with `rsvg-convert` (when it is installed; else one log line) and sent into the unit's
-topic, once per head. Images linked from a PR body are never fetched: that is worker text, and
+topic, once per head; under `NOTIFY_CONTENT=link` none are sent. Images linked from a PR body are never fetched: that is worker text, and
 fetching it would send the host to any URL. Other captures go through `canccu-notify photos`.
 
 ## Setting it up
