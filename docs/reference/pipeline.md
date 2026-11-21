@@ -55,13 +55,13 @@ Every `INTERVAL` seconds, under the project's lock:
        `needs-you`, "plan ready for OK"; another draft → `needs-you`;
      - CI pending → wait up to `CI_WAIT_MIN`, then `needs-you`; no check reported at all (never
        green) → wait up to `NO_CHECKS_MIN`, then `needs-you`; CI red → main is merged into the
-       branch by script (`git merge origin/main`, a normal push, no AI run) and CI runs again,
+       branch by script (`git merge origin/main`, a normal push, no AI run), CI runs again,
        since another merged PR may have caused it; a merge that conflicts is aborted and a fresh
-       session resolves it; still red with main in → the failed Actions jobs rerun once per head;
-       still red → a fresh fix session with the failing job's
-       log tail, at most `FIX_ATTEMPTS` automatic fix runs per PR (review fix rounds included),
-       then `needs-you`. Checks in `REVIEW_CHECKS` are ignored here. A `needs-you`
-       that only waited on CI goes back to `check` by itself once CI is green or red;
+       session resolves it; still red with main in → failed or cancelled Actions jobs rerun once
+       per head; still red → a fresh fix session with the failing job's log tail, at most
+       `FIX_ATTEMPTS` fix runs per PR (review fixes included), then `needs-you`. A job its
+       time limit ended reads "timed out"; `REVIEW_CHECKS` are ignored. A `needs-you`
+       that only waited on CI returns to `check` once CI is green or red;
      - CI green, no verdict, body lacking `Testing:`/`Revert:` (no contract, no `Tier: plan`)
        → worker resumed once (`body_lines`; no fix round; no back-off), then review;
      - CI green and no verdict for this head → the review (or, after a fix round, the

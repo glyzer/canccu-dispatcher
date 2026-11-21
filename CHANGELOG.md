@@ -16,6 +16,11 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
   ([`docs/reference/notify.md`](docs/reference/notify.md#when-it-is-sent)). New keys:
   `NOTIFY_KINDS`, `NOTIFY_BATCH_MIN`, `QUIET_HOURS`, `QUIET_TZ`, `NOTIFY_MAX_PER_DAY`,
   `NOTIFY_DIGEST_HOUR`, `NOTIFY_REMIND_H`.
+- A worker's test runs stay small by default (#250): the new `TEST_TIER` (`targeted` by
+  default and in both host profiles) tells every worker, fix round and fix-check to run only the
+  test files of the areas it touched plus `tests/run repo`; `full` has it run the full suite once
+  before the PR is ready. CI runs the full suite either way; `doctor` prints the tier
+  ([`hosts.md`](docs/reference/hosts.md#the-test-tier)).
 - CI: the `CI` job's time limit is 20 minutes, not 12: the suite now takes about 12 minutes on
   `ubuntu-latest`, and the job was cancelled at its limit.
 - The dispatcher claim (#15): one dispatcher per repo across hosts. A pinned issue labelled

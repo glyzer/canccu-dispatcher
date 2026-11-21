@@ -94,9 +94,23 @@ handoff() {
   else unit="issue #$k"; fi
   printf ' This run is on %s, branch %s. The repo'"'"'s AGENTS.md and CLAUDE.md hold the full rules.' "$unit" "${br:-$k}"
   # the first prompt's test rule (RUN_RULES) is the dispatcher's, not the repo's: it goes again
-  printf ' %s' "$HANDOFF_TEST_RULE"
+  printf ' %s' "$(test_rule handoff)"
 }
-HANDOFF_TEST_RULE='Tests: run only the tests of the files you change, in the foreground; CI runs the full suite on every push. Never paste whole test logs; never run a command in the background.'
+
+# test_rule [worker|handoff|fixcheck]: the test rule of TEST_TIER (#250) for the first prompt, a
+# follow-up run's or the fix-check's. Any value but full is targeted: a typo must not turn a
+# host's runs into full-suite runs. CI runs the full suite on every push at either tier.
+test_rule() {
+  local t=targeted; [ "${TEST_TIER:-}" = full ] && t=full
+  case ${1:-worker}-$t in
+    worker-targeted) echo 'Tests (test tier targeted): while working and before marking the PR ready, run only the test files of the areas you touched (the affected-tests command CLAUDE.md names, when it has one), in the foreground; do not run the full suite locally: CI runs it on every push.' ;;
+    worker-full) echo 'Tests (test tier full): while working, run only the tests of the files you change, in the foreground; before marking the PR ready, run the full suite once, in the foreground, bounded with timeout (CI runs it on every push too).' ;;
+    handoff-targeted) echo 'Tests (test tier targeted): run only the test files of the areas you touched and the repo checks, in the foreground; CI runs the full suite on every push. Never paste whole test logs; never run a command in the background.' ;;
+    handoff-full) echo 'Tests (test tier full): run the tests of the files you change, and the full suite once before you push, in the foreground, bounded with timeout; CI runs it on every push too. Never paste whole test logs; never run a command in the background.' ;;
+    fixcheck-targeted) echo 'Tests (test tier targeted): run at most the test files of the files the fix diff touches, in the foreground; never the full suite: CI runs it.' ;;
+    fixcheck-full) echo 'Tests (test tier full): you may run the full suite once, in the foreground, bounded with timeout; CI runs it too.' ;;
+  esac
+}
 
 
 # handoff_file <K>: the handoff a run nudged at the usage stop ended with (its final message); kept
@@ -185,35 +199,67 @@ conflict_task() {
 # ci_log_tail <pr>: the newest log lines of the first failing job of a red CI (its check links to
 # a GitHub Actions job); else how to read them
 ci_log_tail() {
-  local pr=$1 url jid t=""
-  url=$(jqr --argjson p "$pr" '.[] | select(.number == $p) | [.statusCheckRollup[]?
-      | select(((.conclusion // .state // "") | ascii_upcase) | IN("FAILURE", "TIMED_OUT", "ERROR", "STARTUP_FAILURE"))
-      | .detailsUrl // empty | select(test("/actions/runs/[0-9]+/job/[0-9]+"))] | first // empty' <<<"$PRS")
-  jid=$(grep -oE '/job/[0-9]+' <<<"$url" | grep -oE '[0-9]+$')
-  [ -n "$jid" ] && t=$(ghj run view --job "$jid" -R "$REPO" --log-failed 2>/dev/null | tail -n "${CI_LOG_LINES:-60}")
+  local pr=$1 run jid url="" t=""
+  IFS=$'\t' read -r run _ _ jid < <(ci_failed "$pr" | awk -F'\t' '$4 != ""' | head -n1)
+  if [ -n "${jid:-}" ]; then
+    url="https://github.com/$REPO/actions/runs/$run/job/$jid"
+    t=$(ghj run view --job "$jid" -R "$REPO" --log-failed 2>/dev/null | tail -n "${CI_LOG_LINES:-60}")
+  fi
   if [ -n "$t" ]; then printf 'The failing job (%s), the tail of its log: %s' "$url" "$(oneline 2500 "$t")"
   else printf 'Read the failing checks with gh pr checks %s -R %s and their logs with gh run view --log-failed.' "$pr" "$REPO"; fi
 }
 
-# ci_failed <pr>: the failed checks of the PR's head in $PRS, one per line: "<run id>\t<name>"; the
-# run id empty for a check that is not a GitHub Actions run. REVIEW_CHECKS are left out, as in
-# ci_state: they wait for the verdict, no rerun or fix makes them pass.
+# CI_TIMEDOUT: per Actions job id, whether its cancel was its own time limit (true/false). A job's
+# result never changes, so it is asked once per process; ci_timeouts_load fills it outside the
+# $(...) subshells that read it.
+declare -gA CI_TIMEDOUT=()
+# ci_job_timed_out <job id>: GitHub reports a job past its timeout-minutes as CANCELLED, like a
+# hand or concurrency cancel; only the job's annotation tells them apart. A failed lookup is not
+# kept: the next pass asks again.
+ci_job_timed_out() {
+  local r
+  if [ -z "${CI_TIMEDOUT[$1]:-}" ]; then
+    r=$(ghj api "repos/$REPO/check-runs/$1/annotations" -q '[.[].message // ""] | any(test("exceeded the maximum execution time"))' 2>/dev/null) || return 1
+    CI_TIMEDOUT[$1]=$r
+  fi
+  [ "${CI_TIMEDOUT[$1]}" = true ]
+}
+# ci_timeouts_load <pr>: CI_TIMEDOUT asked for every cancelled job of the PR's head
+ci_timeouts_load() {
+  local j
+  for j in $(jqr --argjson p "$1" --arg ign "${REVIEW_CHECKS:-}" "$CI_CHECKS"' ci_checks | .[]
+      | select(.s == "COMPLETED" and .c == "CANCELLED") | .u | capture("/job/(?<j>[0-9]+)").j // empty' <<<"$PRS"); do
+    ci_job_timed_out "$j" || true
+  done
+}
+
+# ci_failed <pr>: the checks that make ci_state red (the newest run per check, REVIEW_CHECKS left
+# out: they wait for the verdict, no rerun or fix makes them pass), one per line:
+# "<run id>\t<name>\t<conclusion>\t<job id>", the ids empty for a check that is no GitHub Actions
+# run. A cancel by the job's own time limit is TIMED_OUT here.
 ci_failed() {
-  jqr --argjson p "$1" --arg ign "${REVIEW_CHECKS:-}" '($ign | split(" ") | map(select(. != ""))) as $ig
-      | .[] | select(.number == $p) | .statusCheckRollup[]?
-      | select((.name // .context) as $x | $ig | index($x) | not)
-      | select(((.conclusion // .state // "") | ascii_upcase) | IN("FAILURE", "TIMED_OUT", "ERROR", "STARTUP_FAILURE"))
-      | "\((.detailsUrl // .targetUrl // "") | capture("/actions/runs/(?<id>[0-9]+)/").id // "")\t\(.name // .context // "?")"' <<<"$PRS"
+  local run name c jid
+  jqr --argjson p "$1" --arg ign "${REVIEW_CHECKS:-}" "$CI_CHECKS"' ci_checks | .[]
+      | select(.s == "COMPLETED" and (.c | ci_bad))
+      | [(.u | capture("/actions/runs/(?<id>[0-9]+)/").id // ""), .n, .c, (.u | capture("/job/(?<j>[0-9]+)").j // "")] | join("\u001f")' <<<"$PRS" |
+    # a tab would do as the separator, but read folds a run of tabs: an empty run id would vanish
+    while IFS=$'\x1f' read -r run name c jid; do
+      [ "$c" = CANCELLED ] && [ -n "$jid" ] && ci_job_timed_out "$jid" && c=TIMED_OUT
+      printf '%s\t%s\t%s\t%s\n' "$run" "$name" "$c" "$jid"
+    done
 }
-# ci_names <pr>: the failed checks' names, comma-separated, at most 5 then …
+# ci_names <pr>: the failed checks' names, comma-separated, at most 5 then …; one that did not
+# fail outright says how it ended: "CI (timed out)", "CI (cancelled)"
 ci_names() {
-  ci_failed "$1" | cut -f2 | awk '!seen[$0]++' | awk 'NR <= 5 { o = o (NR > 1 ? ", " : "") $0 } NR == 6 { o = o ", …" } END { printf "%s", o }'
+  ci_failed "$1" | awk -F'\t' '{ c = tolower($3); gsub("_", " ", c); print (c == "failure" ? $2 : $2 " (" c ")") }' |
+    awk 'NR <= 5 { o = o (NR > 1 ? ", " : "") $0 } NR == 6 { o = o ", …" } END { printf "%s", o }'
 }
+# ci_timed_out <pr>: the timed-out checks' names, comma-separated
+ci_timed_out() { ci_failed "$1" | awk -F'\t' '$3 == "TIMED_OUT" { o = o (o == "" ? "" : ", ") $2 } END { printf "%s", o }'; }
 # ci_fresh <pr> <epoch>: a failed check of the head completed after that time (a rerun since has ended)
 ci_fresh() {
-  [ "$(jqr --argjson p "$1" --arg t "$(iso "$2")" '[.[] | select(.number == $p) | .statusCheckRollup[]?
-      | select(((.conclusion // .state // "") | ascii_upcase) | IN("FAILURE", "TIMED_OUT", "ERROR", "STARTUP_FAILURE"))
-      | select((.completedAt // "") > $t)] | length' <<<"$PRS")" != 0 ]
+  [ "$(jqr --argjson p "$1" --arg ign "${REVIEW_CHECKS:-}" --arg at "$(iso "$2")" "$CI_CHECKS"' [ci_checks | .[]
+      | select(.s == "COMPLETED" and (.c | ci_bad) and .t > $at)] | length' <<<"$PRS")" != 0 ]
 }
 
 # ci_run_busy <pr> <run id>: a check of that Actions run on the PR's head has not completed
@@ -257,9 +303,8 @@ fix_max() { [[ ${FIX_ATTEMPTS:-} =~ ^[0-9]+$ ]] && echo "$FIX_ATTEMPTS" || echo 
 # automatic fix runs per PR, one conflict run and one rerun per head and MERGE_TRIES failed merges
 # in a row, then needs-you (naming the failed checks): nothing repeats unbounded.
 ci_red() {
-  local k=$1 pr=$2 head mm at err task f ra
+  local k=$1 pr=$2 head mm at err task f ra to
   head=$(pr_get "$pr" .headRefOid); mm=$(st_get "$k" main_merged); at=$(st_get "$k" check_at)
-  f=$(ci_names "$pr"); f=${f:+; failed: $f}
   # pushed a merge of main, but GitHub still lists the old head: its red is not the new head's.
   # Only for a while: a push by someone else since would hold it forever.
   if [ -n "$mm" ] && [ "$head" != "$mm" ] && (( $(now) - ${at:-0} < 600 )); then log "#$k PR #$pr: main merged in; waiting for GitHub to list ${mm:0:7}"; return 0; fi
@@ -268,6 +313,8 @@ ci_red() {
   if [ -n "$ra" ] && [ "$(st_get "$k" ci_rerun)" = "$head" ] && (( $(now) - ra < 600 )) && ! ci_fresh "$pr" "$ra"; then
     log "#$k PR #$pr: failed jobs rerun; waiting for their result"; return 0
   fi
+  ci_timeouts_load "$pr"
+  f=$(ci_names "$pr"); f=${f:+; failed: $f}
   (( $(fix_max) > 0 )) || { needs_you "$k" "CI is red on PR #$pr$f" "$(run_msg "$k")" "" ci; return; }
   main_merge "$k" "$pr"
   [ "$MERGED" = error ] || st_set "$k" mm_err=
@@ -291,9 +338,15 @@ ci_red() {
   may_start "$k" || return 0
   if [ "$MERGED" = current ]; then task="CI is red on PR #$pr, with $BASE_BRANCH already merged in, so the failure is the PR's. Fix it,"
   else task="CI is red on PR #$pr; $BASE_BRANCH was not merged in by script ($MERGE_WHY). First run git merge origin/$BASE_BRANCH (a normal merge and push, never a rebase or force-push), then fix what is still red,"; fi
+  # a timed-out check's log often ends with no failure in it: the run is told what to look for
+  to=$(ci_timed_out "$pr")
+  if [ -n "$to" ]; then
+    [[ $to == *,* ]] && to="$to were cancelled at their own time limit (timed out)" || to="$to was cancelled at its own time limit (timed out)"
+    task="$task knowing that $to, so look for what runs too long or hangs,"
+  fi
   resume "$k" "$task rerun the checks, push once and stop: the dispatcher watches CI. $(ci_log_tail "$pr")" ci || return 0
   fix_count "$k" "$pr"
-  log "#$k PR #$pr: CI red; fix run $(fixes_used "$k" "$pr") of $(fix_max)"
+  log "#$k PR #$pr: CI red; fix run $(fixes_used "$k" "$pr") of $(fix_max)$f"
 }
 
 # finish_once <K>: a run that ended with work in its worktree but no PR (its turn ended while work

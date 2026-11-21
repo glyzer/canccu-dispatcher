@@ -9,6 +9,7 @@ change a setting and the settings table are in [`config.md`](config.md); the rul
 
 | Key | Default | Meaning |
 |---|---|---|
+| `TEST_TIER` | `targeted` | The test rule of worker prompts, fix rounds and the fix-check ([`hosts.md`](hosts.md#the-test-tier)): `targeted`, the touched areas' tests plus `tests/run repo`; `full`, the full suite once before ready. Other values: `targeted` |
 | `STEP_BUDGET` | `400` | USD per step: its planner, package, review, fix-check, answerer and health runs ([`steps.md`](steps.md)) |
 | `BUDGET_PLAN` | `60 10 30` | The planner of a step's wave |
 | `BUDGET_HEALTH` | `250 60 150` | The health pass at the end of a step |

@@ -131,9 +131,11 @@ A package adds its setting with the name and default below (rule 5 of the plan a
 | `BRAKE_WINDOW` | 20 | merged PRs the review measurement and the brake's escaped-defect trigger count over | L1 | yes |
 | `WORKER_WATCHES_CI` | 1 | 0: workers stop at "PR ready" and the dispatcher watches CI | P2 | no |
 | `NOTIFY` | github | `github`, `telegram`, both, or `off` | 0.3 | yes |
-| `NOTIFY_BATCH_MIN` | 30 | asks are collected this long into one message; 0 sends each at once | 0.3 | no |
-| `NOTIFY_MAX_PER_DAY` | 8 | pushed messages above this go to the digest; `interrupt` is never capped | 0.3 | no |
-| `NOTIFY_REMIND_H` | 12 | one reminder for an open ask after this many hours; 0: none | 0.3 | no |
+| `NOTIFY_KINDS` | `accept plan question needs-you checkpoint step-done` | the feed kinds pushed to the product owner; class `interrupt` is always pushed whatever this list says; `pr-needs-you` and `run-ended` count as `needs-you`; `idle` and `hold` are off unless named, and `idle` is never pushed while the unit has an open item | 0.3 | no |
+| `NOTIFY_BATCH_MIN` | 10 | items that come within this many minutes go as one message; 0 sends each at once | 0.3 | no |
+| `NOTIFY_MAX_PER_DAY` | 12 | pushed messages above this go to the digest; `interrupt` is never capped | 0.3 | no |
+| `NOTIFY_REMIND_H` | 0 | an item open longer than this many hours is listed again in the next digest, never as a message of its own; 0: none | 0.3 | no |
+| `NOTIFY_DIGEST_HOUR` | empty | the hour (`QUIET_TZ`'s clock) the day's digest goes to Telegram, as its own topic; empty: never | 0.3 | no |
 | `QUIET_HOURS` | empty | for example `22-07`; empty switches quiet hours off | 0.3 | no |
 | `QUIET_TZ` | empty | the clock `QUIET_HOURS` uses; empty: the host's | 0.3 | no |
 

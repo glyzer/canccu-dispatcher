@@ -7,8 +7,9 @@ Part of the reference; the index is [`README.md`](README.md). Every config key i
 ## Host profiles
 
 A host profile pins only the values that depend on the Claude plan: the caps, the budgets, the
-usage throttle, the run models and the review effort. Every other key is the same under both
-(`tests/canccu-hosts.sh` checks), so a later change to the defaults does not move a running host.
+usage throttle, the run models, the review effort and the test tier. Every other key is the same
+under both (`tests/canccu-hosts.sh` checks), so a later change to the defaults does not move a
+running host.
 `~/.canccu/config` overrides any of them. `install.sh --host-profile <name>` adds
 `HOST_PROFILE=<name>` to a config without that key.
 
@@ -25,11 +26,21 @@ usage throttle, the run models and the review effort. Every other key is the sam
 | `FIXCHECK_MODEL` | empty: `MODEL` | `claude-opus-5-5` |
 | `HEALTH_MODEL` | empty: `MODEL` | `claude-sonnet-5-5` |
 | `REVIEW_EFFORT_MAX`, `DEEP_REVIEW_EFFORT` | `high`, `high` | `medium`, `medium` |
+| `TEST_TIER` | `targeted` | `targeted` |
 
 The Pro limit is parallelism, not run length: one run at a time, with the same budgets as
 `max` (the product owner's decision in #168). Under v2 a Max host runs two at once. A Pro
 review never runs above medium effort, a risky or gated path included (`medium capped` in the
 review's log line).
+
+### The test tier
+
+`TEST_TIER` decides what a run tests locally, and the worker's prompt says so: `targeted` (both
+profiles, and the default) runs only the test files of the areas the run touched plus the repo
+checks (`tests/run repo`), never the full suite; `full` runs the full suite once before the PR is
+marked ready. A review fix round, a red-CI fix and the fix-check follow the same tier. CI runs the
+full suite on every push either way, and it is required before merge. `canccu-dispatcher doctor`
+prints the host's tier, and a project's own when its `config` sets another.
 
 To use another value, set its key in `~/.canccu/config` (every project of the host) or in a
 project's `config` (that project only); either wins over the profile, for example
