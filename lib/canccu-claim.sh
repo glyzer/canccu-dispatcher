@@ -51,10 +51,15 @@ claim_parse() {
   CLAIM_AT=$(iso_epoch "$at")
   return 0
 }
-# claim_read: the claim as GitHub has it now; 1 on a gh error
+# claim_read [<new issue> <host>]: the claim as GitHub has it now; 1 on a gh error. GitHub lists a
+# new issue a few seconds late: the claim issue this pass created counts as listed, with its body.
 claim_read() {
   local j
   j=$(ghj issue list -R "$REPO" -s open -l "$CLAIM_LABEL" -L 20 --json number,body) || return 1
+  if [ -n "${1:-}" ]; then
+    j=$(_claim_jq -c --argjson n "$1" --arg b "host: $2"$'\n'"at: $(iso "$(now)")" \
+      'if any(.[]; .number == $n) then . else . + [{number: $n, body: $b}] end' <<<"$j") || return 1
+  fi
   claim_parse "$j"
 }
 # claim_free: the claim read is released (no host) or older than CLAIM_EXPIRY_MIN
@@ -131,6 +136,7 @@ claim_gh_error() {
 # GitHub shows holds it. Our own claim is written at most every CLAIM_RENEW_MIN.
 claim_tick() {
   local id
+  CLAIM_NEW=""
   id=$(host_id)
   if [ -z "$id" ]; then
     (( CANCCU_DRY )) && { echo "  would: write $(canccu_tilde "$CANCCU_ROOT")/host-id, then claim the repo"; return 0; }
@@ -153,7 +159,7 @@ claim_tick() {
     claim_foreign; return
   fi
   (( CANCCU_DRY )) && return 0
-  claim_read || { claim_gh_error; return; }
+  claim_read "$CLAIM_NEW" "$id" || { claim_gh_error; return; }
   if [ "$CLAIM_HOST" = "$id" ]; then claim_ours; return; fi
   # another host created one at the same moment and its issue is the lower: ours goes
   [ -n "${CLAIM_NEW:-}" ] && [ "$CLAIM_NEW" != "$CLAIM_ISSUE" ] && mut gh issue close "$CLAIM_NEW" -R "$REPO" >/dev/null
@@ -172,7 +178,7 @@ claim_release() {
 
 # claim_take_over: canccu-dispatch --take-over: print whose the claim is, take it for this host
 claim_take_over() {
-  local id; id=$(host_id)
+  local id; id=$(host_id); CLAIM_NEW=""
   [ -n "$id" ] || die "$(canccu_tilde "$CANCCU_ROOT")/host-id is not 16 hex characters (remove it: a new one is written)"
   claim_read || die "gh error reading the dispatcher claim of $REPO; nothing taken"
   if [ -z "$CLAIM_ISSUE" ]; then
@@ -185,7 +191,7 @@ claim_take_over() {
     claim_write "$CLAIM_ISSUE" "$id" || die "gh error writing the claim on #$CLAIM_ISSUE; nothing taken"
   fi
   (( CANCCU_DRY )) && return 0
-  claim_read && [ "$CLAIM_HOST" = "$id" ] || die "the claim on #${CLAIM_ISSUE:-?} does not show this host after the write; read it again with canccu-status"
+  claim_read "$CLAIM_NEW" "$id" && [ "$CLAIM_HOST" = "$id" ] || die "the claim on #${CLAIM_ISSUE:-?} does not show this host after the write; read it again with canccu-status"
   claim_ours
   log "claim: #$CLAIM_ISSUE taken over by hand (canccu-dispatch --take-over)"
   echo "this host ($id${HOST_LABEL:+, $HOST_LABEL}) holds #$CLAIM_ISSUE now"
