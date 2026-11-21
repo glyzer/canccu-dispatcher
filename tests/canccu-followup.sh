@@ -18,7 +18,7 @@ ok "a review fix round starts a fresh session" grep -q -- ' --fresh ' <<<"$l"
 ok "… its task first, after the safety block" grep -q 'web 5 Rules for this run: .* next action\. The independent reviewer asked for changes on PR #50 ' <<<"$l"
 ok "… the handoff: the PR's link" grep -qF 'https://github.com/example-org/web/pull/50' <<<"$l"
 ok "… the branch's commits" grep -qF 'abc1234 feat: the thing' <<<"$l"
-ok "… the test rule of the first prompt" grep -qF 'Tests: run only the tests of the files you change, in the foreground; CI runs the full suite on every push.' <<<"$l"
+ok "… the test rule of the first prompt, at the host's tier (#250)" grep -qF 'Tests (test tier targeted): run only the test files of the areas you touched and the repo checks, in the foreground; CI runs the full suite on every push.' <<<"$l"
 ok "… the last report" grep -qF 'status: done PR URL:' <<<"$l"
 ok "… the safety block first (#88)" grep -qF -- "web 5 $(lib eval 'echo "$SAFETY_BLOCK"') The independent reviewer asked" <<<"$l"
 ok "… short findings inline, with their file" grep -qF "$HA (also in $CANCCU_HOME/reviews/50/$HA.findings.md)" <<<"$l"
@@ -32,6 +32,13 @@ dispatch --once
 ok "RESUME_ON names fix → the session resumes" not grep -q -- ' --fresh ' <<<"$(wline)"
 ok "… with the plain message, no handoff" not grep -q 'This run is a fresh session' <<<"$(wline)"
 ok "… no safety block: the session has its rules (#88)" grep -q 'web 5 The independent reviewer asked for changes on PR #50 .*The blocking findings: 1. src/a.ts:3 off by one' <<<"$(wline)"
+ok "… the fix round's test tier (#250)" grep -qF 'Tests (test tier targeted): run only the test files' <<<"$(wline)"
+review_env resume-fix-full 'Review verdict: changes' review RESUME_ON=answer,plan,fix TEST_TIER=full
+dispatch --once
+ok "TEST_TIER=full: the resumed fix round runs the full suite before its push" grep -qF 'Tests (test tier full): run the tests of the files you change, and the full suite once before you push' <<<"$(wline)"
+review_env fresh-fix-full 'Review verdict: changes' review TEST_TIER=full
+wt5; dispatch --once
+ok "… a fresh fix round too" grep -qF 'Tests (test tier full): run the tests of the files you change' <<<"$(wline)"
 
 # #88: a fix round's long findings never push the rules out of the prompt
 ok "the safety block is at most 600 characters" eq "$(lib eval '(( ${#SAFETY_BLOCK} <= 600 )) && echo short')" short

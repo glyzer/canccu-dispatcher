@@ -6,6 +6,11 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 
 ## Unreleased
 
+- A worker's test runs stay small by default (#250): the new `TEST_TIER` (`targeted` by
+  default and in both host profiles) tells every worker, fix round and fix-check to run only the
+  test files of the areas it touched plus `tests/run repo`; `full` has it run the full suite once
+  before the PR is ready. CI runs the full suite either way; `doctor` prints the tier
+  ([`hosts.md`](docs/reference/hosts.md#the-test-tier)).
 - A worker that pushed its branch but could not open the PR (its `gh pr create` denied, or a
   finish run spent) no longer ends in `needs-you` (#237): the dispatcher opens the PR itself, from
   the worker's body file inside its worktree or a body built from the issue and the run's

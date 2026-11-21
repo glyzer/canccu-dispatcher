@@ -109,6 +109,16 @@ ok "HOST_PROFILE=pro: Sonnet runs, fixes and health; Opus plans, every review an
 printf 'HOST_PROFILE=pro\nMODEL=x\n' > "$CANCCU_ROOT/config"
 ok "… MODEL in ~/.canccu/config overrides it" eq "$(load '$MODEL|$REVIEW_MODEL')" "x|claude-opus-5-5"
 
+# ---------------------------------------------------------------- the test tier (#250)
+
+tname=test-tier
+for h in max pro; do
+  ok "hosts/$h.conf sets TEST_TIER=targeted" eq "$( (CANCCU_ROOT=/nonexistent; . "$root/hosts/$h.conf"; echo "${TEST_TIER-unset}") )" targeted
+done
+env_new tier-load
+printf 'HOST_PROFILE=pro\nTEST_TIER=full\n' > "$CANCCU_ROOT/config"
+ok "… ~/.canccu/config overrides it" eq "$(load '$TEST_TIER')" full
+
 # ---------------------------------------------------------------- the same project on both (#14)
 
 tname=both
