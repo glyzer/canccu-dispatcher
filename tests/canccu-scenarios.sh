@@ -129,6 +129,7 @@ run_env() {
   route 'pr list -R example-org/web -s all*' prs-all.json
   cat > "$E/stub" <<'STUB'
 #!/usr/bin/env bash
+[ -e "$FAKE/pr-branch" ] && git -C "$SCENARIO_DIR/../code/sandbox" push -q origin HEAD:refs/heads/5-scenario 2>/dev/null   # the worker's PR branch, made in the run
 cat "$FAKE/engine.lines" >> "$SCENARIO_DIR/engine.log"; echo "2030-11-05T12:00:00Z PR #50 posted as review-bot" >> "$CANCCU_HOME/dispatch.log"
 n=$(cat "$FAKE/passes" 2>/dev/null); echo $(( ${n:-0} + 1 )) > "$FAKE/passes"
 [ -n "$n" ] && [ -e "$FAKE/prs-next.json" ] && mv "$FAKE/prs-next.json" "$FAKE/prs-all.json"
@@ -164,6 +165,8 @@ run_env single; world_is "$I_CLOSED" "$MERGED"; srun --repo example-org/web sing
 ok "single: its end state passes" eq "$rc $(cat "$E/out")" "0 single: pass"
 ok "single: the reset closed the open PRs and issues, then moved main to the tag" eval \
   'grep -q "^pr list -R example-org/web -s open" "$FAKE/gh.log" && grep -q "^issue list -R example-org/web -s open -l scenario" "$FAKE/gh.log"'
+ok "single: the reset deleted the stale branches (a package branch of an earlier run rejects the push)" \
+  not git -C "$E/sandbox.git" rev-parse -q --verify refs/heads/5-scenario
 ok "single: the issue it made is labelled scenario and ready" grep -qE '^issue create -R example-org/web --title scenario single: .* --label scenario --label ready' "$FAKE/gh.log"
 ok "single: the reset closes the claims of earlier scenarios (each one is a host of its own)" \
   grep -q '^issue list -R example-org/web -s open -l dispatcher-claim' "$FAKE/gh.log"
@@ -215,12 +218,12 @@ ok "… and no reset for it (the skip comes before its home)" not grep -q '^issu
 world_is "$I_CLOSED" "$MERGED"; srun --repo example-org/web queue-removal single
 ok "… with the rest passing, the run exits 0" eq "$rc $(tr '\n' '|' < "$E/out")" "0 queue-removal: SKIP no merge queue|single: pass|"
 
-run_env late; world_is "$I_CLOSED" "$OPEN"; printf '%s\n' "$MERGED" > "$FAKE/prs-next.json"
+run_env late; : > "$FAKE/pr-branch"; world_is "$I_CLOSED" "$OPEN"; printf '%s\n' "$MERGED" > "$FAKE/prs-next.json"
 echo 'review 1 review-50 pass' > "$FAKE/engine.lines"
 tmo=3 srun --repo example-org/web push-after-pass
 ok "push-after-pass: no fix-check after the push fails" eq "$rc $(grep -c 'no fix-check after the push' "$E/out")" "1 1"
 ok "push-after-pass: the suite pushed a commit to the PR's branch" eq "$(git -C "$E/sandbox.git" log -1 --format=%s 5-scenario)" "scenario: a push after the pass"
-run_env late2; world_is "$I_CLOSED" "$OPEN"; printf '%s\n' "$MERGED" > "$FAKE/prs-next.json"
+run_env late2; : > "$FAKE/pr-branch"; world_is "$I_CLOSED" "$OPEN"; printf '%s\n' "$MERGED" > "$FAKE/prs-next.json"
 printf '%s\n' 'review 1 review-50 pass' 'fixcheck 1 review-50 pass' > "$FAKE/engine.lines"
 tmo=3 srun --repo example-org/web push-after-pass
 ok "push-after-pass: a fix-check, then the merge: passes" eq "$rc $(cat "$E/out")" "0 push-after-pass: pass"

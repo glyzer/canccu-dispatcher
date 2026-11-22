@@ -39,8 +39,9 @@ home() {
 }
 
 # reset: close every open PR (its branch deleted), every open issue labelled scenario and every
-# open dispatcher claim, then move main back to the tag scenario-base: the one force-push of the
-# suite, to the sandbox only
+# open dispatcher claim, delete every branch but main (an earlier run's package branch, pkg-1-*,
+# would reject this run's first push), then move main back to the tag scenario-base: the one
+# force-push of the suite, to the sandbox only
 reset() {
   local n
   for n in $(gh pr list -R "$REPO" -s open -L 100 --json number -q '.[].number'); do
@@ -54,7 +55,11 @@ reset() {
   done
   must git -C "$CLONE" fetch -q origin tag scenario-base &&
     must git -C "$CLONE" push -q --force origin 'scenario-base^{commit}:refs/heads/main' &&
-    must git -C "$CLONE" fetch -q origin
+    must git -C "$CLONE" fetch -q --prune origin || return 1
+  local b
+  for b in $(git -C "$CLONE" for-each-ref --format='%(refname:lstrip=3)' refs/remotes/origin); do
+    case $b in main|HEAD) ;; *) must git -C "$CLONE" push -q origin --delete "$b" || return 1 ;; esac
+  done
 }
 
 # new_issue <title> [gh issue create flags...]: a ready issue of this scenario; echoes its number
