@@ -42,7 +42,8 @@ pr_body() {   # pr_body <Closes|Refs> <key>: the body AGENTS.md prescribes
   local n
   for n in $(closes "$2"); do echo "$1 #$n"; done
   printf '\n%s\n' 'Package: -' 'Risk: low — a scenario of the suite' 'Tier: fix' \
-    'Decisions made:' '- none' 'Next action: review' 'Verification run: none (a scenario)'
+    'Decisions made:' '- none' 'Next action: review' 'Verification run: none (a scenario)' \
+    'Testing: none (a scenario)' 'Revert: plain revert'
 }
 
 commit_push() {   # commit_push <branch> <what> [nopush]
@@ -57,13 +58,20 @@ open_pr() {   # open_pr <branch> <Closes|Refs> <key> [--draft]: unless the branc
   gh pr create --head "$1" --title "scenario: $3${4:+ (draft)}" --body "$(pr_body "$2" "$3")" ${4:+"$4"} >&2
 }
 
-# play_worker <repo> <key> <dir> <action>: echoes "<status>|<message>"
+# prompt_branch <prompt>: the branch the worker prompt names (a package's "on one branch, <br>,",
+# an issue's "Create your branch <br> from"); nothing when it names none
+prompt_branch() {
+  sed -nE 's/.*on one branch, ([A-Za-z0-9._\/-]+),.*/\1/p; s/.*Create your branch ([A-Za-z0-9._\/-]+) from.*/\1/p' <<<"$1" | head -1
+}
+
+# play_worker <repo> <key> <dir> <action> <prompt>: echoes "<status>|<message>"
 play_worker() {
   local repo=$1 key=$2 wt=$3 br
   [ -d "$wt" ] || git -C "$CODE_ROOT/$repo" worktree add -q --detach "$wt" origin/main >&2 ||
     { echo "crashed (exit 1)|no worktree"; return; }
   cd "$wt" || { echo "crashed (exit 1)|no worktree"; return; }
-  br=$(git branch --show-current); [ -n "$br" ] || { br=$key-scenario; git switch -q -c "$br" >&2; }
+  br=$(git branch --show-current)
+  [ -n "$br" ] || { br=$(prompt_branch "$5"); br=${br:-$key-scenario}; git switch -q -c "$br" >&2; }
   case $4 in
     pr) commit_push "$br" "$key $4" && open_pr "$br" Closes "$key" &&
           { gh pr ready "$br" >&2 2>/dev/null || true; } && echo "done|opened the PR" ;;   # a contract unit's draft
@@ -90,13 +98,15 @@ play_worker() {
 
 # play_review <key> <dir> <action>: the review file for the head the run sits at
 play_review() {
-  local pr=${1#review-} sha f
+  local pr=${1#review-} sha f none=$'Non-blocking:\n- none\nPre-existing:\n- none' zero='Findings: 0 blocking, 0 non-blocking, 0 pre-existing'
   sha=$(git -C "$2" rev-parse HEAD) || { echo "crashed (exit 1)|no head"; return; }
   f=$CANCCU_HOME/reviews/$pr/$sha.md; mkdir -p "${f%/*}"
   case $3 in
-    pass) printf '%s\n' 'Blocking:' '- none' '' "Review verdict: pass $sha" > "$f" ;;
-    pass-accept) printf '%s\n' 'Blocking:' '- none' '' 'Maintainer accept: a scenario of the suite' '' "Review verdict: pass $sha" > "$f" ;;
-    changes) printf '%s\n' 'Blocking:' '1. scenario/x.txt:1 — the scenario asks for one fix; fix: commit again' '' "Review verdict: changes $sha" > "$f" ;;
+    # the finding block and its count line (lib/canccu-verdict.sh), then the verdict
+    pass) printf '%s\n' 'Blocking:' '- none' "$none" "$zero" '' "Review verdict: pass $sha" > "$f" ;;
+    pass-accept) printf '%s\n' 'Blocking:' '- none' "$none" "$zero" '' 'Maintainer accept: a scenario of the suite' '' "Review verdict: pass $sha" > "$f" ;;
+    changes) printf '%s\n' 'Blocking:' '1. [correctness] scenario/x.txt:1 — the scenario asks for one fix; fix: commit again' \
+               '   Evidence: the scenario script says changes' "$none" 'Findings: 1 blocking, 0 non-blocking, 0 pre-existing' '' "Review verdict: changes $sha" > "$f" ;;
     *) echo "crashed (exit 1)|unknown review action $3"; return ;;
   esac
   echo "done|wrote $f"
@@ -121,7 +131,7 @@ run() {
   echo "$role $round $key $act" >> "$SCENARIO_DIR/engine.log"
   sleep "$SCENARIO_RUN_SEC"
   case $role in
-    worker) out=$(play_worker "$repo" "$key" "$dir" "$act") ;;
+    worker) out=$(play_worker "$repo" "$key" "$dir" "$act" "$prompt") ;;
     review|fixcheck) out=$(play_review "$key" "$dir" "$act") ;;
     plan) out=$(play_plan "$key" "$prompt") ;;
   esac

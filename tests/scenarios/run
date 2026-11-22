@@ -6,11 +6,13 @@
 #   tests/scenarios/run --repo <owner/sandbox> [--keep] [scenario...]
 # Per scenario: reset the sandbox, make its issues, run `canccu-dispatch --once` every
 # SCENARIO_PASS_SEC (20) until its end state holds or SCENARIO_TIMEOUT_MIN (15) pass, and check
-# it with gh. Prints "<scenario>: pass" or "<scenario>: FAIL <why>". Exit 0 all passed, 1 a
-# scenario failed, 2 a usage error or a sandbox that is not set up. Not part of tests/run, nor CI.
+# it with gh. Prints "<scenario>: pass", "<scenario>: FAIL <why>", or "queue-removal: SKIP no merge
+# queue" (main has none: not a failure). Exit 0 all passed or skipped, 1 a scenario failed, 2 a
+# usage error or a sandbox that is not set up (tests/scenarios/setup sets one up). Not part of
+# tests/run, nor CI.
 set -uo pipefail
 root=$(cd "$(dirname "$0")/../.." && pwd); here=$root/tests/scenarios
-usage() { sed -n '3,9s/^# \{0,1\}//p' "$0" >&2; exit 2; }
+usage() { sed -n '3,13s/^# \{0,1\}//p' "$0" >&2; exit 2; }
 die2() { echo "scenarios: $1" >&2; exit 2; }
 
 REPO="" keep=0 want=()
@@ -33,6 +35,8 @@ mine=$(git -C "$root" remote get-url origin 2>/dev/null | sed -E 's#^(https://[^
 [ "$(gh api "repos/$REPO" --jq .permissions.push 2>/dev/null)" = true ] || die2 "the gh login cannot push to $REPO"
 gh api "repos/$REPO/git/ref/tags/scenario-base" >/dev/null 2>&1 || die2 "$REPO has no tag scenario-base"
 LOGIN=$(gh api user --jq .login 2>/dev/null) || die2 "no gh login"
+# the label of the scenarios' issues: made when missing (--force keeps one that is there)
+gh label create scenario -R "$REPO" --force >/dev/null 2>&1 || die2 "cannot create the label scenario in $REPO"
 CLONE_URL=${SCENARIO_CLONE_URL:-https://github.com/$REPO.git}
 PASS_SEC=${SCENARIO_PASS_SEC:-20} TIMEOUT_SEC=${SCENARIO_TIMEOUT_SEC:-$(( ${SCENARIO_TIMEOUT_MIN:-15} * 60 ))}
 # the pass of the suite: the real dispatcher with the fake engine; a test replaces it
@@ -48,7 +52,8 @@ one() (
   sc_tick() { :; }
   # shellcheck source=/dev/null
   . "$here/$1.sh"
-  home "$1" && reset && sc_setup || { echo "$1: FAIL setup: ${WHY:-see $SCENARIO_DIR}"; return 1; }
+  home "$1" && reset && sc_setup ||
+    { echo "$1: FAIL setup: ${WHY:-$(cat "$SCENARIO_DIR/why" 2>/dev/null || echo "see $SCENARIO_DIR")}"; return 1; }
   local end=$(( $(date +%s) + TIMEOUT_SEC ))
   while :; do
     dispatch
@@ -62,6 +67,13 @@ one() (
   return 1
 )
 
+# merge_queue: main has a merge queue (a gh error counts as one: the scenario runs, and says why
+# it fails); a repo a user owns has none, so queue-removal is skipped there
+merge_queue() { [ "$(gh api "repos/$REPO/rules/branches/main" --jq '[.[] | select(.type == "merge_queue")] | length' 2>/dev/null)" != 0 ]; }
+
 rc=0
-for s in "${want[@]}"; do one "$s" || rc=1; done
+for s in "${want[@]}"; do
+  if [ "$s" = queue-removal ] && ! merge_queue; then echo "queue-removal: SKIP no merge queue"; continue; fi
+  one "$s" || rc=1
+done
 exit "$rc"

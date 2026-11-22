@@ -5,7 +5,7 @@
 sc_setup() {
   local t="9 Scenario package"
   M=$(gh api "repos/$REPO/milestones?state=all" --jq ".[] | select(.title == \"$t\") | .number" 2>/dev/null)
-  [ -n "$M" ] || M=$(gh api "repos/$REPO/milestones" -f title="$t" --jq .number) || { WHY="no milestone"; return 1; }
+  [ -n "$M" ] || M=$(must gh api "repos/$REPO/milestones" -f title="$t" --jq .number) || return 1
   A=$(new_issue "package part a" --milestone "$t") && B=$(new_issue "package part b" --milestone "$t") &&
     C=$(new_issue "package part c" --milestone "$t") || return 1
   # the fake planner names its package "scenario": the unit key pkg-<m>-scenario

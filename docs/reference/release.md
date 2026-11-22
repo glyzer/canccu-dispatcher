@@ -7,7 +7,9 @@ tests them.
 1. On a release branch, set `VERSION` to the new version and give `CHANGELOG.md`'s section a
    date: `## [<version>] — <YYYY-MM-DD>`.
 2. Run the scenario suite on the branch's head
-   ([`scenarios.md`](scenarios.md)): `tests/scenarios/run --repo <owner/sandbox>`.
+   ([`scenarios.md`](scenarios.md)): `tests/scenarios/run --repo <owner/sandbox>`. It must
+   exit 0. On a sandbox without a merge queue (a repo a user owns), `queue-removal` prints
+   `SKIP no merge queue` and the other eight must pass.
 3. Open the release PR. Its body carries the line `Scenarios: pass at <short sha>`, the head
    the suite passed on. When the diff since the last tag touches the review prompt, REVIEW.md
    handling, `lib/canccu-verdict.sh` or `REVIEW_MODEL`'s default, run the reviewer's test set

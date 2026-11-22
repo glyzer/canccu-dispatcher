@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# tests/scenarios/setup — gives a sandbox repo the standing setup the scenario suite needs
+# (docs/reference/scenarios.md, "The sandbox"); safe to run again: each step changes only what
+# differs.
+#   tests/scenarios/setup --repo <owner/sandbox>
+# Steps: auto-merge on; the repo variable REVIEWER_LOGIN (the review gate reads it) set to the
+# login; the dispatcher's labels and scenario; the tag scenario-base moved to a commit that adds
+# the templates/repo/ snippets, the review gate and a CI check of a minute or more; a ruleset on
+# main that requires CI and review-gate, with the login's admin role allowed to bypass it. Exit 0
+# done, 1 a step failed, 2 a usage error.
+set -uo pipefail
+root=$(cd "$(dirname "$0")/../.." && pwd)
+usage() { sed -n '3,6s/^# \{0,1\}//p' "$0" >&2; exit 2; }
+die() { echo "setup: $1" >&2; exit 1; }
+REPO=""
+while (( $# )); do
+  case $1 in --repo) REPO=${2:-}; shift ;; *) usage ;; esac
+  shift
+done
+[[ $REPO =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || usage
+mine=$(git -C "$root" remote get-url origin 2>/dev/null | sed -E 's#^(https://[^/]+/|[^@]+@[^:]+:)##; s#\.git$##')
+[ "${REPO,,}" = "${mine,,}" ] && { echo "setup: --repo $REPO is this repo itself" >&2; exit 2; }
+LOGIN=$(gh api user --jq .login 2>/dev/null) || die "no gh login"
+[ "$(gh api "repos/$REPO" --jq .permissions.admin 2>/dev/null)" = true ] || die "the gh login is no admin of $REPO"
+W=$(mktemp -d); trap 'rm -rf "$W"' EXIT
+
+gh api -X PATCH "repos/$REPO" -F allow_auto_merge=true >/dev/null || die "cannot allow auto-merge"
+echo "auto-merge: allowed"
+gh variable set REVIEWER_LOGIN -R "$REPO" --body "$LOGIN" >/dev/null || die "cannot set the variable REVIEWER_LOGIN"
+echo "variable REVIEWER_LOGIN: $LOGIN"
+
+# the labels: the dispatcher's own (lib/canccu-actions.sh) and the suite's
+labels=$(sed -n 's/^CANCCU_LABELS="\(.*\)"$/\1/p' "$root/lib/canccu-actions.sh")
+[ -n "$labels" ] || die "no CANCCU_LABELS in lib/canccu-actions.sh"
+have=$(gh label list -R "$REPO" -L 300 --json name --jq '.[].name') || die "cannot list the labels"
+for l in $labels scenario; do
+  grep -qx "$l" <<<"$have" && continue
+  gh label create "$l" -R "$REPO" >/dev/null || die "cannot create the label $l"
+  echo "label $l: created"
+done
+
+# scenario-base: its commit (main's head, if there is no tag yet) with the files below; a new
+# commit on it, and the tag moved, only when one of them differs
+C=$W/sandbox
+git clone -q "${SCENARIO_CLONE_URL:-https://github.com/$REPO.git}" "$C" 2>/dev/null || die "cannot clone $REPO"
+if git -C "$C" rev-parse -q --verify 'refs/tags/scenario-base^{commit}' >/dev/null; then
+  git -C "$C" checkout -q --detach scenario-base
+else
+  git -C "$C" checkout -q --detach origin/HEAD 2>/dev/null || die "$REPO has no tag scenario-base and no main"
+fi
+mkdir -p "$C/.github/workflows" "$C/.github/scripts"
+cp "$root/templates/repo/AGENTS.snippet.md" "$C/AGENTS.md"
+cp "$root/templates/repo/CLAUDE.snippet.md" "$C/CLAUDE.md"
+cp "$root/templates/repo/.github/workflows/review-gate.yml" "$C/.github/workflows/review-gate.yml"
+cp -p "$root/templates/repo/.github/scripts/review-gate" "$C/.github/scripts/review-gate"
+# the CI check: a minute and more, so push-after-pass's push lands before the merge
+cat > "$C/.github/workflows/ci.yml" <<'YML'
+# the sandbox's CI check (tests/scenarios/setup): it takes a minute and more
+name: CI
+on: [pull_request]
+permissions: {}
+jobs:
+  CI:
+    runs-on: ubuntu-latest
+    steps:
+      - run: sleep 70
+YML
+git -C "$C" add -A
+if git -C "$C" diff --cached --quiet && git -C "$C" rev-parse -q --verify refs/tags/scenario-base >/dev/null; then
+  echo "scenario-base: up to date ($(git -C "$C" rev-parse --short HEAD))"
+else
+  git -C "$C" diff --cached --quiet ||
+    git -C "$C" -c user.name=scenario -c user.email=scenario@users.noreply.github.com \
+      commit -qm "scenario-base: the snippets, the review gate and CI (tests/scenarios/setup)" || die "cannot commit"
+  git -C "$C" tag -f scenario-base >/dev/null && git -C "$C" push -q --force origin refs/tags/scenario-base 2>/dev/null ||
+    die "cannot move the tag scenario-base"
+  echo "scenario-base: moved to $(git -C "$C" rev-parse --short HEAD)"
+fi
+
+# the ruleset, by its name: created, or set again to the same rules
+rs=$(jq -n '{name: "scenario main", target: "branch", enforcement: "active",
+  conditions: {ref_name: {include: ["~DEFAULT_BRANCH"], exclude: []}},
+  bypass_actors: [{actor_id: 5, actor_type: "RepositoryRole", bypass_mode: "always"}],
+  rules: [{type: "required_status_checks", parameters: {strict_required_status_checks_policy: false,
+    required_status_checks: [{context: "CI"}, {context: "review-gate"}]}}]}')
+id=$(gh api "repos/$REPO/rulesets" --jq '.[] | select(.name == "scenario main") | .id' 2>/dev/null) || die "cannot list the rulesets"
+if [ -n "$id" ]; then
+  gh api -X PUT "repos/$REPO/rulesets/$id" --input - <<<"$rs" >/dev/null || die "cannot update the ruleset"
+  echo "ruleset scenario main: set again"
+else
+  gh api -X POST "repos/$REPO/rulesets" --input - <<<"$rs" >/dev/null || die "cannot create the ruleset"
+  echo "ruleset scenario main: created"
+fi

@@ -52,7 +52,8 @@ if [ "$1 $2" = "pr edit" ] && [ -n "$bf" ] && [ -f "$bf" ]; then
 fi
 # an `issue edit` or `issue create` with --body-file is logged with the file's text too; on the
 # claim issue ($FAKE/claim.json, the answer to the claim read) it changes the body there, and a
-# new issue labelled dispatcher-claim joins it, as on GitHub
+# new issue labelled dispatcher-claim joins it, as on GitHub (route lag:issue create: it does not
+# yet, as GitHub lists a new issue a few seconds late)
 if [ "$1 $2" = "issue edit" ] && [ -n "$bf" ] && [ -f "$bf" ]; then
   a=${a/--body-file $bf/--body-file $(< "$bf")}
   { routes=$(< "$FAKE/routes"); } 2>/dev/null
@@ -64,10 +65,14 @@ fi
 if [ "$1 $2" = "issue create" ] && [ -n "$bf" ] && [ -f "$bf" ]; then
   a=${a/--body-file $bf/--body-file $(< "$bf")}
   { routes=$(< "$FAKE/routes"); } 2>/dev/null
-  if [[ " $* " == *" --label dispatcher-claim "* ]] && ! grep -qxF "fail:issue create" <<<"$routes"; then
+  if [[ " $* " == *" --label dispatcher-claim "* ]] && ! grep -qxF -e "fail:issue create" -e "lag:issue create" <<<"$routes"; then
     [ -e "$FAKE/claim.json" ] || echo '[]' > "$FAKE/claim.json"
     jq --argjson n "$(cat "$FAKE/new-issue" 2>/dev/null || echo 900)" --rawfile b "$bf" '. + [{number: $n, body: $b}]' "$FAKE/claim.json" > "$FAKE/claim.tmp" &&
       mv "$FAKE/claim.tmp" "$FAKE/claim.json"
+  fi
+  # a claim issue another host created at the same time shows in the list, ours does not (lag)
+  if [ -f "$FAKE/lag-other.json" ] && [[ " $* " == *" --label dispatcher-claim "* ]]; then
+    mv "$FAKE/lag-other.json" "$FAKE/claim.json"
   fi
 fi
 printf '%s\n' "${a//$'\n'/ }" >> "$FAKE/gh.log"

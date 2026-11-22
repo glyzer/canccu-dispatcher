@@ -10,24 +10,34 @@ so a run costs no model tokens. It gates every release tag ([`release.md`](relea
 ## The sandbox
 
 The suite resets the sandbox before each scenario: it closes every open PR (and deletes its
-branch) and every open issue labelled `scenario`, then **force-pushes `main` back to the tag
-`scenario-base`**. Use a repo that holds nothing else and has no other writers. The standing
-setup:
+branch), every open issue labelled `scenario` and every open dispatcher claim (each scenario's
+home is a host of its own, and an earlier one's fresh claim would stop the next), then
+**force-pushes `main` back to the tag `scenario-base`**. Use a repo that holds nothing else and
+has no other writers. The standing setup:
 
 - a repo owned by the login that runs the suite;
-- a ruleset on `main` that requires the check `review-gate`, with the login allowed to bypass
-  it (the reset's force-push needs that);
-- auto-merge allowed, and a merge queue on `main` (`queue-removal` uses it);
-- a required CI check that takes a minute or more (`push-after-pass` pushes before the merge);
-- the labels the dispatcher uses, plus `scenario`;
-- the tag `scenario-base` on a commit that holds the `AGENTS.md` and `CLAUDE.md` snippets from
-  `templates/repo/`.
+- a ruleset on `main` that requires the checks `CI` and `review-gate`, with the login allowed to
+  bypass it (the reset's force-push needs that), and the repo variable `REVIEWER_LOGIN` set to
+  the login (the gate reads it);
+- auto-merge allowed;
+- a CI check that takes a minute or more (`push-after-pass` pushes before the merge);
+- the labels the dispatcher uses, and `scenario`;
+- the tag `scenario-base` on a commit that holds the `AGENTS.md` and `CLAUDE.md` snippets and the
+  review gate from `templates/repo/`, and the CI workflow;
+- a merge queue on `main`, for `queue-removal` only. A repo a user owns cannot have one: without
+  it, `queue-removal` prints `queue-removal: SKIP no merge queue`, which does not fail the run.
+
+`tests/scenarios/setup --repo <owner/sandbox>` makes all of it but the merge queue, and is safe to
+run again: each step changes only what differs, and `scenario-base` moves only when its files
+do. It needs an admin login (the ruleset). Preflight creates the label `scenario` too, when it
+is missing.
 
 The login needs write access to the sandbox and nothing else: a fine-grained token limited to
 that repo is enough. The reviewer's verdicts are posted as the same login.
 
 Preflight refuses to start, with exit 2, when `--repo` is this repo itself, when the login cannot
-push to it, or when the tag `scenario-base` is missing.
+push to it, when the tag `scenario-base` is missing, or when it cannot create the label
+`scenario`.
 
 ## Running it
 
@@ -38,10 +48,14 @@ tests/scenarios/run --repo <owner/sandbox> [--keep] [scenario...]
 - No scenario named: all nine, in order: `single`, `package`, `contract-first`,
   `conflict-waiting`, `queue-removal`, `push-after-pass`, `denied-push`, `denied-pr`, `crash`.
 - Each scenario gets its own temp dispatcher home (`CANCCU_ROOT`, project `sandbox`, `CAP=3`), so
-  the host's real projects are never touched. `--keep` keeps the temp dir and prints its path.
+  the host's real projects are never touched. Its project runs as the login that runs the
+  suite: its config sets `ALLOW_DEFAULT_GH_LOGIN=1` rather than a `GH_CONFIG_DIR`, since that
+  login may live in a keyring, with no config dir to point at. `--keep` keeps the temp dir and
+  prints its path.
 - One `canccu-dispatch --once` pass every `SCENARIO_PASS_SEC` (default 20) seconds, until the end
   state holds or `SCENARIO_TIMEOUT_MIN` (default 15) minutes pass.
-- Exit 0 when all pass, 1 when one fails, 2 on a usage error or a sandbox that is not set up.
+- Exit 0 when all pass (`queue-removal` may be skipped), 1 when one fails, 2 on a usage error or
+  a sandbox that is not set up.
 
 | Scenario | What happens | End state checked with `gh` |
 |---|---|---|
@@ -49,7 +63,7 @@ tests/scenarios/run --repo <owner/sandbox> [--keep] [scenario...]
 | `package` | three issues of one step; the planner bundles them | one merged PR closes all three |
 | `contract-first` | the worker opens a contract PR and its own as a draft | the contract PR merged first, then the unit's |
 | `conflict-waiting` | the PR waits for an accept; main moves under it | a merge of main on the PR, then merged after the accept |
-| `queue-removal` | the merge queue drops the PR once | queued again by the dispatcher, merged |
+| `queue-removal` | the merge queue drops the PR once (skipped without a merge queue) | queued again by the dispatcher, merged |
 | `push-after-pass` | a push lands on the PR after the review passed | a fix-check ran, then the merge |
 | `denied-push` | the worker's `git push` is denied | the issue `needs-you`, naming `git push` |
 | `denied-pr` | the worker pushed, but its `gh pr create` is denied | the dispatcher opens the PR from the worker's body file (the body says so); it merges and the issue closes |
@@ -67,7 +81,8 @@ adds `<role> <round> <key> <action>` to the scenario's `engine.log`.
 
 `<scenario>: FAIL <why> (last log: <the last dispatch.log line>)`. The why is the first end-state
 check that failed, `needs-you: …` when the scenario does not expect a `needs-you`, or
-`timed out after <n> s: …`. With `--keep`, the scenario's `engine.log`, `dispatch.out` and the
+`timed out after <n> s: …`. A setup that fails prints `<scenario>: FAIL setup: <command> failed
+(exit <n>): <the last line it printed on stderr>`. With `--keep`, the scenario's `engine.log`, `dispatch.out` and the
 dispatcher home stay for a look.
 
 ## The release gate

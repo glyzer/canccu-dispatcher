@@ -39,10 +39,15 @@ ok "worker: its .last reads as done to the dispatcher" eq "$(lastx 7)" "done|don
 ok "worker: the lock is gone once the run ended" not test -e "$WORKERS_DIR/web-7.lock"
 ok "worker: a fresh session the first time" grep -qF ' · fresh · done · ' "$WORKERS_DIR/web-7.last"
 ok "worker: its branch is pushed to origin" eval 'git -C "$E/origin.git" rev-parse -q --verify 7-scenario >/dev/null'
+ok "worker: the body has the Testing: and Revert: lines the dispatcher asks for" eval 'grep -q "^pr create --head 7-scenario .*Testing: .*Revert: plain revert" "$FAKE/gh.log"'
 ok "worker: the PR is opened with Closes #7" eval 'grep -E "^pr create --head 7-scenario .*Closes #7" "$FAKE/gh.log" >/dev/null'
 ok "worker: engine.log names the run" eq "$(cat "$SCENARIO_DIR/engine.log")" "worker 1 7 pr"
 fe --quiet --name '#7' web "7 resume" turns=1 cost=1 min=1
 ok "worker: a later run resumes, round 2" eval 'grep -qF " · resume · done · " "$WORKERS_DIR/web-7.last" && grep -qx "worker 2 7 pr" "$SCENARIO_DIR/engine.log"'
+
+fe_env worker-pkg; key=pkg-3-scenario
+fe --quiet --key pkg-3-scenario --name 'pkg' web "work package \"scenario\": do all the issues of the package on one branch, pkg-3-scenario, created from origin/main" turns=1 cost=1 min=1
+ok "worker: a package's branch is the one its prompt names" eval 'git -C "$E/origin.git" rev-parse -q --verify pkg-3-scenario >/dev/null'
 
 # ---------------------------------------------------------------- fake engine: the scripted failures
 
@@ -80,10 +85,13 @@ sha=$(git -C "$E/rv" rev-parse HEAD)
 fe --quiet --key review-50 --dir "$E/rv" --name 'review#50' --untrusted web "review PR 50" turns=1 cost=1 min=1
 ok "review: the verdict for the head is the file's last line" \
   eq "$(tail -1 "$CANCCU_HOME/reviews/50/$sha.md" 2>/dev/null)" "Review verdict: pass $sha"
+ok "review: the dispatcher reads a pass from its file (the finding block and its count line)" \
+  eq "$(lib file_verdict "$CANCCU_HOME/reviews/50/$sha.md" "$sha")" pass
 printf '%s\n' 'fixcheck 1 changes' > "$SCENARIO_DIR/script"
 fe --quiet --key review-50 --dir "$E/rv" --name 'fixcheck#50' --untrusted web "fix-check PR 50" turns=1 cost=1 min=1
 ok "fix-check: its own role and round, the scripted verdict" eval \
   '[ "$(tail -1 "$SCENARIO_DIR/engine.log")" = "fixcheck 1 review-50 changes" ] && tail -1 "$CANCCU_HOME/reviews/50/$sha.md" | grep -qx "Review verdict: changes $sha"'
+ok "… which the dispatcher reads as changes" eq "$(lib file_verdict "$CANCCU_HOME/reviews/50/$sha.md" "$sha")" changes
 
 fe_env plan; key=plan-12
 fe --quiet --key plan-12 --name 'plan#12' --untrusted web "Plan wave 2 of step 12. The issues to plan are exactly: 101, 103, 104." turns=1 cost=1 min=1
@@ -117,9 +125,11 @@ run_env() {
   route 'pr list -R example-org/web -s open*' empty.txt; route 'issue list -R example-org/web -s open*' empty.txt
   route 'api repos/example-org/web/milestones*' ms9.json
   route 'api repos/example-org/web/git/ref/tags/scenario-base' repo.json; route 'api graphql*' prnode
+  echo '[{"type": "merge_queue"}]' > "$FAKE/mq.json"; route 'api repos/example-org/web/rules/branches/main*' mq.json
   route 'pr list -R example-org/web -s all*' prs-all.json
   cat > "$E/stub" <<'STUB'
 #!/usr/bin/env bash
+[ -e "$FAKE/pr-branch" ] && git -C "$SCENARIO_DIR/../code/sandbox" push -q origin HEAD:refs/heads/5-scenario 2>/dev/null   # the worker's PR branch, made in the run
 cat "$FAKE/engine.lines" >> "$SCENARIO_DIR/engine.log"; echo "2030-11-05T12:00:00Z PR #50 posted as review-bot" >> "$CANCCU_HOME/dispatch.log"
 n=$(cat "$FAKE/passes" 2>/dev/null); echo $(( ${n:-0} + 1 )) > "$FAKE/passes"
 [ -n "$n" ] && [ -e "$FAKE/prs-next.json" ] && mv "$FAKE/prs-next.json" "$FAKE/prs-all.json"
@@ -155,8 +165,21 @@ run_env single; world_is "$I_CLOSED" "$MERGED"; srun --repo example-org/web sing
 ok "single: its end state passes" eq "$rc $(cat "$E/out")" "0 single: pass"
 ok "single: the reset closed the open PRs and issues, then moved main to the tag" eval \
   'grep -q "^pr list -R example-org/web -s open" "$FAKE/gh.log" && grep -q "^issue list -R example-org/web -s open -l scenario" "$FAKE/gh.log"'
+ok "single: the reset deleted the stale branches (a package branch of an earlier run rejects the push)" \
+  not git -C "$E/sandbox.git" rev-parse -q --verify refs/heads/5-scenario
 ok "single: the issue it made is labelled scenario and ready" grep -qE '^issue create -R example-org/web --title scenario single: .* --label scenario --label ready' "$FAKE/gh.log"
-run_env single-open; world_is '[{"number": 5, "state": "OPEN", "labels": [], "comments": []}]' "$MERGED"
+ok "single: the reset closes the claims of earlier scenarios (each one is a host of its own)" \
+  grep -q '^issue list -R example-org/web -s open -l dispatcher-claim' "$FAKE/gh.log"
+ok "single: the preflight makes the label scenario (the sandbox may lack it)" grep -qx 'label create scenario -R example-org/web --force' "$FAKE/gh.log"
+run_env single-keep; world_is "$I_CLOSED" "$MERGED"; srun --repo example-org/web --keep single
+kept=$(sed -n 's/^kept //p' "$E/out")
+ok "single: the temp project uses the suite's own gh login" grep -qx 'ALLOW_DEFAULT_GH_LOGIN=1' "$kept/single/root/projects/sandbox/config"
+rm -rf "$kept"
+ok "single: the PR list stays under GitHub's 500,000-node limit (40 PRs with their commits)" \
+  grep -q '^pr list -R example-org/web -s all -L 40 --json .*commits' "$FAKE/gh.log"
+run_env single-setup; echo 'fail:issue create' >> "$FAKE/routes"; srun --repo example-org/web single
+ok "single: a failed setup names the failing command" eq "$rc $(grep -c '^single: FAIL setup: gh issue create -R example-org/web --title scenario single: one issue to merge .* failed (exit 1)' "$E/out")" "1 1"
+run_env single-open;world_is '[{"number": 5, "state": "OPEN", "labels": [], "comments": []}]' "$MERGED"
 srun --repo example-org/web single
 ok "single: an issue left open fails, saying why" eq "$rc $(grep -c "single: FAIL timed out after 0 s: #5 is still open" "$E/out")" "1 1"
 run_env single-ny; world_is "$I_NEEDS" "$OPEN"; srun --repo example-org/web single
@@ -176,18 +199,31 @@ ok "contract-first: the unit's PR merged first fails" eq "$rc $(grep -c 'merged 
 run_env conflict; world_is "$I_CLOSED" "[$(pr_ 50 MERGED 5-scenario 'Closes #5' 2030-11-05T12:00:00Z "Merge remote-tracking branch 'origin/main' into 5-scenario")]"
 srun --repo example-org/web conflict-waiting
 ok "conflict-waiting: its end state passes" eq "$rc $(cat "$E/out")" "0 conflict-waiting: pass"
+run_env conflict-tick
+world_is '[{"number": 5, "state": "OPEN", "labels": [{"name": "awaiting-accept"}], "comments": []}]' "[$(pr_ 50 OPEN 5-scenario-long-name 'Closes #5')]"
+printf '%s\n' "[$(pr_ 50 MERGED 5-scenario-long-name 'Closes #5' 2030-11-05T12:00:00Z 'Merge main')]" > "$FAKE/prs-next.json"
+tmo=3 srun --repo example-org/web conflict-waiting
+ok "conflict-waiting: main's commit touches the file of the PR's own branch" \
+  eq "$(git -C "$E/sandbox.git" show main:scenario/5-scenario-long-name.txt 2>/dev/null)" "main's side"
 
 run_env queue; world_is "$I_CLOSED" "$OPEN"; printf '%s\n' "$MERGED" > "$FAKE/prs-next.json"
 tmo=3 srun --repo example-org/web queue-removal
 ok "queue-removal: dropped once from the queue, then merged: passes" eq "$rc $(cat "$E/out")" "0 queue-removal: pass"
 ok "queue-removal: the suite dequeued the PR through GraphQL" grep -q '^api graphql -f query=mutation { dequeuePullRequest(input: {id: "PR_node"})' "$FAKE/gh.log"
 
-run_env late; world_is "$I_CLOSED" "$OPEN"; printf '%s\n' "$MERGED" > "$FAKE/prs-next.json"
+run_env queue-none; echo '[{"type": "required_status_checks"}]' > "$FAKE/mq.json"; srun --repo example-org/web queue-removal single
+ok "queue-removal: no merge queue on main: skipped, not a failure; the next scenario runs" \
+  eq "$rc $(head -1 "$E/out")" "1 queue-removal: SKIP no merge queue"
+ok "… and no reset for it (the skip comes before its home)" not grep -q '^issue create .*dropped by the merge queue' "$FAKE/gh.log"
+world_is "$I_CLOSED" "$MERGED"; srun --repo example-org/web queue-removal single
+ok "… with the rest passing, the run exits 0" eq "$rc $(tr '\n' '|' < "$E/out")" "0 queue-removal: SKIP no merge queue|single: pass|"
+
+run_env late; : > "$FAKE/pr-branch"; world_is "$I_CLOSED" "$OPEN"; printf '%s\n' "$MERGED" > "$FAKE/prs-next.json"
 echo 'review 1 review-50 pass' > "$FAKE/engine.lines"
 tmo=3 srun --repo example-org/web push-after-pass
 ok "push-after-pass: no fix-check after the push fails" eq "$rc $(grep -c 'no fix-check after the push' "$E/out")" "1 1"
 ok "push-after-pass: the suite pushed a commit to the PR's branch" eq "$(git -C "$E/sandbox.git" log -1 --format=%s 5-scenario)" "scenario: a push after the pass"
-run_env late2; world_is "$I_CLOSED" "$OPEN"; printf '%s\n' "$MERGED" > "$FAKE/prs-next.json"
+run_env late2; : > "$FAKE/pr-branch"; world_is "$I_CLOSED" "$OPEN"; printf '%s\n' "$MERGED" > "$FAKE/prs-next.json"
 printf '%s\n' 'review 1 review-50 pass' 'fixcheck 1 review-50 pass' > "$FAKE/engine.lines"
 tmo=3 srun --repo example-org/web push-after-pass
 ok "push-after-pass: a fix-check, then the merge: passes" eq "$rc $(cat "$E/out")" "0 push-after-pass: pass"
@@ -207,6 +243,34 @@ ok "crash: two runs, then needs-you: passes" eq "$rc $(head -1 "$E/out")" "0 cra
 run_env crash1; world_is "$I_NEEDS" "[]"; echo 'worker 1 5 crash' > "$FAKE/engine.lines"
 srun --repo example-org/web crash
 ok "crash: needs-you without the retry fails" eq "$rc $(grep -c 'not one retry' "$E/out")" "1 1"
+
+# ---------------------------------------------------------------- setup: the sandbox's standing setup
+
+SETUP=$root/tests/scenarios/setup
+run_env setup
+echo '{"permissions": {"push": true, "admin": true}}' > "$FAKE/repo.json"; route 'api repos/example-org/web' repo.json
+echo '[{"name": "ready"}]' > "$FAKE/labels.json"; route 'label list*' labels.json
+echo '[]' > "$FAKE/rulesets.json"; route 'api repos/example-org/web/rulesets --jq*' rulesets.json
+route 'api -X*' empty.txt; route 'variable set*' empty.txt
+sup() { PATH="$gb:$PATH" SCENARIO_CLONE_URL=$E/sandbox.git "$SETUP" "$@" > "$E/out" 2>&1; rc=$?; }
+base0=$(git -C "$E/sandbox.git" rev-parse scenario-base)
+sup --repo example-org/web
+ok "setup: exits 0" eq "$rc" 0
+ok "… scenario-base moved to a commit on the old one with the snippets, the review gate and CI" eval \
+  '[ "$(git -C "$E/sandbox.git" rev-parse scenario-base~1)" = "$base0" ] &&
+   [ "$(git -C "$E/sandbox.git" ls-tree -r --name-only scenario-base | sort | tr "\n" " ")" = ".github/scripts/review-gate .github/workflows/ci.yml .github/workflows/review-gate.yml AGENTS.md CLAUDE.md " ] &&
+   [ "$(git -C "$E/sandbox.git" show scenario-base:AGENTS.md)" = "$(cat "$root/templates/repo/AGENTS.snippet.md")" ]'
+ok "… the missing labels created, scenario among them; one there is left" eval \
+  'grep -qx "label create scenario -R example-org/web" "$FAKE/gh.log" && grep -qx "label create dispatcher-claim -R example-org/web" "$FAKE/gh.log" && ! grep -q "^label create ready " "$FAKE/gh.log"'
+ok "… auto-merge allowed, REVIEWER_LOGIN set, the ruleset created" eval \
+  'grep -qx "api -X PATCH repos/example-org/web -F allow_auto_merge=true" "$FAKE/gh.log" && grep -q "^variable set REVIEWER_LOGIN -R example-org/web --body " "$FAKE/gh.log" && grep -qx "api -X POST repos/example-org/web/rulesets --input -" "$FAKE/gh.log"'
+base1=$(git -C "$E/sandbox.git" rev-parse scenario-base)
+echo '[{"name": "scenario main", "id": 7}]' > "$FAKE/rulesets.json"
+sup --repo example-org/web
+ok "setup: run again, the tag stays where it is and the ruleset is set again, not made twice" eval \
+  '[ "$rc $(git -C "$E/sandbox.git" rev-parse scenario-base)" = "0 $base1" ] && grep -qx "api -X PUT repos/example-org/web/rulesets/7 --input -" "$FAKE/gh.log" && grep -q "scenario-base: up to date" "$E/out"'
+echo '{"permissions": {"push": true, "admin": false}}' > "$FAKE/repo.json"; sup --repo example-org/web
+ok "setup: a login that is no admin of the sandbox is refused, exit 1" eq "$rc $(grep -c 'no admin' "$E/out")" "1 1"
 
 ok "tests/run never runs the live suite" eq "$("$root/tests/run" --list 2>/dev/null | grep -c 'tests/scenarios/')" 0
 
