@@ -15,6 +15,7 @@
 | [`kickoff.md`](kickoff.md) | The planning session of a new project: vision, users, quality bar, constraints, the step ladder, a question bank |
 | [`gates.md`](gates.md) | What proves a step done: the functional gate, and the UX, API, CLI, performance, security, operations and data gates |
 | [`canccu-dispatch.md`](canccu-dispatch.md) | Where the sections the code cites went |
+| [`changelog-0.1.md`](changelog-0.1.md) | The 0.1 releases' changelog (the newer ones: [`CHANGELOG.md`](../CHANGELOG.md)) |
 
 ## Plan
 
