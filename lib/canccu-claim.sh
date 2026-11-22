@@ -56,9 +56,10 @@ claim_parse() {
 claim_read() {
   local j
   j=$(ghj issue list -R "$REPO" -s open -l "$CLAIM_LABEL" -L 20 --json number,body) || return 1
-  if [ -n "${1:-}" ]; then
+  # only when the list shows no claim issue at all: with another listed, the lowest number wins
+  if [ -n "${1:-}" ] && [ "$(_claim_jq 'length' <<<"$j")" = 0 ]; then
     j=$(_claim_jq -c --argjson n "$1" --arg b "host: $2"$'\n'"at: $(iso "$(now)")" \
-      'if any(.[]; .number == $n) then . else . + [{number: $n, body: $b}] end' <<<"$j") || return 1
+      '. + [{number: $n, body: $b}]' <<<"$j") || return 1
   fi
   claim_parse "$j"
 }

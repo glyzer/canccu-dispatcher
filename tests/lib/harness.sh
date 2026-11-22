@@ -70,6 +70,10 @@ if [ "$1 $2" = "issue create" ] && [ -n "$bf" ] && [ -f "$bf" ]; then
     jq --argjson n "$(cat "$FAKE/new-issue" 2>/dev/null || echo 900)" --rawfile b "$bf" '. + [{number: $n, body: $b}]' "$FAKE/claim.json" > "$FAKE/claim.tmp" &&
       mv "$FAKE/claim.tmp" "$FAKE/claim.json"
   fi
+  # a claim issue another host created at the same time shows in the list, ours does not (lag)
+  if [ -f "$FAKE/lag-other.json" ] && [[ " $* " == *" --label dispatcher-claim "* ]]; then
+    mv "$FAKE/lag-other.json" "$FAKE/claim.json"
+  fi
 fi
 printf '%s\n' "${a//$'\n'/ }" >> "$FAKE/gh.log"
 { tok=$(< "$FAKE/../reviewer-token"); } 2>/dev/null

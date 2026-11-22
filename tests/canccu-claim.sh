@@ -46,6 +46,13 @@ dispatch --once
 ok "claim: a new claim the list does not show yet (GitHub lags) is ours: never closed, the pass acts" \
   eq "$(grep -c '^issue close' "$FAKE/gh.log") $(started 5 && echo started) $(grep -E '^(issue|state)=' "$CANCCU_HOME/claim" | tr '\n' ' ')" "0 started issue=900 state=ours "
 
+env_new claim-create-lag-other
+ready5; echo '[]' > "$FAKE/claim.json"; echo 'lag:issue create' >> "$FAKE/routes"
+claim_json "$HOST_OTHER" "lab-2" "$(at -5)" 99; mv "$FAKE/claim.json" "$FAKE/lag-other.json"; echo '[]' > "$FAKE/claim.json"
+dispatch --once
+ok "claim: another host's issue listed while ours lags: ours (#900) is closed, the pass refuses" \
+  eq "$(grep -c '^issue close 900' "$FAKE/gh.log") $(grep -c . "$FAKE/worker.log")" "1 0"
+
 env_new claim-pin-fails
 ready5; echo '[]' > "$FAKE/claim.json"; echo 'fail:issue pin' >> "$FAKE/routes"
 dispatch --once; dispatch --once
