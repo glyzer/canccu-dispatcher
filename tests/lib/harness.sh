@@ -261,6 +261,24 @@ fi
 exit 0
 EOF
 printf '#!/bin/sh\nexit 1\n' > "$fb/tmux"
+# fake docker: `ps`, `volume ls` and `network ls` print $FAKE/docker.containers, .volumes and
+# .networks (the listing their --format asks for, tab-separated; nothing without the file), and an
+# `rm` takes the objects it names out of them; every call goes to $FAKE/docker.log
+cat > "$fb/docker" <<'EOF'
+#!/bin/bash
+echo "$*" >> "$FAKE/docker.log"
+f=""
+case "$1 $2" in
+  "ps "*) cat "$FAKE/docker.containers" 2>/dev/null ;;
+  "volume ls"|"network ls") cat "$FAKE/docker.${1}s" 2>/dev/null ;;
+  "rm "*) f=$FAKE/docker.containers; shift ;;
+  "volume rm"|"network rm") f=$FAKE/docker.${1}s; shift 2 ;;
+esac
+if [ -n "$f" ] && [ -e "$f" ]; then
+  for id; do [ "${id:0:1}" = - ] || { grep -v "^$id"$'\t' "$f" > "$f.new"; mv "$f.new" "$f"; }; done
+fi
+exit 0
+EOF
 # a fake claude for the real engine: records the identity it sees, its arguments and its whole
 # environment, and prints a successful result. Like Claude Code, it runs the checkout's project
 # hook (.claude/hook.sh, standing in for a hook in .claude/settings.json) unless project settings

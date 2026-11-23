@@ -103,6 +103,16 @@ run_tmp_sweep() {
   echo "$n"
 }
 
+# run_tag <key>: the tag of a run of this project, canccu_<project>_<key> (the project: the
+# folder name of CANCCU_HOME, which the worker gets too). Its containers carry it as the label
+# canccu.run or as their Compose project's name, which allows only [a-z0-9_-]: both parts are
+# lowercased with every other character a "-", so the first "_" after "canccu_" ends the project.
+run_tag() {
+  local p=${CANCCU_HOME##*/} k=$1
+  p=${p,,} k=${k,,}
+  echo "canccu_${p//[^a-z0-9-]/-}_${k//[^a-z0-9-]/-}"
+}
+
 # Every repo under CODE_ROOT (a folder with .git, depth 1 or 2, symlinked folders included),
 # relative to it. A repo reached twice is listed once, real folders before symlinks; the fixed
 # depth means a symlink cycle cannot loop.

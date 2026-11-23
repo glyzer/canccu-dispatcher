@@ -114,12 +114,36 @@ _doc_project() {
   return 0
 }
 
+# _doc_room: the host's /tmp and memory under 10% free, and the running containers no run tagged
+# that are over 2 days old (#238): a RAM /tmp full of leftovers starves memory until Claude Code
+# kills background tasks, and a forgotten test database's health check costs CPU for days.
+# CANCCU_TMP_ROOT and CANCCU_MEMINFO: the tests' /tmp and /proc/meminfo.
+_doc_room() {
+  local t=${CANCCU_TMP_ROOT:-/tmp} s a id name st cr tag c since old=()
+  iec() { numfmt --from-unit=1024 --to=iec --round=nearest --format=%.1f "$1"; }
+  read -r s a < <(df -Pk "$t" 2>/dev/null | awk 'NR == 2 { print $2, $4 }')
+  [[ ${s:-} =~ ^[0-9]+$ && ${a:-} =~ ^[0-9]+$ ]] && (( s > 0 && a * 10 < s )) &&
+    echo "$t: $(iec "$a") free of $(iec "$s"): what runs leave there fills it (du -sh $t/*)"
+  read -r s a < <(awk '$1 == "MemTotal:" { s = $2 } $1 == "MemAvailable:" { a = $2 } END { print s, a }' "${CANCCU_MEMINFO:-/proc/meminfo}" 2>/dev/null)
+  [[ ${s:-} =~ ^[0-9]+$ && ${a:-} =~ ^[0-9]+$ ]] && (( s > 0 && a * 10 < s )) &&
+    echo "memory: $(iec "$a") available of $(iec "$s"): Claude Code kills background tasks when it runs out"
+  since=$(( ${CANCCU_NOW:-$(date +%s)} - 2 * 86400 ))
+  while IFS=$'\t' read -r id name st cr tag; do
+    [ "$st" = running ] && [ -z "$tag" ] || continue
+    c=$(date -d "${cr% [A-Z]*}" +%s 2>/dev/null) && (( c < since )) && old+=("$name")
+  done < <(docker_objs container all)
+  (( ${#old[@]} )) &&
+    echo "${#old[@]} container(s) no run tagged have run for over 2 days ($(IFS=,; echo "${old[*]}" | sed 's/,/, /g')): remove the ones nothing needs (docker rm -f -v <name>)"
+  return 0
+}
+
 # canccu_doctor <tree> <project or empty> <prefix>: every problem, one per line; fails when there
 # is one
 canccu_doctor() {
   local here=$1 only=$2 out="" hp p res tokens="" t
   out+=$(canccu_check_deps | sed 's/^  //')$'\n'
   out+=$(_doc_install "$3")$'\n'
+  out+=$(_doc_room)$'\n'
   hp=$(canccu_host_profile)
   if [ -z "$hp" ]; then
     out+="HOST_PROFILE is not set ($(canccu_tilde "$CANCCU_ROOT")/config, or install.sh --host-profile max): the defaults apply"$'\n'
