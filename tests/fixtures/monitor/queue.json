@@ -1,0 +1,374 @@
+{
+  "schema": 2,
+  "project": "web",
+  "repo": "example-org/web",
+  "repo_name": "web",
+  "pid": 2379022,
+  "interval": 60,
+  "pass": {
+    "at": 1920110400,
+    "started": 1920110400,
+    "duration": 0,
+    "durations": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "ok": true,
+    "error": null,
+    "paused": false,
+    "backoff_until": null
+  },
+  "caps": {
+    "running": 2,
+    "cap": 3,
+    "total_running": 2,
+    "total_cap": 3
+  },
+  "spend": {
+    "today_usd": 5,
+    "runs_without_cost": 0,
+    "day": "2030-11-05",
+    "freeze": "2031-03-01"
+  },
+  "running": [
+    {
+      "key": "20",
+      "issue": 20,
+      "pr": null,
+      "kind": "work",
+      "phase": "",
+      "stage": "",
+      "pipeline": "work",
+      "title": "Run the importer",
+      "started": 1920110280,
+      "minutes": 2,
+      "min_cap": null,
+      "turns": null,
+      "turn_cap": null,
+      "last_line": "",
+      "color": null,
+      "ci": null,
+      "review_verdict": null,
+      "package": null,
+      "issues": [
+        20
+      ],
+      "risk": null
+    }
+  ],
+  "needs_you": [
+    {
+      "kind": "accept",
+      "issue": 21,
+      "pr": 77,
+      "reason": "",
+      "since": null,
+      "title": "Accept the export",
+      "url": "https://github.com/example-org/web/issues/21",
+      "color": null,
+      "package": null,
+      "step": null,
+      "stage": null,
+      "issues": [
+        21
+      ],
+      "owner": "po"
+    }
+  ],
+  "queue": [
+    {
+      "issue": 22,
+      "title": "Fix the date parser",
+      "blocked": false,
+      "waits_on": null,
+      "lane": "fast",
+      "package": null
+    },
+    {
+      "issue": 23,
+      "title": "Add a CSV export with a long title that has to wrap on a phone",
+      "blocked": true,
+      "waits_on": "blocked by 22",
+      "lane": "fast",
+      "package": null
+    },
+    {
+      "issue": 31,
+      "title": "Loose issue also queued",
+      "blocked": false,
+      "waits_on": null,
+      "lane": "fast",
+      "package": null
+    }
+  ],
+  "milestones": [
+    {
+      "title": "2 Setup",
+      "open": 0,
+      "closed": 3,
+      "due": null,
+      "checkpoints": []
+    },
+    {
+      "title": "3 Search",
+      "open": 4,
+      "closed": 1,
+      "due": null,
+      "checkpoints": [
+        {
+          "issue": 95,
+          "state": "open",
+          "ready": true
+        }
+      ]
+    },
+    {
+      "title": "4 Sharing",
+      "open": 4,
+      "closed": 0,
+      "due": null,
+      "checkpoints": []
+    },
+    {
+      "title": "5 Export",
+      "open": 0,
+      "closed": 0,
+      "due": null,
+      "checkpoints": []
+    },
+    {
+      "title": "6 Later",
+      "open": 1,
+      "closed": 0,
+      "due": null,
+      "checkpoints": []
+    }
+  ],
+  "events": [
+    {
+      "at": 1920110280,
+      "issue": null,
+      "package": "pkg-12-auth",
+      "text": "#pkg-12-auth PR #50: reviewer started",
+      "count": 1,
+      "first_at": 1920110280
+    },
+    {
+      "at": 1920110400,
+      "issue": 90,
+      "package": null,
+      "text": "#90 pinged @octo as review-bot: needs-you",
+      "count": 1,
+      "first_at": 1920110400
+    },
+    {
+      "at": 1920110400,
+      "issue": null,
+      "package": null,
+      "text": "step 3 Search reached STEP_BUDGET ($5.00 of $4): no new run of it starts · https://github.com/example-org/web/issues/90",
+      "count": 1,
+      "first_at": 1920110400
+    }
+  ],
+  "steps": [
+    {
+      "milestone": 12,
+      "title": "3 Search",
+      "track": "main",
+      "current": true,
+      "phase": "checkpoint",
+      "wave": 1,
+      "epic": 90,
+      "error": "the plan of wave 2 is invalid: x",
+      "checkpoint": {
+        "issue": 95,
+        "state": "open",
+        "waiting": true
+      },
+      "budget": {
+        "usd": 5,
+        "limit": 4,
+        "runs_without_cost": 0,
+        "over": true
+      },
+      "plan": {
+        "wave": 1,
+        "at": 1920109800,
+        "left_out": [
+          107
+        ],
+        "packages": [
+          {
+            "name": "auth",
+            "issues": [
+              101,
+              103
+            ],
+            "risk": "high",
+            "risk_reason": "sessions",
+            "areas": [
+              "src/auth/"
+            ],
+            "depends_on": [],
+            "key": "pkg-12-auth",
+            "state": "review",
+            "pr": 50,
+            "branch": "pkg-12-auth",
+            "risk_effective": "high"
+          },
+          {
+            "name": "list",
+            "issues": [
+              104
+            ],
+            "risk": "low",
+            "risk_reason": "a list",
+            "areas": [
+              "src/web/"
+            ],
+            "depends_on": [
+              "auth"
+            ],
+            "key": "104",
+            "state": "blocked",
+            "pr": null,
+            "branch": null,
+            "risk_effective": "low"
+          }
+        ]
+      },
+      "health": {
+        "state": "n/a",
+        "key": "pkg-12-health",
+        "pr": null
+      },
+      "notes": [
+        {
+          "at": 1920110350,
+          "kind": "follow-up",
+          "pr": 50,
+          "text": "split the parser"
+        }
+      ]
+    }
+  ],
+  "current_step": 12,
+  "step_overview": [
+    {
+      "milestone": 12,
+      "title": "3 Events",
+      "track": "main",
+      "work_open": 3,
+      "work_closed": 1,
+      "place": "current",
+      "issues": [
+        {
+          "issue": 30,
+          "title": "Issue 30",
+          "url": "https://github.com/example-org/web/issues/30",
+          "status": "running",
+          "waits_on": null,
+          "package": "pkg-12-auth"
+        },
+        {
+          "issue": 31,
+          "title": "Issue 31",
+          "url": "https://github.com/example-org/web/issues/31",
+          "status": "ready",
+          "waits_on": null,
+          "package": null
+        },
+        {
+          "issue": 32,
+          "title": "Issue 32",
+          "url": "https://github.com/example-org/web/issues/32",
+          "status": "blocked",
+          "waits_on": "blocked by 31",
+          "package": null
+        }
+      ]
+    },
+    {
+      "milestone": 13,
+      "title": "4 Payments",
+      "track": "main",
+      "work_open": 1,
+      "work_closed": 0,
+      "place": "next",
+      "issues": [
+        {
+          "issue": 40,
+          "title": "Issue 40",
+          "url": "https://github.com/example-org/web/issues/40",
+          "status": "ready",
+          "waits_on": null,
+          "package": null
+        }
+      ]
+    },
+    {
+      "milestone": 14,
+      "title": "5 Reports",
+      "track": "main",
+      "work_open": 2,
+      "work_closed": 0,
+      "place": "later",
+      "issues": [
+        {
+          "issue": 50,
+          "title": "Issue 50",
+          "url": "https://github.com/example-org/web/issues/50",
+          "status": "blocked",
+          "waits_on": "no ready label",
+          "package": null
+        },
+        {
+          "issue": 51,
+          "title": "Issue 51",
+          "url": "https://github.com/example-org/web/issues/51",
+          "status": "blocked",
+          "waits_on": "labelled blocked",
+          "package": null
+        }
+      ]
+    }
+  ],
+  "other_runs": [
+    {
+      "repo": "web",
+      "key": "55",
+      "kind": "worker",
+      "started": 1920110280
+    },
+    {
+      "repo": "web",
+      "key": "77",
+      "kind": "cc",
+      "started": 1920109800
+    }
+  ],
+  "usage": {
+    "five_hour": 42,
+    "seven_day": 50,
+    "resets_at": 2019686400,
+    "weekly_resets_at": 2019686400,
+    "at": 1920110370,
+    "state": "normal",
+    "text": "5-hour 42% · weekly 50%"
+  },
+  "stale": [],
+  "unscheduled": [
+    {
+      "issue": 60,
+      "title": "Idea: dark mode",
+      "url": "https://github.com/example-org/web/issues/60"
+    },
+    {
+      "issue": 61,
+      "title": "Idea: export to PDF",
+      "url": "https://github.com/example-org/web/issues/61"
+    }
+  ]
+}

@@ -80,7 +80,11 @@ ok "snapshot: step_overview: the next step's issues, ready or waiting" \
   eq "$(sj '[.step_overview[] | select(.milestone == 13) | .issues[] | "\(.issue):\(.status):\(.waits_on)"] | join(" ")')" \
   "110:ready:null 111:blocked:no ready label 112:blocked:labelled blocked 113:blocked:blocked by 110"
 ok "snapshot: step_overview: no GitHub read for a next-step issue's blockers" not grep -q 'issues/113/dependencies' "$FAKE/gh.log"
-ok "snapshot: step_overview: the later steps list no issues" eq "$(sj '[.step_overview[] | select(.place == "later") | .issues | length] | add')" 0
+ok "snapshot: step_overview: a later step lists its open issues too (peek: no GitHub read)" \
+  eq "$(sj '[.step_overview[] | select(.place == "later") | .issues[] | "\(.issue):\(.status):\(.waits_on)"] | join(" ")')" "120:blocked:no ready label"
+ok "#293: snapshot unscheduled[]: an open issue without ready/blocked/epic/in-progress, with title and url" \
+  eq "$(sj '[.unscheduled[] | "\(.issue):\(.title):\(.url)"] | join(" ")')" \
+  "111:Issue 111:https://github.com/example-org/web/issues/111 120:Issue 120:https://github.com/example-org/web/issues/120"
 ok "snapshot: step_overview: an issue's title and URL" \
   eq "$(sj '.step_overview[1].issues[0] | "\(.title) \(.url)"')" "Issue 101 https://github.com/example-org/web/issues/101"
 ok "snapshot: repo_name: the clone's name, which a lock's repo= holds" eq "$(sj .repo_name)" web
@@ -193,6 +197,8 @@ route 'issue list -R example-org/web -s open*' FAIL
 dispatch --once
 ok "#54: a pass that cannot read GitHub keeps the large previous snapshot" \
   eq "$(sj '[.pass.ok, (.step_overview[0].issues | length), (.stale | index("steps") != null)] | map(tostring) | join(" ")')" "false 300 true"
+ok "#293: … and keeps unscheduled[] (the previous snapshot's) and lists it in stale" \
+  eq "$(sj '[(.unscheduled | length), (.stale | index("unscheduled") != null)] | map(tostring) | join(" ")')" "2 true"
 
 # log times: a line written before the upgrade (the host's local time) and one after it (UTC, Z)
 env_new events-two-forms

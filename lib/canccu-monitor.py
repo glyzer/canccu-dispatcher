@@ -5,15 +5,15 @@ of the dispatchers.
 Run through bin/canccu-monitor, which picks the venv's Python (rich). Reads only the status
 snapshots canccu-dispatch writes after every pass (~/.canccu/projects/<name>/status.json; schema
 in docs/reference/snapshot.md): the project's, and the other projects' for the one view of all.
-It never calls GitHub, git or tmux and never changes anything. Four views (lib/canccu_monitor/
-views.py): Summary (the default), Projects, Roadmap and Activity; keys 1-4, Tab and the arrows
+It never calls GitHub, git or tmux and never changes anything. Five views (lib/canccu_monitor/
+views.py): Summary (the default), Projects, Roadmap, Activity and Queue; keys 1-5, Tab and the arrows
 switch, the arrows, j/k, PgUp/PgDn and Home/End scroll, p cycles the Projects focus, a rotates
 the views, r redraws, ? shows the keys, q or Ctrl-C quits. Keys are read only when stdin is a
 tty. Redraws every 2 s and at once after a key; the cursor stays hidden the whole run and a
 redraw writes only the lines that changed. Up to 80 columns every view has its phone form.
 NO_COLOR turns colour off.
 
-  --view <name>                the start view: summary, projects, roadmap, activity (or 1-4)
+  --view <name>                the start view: summary, projects, roadmap, activity, queue (or 1-5)
   --rotate [secs]              cycle the views (default 30 s, the Summary twice as long); any
                                key but a stops it
   canccu-monitor --self-test   renders the mockup (tests/fixtures/monitor/inbox/) and every

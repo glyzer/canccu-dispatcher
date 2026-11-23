@@ -180,6 +180,16 @@ snap_queue() {
   (( ${STEPS_OK:-0} )) && snap_step_queue
 }
 
+# snap_unscheduled: the issues the product owner has not released yet (what canccu-status lists
+# under "Waiting for the product owner"), from the pass's own issue read: no extra gh call
+snap_unscheduled() {
+  local n
+  while read -r n; do
+    jq -nc --arg n "$n" --arg title "$(title_of "$n")" --arg r "$REPO" \
+      '{issue: ($n | tonumber), title: $title, url: "https://github.com/\($r)/issues/\($n)"}'
+  done < <(waiting_for_po)
+}
+
 # snap_milestones: {milestones, checkpoints} from two reads (the open milestones; the issues
 # labelled checkpoint, open or closed); fails on a gh error. A checkpoint is ready when it is open
 # and none of its blockers is.
@@ -235,7 +245,7 @@ snap_events() {
 # in "stale"; a failed milestone read keeps the previous milestones the same way.
 write_status() {
   (( CANCCU_DRY )) && return 0
-  local f="$CANCCU_HOME/status.json" err=${1:-} prev stale=() running needs queue ms events bu ok=true tmp steps usage overview others
+  local f="$CANCCU_HOME/status.json" err=${1:-} prev stale=() unsched running needs queue ms events bu ok=true tmp steps usage overview others
   local spend nocost started durs
   tmp="$f.tmp.$$"
   prev=$(jq -c 'if type == "object" then . else {} end' "$f" 2>/dev/null) || prev='{}'
@@ -246,10 +256,11 @@ write_status() {
     running=$(jq -c --slurpfile prev <(printf '%s' "$prev") 'map(. as $i | if .title == "" and .issue != null
                then .title = ([$prev[0].running[]? | select(.issue == $i.issue) | .title] | first // "") else . end)' <<<"$running") ||
       running='[]'
-    ok=false stale=(running needs_you queue milestones steps step_overview)
+    ok=false stale=(running needs_you queue unscheduled milestones steps step_overview)
     steps=$(jq -c '{steps: (.steps // []), current_step: (.current_step // null)}' <<<"$prev")
     overview=$(jq -c '.step_overview // []' <<<"$prev")
     needs=$(jq -c '.needs_you // []' <<<"$prev"); queue=$(jq -c '.queue // []' <<<"$prev")
+    unsched=$(jq -c '.unscheduled // []' <<<"$prev")
     ms=$(jq -c '{milestones: (.milestones // []), checkpoints: []}' <<<"$prev")
   else
     if ! ms=$(snap_milestones 2>/dev/null) || [ -z "$ms" ]; then
@@ -262,6 +273,7 @@ write_status() {
     fi
     needs=$(snap_needs_you | jq -sc .) || needs='[]'
     queue=$(snap_queue | jq -sc .) || queue='[]'
+    unsched=$(snap_unscheduled | jq -sc .) || unsched='[]'
   fi
   usage=$(snap_usage) || usage='{}'
   others=$(other_runs | jq -Rsc 'split("\n") | map(select(. != "") | split("\t")
@@ -279,7 +291,7 @@ write_status() {
     --argjson paused "$(paused && echo true || echo false)" --arg bu "$bu" --arg brake "$(brake_text)" --arg claim "$(claim_text)" --arg upgrade "$(upgrade_pending)" \
     --arg running_n "$(running_count)" --arg cap "$CAP" --arg total "$(total_running)" --arg tcap "$TOTAL_CAP" \
     --arg spend "$spend" --arg nocost "$nocost" --arg started "$started" --argjson durs "$durs" --arg day "$(date -u -d "@$(now)" +%F)" --arg freeze "${AUTO_MERGE_UNTIL:-}" \
-    --slurpfile running <(printf '%s' "$running") --slurpfile needs <(printf '%s' "$needs") --slurpfile queue <(printf '%s' "$queue") \
+    --slurpfile running <(printf '%s' "$running") --slurpfile needs <(printf '%s' "$needs") --slurpfile queue <(printf '%s' "$queue") --slurpfile unsched <(printf '%s' "$unsched") \
     --slurpfile ms <(printf '%s' "$ms") --slurpfile events <(printf '%s' "$events") --arg stale "${stale[*]}" \
     --slurpfile steps <(printf '%s' "$steps") --slurpfile usage <(printf '%s' "$usage") \
     --slurpfile overview <(printf '%s' "${overview:-[]}") --slurpfile others <(printf '%s' "$others") '
@@ -290,7 +302,7 @@ write_status() {
       caps: { running: ($running_n | tonumber), cap: ($cap | tonumber), total_running: ($total | tonumber),
               total_cap: ($tcap | tonumber) },
       spend: { today_usd: (($spend | tonumber) * 100 | round / 100), runs_without_cost: ($nocost | tonumber), day: $day, freeze: (if $freeze == "" then null else $freeze end) },
-      running: $running[0], needs_you: $needs[0], queue: $queue[0], milestones: $ms[0].milestones, events: $events[0],
+      running: $running[0], needs_you: $needs[0], queue: $queue[0], unscheduled: $unsched[0], milestones: $ms[0].milestones, events: $events[0],
       steps: $steps[0].steps, current_step: $steps[0].current_step, step_overview: $overview[0], other_runs: $others[0], usage: $usage[0],
       stale: ($stale | split(" ") | map(select(. != ""))) }' > "$tmp" && mv -f "$tmp" "$f" || {
     rm -f "$tmp"; log "could not write ${f/#$HOME/\~}"; }

@@ -10,7 +10,7 @@ import os
 import select
 import termios as _termios
 
-SINGLE = {"1": "1", "2": "2", "3": "3", "4": "4", "\t": "next", "q": "q", "\x03": "q", "p": "p", "a": "a",
+SINGLE = {"1": "1", "2": "2", "3": "3", "4": "4", "5": "5", "\t": "next", "q": "q", "\x03": "q", "p": "p", "a": "a",
           "r": "r", "?": "?", "j": "down", "k": "up"}
 # CSI and SS3 sequences; xterm, tmux, the Linux console and rxvt send Home/End differently
 SEQ = {"[A": "up", "[B": "down", "[C": "next", "[D": "prev", "OA": "up", "OB": "down", "OC": "next", "OD": "prev",
