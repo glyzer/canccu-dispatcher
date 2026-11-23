@@ -40,7 +40,7 @@ ok "… 2 → 3: workflow v2's fields start empty (#216)" \
 ok "… 3 → 4: round_from starts empty" \
   grep -qE "^[0-9TZ:-]{20} state format 3 → 4: no field changes \(round_from starts empty\)" "$CANCCU_HOME/dispatch.log"
 ok "… 4 → 5: no step is finished here, so none is marked (#277)" \
-  grep -qE "^[0-9TZ:-]{20} state format 4 → 5: the deep review and health pass of 0 finished step\(s\) marked not owed" "$CANCCU_HOME/dispatch.log"
+  grep -qE "^[0-9TZ:-]{20} state format 4 → 5: 0 step\(s\) that may be finished marked" "$CANCCU_HOME/dispatch.log"
 ok "… the needs-you unit in flight gets its owner (#70)" eq "$(st 6 owner)" po
 ok "… the pass then handles the work, needs-you and merging units as before (state)" \
   eq "$(for n in 5 6 7; do cat "$CANCCU_HOME/state/$n"; done)" "$base_st"

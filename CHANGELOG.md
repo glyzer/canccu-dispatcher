@@ -8,12 +8,12 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 
 **Upgrade:**
 
-- The state format is now `5` (#277). The upgrade marks each finished step (idle or health-due,
-  no deep review or health pass yet, no cadence round, no unit of its own) as not owed either
-  (`deep=skipped health=skipped`), so a host upgraded from before the v2 defaults does not start
-  a deep review or health pass for steps that closed weeks ago. To give such a step its deep
-  review anyway, clear its `deep` and `health` fields in `steps/<milestone>` while it is current.
-  A step still between waves matches too and loses its end pass. The weekly drain holds a deep
+- The state format is now `5` (#277). The upgrade marks each step that may be finished (idle or
+  health-due, no deep review or health pass yet, no cadence round, no unit of its own) with
+  `pre5=1`. On its next pass, a marked step that is current with its work done is not owed a deep
+  review or health pass (`deep=skipped health=skipped`): it goes on to its checkpoint, or ends,
+  and the next step starts. A marked step with open work loses the marker and keeps its end
+  passes, so a step between waves is not cut short. The weekly drain holds a deep
   review like a health pass, but a usage reading older than the dispatcher's start counts as
   unknown, so right after an upgrade restart nothing is draining until a run reports usage
   again. Going back to 0.3.0: write `4` to `state.format`.

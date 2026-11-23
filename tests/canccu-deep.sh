@@ -442,8 +442,8 @@ rm -f "$d/usage.json"
 dpass
 ok "… the drain over: it starts on the next pass" eq "$(grep -c -- '--key pkg-12-deep' "$FAKE/worker.log")" 1
 
-# the migration to format 5: a step that was idle or health-due with no deep review or health pass
-# and no unit of its own before the upgrade is not owed either; running, tracked and rounds stay
+# the migration to format 5 only marks (pre5=1) a step that was idle or health-due with no deep
+# review or health pass and no unit of its own; running, tracked and round steps stay unmarked
 denv fmt5
 sstate() { dlib step_set "$@"; }
 sstate 12 phase=idle wave=1 title="4 Search"
@@ -454,13 +454,41 @@ sstate 16 phase=idle round_phase=deep
 sstate 17 phase=idle
 dlib _st_put pkg-17-a step=17 phase=work
 ok "state_migrate_5 says what it did" \
-  eq "$(dlib state_migrate_5)" "the deep review and health pass of 2 finished step(s) marked not owed"
-ok "… an idle step with its work done: both skipped" eq "$(dlib step_get 12 deep) $(dlib step_get 12 health)" "skipped skipped"
-ok "… a health-due one too" eq "$(dlib step_get 13 deep) $(dlib step_get 13 health)" "skipped skipped"
-ok "… a running step keeps its fields" eq "[$(dlib step_get 14 deep)$(dlib step_get 14 health)]" "[]"
-ok "… a step with a health pass keeps it" eq "$(dlib step_get 15 health)" merged
-ok "… a step in a cadence round keeps its fields" eq "[$(dlib step_get 16 deep)$(dlib step_get 16 health)]" "[]"
-ok "… a step with a unit of its own keeps its fields" eq "[$(dlib step_get 17 deep)$(dlib step_get 17 health)]" "[]"
+  eq "$(dlib state_migrate_5)" "2 step(s) that may be finished marked (pre5); their end passes are decided from their issues"
+ok "… an idle and a health-due step are marked, and keep their fields" \
+  eq "$(dlib step_get 12 pre5)$(dlib step_get 13 pre5) [$(dlib step_get 12 deep)$(dlib step_get 13 health)]" "11 []"
+ok "… running, with a health pass, in a round, with a unit of its own: not marked" \
+  eq "[$(for m in 14 15 16 17; do dlib step_get "$m" pre5; done)]" "[]"
+
+# step_tick decides on the step's issues (#277): finished steps go on to their checkpoint or end
+# without a deep review or health pass, and the next step then starts
+pre5env() { # <name> <phase> <checkpoint 0|1>
+  denv "$1" STEP_DEEP_REVIEW=1
+  (( $3 )) || echo '[]' > "$FAKE/cps.json"
+  printf 'phase=%s\npre5=1\nwave=1\ntitle=4 Search\nepic=90\n' "$2" > "$CANCCU_HOME/steps/12"
+}
+runs() { echo "$(grep -c -- '--key pkg-12-deep' "$FAKE/worker.log") $(grep -c -- '--key pkg-12-health' "$FAKE/worker.log") $(grep -c -- '--key plan-13' "$FAKE/worker.log")"; }
+for ph in idle health-due; do
+  pre5env "pre5-$ph-cp" "$ph" 1
+  dpass
+  ok "#277: $ph, work done, checkpoint open: no run, the summary is posted, the next step waits" \
+    eq "$(sf phase) $(sf deep) $(sf health) [$(sf pre5)] $(runs)" "checkpoint skipped skipped [] 0 0 0"
+  cpi 95 CLOSED "4 Search" | jq -s . > "$FAKE/cps.json"
+  dpass; dpass
+  ok "#277: … the checkpoint closed: the step is done and step 5 starts ($ph)" eq "$(sf phase) $(runs)" "done 0 0 1"
+  pre5env "pre5-$ph-nocp" "$ph" 0
+  dpass; dpass
+  ok "#277: $ph, work done, no checkpoint: the step is done without runs and step 5 starts" eq "$(sf phase) $(runs)" "done 0 0 1"
+done
+# open work: not finished; the marker goes and the deep review comes after the work
+pre5env pre5-open idle 1
+{ issue 90 epic "" "4 Search"; issue 44 ready "" "4 Search"; issue 41 ready "" "5 Later"; } | issues
+dpass
+ok "#277: a step with open work loses the marker and is not marked skipped" eq "[$(sf pre5)] [$(sf deep)] [$(sf health)]" "[] [] []"
+{ issue 90 epic "" "4 Search"; issue 41 ready "" "5 Later"; } | issues
+sed -i 's/^phase=.*/phase=idle/' "$CANCCU_HOME/steps/12"
+dpass
+ok "#277: … its work closed later, the deep review starts" eq "$(sf phase) $(runs)" "deep 1 0 0"
 
 echo "canccu-deep tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
