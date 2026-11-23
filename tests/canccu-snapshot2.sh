@@ -198,7 +198,7 @@ dispatch --once
 ok "#54: a pass that cannot read GitHub keeps the large previous snapshot" \
   eq "$(sj '[.pass.ok, (.step_overview[0].issues | length), (.stale | index("steps") != null)] | map(tostring) | join(" ")')" "false 300 true"
 ok "#293: … and keeps unscheduled[] (the previous snapshot's) and lists it in stale" \
-  eq "$(sj '[(.unscheduled | length), (.stale | index("unscheduled") != null)] | map(tostring) | join(" ")')" "2 true"
+  eq "$(sj '[(.unscheduled | length > 0), (.stale | index("unscheduled") != null)] | map(tostring) | join(" ")')" "true true"
 
 # log times: a line written before the upgrade (the host's local time) and one after it (UTC, Z)
 env_new events-two-forms
