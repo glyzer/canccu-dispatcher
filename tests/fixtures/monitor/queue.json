@@ -75,6 +75,23 @@
         21
       ],
       "owner": "po"
+    },
+    {
+      "kind": "budget",
+      "issue": 21,
+      "pr": 77,
+      "reason": "",
+      "since": null,
+      "title": "Accept the export",
+      "url": "https://github.com/example-org/web/issues/21",
+      "color": null,
+      "package": null,
+      "step": null,
+      "stage": null,
+      "issues": [
+        21
+      ],
+      "owner": "po"
     }
   ],
   "queue": [
@@ -84,7 +101,7 @@
       "blocked": false,
       "waits_on": null,
       "lane": "fast",
-      "package": null
+      "package": "104"
     },
     {
       "issue": 23,
@@ -167,7 +184,7 @@
       "at": 1920110400,
       "issue": null,
       "package": null,
-      "text": "step 3 Search reached STEP_BUDGET ($5.00 of $4): no new run of it starts · https://github.com/example-org/web/issues/90",
+      "text": "step 3 Search reached STEP_BUDGET ($5.00 of $4): no new run of it starts \u00b7 https://github.com/example-org/web/issues/90",
       "count": 1,
       "first_at": 1920110400
     }
@@ -356,7 +373,7 @@
     "weekly_resets_at": 2019686400,
     "at": 1920110370,
     "state": "normal",
-    "text": "5-hour 42% · weekly 50%"
+    "text": "5-hour 42% \u00b7 weekly 50%"
   },
   "stale": [],
   "unscheduled": [

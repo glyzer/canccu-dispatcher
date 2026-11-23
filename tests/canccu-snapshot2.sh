@@ -19,7 +19,7 @@ jq -nc '{number: 95, title: "Checkpoint: events", state: "OPEN", milestone: {tit
 { issue 90 epic,needs-you "" "3 Events"; issue 101 in-progress "" "3 Events"; issue 103 in-progress "" "3 Events"
   issue 104 ready "" "3 Events"; issue 6 ready "Blocked by #104"; issue 107 ready "Blocked by #104" "3 Events"; issue 108 ready "" "3 Events"
   issue 110 ready "" "4 Payments"; issue 111 "" "" "4 Payments"; issue 112 blocked "" "4 Payments"
-  issue 113 ready "Blocked by #110" "4 Payments"; issue 120 "" "" "6 Later"; } | issues
+  issue 113 ready "Blocked by #110" "4 Payments"; issue 120 "" "" "6 Later"; issue 121 ready "Blocked by #110" "6 Later"; } | issues
 # the next step's blockers come from the issue's body, not a read per pass: this answer is never asked for
 json b113.json '[{"number": 120, "state": "open"}]'; route 'api repos/example-org/web/issues/113/dependencies/blocked_by' b113.json
 json c90.json '{"comments": []}'; route 'issue view 90 *' c90.json
@@ -69,7 +69,7 @@ ok "snapshot: usage" eq "$(sj '.usage | [.five_hour, .seven_day, .state] | map(t
 # the step overview (the monitor's Roadmap), the runs the dispatcher did not start
 ok "snapshot: step_overview: every open milestone in order, its place and work issues done/total" \
   eq "$(sj '[.step_overview[] | "\(.milestone):\(.place):\(.work_closed)/\(.work_open + .work_closed)"] | join(" ")')" \
-  "11:done:3/3 12:current:1/6 13:next:0/4 14:later:0/0 15:later:0/1"
+  "11:done:3/3 12:current:1/6 13:next:0/4 14:later:0/0 15:later:0/2"
 ok "snapshot: step_overview: the current step's open work issues, their status and package (no epic)" \
   eq "$(sj '[.step_overview[] | select(.milestone == 12) | .issues[] | "\(.issue):\(.status):\(.package):\(.waits_on)"] | join(" ")')" \
   "101:running:pkg-12-auth:null 103:running:pkg-12-auth:null 104:blocked:104:depends on auth 107:blocked:null:blocked by 104 108:next-wave:null:the next wave of step 3 (label fast to run it now)"
@@ -81,7 +81,8 @@ ok "snapshot: step_overview: the next step's issues, ready or waiting" \
   "110:ready:null 111:blocked:no ready label 112:blocked:labelled blocked 113:blocked:blocked by 110"
 ok "snapshot: step_overview: no GitHub read for a next-step issue's blockers" not grep -q 'issues/113/dependencies' "$FAKE/gh.log"
 ok "snapshot: step_overview: a later step lists its open issues too (peek: no GitHub read)" \
-  eq "$(sj '[.step_overview[] | select(.place == "later") | .issues[] | "\(.issue):\(.status):\(.waits_on)"] | join(" ")')" "120:blocked:no ready label"
+  eq "$(sj '[.step_overview[] | select(.place == "later") | .issues[] | "\(.issue):\(.status):\(.waits_on)"] | join(" ")')" "120:blocked:no ready label 121:blocked:blocked by 110"
+ok "#293: snapshot: a later step's ready issue: no GitHub read for its blockers" not grep -q 'issues/121/dependencies' "$FAKE/gh.log"
 ok "#293: snapshot unscheduled[]: an open issue without ready/blocked/epic/in-progress, with title and url" \
   eq "$(sj '[.unscheduled[] | "\(.issue):\(.title):\(.url)"] | join(" ")')" \
   "111:Issue 111:https://github.com/example-org/web/issues/111 120:Issue 120:https://github.com/example-org/web/issues/120"
@@ -206,6 +207,18 @@ printf '2030-11-05 21:00:00 #5 worker started\n2030-11-05T12:01:00Z #6 worker st
 ev=$(TZ=JST-9 lib eval ". \"$root/lib/canccu-snapshot.sh\"; snap_events" | jq -sc 'map("\(.issue) \(.at) \(.text)")')
 ok "snap_events: an old local-time line and a new UTC line, both with their epochs" \
   eq "$ev" "$(jq -nc --arg a "5 $NOW #5 worker started" --arg b "6 $((NOW + 60)) #6 worker started" '[$a, $b]')"
+
+# the same pass with and without the later step's and the unscheduled issues: the same number of gh calls
+gh_calls() {
+  env_new "$1"
+  jq -s . < <(jq -nc '{number: 13, title: "4 Payments", open_issues: 2, closed_issues: 0, due_on: null}'
+              jq -nc '{number: 15, title: "6 Later", open_issues: 2, closed_issues: 0, due_on: null}') > "$FAKE/ms.json"
+  { issue 110 ready "" "4 Payments"; issue 113 ready "Blocked by #110" "4 Payments"; [ "$2" = few ] || {
+      issue 120 "" "" "6 Later"; issue 121 ready "Blocked by #110" "6 Later"; issue 122; }; } | issues
+  dispatch --once
+  wc -l < "$FAKE/gh.log"
+}
+ok "#293: the later and unscheduled issues add no gh call" eq "$(gh_calls snap2-few few)" "$(gh_calls snap2-many many)"
 
 echo "canccu-snapshot2 tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

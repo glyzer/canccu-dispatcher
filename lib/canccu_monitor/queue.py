@@ -18,11 +18,12 @@ from .roadmap import ISSUE, MARK_STYLE, NEXT, PARKED, WAIT, YOU, ready_wait, run
 PLACES = {"current": "NOW", "next": "NEXT", "later": "LATER"}
 
 
-def where_of(item):
-    """The package's name (its key without the pkg-<step>- prefix), else the fast lane."""
+def where_of(item, names):
+    """The package's name (from the plan by key, else the key without its pkg-<step>- prefix),
+    else the fast lane."""
     pkg = txt(item, "package")
     if pkg:
-        return re.sub(r"^pkg-\d+-", "", pkg)
+        return names.get(pkg) or re.sub(r"^pkg-\d+-", "", pkg)
     return "fast lane" if txt(item, "lane") == "fast" else ""
 
 
@@ -45,14 +46,20 @@ def sections(snap):
     seen, out = set(), []
     running = {num(i, "issue"): i for i in lst(snap, "running") if num(i, "issue") is not None}
 
+    names = {txt(p, "key"): txt(p, "name") for st in lst(snap, "steps") for p in lst(st.get("plan"), "packages")
+             if txt(p, "key") and txt(p, "name")}
+
     def add(name, rows):
-        rows = [r for r in rows if r[0] not in seen]
-        seen.update(r[0] for r in rows)
-        if rows:
-            out.append((name, rows))
+        kept = []
+        for r in rows:
+            if r[0] not in seen:
+                seen.add(r[0])
+                kept.append(r)
+        if kept:
+            out.append((name, kept))
 
     def row(it, mw, wait=""):
-        return (num(it, "issue"), txt(it, "title"), where_of(it), mw, wait)
+        return (num(it, "issue"), txt(it, "title"), where_of(it, names), mw, wait)
 
     add("Running", [row(i, run_status(i)) for i in lst(snap, "running") if num(i, "issue") is not None])
     parked = []
@@ -93,7 +100,7 @@ def queue_lines(name, snap, width):
     if not secs:
         return out + [Text("  no open issues", style="dim")]
     for head, rows in secs:
-        out.append(Text(head, style="bold"))
+        out += wrap(Text(head, style="bold"), width, 4)
         for r in rows:
             out += issue_line(r, width)
     return out

@@ -230,6 +230,13 @@ def queue_checks(fx, check):
         names = ["Running", "Needs you", "Queue", "3 Events · NOW", "4 Payments · NEXT", "5 Reports · LATER", "Not scheduled"]
         check([x.strip() for x in lines if x.strip() in names] == names, "queue at %d: the sections" % w)
     wide, _ = shot([("web", snap)], State(view=4), 120, 100)
+    check(sum("#21 " in x for x in wide) == 1, "queue: an issue listed twice in one section shows once")
+    check(any("#22" in x and " list" in x and "104" not in x for x in wide),
+          "queue: a single-issue package shows its name, not its issue number")
+    longt = dict(snap, step_overview=[dict(o, title="5 A very long step title that certainly will not fit on one line of a phone-width screen at all")
+                                      if o.get("place") == "later" else o for o in snap["step_overview"]])
+    lines, _ = shot([("web", longt)], State(view=4), 60, 100)
+    check(all(len(x) <= 60 for x in lines) and any("LATER" in x for x in lines), "queue: a long step title wraps and keeps LATER")
     check(any("#23" in x and "blocked" in x for x in wide), "queue: a blocked issue keeps its place, marked blocked")
     check(any(x.startswith("Not scheduled") for x in wide), "queue: no Not scheduled section")
     old = {k: v for k, v in snap.items() if k != "unscheduled"}
