@@ -44,6 +44,21 @@ case $1 in
 esac
 exit 0
 EOF
+# df: $FAKE/df (the lines df -P prints), else a file system with room; docker: `ps` prints
+# $FAKE/docker.containers. Memory: $FAKE/meminfo, else plenty. The doctor reads the host's /tmp,
+# memory and containers (#238): the user's own must never decide a test.
+cat > "$tb/df" <<'EOF'
+#!/bin/sh
+[ -e "$FAKE/df" ] && exec cat "$FAKE/df"
+printf 'Filesystem 1024-blocks Used Available Capacity Mounted on\nfake 16777216 1048576 15728640 7%% /\n'
+EOF
+cat > "$tb/docker" <<'EOF'
+#!/bin/sh
+case $1 in ps) cat "$FAKE/docker.containers" 2>/dev/null ;; esac
+exit 0
+EOF
+printf 'MemTotal: 16777216 kB\nMemAvailable: 8388608 kB\n' > "$T/meminfo"
+export CANCCU_MEMINFO=$T/meminfo
 chmod +x "$tb"/*
 # tool_fake <name> <version line>: a tool of that version, for one test (in $FAKE/bin, first on
 # PATH through IPATH)

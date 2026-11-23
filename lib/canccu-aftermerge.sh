@@ -90,9 +90,10 @@ close_epics() {
 }
 
 # unit_cleanup <K> <pr>: a unit whose PR merged leaves nothing behind: its worktree and branch,
-# the PR's review worktree, its session id and question
+# the PR's review worktree, its session id and question, the containers its runs started
 unit_cleanup() {
   local n=$1 pr=$2 wt br m
+  unit_containers_rm "$n"
   wt=$(unit_wt "$n")
   if [ -e "$wt/.git" ]; then
     br=$(guard 10 git -C "$wt" branch --show-current)
@@ -137,6 +138,7 @@ finish_unit() {
     unit_merged "$n" "$pr" "$title" $(members_of "$n")
   else
     log "#$n closed without a merged PR; its worktree is kept"
+    unit_containers_rm "$n"
     mut rm -f "$(qfile "$n")"
   fi
   is_step_run "$n" && health_labels_clear "$n"

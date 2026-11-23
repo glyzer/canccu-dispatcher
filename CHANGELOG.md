@@ -6,6 +6,14 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 
 ## Unreleased
 
+- Runs clean up their containers (#238): a run's tag (`canccu_<project>_<key>`) reaches it as
+  `CANCCU_RUN` and `COMPOSE_PROJECT_NAME`, and its rules say to label containers with it and to
+  use `$TMPDIR`, not `/tmp`. The tagged containers, networks and volumes of a unit go when it
+  merges, closes or is forgotten; each pass sweeps those no unit or live run holds, and the stale
+  run temp dirs (before: only at the dispatcher's start). `doctor` warns when `/tmp` or memory
+  has under 10% free, and names untagged containers running for over 2 days
+  ([`engine.md`](docs/reference/engine.md)).
+
 ## [0.3.0] — 2026-11-22
 
 Release 0.3: step 4's packages and the follow-ups of the 0.2 and 0.3 reviews.

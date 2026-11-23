@@ -333,5 +333,71 @@ dispatch --once
 ok "body lines: a contract PR is not sent back" \
   eq "$(grep -cF 'needs `Testing:`' "$FAKE/worker.log") $(st 5 body_lines) $(grep -c -- '--key review-51' "$FAKE/worker.log")" "0  1"
 
+# ---------------------------------------------------------------- the containers runs leave (#238)
+
+# ctr <id> <name> <state> <tag label> <compose project>: a line of the fake docker's listing,
+# started 3 days before the tests' clock
+ctr() { printf '%s\t%s\t%s\t2030-11-02 12:00:00 +0000 UTC\t%s\t%s\n' "$@"; }
+
+# a merge: the unit's worker, answerer and PR reviewer containers go, with the Compose network and
+# volume of its run; another unit's and an untagged one stay
+env_new ctr-merge
+state 5 phase=merging pr=50 how=auto merge_sha=$HA
+json pr50.json '{"state": "MERGED", "title": "feat: thing"}'; route 'pr view 50 *' pr50.json
+json issue5.json '{"state": "CLOSED", "labels": []}'; route 'issue view 5 *' issue5.json
+{ ctr c1 web5-pg running canccu_web_5 ""; ctr c2 web-db-1 running "" canccu_web_review-50
+  ctr c3 ans running canccu_web_answer-5 ""; ctr c4 demo-app running "" demo; ctr c5 other running canccu_web_6 ""
+  ctr c6 tools-pg running canccu_tools_5 ""; } > "$FAKE/docker.containers"
+printf 'v1\tv1\t-\t-\t\tcanccu_web_review-50\nv2\tv2\t-\t-\t\tdemo\n' > "$FAKE/docker.volumes"
+printf 'n1\tweb_default\t-\t-\t\tcanccu_web_review-50\n' > "$FAKE/docker.networks"
+state 6 phase=work
+dispatch --once
+ok "containers: a merged unit's go, with their volumes" grep -qx 'rm -f -v c1 c2 c3' "$FAKE/docker.log"
+ok "… its Compose network and volume too" eq "$(grep -cx -e 'network rm n1' -e 'volume rm v1' "$FAKE/docker.log")" 2
+ok "… logged" grep -qF '#5: removed container web5-pg container web-db-1 container ans network web_default volume v1' "$CANCCU_HOME/dispatch.log"
+ok "… an open unit's, an untagged one and another project's stay" eq "$(cut -f1 "$FAKE/docker.containers" | tr '\n' ' ')" "c4 c5 c6 "
+ok "… and the sweep finds nothing more to remove" eq "$(grep -c 'rm ' "$FAKE/docker.log")" 3
+
+# a unit closed without a merge loses its containers too
+env_new ctr-closed
+state 8 phase=needs-you pr=80
+json pr80.json '{"state": "CLOSED", "title": "feat: other"}'; route 'pr view 80 *' pr80.json
+json issue8.json '{"state": "CLOSED", "labels": []}'; route 'issue view 8 *' issue8.json
+ctr c8 pkg8-pg running canccu_web_8 "" > "$FAKE/docker.containers"
+dispatch --once
+ok "containers: a unit closed unmerged: they go" eq "$(grep -cx 'rm -f -v c8' "$FAKE/docker.log") $(grep -c '#8: removed container pkg8-pg' "$CANCCU_HOME/dispatch.log")" "1 1"
+
+# canccu-stop --forget drops the unit: its containers go with it
+env_new ctr-forget
+{ issue 21 needs-you; } | issues
+state 21 phase=needs-you pr=70
+ctr c9 rev running "" canccu_web_review-70 > "$FAKE/docker.containers"
+PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-stop" --forget 21 > "$E/out" 2>&1
+ok "containers: canccu-stop --forget removes the unit's" grep -qx 'rm -f -v c9' "$FAKE/docker.log"
+
+# the sweep of each pass: a tag no unit, no live run and no planner holds goes (a crashed run of a
+# unit dropped since); the others stay. A dry run removes nothing.
+env_new ctr-sweep
+{ issue 5 in-progress; } | issues
+state 5 phase=needs-you pr=50
+live_lock 9
+printf 'repo=web\nkey=7\nkind=worker\npid=999999\nwindow=\n' > "$WORKERS_DIR/web-7.lock"   # its run crashed
+mkdir -p "$WORKERS_DIR/worktrees/web/plan-12"
+{ ctr c1 web5-pg running canccu_web_5 ""; ctr c2 rev-db running "" canccu_web_review-50; ctr c3 pkg7-pg exited canccu_web_7 ""
+  ctr c4 live running canccu_web_9 ""; ctr c5 plan running canccu_web_plan-12 ""; ctr c6 tools running canccu_tools_7 ""
+  ctr c7 demo running "" demo; } > "$FAKE/docker.containers"
+printf 'v7\tv7\t-\t-\tcanccu_web_7\t\n' > "$FAKE/docker.volumes"
+dispatch --dry-run
+ok "sweep: a dry run removes nothing" eq "$(grep -c 'rm ' "$FAKE/docker.log")" 0
+ok "… and says what it would" grep -qF 'would: docker rm -f -v c3' "$E/out"
+dispatch --once
+ok "sweep: a gone unit's container and volume are removed" eq "$(grep -cx -e 'rm -f -v c3' -e 'volume rm v7' "$FAKE/docker.log")" 2
+ok "… nothing else" eq "$(grep -c 'rm ' "$FAKE/docker.log")" 2
+ok "… logged" grep -qF 'sweep (no unit or run holds them): removed container pkg7-pg volume v7' "$CANCCU_HOME/dispatch.log"
+ok "… an open unit's, its reviewer's, a live run's, a planner's, another project's and an untagged one stay" \
+  eq "$(cut -f1 "$FAKE/docker.containers" | tr '\n' ' ')" "c1 c2 c4 c5 c6 c7 "
+rm "$FAKE/docker.containers"; PATH="$fb:/usr/bin:/bin" lib containers_sweep
+ok "sweep: no docker listing, nothing to do" eq "$(grep -c 'rm ' "$FAKE/docker.log")" 2
+
 echo "canccu-dispatch2 tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

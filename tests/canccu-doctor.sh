@@ -49,6 +49,24 @@ for pat in '~/.canccu/**' '/'"$H"'/.canccu/reviewer-token' '~/.canccu/*-token'; 
   ok "the token covered by Read($pat)" eq "$rc" 0
 done
 
+# the host's room (#238): /tmp or memory under 10% free, a container no run tagged that runs for
+# over 2 days; a tagged one, a stopped one and a young one are no problem
+clean_host room
+printf 'Filesystem 1024-blocks Used Available Capacity Mounted on\ntmpfs 16777216 16043212 734004 96%% /tmp\n' > "$FAKE/df"
+printf 'MemTotal: 16777216 kB\nMemAvailable: 1048576 kB\n' > "$FAKE/meminfo"
+d3=$(date -u -d '3 days ago' '+%F %T +0000 UTC') d1=$(date -u -d '1 day ago' '+%F %T +0000 UTC')
+{ printf 'c1\tpkg211-agenda-pg\trunning\t%s\t\t\n' "$d3"; printf 'c2\tm383-pg\trunning\t%s\t\tlook\n' "$d3"
+  printf 'c3\tweb5-pg\trunning\t%s\tcanccu_web_5\t\n' "$d3"; printf 'c4\tdb\trunning\t%s\t\tcanccu_web_review-5\n' "$d3"
+  printf 'c5\told\texited\t%s\t\t\n' "$d3"; printf 'c6\tnew\trunning\t%s\t\t\n' "$d1"; } > "$FAKE/docker.containers"
+CANCCU_MEMINFO=$FAKE/meminfo doctor
+ok "room: /tmp under 10% free is a problem" eq "$(line '^/tmp: 716.8M free of 16.0G: what runs leave there fills it (du -sh /tmp/\*)$')" 1
+ok "… memory under 10% available too" eq "$(line '^memory: 1.0G available of 16.0G: Claude Code kills background tasks when it runs out$')" 1
+ok "… and the untagged containers over 2 days old, by name" \
+  eq "$(line '^2 container(s) no run tagged have run for over 2 days (pkg211-agenda-pg, m383-pg): remove the ones nothing needs (docker rm -f -v <name>)$')" 1
+ok "… three problems: exit 1" eq "$rc $(probs | wc -l)" "1 3"
+rm "$FAKE/df" "$FAKE/docker.containers"; doctor
+ok "room: enough /tmp and memory, no old containers: no problem" eq "$rc $(probs)" "0 no problems found"
+
 clean_host no-login
 rm -r "$C/projects/web/gh"; doctor
 ok "a project without its own gh login: named, with the steps" \

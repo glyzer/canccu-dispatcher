@@ -183,3 +183,5 @@ unit_moved() {
   (( ${#kv[@]} == 0 )) || _st_put "$k" "${kv[@]}"
   feed_unit_moved "$k" "$2" "$new"
 }
+# shellcheck source=canccu-containers.sh
+. "$_canccu_lib/canccu-containers.sh"

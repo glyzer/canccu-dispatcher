@@ -34,6 +34,8 @@ CANCCU_USER_PATH=$PATH
 . "$here/lib/canccu-install-cmds.sh"
 # shellcheck source=../lib/canccu-deps.sh
 . "$here/lib/canccu-deps.sh"
+# shellcheck source=../lib/canccu-containers.sh
+. "$here/lib/canccu-containers.sh"
 # shellcheck source=../lib/canccu-doctor.sh
 . "$here/lib/canccu-doctor.sh"
 # shellcheck source=../lib/canccu-configcmd.sh

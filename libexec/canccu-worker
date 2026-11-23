@@ -56,8 +56,9 @@ fi
 
 usage() { sed -n '7,10s/^# \{0,1\}//p' "$self" >&2; exit 2; }
 
-# Appended to every worker's system prompt: the two ways a headless run hangs itself.
-WORKER_RULES='Never match your own command line: pgrep -f / pkill -f with text that appears in the same command matches its own shell and waits forever; use a pid or a pidfile. Never wait in an unbounded until/while loop; bound it (timeout 120 ...) so a stuck wait ends the call. Never run a command or subagent in the background (run_in_background, a trailing &): this run is headless and ends with your turn, and work still running is lost.'
+# Appended to every run's system prompt: the ways a headless run hangs itself, and where its
+# leftovers go so they get removed (#238).
+WORKER_RULES='Never match your own command line: pgrep -f / pkill -f with text that appears in the same command matches its own shell and waits forever; use a pid or a pidfile. Never wait in an unbounded until/while loop; bound it (timeout 120 ...) so a stuck wait ends the call. Never run a command or subagent in the background (run_in_background, a trailing &): this run is headless and ends with your turn, and work still running is lost. Put scratch files, venvs and repro folders under $TMPDIR, never /tmp: it is removed when the run ends. Start every container with --label canccu.run=$CANCCU_RUN, and run docker compose without -p (COMPOSE_PROJECT_NAME is set): the dispatcher removes them once the issue is done.'
 
 # ---------------------------------------------------------------- inner run (in the tmux window)
 
@@ -115,6 +116,9 @@ run() {
   export WORKER_NUDGE_FILE="$base.nudge"   # libexec/canccu-nudge-hook: the dispatcher asks the run to stop at a safe point
   # config set refuses locked keys to a run (lib/canccu-configcmd.sh); a marker, not a boundary
   export CANCCU_ACTOR=run
+  # the containers it starts carry its tag (the label canccu.run, the Compose project): the
+  # dispatcher removes them once their unit ends (lib/canccu-containers.sh)
+  CANCCU_RUN=$(run_tag "$key"); export CANCCU_RUN COMPOSE_PROJECT_NAME=$CANCCU_RUN
   sed -i -e "s/^pid=.*/pid=$$/" -e '/^pstart=/d' "$lock"
   echo "pstart=$(proc_start $$)" >> "$lock"
   trap '[ -n "$wpid" ] && kill "$wpid" 2>/dev/null; rm -f "$lock" "$errf" "$sumf" "$stallf"; rm_tree "$run_tmp"' EXIT
