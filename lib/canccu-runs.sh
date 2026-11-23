@@ -380,7 +380,7 @@ effort_cap() {
 # Agent configuration and gated paths (gated_re) → high; no files → high. With a risk class (a
 # package's, effective_risk): high → high, low or normal → medium, whatever the paths. Without one,
 # by the paths: medium for a docs-only diff (docs/, *.md and the rules' EFFORT_DOCS_PATHS, which
-# count as docs even when RISKY_PATHS names them) or a fix-tier diff under 100 changed lines; high
+# count as docs even when RISKY_PATHS names them or their file names match it) or a fix-tier diff under 100 changed lines; high
 # when another path is risky (RISKY_PATHS), and otherwise.
 review_effort_pure() {
   local stats=$1 body=$2 risk=${3:-} paths total rc
@@ -396,8 +396,11 @@ review_effort_pure() {
     # the docs paths' lines are no more a reason to review the diff in full than the paths are
     stats=$(grep -vE "$EFFORT_DOCS_PATHS" <<<"$stats")
   fi
+  # a docs file is docs whatever its name says ("05-sessions.svg" is no session code), so the risky
+  # paths are tested on what is left outside docs/ and *.md
+  # (no pipe into grep -q: under pipefail its early exit fails the writer with SIGPIPE at random)
+  paths=$(grep -vE '^docs/|\.md$' <<<"$paths") || { effort_cap medium; return; }
   [ -n "$RISKY_PATHS" ] && grep -qiE "$RISKY_PATHS" <<<"$paths" && { effort_cap high; return; }
-  grep -qvE '^docs/|\.md$' <<<"$paths" || { effort_cap medium; return; }
   total=$(awk -F '\t' '{ t += $2 } END { print t + 0 }' <<<"$stats")
   if grep -qiE '^[[:space:]*_]*Tier:[[:space:]*_]*fix\b' <<<"$body" && (( total < 100 )); then effort_cap medium; else effort_cap high; fi
 }
