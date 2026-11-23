@@ -33,6 +33,9 @@ ok "docs only, 'session' in an svg name → medium" eq "$(ef $'docs/briefs/step-
 ok "docs only, 'rights' in a docs name → medium" eq "$(ef $'docs/briefs/13-settings-and-rights.svg\t9\ndocs/x.md\t2' 'Tier: feature')" medium
 ok "a risky word in a Markdown name → medium" eq "$(ef $'notes/auth-session.md\t30' 'Tier: feature')" medium
 ok "docs with a risky name plus a risky code path → high" eq "$(ef $'docs/05-sessions.svg\t3\nsrc/auth/a.ts\t2' 'Tier: fix')" high
+# many risky paths: under pipefail a pipe into grep -q loses the match at random (SIGPIPE)
+ok "300 risky paths of 0 lines, Tier: fix, 20 times under pipefail → always high" \
+  eq "$(lib eval "set -o pipefail; s=\$(for i in \$(seq 300); do printf 'src/auth/module-%s.ts\t0\n' \$i; done); for n in \$(seq 20); do review_effort_pure \"\$s\" 'Tier: fix'; done | sort | uniq -c | tr -s ' '")" " 20 high"
 ok "no EFFORT_DOCS_PATHS: contracts are a risky path again → high" \
   eq "$(lib eval "EFFORT_DOCS_PATHS=; review_effort_pure \$'contracts/screen.yaml\t2' 'Tier: fix'")" high
 ok "EFFORT_DOCS_PATHS never lightens a gated path" \

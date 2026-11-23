@@ -398,8 +398,9 @@ review_effort_pure() {
   fi
   # a docs file is docs whatever its name says ("05-sessions.svg" is no session code), so the risky
   # paths are tested on what is left outside docs/ and *.md
-  grep -qvE '^docs/|\.md$' <<<"$paths" || { effort_cap medium; return; }
-  [ -n "$RISKY_PATHS" ] && grep -vE '^docs/|\.md$' <<<"$paths" | grep -qiE "$RISKY_PATHS" && { effort_cap high; return; }
+  # (no pipe into grep -q: under pipefail its early exit fails the writer with SIGPIPE at random)
+  paths=$(grep -vE '^docs/|\.md$' <<<"$paths") || { effort_cap medium; return; }
+  [ -n "$RISKY_PATHS" ] && grep -qiE "$RISKY_PATHS" <<<"$paths" && { effort_cap high; return; }
   total=$(awk -F '\t' '{ t += $2 } END { print t + 0 }' <<<"$stats")
   if grep -qiE '^[[:space:]*_]*Tier:[[:space:]*_]*fix\b' <<<"$body" && (( total < 100 )); then effort_cap medium; else effort_cap high; fi
 }
