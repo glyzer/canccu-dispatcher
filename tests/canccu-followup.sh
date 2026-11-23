@@ -463,6 +463,15 @@ ok "a failed run with a job still running → no rerun yet, no fix run, the reru
   eq "$(grep -c '^run rerun' "$FAKE/gh.log") $(wc -l < "$FAKE/worker.log") [$(st 5 ci_rerun)]" "0 0 []"
 ok "… logged" grep -qF '#5 PR #50: CI red; run 700 still has jobs running: the rerun waits for them' "$CANCCU_HOME/dispatch.log"
 
+# GitHub refuses the rerun although the rollup showed no running job (a job not listed yet): the
+# refusal is a wait, not a failure: the rerun is not spent and no fix run starts
+rrenv rerun-refused; : > "$FAKE/routes"; route 'run rerun *' RERUN_REFUSED
+dispatch --once
+ok "a rerun refused as 'already running' → no fix run, the rerun not spent" \
+  eq "$(wc -l < "$FAKE/worker.log") [$(st 5 ci_rerun)] [$(st 5 ci_rerun_at)]" "0 [] []"
+ok "… logged as a wait, not as a failed rerun" grep -qF '#5 PR #50: CI red; rerun of run 700 refused (still running): it waits' "$CANCCU_HOME/dispatch.log"
+ok "… not logged as a failed rerun" not grep -qF 'rerun of run 700 failed' "$CANCCU_HOME/dispatch.log"
+
 # a health pass's fresh follow-up names the pass and its limits, not an empty package
 env_new handoff-health
 mkdir -p "$CANCCU_HOME/steps"; printf 'title=3 Events\n' > "$CANCCU_HOME/steps/12"

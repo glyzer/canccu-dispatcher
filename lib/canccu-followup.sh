@@ -271,7 +271,7 @@ ci_run_busy() {
 
 # ci_rerun <K> <pr> <head>: the failed GitHub Actions runs of a red head rerun (--failed), once per
 # head, before any fix run: a flaky check costs no AI run. 0 also while a job of such a run still
-# runs (it waits, spending nothing). 1: none rerun (none to rerun, done for
+# runs, or GitHub refuses the rerun as already running (it waits, spending nothing). 1: none rerun (none to rerun, done for
 # this head, or every rerun call failed), the fix run goes on in this pass.
 ci_rerun() {
   local k=$1 pr=$2 head=$3 id ids done=0
@@ -286,6 +286,10 @@ ci_rerun() {
   st_set "$k" ci_rerun="$head" ci_rerun_at= check_at="$(now)"
   for id in $ids; do
     if mut_out gh run rerun "$id" --failed -R "$REPO"; then done=1
+    elif [[ $MUT_OUT == *"already running"* ]]; then
+      # a job the rollup did not list yet still runs: judge the run once it ends, spend nothing
+      st_set "$k" ci_rerun= ci_rerun_at=
+      log "#$k PR #$pr: CI red; rerun of run $id refused (still running): it waits"; return 0
     else log "#$k PR #$pr: rerun of run $id failed ($(oneline 200 "$MUT_OUT"))"; fi
   done
   (( done )) || return 1
