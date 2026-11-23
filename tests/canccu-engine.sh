@@ -263,6 +263,17 @@ ok "… and the dir goes after" eq "$(test -d "$td" && echo left)" ""
 printf 'echo "${TMPDIR:-<unset>}" > "$FAKE/tmp.seen"\n' > "$FAKE/claude.do"
 eng 53 "$E" "" WORKER_TMPDIR_MODE=system TMPDIR="$E/inherited" > /dev/null
 ok "tmp: RUN_TMPDIR=system leaves TMPDIR as inherited" eq "$(cat "$FAKE/tmp.seen")" "$E/inherited"
+
+# ---------------------------------------------------------------- the run's containers (#238)
+
+# the run's tag reaches it as CANCCU_RUN and as the Compose project name, and its rules say where
+# scratch files and containers go
+printf 'echo "$CANCCU_RUN $COMPOSE_PROJECT_NAME" > "$FAKE/tag.seen"\n' > "$FAKE/claude.do"
+eng review-61 "$E" "" > /dev/null
+ok "tag: a run gets CANCCU_RUN and COMPOSE_PROJECT_NAME, canccu_<project>_<key>" eq "$(cat "$FAKE/tag.seen")" "canccu_web_review-61 canccu_web_review-61"
+ok "… its rules say \$TMPDIR, not /tmp" grep -qF 'under $TMPDIR, never /tmp' <(tail -1 "$FAKE/claude.args")
+ok "… and to label containers with it" grep -qF -- '--label canccu.run=$CANCCU_RUN' <(tail -1 "$FAKE/claude.args")
+ok "tag: a key's other characters become -" eq "$( . "$root/lib/canccu-engine.sh"; CANCCU_HOME=/x/projects/My.Proj run_tag pkg-3-Api_v2)" "canccu_my-proj_pkg-3-api-v2"
 ok "… and makes no dir" eq "$(ls "$WORKERS_DIR/tmp" 2>/dev/null)" ""
 rm -f "$FAKE/claude.do"
 

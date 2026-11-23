@@ -31,8 +31,9 @@ if (( ${#keys[@]} )); then
 elif (( ! forget )); then echo "nothing running for #$n"; exit 0; fi
 (( forget )) || exit 0
 
-# the members are read before the state goes
+# the members are read before the state goes, and so are its containers' tags (its PR's reviewer)
 members=$(members_of "$n")
+unit_containers_rm "$n"
 wt=$(unit_wt "$n")
 if [ -e "$wt" ]; then
   git -C "$CLONE" worktree remove --force "$wt" >/dev/null 2>&1

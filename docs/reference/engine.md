@@ -42,11 +42,22 @@ canccu-worker --kill <repo> <key>
   dir of its own, `workers/tmp/<repo>-<key>.<pid>` (mode 700), on disk and outside the worktree,
   so venvs, builds and compiler caches never fill a RAM `/tmp` nor show as untracked files. The
   run removes it when it ends, also when it is stopped or killed (read-only dirs, such as a Go
-  module cache, included). At its start `canccu-dispatch` removes the dirs whose run is gone
+  module cache, included). Each pass of `canccu-dispatch` removes the dirs whose run is gone
   (its lock does not name that pid alive) and that are over an hour old, and logs `removed <n>
   stale run temp dirs`; `canccu-dispatcher doctor` warns when `workers/tmp` holds over 5 GB.
   `RUN_TMPDIR=system`: the run keeps the inherited `TMPDIR`. Caches a tool keeps in the home
-  directory are not cleaned.
+  directory are not cleaned. The run's rules tell it to use `$TMPDIR`, never `/tmp`.
+- **Containers**: a run's tag, `canccu_<project>_<key>` (lowercased, any character but
+  `a-z0-9-` a `-`), reaches it as `CANCCU_RUN` and as `COMPOSE_PROJECT_NAME`; its rules tell it to
+  start every container with `--label canccu.run=$CANCCU_RUN` and to run `docker compose` without
+  `-p`. A container, network or volume with the label, or of a Compose project with that name,
+  is the run's. It outlives the run while its unit is open (a test database the next run reuses)
+  and goes, with its volumes, when the unit merges or closes and at `canccu-stop --forget`
+  (`#<K>: removed container <name> …` in the log). Each pass also removes the tagged objects of
+  this project that no unit (its worker, answerer and PR reviewer), no live run and no planner's
+  worktree holds: `sweep (no unit or run holds them): removed …`. An untagged container is never
+  touched; `canccu-dispatcher doctor` names those running for over 2 days, and warns when `/tmp`
+  or memory has under 10% free.
 - **Background work**: a headless run exits when its turn ends, so a command or subagent it
   left running in the background is lost. The stream reader counts each one started with
   `run_in_background` until a later event names its id as done; a run that ends with one still

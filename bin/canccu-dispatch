@@ -80,6 +80,10 @@ pass() {
   feed_heartbeat
   # a test stands for a pass that dies half-way (an unbound variable, a die in a helper)
   [ -n "${CANCCU_TEST_PASS_DIES:-}" ] && exit 3
+  # what a run left that no unit or live run holds: its temp dir (the run killed before its
+  # trap), the containers of a dropped unit. Local only, so before every early return below.
+  (( CANCCU_DRY )) || { n=$(run_tmp_sweep); (( n > 0 )) && log "removed $n stale run temp dirs"; }
+  containers_sweep
   # a GitHub rate limit: every call until the reset would fail and spend more of the limit
   if gh_limit_tick; then
     ( ISSUES="[]" PRS="[]"; want_write; write_status "GitHub rate limit until $(iso "$(gh_limit_until)")" ); return 0
@@ -223,7 +227,6 @@ if [ -z "${CANCCU_REEXEC:-}" ] || [ ! /proc/$$/fd/8 -ef "$CANCCU_HOME/.dispatch.
 flock -n 8 || die "another canccu-dispatch is running for project $CANCCU_PROJECT (lock $CANCCU_HOME/.dispatch.lock)"
 echo $$ > "$CANCCU_HOME/dispatch.pid"   # for canccu-status and canccu-up; they never touch the lock
 state_migrate
-n=$(run_tmp_sweep); (( n > 0 )) && log "removed $n stale run temp dirs"
 # the pane shows the dispatcher's own lines only: the output of every write goes to the log (mut),
 # and so does the stderr of every command of a pass, each line prefixed "  │ "
 export CANCCU_MUT_TO_LOG=1
