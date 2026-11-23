@@ -6,7 +6,8 @@ Start with the two checks that cover most problems:
 - `canccu-dispatcher doctor [--project <name>]` prints one line per problem of the host, the
   install and each project (dependencies, links, `PATH`, the host profile, the logins, the
   reviewer token and its deny rule, the clone, the `gh` credential, the dispatcher lock, the
-  snapshot's age, stale run locks, run temp dirs over 5 GB) and `no problems found` when clean.
+  snapshot's age, stale run locks, run temp dirs over 5 GB, `/tmp` or memory under 10% free,
+  containers no run tagged running for over 2 days) and `no problems found` when clean.
   Lines starting `host: ` follow: the host profile, each key `~/.canccu/config` sets with the
   value the profile (or the default) gives it, and each issue's runs of the last 24 h with their
   cost, more than 3 marked.
@@ -73,7 +74,9 @@ are in `workers/` ([`reference/engine.md`](reference/engine.md)).
 | `stopped: turn budget …`, `cost budget`, `time budget` | The run reached its budget | Comment to resume (a resume has its own budget), or raise `BUDGET_*` |
 | `blocked` | Claude Code's permission checks refused a command | Run it yourself or widen the allow list, then comment to resume |
 | `stale run lock … (no process or window of it)` | A run died without cleaning up | Harmless: the next start of that run clears it. Or remove the file `doctor` names |
-| `run temp dirs use … ; a run may leak` | Runs left over 5 GB in `workers/tmp` (killed before they removed their temp dir), or a running one fills its own | The dispatcher's next start removes those of finished runs over an hour old; or remove the dirs of runs no longer running |
+| `run temp dirs use … ; a run may leak` | Runs left over 5 GB in `workers/tmp` (killed before they removed their temp dir), or a running one fills its own | The dispatcher's next pass removes those of finished runs over an hour old; or remove the dirs of runs no longer running |
+| `/tmp: … free of …` or `memory: … available of …` | Under 10% left: often scratch copies, venvs or repro folders a run (or an older release) left in `/tmp`, or containers left running | Remove what no run needs (`du -sh /tmp/*`); Claude Code kills background tasks when memory runs out |
+| `<n> container(s) no run tagged have run for over 2 days (…)` | Containers without the run tag (`canccu.run`, or a `canccu_…` Compose project): started by hand, by a run that ignored its rules, or the repo's own stack | Remove the ones nothing needs (`docker rm -f -v <name>`); the dispatcher only removes tagged ones ([`engine.md`](reference/engine.md)) |
 | A worker's question keeps coming back | `ANSWER_MAX` rounds were used | Answer it yourself in a comment |
 
 ## The install

@@ -80,6 +80,10 @@ pass() {
   feed_heartbeat
   # a test stands for a pass that dies half-way (an unbound variable, a die in a helper)
   [ -n "${CANCCU_TEST_PASS_DIES:-}" ] && exit 3
+  # what a run left that no unit or live run holds: its temp dir (the run killed before its
+  # trap), the containers of a dropped unit. Local only, so before every early return below.
+  (( CANCCU_DRY )) || { n=$(run_tmp_sweep); (( n > 0 )) && log "removed $n stale run temp dirs"; }
+  containers_sweep
   # a GitHub rate limit: every call until the reset would fail and spend more of the limit
   if gh_limit_tick; then
     ( ISSUES="[]" PRS="[]"; want_write; write_status "GitHub rate limit until $(iso "$(gh_limit_until)")" ); return 0
@@ -163,10 +167,6 @@ pass() {
   done
   # 6. after merge
   for n in "${closed[@]}"; do finish_unit "$n"; done
-  # what a run left that no unit or live run holds: its temp dir (the run killed before its
-  # trap), the containers of a dropped unit
-  (( CANCCU_DRY )) || { m=$(run_tmp_sweep); (( m > 0 )) && log "removed $m stale run temp dirs"; }
-  containers_sweep
   feed_tick "${open[@]}"
   notify_tick
   # 7. digest
