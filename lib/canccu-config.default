@@ -109,7 +109,7 @@ RISKY_PATHS='^(\.github|deploy)/|migration|sign-?in|login|auth|rights|permission
 # when RISKY_PATHS names them; never agent configuration or a gated path
 EFFORT_DOCS_PATHS=''
 # cost kinds for canccu-status --costs and the digest: "<name>=<regex>;<name>=<regex>", grep -iE on
-# the issue title (e.g. 'packs=^docs\(briefs\);screenshots=screenshot|demo-stack'); the rest is "other"
+# the merged PR title (e.g. 'packs=^docs\(briefs\);screenshots=screenshot|demo-stack'); the rest is "other"
 COST_KINDS=''
 COST_ROUNDS_ALERT=5         # the digest names an issue with more fix rounds than this in the last 24 h; 0: never
 REVIEW_EFFORT_MAX=''        # cap for the review and fix-check effort: low, medium, high, xhigh or max; empty: none

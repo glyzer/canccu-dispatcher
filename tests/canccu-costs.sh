@@ -44,6 +44,9 @@ ok "--since: only later runs" grep -qF 'costs (since 2030-11-02) · $11.75 · 9 
 ok "--top 1: one issue listed" eq "$(grep -cE '^  #[0-9]+ ' <<<"$out")" 1
 PATH="$fb:$PATH" "$root/bin/canccu-status" --costs --since nonsense >/dev/null 2>&1; ok "--since with no date: a usage error" eq "$?" 2
 
+PATH="$fb:$PATH" "$root/bin/canccu-status" --costs --since >/dev/null 2>&1; ok "--since as the last argument: a usage error" eq "$?" 2
+PATH="$fb:$PATH" "$root/bin/canccu-status" --costs --since "" >/dev/null 2>&1; ok "--since with an empty value: a usage error" eq "$?" 2
+
 dg=$(lib costs_digest)
 ok "digest: today's cost by kind" grep -qF '**Cost today:** $5.50 total (other $5.50)' <<<"$dg"
 ok "… an issue over COST_ROUNDS_ALERT rounds" grep -qF -- '- #13: 3 rounds, $5.50' <<<"$dg"
@@ -52,6 +55,23 @@ printf '%s\tweb\t13\t1\tfix\n' "$(d 2030-11-05T09:00:00Z)" > "$WORKERS_DIR/spend
 ok "COST_ROUNDS_ALERT=0: no round line" not grep -qF rounds <<<"$(lib costs_digest)"
 : > "$WORKERS_DIR/spend.log"
 ok "no run today: no section" eq "$(lib costs_digest)" ""
+
+# no merged.log (or an empty one): runs still count
+printf '%s\tweb\t13\t1\tfix\n%s\tweb\t13\t2\tfix\n' "$(d 2030-11-05T09:00:00Z)" "$(d 2030-11-05T10:00:00Z)" > "$WORKERS_DIR/spend.log"
+rm -f "$CANCCU_HOME/merged.log"
+ok "no merged.log: the report has the runs" grep -qF 'costs (all) · $3.00 · 2 runs' <<<"$(PATH="$fb:$PATH" "$root/bin/canccu-status" --costs 2>&1)"
+ok "… and so has the digest" grep -qF 'total' <<<"$(lib costs_digest)"
+: > "$CANCCU_HOME/merged.log"
+ok "empty merged.log: the report has the runs" grep -qF '2 runs' <<<"$(PATH="$fb:$PATH" "$root/bin/canccu-status" --costs 2>&1)"
+
+# kinds are grep -iE: \b, {n} and \W work
+env_new costs-re "COST_KINDS='w=\bui\b;iv=a{3}b;up=\Wfoo'"
+printf '%s\t1\t201\tauto\tfeat: ui page\n%s\t2\t202\tauto\taaab thing\n%s\t3\t203\tauto\tx foo\n' "$(d 2030-11-05T09:00:00Z)" "$(d 2030-11-05T09:00:00Z)" "$(d 2030-11-05T09:00:00Z)" > "$CANCCU_HOME/merged.log"
+{ sp 2030-11-05T09:00:00Z 1 1.00 build; sp 2030-11-05T09:00:00Z 2 2.00 build; sp 2030-11-05T09:00:00Z 3 3.00 build; } > "$WORKERS_DIR/spend.log"
+out=$(PATH="$fb:$PATH" "$root/bin/canccu-status" --costs 2>&1)
+ok "regex kinds: \\b" grep -qE '^  w +1 issue +\$1\.00$' <<<"$out"
+ok "regex kinds: {n}" grep -qE '^  iv +1 issue +\$2\.00$' <<<"$out"
+ok "regex kinds: \\W" grep -qE '^  up +1 issue +\$3\.00$' <<<"$out"
 
 echo "canccu-costs tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

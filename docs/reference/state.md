@@ -130,5 +130,5 @@ then the same over all merged PRs.
 the cost by run type, the `N` (default 5) most expensive issues with their fix rounds, and the
 cost by kind (`COST_KINDS` in the rules, [`rules.md`](rules.md)). A review or fix-check counts for
 the issue whose PR merged; one for a PR not merged yet is listed as `PR <n>`. A unit not merged
-yet has no title in the logs, so its kind is `other`. The daily digest has a `Cost today` line
+yet has no PR title in the logs, so its kind is `other`. The daily digest has a `Cost today` line
 with the last 24 h by kind, and a line for each issue over `COST_ROUNDS_ALERT` fix rounds.

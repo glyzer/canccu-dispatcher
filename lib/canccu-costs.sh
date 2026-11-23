@@ -5,15 +5,17 @@
 # and keeps no state of its own. docs/reference/state.md ("The spend log").
 
 # costs_runs <since epoch>: one line per run of this repo that ended since then, tab-separated:
-# unit, run type, cost ("?" for a lost run), title. A review or fix-check (key review-<pr>) belongs
+# unit, run type, cost ("?" for a lost run), PR title, kind. A review or fix-check (key review-<pr>) belongs
 # to the unit whose PR merged (merged.log); an answerer (answer-<K>) to K. A unit not merged yet has
-# no title here (the log keeps none), so it falls under no kind but "other".
+# no title here (the log keeps none), so it falls under no kind but "other". The title is the
+# merged PR's (merged.log keeps no issue title; the report stays offline); the kind comes from
+# costs_kinds, matched with grep -iE in the shell so its regex means what rules.md says.
 costs_runs() {
-  local m="$CANCCU_HOME/merged.log" s="$WORKERS_DIR/spend.log"
+  local m="$CANCCU_HOME/merged.log" s="$WORKERS_DIR/spend.log" runs titles kinds name re map=""
   [ -e "$m" ] || m=/dev/null
   [ -e "$s" ] || return 0
-  awk -F '\t' -v OFS='\t' -v r="$REPO_NAME" -v since="${1:-0}" '
-    FNR == NR { if ($2 != "" && $3 != "") { unit[$3] = $2; title[$2] = $5 } next }
+  runs=$(awk -F '\t' -v OFS='\t' -v r="$REPO_NAME" -v since="${1:-0}" '
+    !spend { if ($2 != "" && $3 != "") { unit[$3] = $2; title[$2] = $5 } next }
     $2 != r || $1 < since { next }
     {
       k = $3
@@ -21,10 +23,21 @@ costs_runs() {
       else if (k ~ /^answer-/) k = substr(k, 8)
       ty = ($5 == "" ? "-" : $5)
       print (k ~ /^[0-9]+$/ ? "#" k : k), ty, $4, (k in title ? title[k] : "")
-    }' "$m" "$s"
+    }' "$m" spend=1 "$s")
+  [ -n "$runs" ] || return 0
+  kinds=$(costs_kinds)
+  if [ -n "$kinds" ]; then
+    titles=$(cut -f4 <<<"$runs" | sort -u)
+    while IFS=$'\t' read -r name re; do
+      map+=$(grep -iE -e "$re" <<<"$titles" | awk -F '\t' -v n="$name" 'NF { print $0 "\t" n }')$'\n'
+    done <<<"$kinds"
+  fi
+  MAP=$map awk -F '\t' -v OFS='\t' '
+    BEGIN { n = split(ENVIRON["MAP"], ml, "\n"); for (i = 1; i <= n; i++) { split(ml[i], mp, "\t"); if (mp[1] != "" && !(mp[1] in kind)) kind[mp[1]] = mp[2] } }
+    { print $1, $2, $3, $4, ($4 != "" && ($4 in kind)) ? kind[$4] : "other" }' <<<"$runs"
 }
 
-# costs_kinds: COST_KINDS (rules: "<name>=<regex>;<name>=<regex>", grep -iE on the issue title) as
+# costs_kinds: COST_KINDS (rules: "<name>=<regex>;<name>=<regex>", grep -iE on the PR title) as
 # "<name>\t<regex>" lines; a part with no name, or a regex grep rejects, is said once and skipped,
 # so one typo never blanks the whole report
 costs_kinds() {
@@ -46,7 +59,7 @@ costs_report() {
   local since=0 top=5 label=all e
   while (( $# )); do
     case $1 in
-      --since) e=$(date -u -d "${2:-}" +%s 2>/dev/null) || { echo "canccu-status --costs: --since needs a date (2030-11-01)" >&2; return 2; }
+      --since) [ -n "${2:-}" ] && e=$(date -u -d "$2" +%s 2>/dev/null) || { echo "canccu-status --costs: --since needs a date (2030-11-01)" >&2; return 2; }
                since=$e label="since $2"; shift 2 ;;
       --top) [[ ${2:-} =~ ^[1-9][0-9]*$ ]] || { echo "canccu-status --costs: --top needs a number" >&2; return 2; }
              top=$2; shift 2 ;;
@@ -55,9 +68,8 @@ costs_report() {
   done
   local runs; runs=$(costs_runs "$since")
   [ -n "$runs" ] || { echo "costs ($label): no runs in the spend log"; return 0; }
-  KINDS=$(costs_kinds) awk -F '\t' -v label="$label" -v top="$top" '
+  awk -F '\t' -v label="$label" -v top="$top" '
     function money(v) { return sprintf("$%.2f", v) }
-    BEGIN { nk = split(ENVIRON["KINDS"], kl, "\n"); for (i = 1; i <= nk; i++) { split(kl[i], kp, "\t"); kname[i] = kp[1]; kre[i] = tolower(kp[2]) } }
     {
       u = $1; ty = $2; c = $3; n++
       if (!(u in ucost)) { order[++nu] = u; ucost[u] = 0 }
@@ -66,6 +78,7 @@ costs_report() {
       truns[ty]++
       if (ty == "fix") rounds[u]++
       if ($4 != "") utitle[u] = $4
+      ukind[u] = $5
     }
     END {
       printf "costs (%s) · %s · %d run%s%s\n", label, money(total), n, (n == 1 ? "" : "s"), (lost ? sprintf(" (%d lost, so at least)", lost) : "")
@@ -81,8 +94,7 @@ costs_report() {
         printf "  %-8s %9s  %d fix round%s  %s\n", best, money(ucost[best]), rounds[best] + 0, (rounds[best] == 1 ? "" : "s"), utitle[best]
       }
       for (i = 1; i <= nu; i++) {
-        u = order[i]; k = "other"; t = tolower(utitle[u])
-        for (q = 1; q <= nk; q++) if (kname[q] != "" && t ~ kre[q]) { k = kname[q]; break }
+        u = order[i]; k = ukind[u]
         if (!(k in kcost)) { kord[++nkk] = k; kcost[k] = 0 }
         kcost[k] += ucost[u]; kn[k]++
       }
@@ -99,16 +111,14 @@ costs_digest() {
   [[ $alert =~ ^[0-9]+$ ]] || alert=5
   runs=$(costs_runs $(( $(now) - 86400 )))
   [ -n "$runs" ] || return 0
-  KINDS=$(costs_kinds) awk -F '\t' -v alert="$alert" '
-    BEGIN { nk = split(ENVIRON["KINDS"], kl, "\n"); for (i = 1; i <= nk; i++) { split(kl[i], kp, "\t"); kname[i] = kp[1]; kre[i] = tolower(kp[2]) } }
-    $4 != "" { title[$1] = $4 }
+  awk -F '\t' -v alert="$alert" '
     { if (!($1 in uc)) { ord[++nu] = $1; uc[$1] = 0 }
       if ($3 ~ /^[0-9]+(\.[0-9]+)?$/) { uc[$1] += $3; total += $3 }
+      ukind[$1] = $5
       if ($2 == "fix") rounds[$1]++ }
     END {
       for (i = 1; i <= nu; i++) {
-        u = ord[i]; k = "other"; t = tolower(title[u])
-        for (q = 1; q <= nk; q++) if (kname[q] != "" && t ~ kre[q]) { k = kname[q]; break }
+        u = ord[i]; k = ukind[u]
         if (!(k in kc)) { kord[++nkk] = k; kc[k] = 0 }
         kc[k] += uc[u]
       }
