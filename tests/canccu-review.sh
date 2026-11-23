@@ -432,7 +432,8 @@ for p in modules/ui/a.ts packages/x/b.ts .github/workflows/ci.yml setup/x.sh dep
          db/migrations/0003_add.sql src/auth/session.ts src/rights.ts apps/api/tenancy/rls.sql src/secrets.ts src/signin/form.tsx; do
   ok "fix tier, small, but touches $p → high" eq "$(ef "src/a.ts	3"$'\n'"$p	2" 'Tier: fix')" high
 done
-ok "a doc under a risky path is not docs-only → high" eq "$(ef $'modules/ui/README.md\t3' 'Tier: fix')" high
+ok "a doc under a risky path is still docs-only → medium" eq "$(ef $'modules/ui/README.md\t3' 'Tier: fix')" medium
+ok "a doc under a risky path next to risky code → high" eq "$(ef $'modules/ui/README.md\t3\nmodules/ui/a.ts\t2' 'Tier: fix')" high
 ok "no files (gh error) → high" eq "$(ef '' 'Tier: fix')" high
 
 effenv effort-medium '[{"filename": "src/a.ts", "changes": 12}]' 'Tier: fix'
