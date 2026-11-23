@@ -472,6 +472,17 @@ ok "a rerun refused as 'already running' → no fix run, the rerun not spent" \
 ok "… logged as a wait, not as a failed rerun" grep -qF '#5 PR #50: CI red; rerun of run 700 refused (still running): it waits' "$CANCCU_HOME/dispatch.log"
 ok "… not logged as a failed rerun" not grep -qF 'rerun of run 700 failed' "$CANCCU_HOME/dispatch.log"
 
+# two failed runs, the first rerun goes through, the second is refused: the head stays marked as
+# rerun (once per head), so the rerun run is not rerun again, and no fix run starts
+rrenv rerun-partial
+pr 50 5 $HA red | jq '.statusCheckRollup = [
+  {name: "CI", status: "COMPLETED", conclusion: "FAILURE", completedAt: "2030-11-05T10:00:00Z", detailsUrl: "https://github.com/example-org/web/actions/runs/700/job/77"},
+  {name: "lint", status: "COMPLETED", conclusion: "FAILURE", completedAt: "2030-11-05T10:00:00Z", detailsUrl: "https://github.com/example-org/web/actions/runs/701/job/90"}]' | prs
+: > "$FAKE/routes"; route 'run rerun 701*' RERUN_REFUSED; route 'run rerun *' ok.json
+dispatch --once
+ok "one rerun through, a later one refused → the head stays marked, no fix run" \
+  eq "$(grep -c '^run rerun 700 --failed' "$FAKE/gh.log") $(wc -l < "$FAKE/worker.log") [$(st 5 ci_rerun)] $([ -n "$(st 5 ci_rerun_at)" ] && echo at)" "1 0 [$HA] at"
+
 # a health pass's fresh follow-up names the pass and its limits, not an empty package
 env_new handoff-health
 mkdir -p "$CANCCU_HOME/steps"; printf 'title=3 Events\n' > "$CANCCU_HOME/steps/12"

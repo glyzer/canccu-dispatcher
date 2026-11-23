@@ -288,7 +288,8 @@ ci_rerun() {
     if mut_out gh run rerun "$id" --failed -R "$REPO"; then done=1
     elif [[ $MUT_OUT == *"already running"* ]]; then
       # a job the rollup did not list yet still runs: judge the run once it ends, spend nothing
-      st_set "$k" ci_rerun= ci_rerun_at=
+      # (a run already rerun in this pass keeps the once-per-head mark: ci_red waits for its result)
+      if (( done )); then st_set "$k" ci_rerun_at="$(now)"; else st_set "$k" ci_rerun= ci_rerun_at=; fi
       log "#$k PR #$pr: CI red; rerun of run $id refused (still running): it waits"; return 0
     else log "#$k PR #$pr: rerun of run $id failed ($(oneline 200 "$MUT_OUT"))"; fi
   done
