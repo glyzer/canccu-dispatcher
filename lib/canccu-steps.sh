@@ -33,7 +33,7 @@ step_phases() {
 # STEP_JQ: per open milestone, in milestone order: its track, work issues open and closed, epic,
 # checkpoint (the open one, else the newest closed one) and whether it is pending. Its values come
 # by --slurpfile (step_jq), each one as [value]. A step's phase is a string or {phase, health}.
-# An idle step with work done and no health pass yet is pending (#239): its last issue can close
+# An idle step with work done and no health pass yet is pending (#239), with or without a checkpoint issue (#278): its last issue can close
 # after its wave ended, and the step keeps its turn until step_tick sets health-due.
 STEP_JQ="$MILESTONE_KEY_JQ"'
   def work: [.labels[]?.name] | (index("epic") or index("checkpoint") or index("follow-up")) | not;

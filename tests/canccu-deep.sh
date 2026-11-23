@@ -68,6 +68,15 @@ dpass
 ok "the step stays current while the deep review runs: the next step does not plan" eq "$(grep -c -- '--key plan-13' "$FAKE/worker.log")" 0
 ok "… and the deep review starts once" eq "$(grep -c -- '--key pkg-12-deep' "$FAKE/worker.log")" 1
 
+# #278: an idle step with no checkpoint issue still gets its deep review
+denv deep-no-cp STEP_DEEP_REVIEW=1
+echo '[]' > "$FAKE/cps.json"
+printf 'phase=idle\nstarted_at=1\nwave=0\n' > "$CANCCU_HOME/steps/12"
+echo 5 > "$CANCCU_HOME/state.format"
+dpass
+ok "no checkpoint issue: the deep review starts, the next step does not plan (#278)" \
+  eq "$(grep -c -- '--key pkg-12-deep' "$FAKE/worker.log") $(grep -c -- '--key plan-13' "$FAKE/worker.log") $(sf phase)" "1 0 deep"
+
 denv deep-off
 dpass
 ok "STEP_DEEP_REVIEW=0: the health pass, as before" eq "$(grep -c -- '--key pkg-12-deep' "$FAKE/worker.log") $(grep -c -- '--key pkg-12-health' "$FAKE/worker.log")" "0 1"
