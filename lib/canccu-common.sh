@@ -362,8 +362,6 @@ run_progress() {
 . "$_canccu_lib/canccu-brake.sh"
 # shellcheck source=canccu-spend.sh
 . "$_canccu_lib/canccu-spend.sh"
-# shellcheck source=canccu-costs.sh
-. "$_canccu_lib/canccu-costs.sh"
 # shellcheck source=canccu-accepts.sh
 . "$_canccu_lib/canccu-accepts.sh"
 # shellcheck source=canccu-mainmerge.sh
