@@ -10,12 +10,14 @@
 
 env_new snap2 STEP_BUDGET=4
 # the roadmap: a done step before, the current one, the next one, an empty one, one later
-{ jq -nc '{number: 11, title: "2 Setup", open_issues: 0, closed_issues: 3, due_on: null}'
+{ jq -nc '{number: 11, title: "2 Setup", open_issues: 0, closed_issues: 4, due_on: null}'
   jq -nc '{number: 12, title: "3 Events", open_issues: 5, closed_issues: 1, due_on: null}'
   jq -nc '{number: 13, title: "4 Payments", open_issues: 4, closed_issues: 0, due_on: null}'
   jq -nc '{number: 14, title: "5 Reports", open_issues: 0, closed_issues: 0, due_on: null}'
   jq -nc '{number: 15, title: "6 Later", open_issues: 1, closed_issues: 0, due_on: null}'; } | jq -s . > "$FAKE/ms.json"
-jq -nc '{number: 95, title: "Checkpoint: events", state: "OPEN", milestone: {title: "3 Events"}, labels: [{name: "checkpoint"}]}' | jq -s . > "$FAKE/cps.json"
+# the done step has its closed checkpoint issue: with none and no state it would be pending (#278)
+{ jq -nc '{number: 95, title: "Checkpoint: events", state: "OPEN", milestone: {title: "3 Events"}, labels: [{name: "checkpoint"}]}'
+  jq -nc '{number: 80, title: "Checkpoint: setup", state: "CLOSED", milestone: {title: "2 Setup"}, labels: [{name: "checkpoint"}]}'; } | jq -s . > "$FAKE/cps.json"
 { issue 90 epic,needs-you "" "3 Events"; issue 101 in-progress "" "3 Events"; issue 103 in-progress "" "3 Events"
   issue 104 ready "" "3 Events"; issue 6 ready "Blocked by #104"; issue 107 ready "Blocked by #104" "3 Events"; issue 108 ready "" "3 Events"
   issue 110 ready "" "4 Payments"; issue 111 "" "" "4 Payments"; issue 112 blocked "" "4 Payments"
