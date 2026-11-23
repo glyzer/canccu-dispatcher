@@ -189,6 +189,13 @@ ok "canccu-status --findings: the most common finding first, with its count and 
 ok "… then the next" grep -qx '  2× missing test (#50, #51)' <<<"$(sed -n 3p <<<"$out")"
 ok "… the files cited most" grep -qx '  2× src/a.ts' <<<"$out"
 ok "… the review records only (not the saved findings)" not grep -q 'not a review' <<<"$out"
+env_new report-tagged
+mkdir -p "$CANCCU_HOME/reviews/50" "$CANCCU_HOME/reviews/51"
+printf '1. [correctness] src/a.sh:10 — the loop never ends on empty input\n- [docs] src/a.sh:11 — a stale example\n\nReview verdict: changes %s\n' "$HA" > "$CANCCU_HOME/reviews/50/$HA.md"
+printf '1. [correctness] src/b.sh:4 — a missing quote splits the path\n- [docs] src/b.sh:5 — a stale heading\n\nReview verdict: changes %s\n' "$HB" > "$CANCCU_HOME/reviews/51/$HB.md"
+out=$(PATH="$fb:$PATH" "$root/bin/canccu-status" --findings 2>&1)
+ok "--findings: a §8 block's [class] tag is not the finding: the text is" grep -qx '  1× the loop never ends on empty input (#50)' <<<"$out"
+ok "… the tag alone is never counted" not grep -q '× \[\?\(correctness\|docs\)\]\? (' <<<"$out"
 env_new report-empty
 ok "… no review records: says so" grep -q 'no review records' <<<"$(PATH="$fb:$PATH" "$root/bin/canccu-status" --findings 2>&1)"
 
