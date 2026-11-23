@@ -180,7 +180,7 @@ collect_nonblocking() {
 # findings_report: the most common findings across the review records (reviews/<pr>/<sha>.md, the
 # files the reviewers wrote), so the leader can turn them into rules in AGENTS.md. Findings are
 # free text: each item line is cut to its gist (file:line refs, list marks and markdown dropped,
-# then everything from its first separator on, lower case), and equal gists are counted. The files
+# a leading [class] tag, then everything from its first separator on, lower case), and equal gists are counted. The files
 # cited most come after, each counted once per PR.
 findings_report() {
   local files recs
@@ -198,6 +198,7 @@ findings_report() {
         l = substr(l, 1, RSTART - 1) " " substr(l, RSTART + RLENGTH)
       }
       gsub(/[*_`]/, "", l); sub(/^[[:space:]]*([-+]|[0-9]+[.)])?[[:space:]]*/, "", l)
+      sub(/^\[[[:alnum:]-]+\][[:space:]]*/, "", l)
       sub(/^([[:space:]:;,.-]|\342\200\224|\342\200\223)+/, "", l)
       sub(/[[:space:]]*(\342\200\224|\342\200\223| - |:|;|,|\.[[:space:]]|\.$).*/, "", l)
       l = tolower(l); gsub(/[[:space:]]+/, " ", l); sub(/^ /, "", l); sub(/ $/, "", l)

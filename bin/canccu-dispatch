@@ -41,7 +41,7 @@ running_list() {
 }
 
 digest() {
-  local t h f merges answered awaiting ny ci running m active=0 steps notes pace
+  local t h f merges answered awaiting ny ci running m active=0 steps notes pace costs
   t=$(date -u -d "@$(now)" +%F); h=$(date -u -d "@$(now)" +%-H)
   (( h >= DIGEST_HOUR_UTC )) || return 0
   f="$CANCCU_HOME/digest/$t.md"; [ -e "$f" ] && return 0
@@ -54,14 +54,15 @@ digest() {
   ci=$(main_ci); running=$(running_list)
   steps=$(digest_steps); notes=$(digest_notes)
   pace=$(pace_digest); [ -z "$pace" ] || pace+=$'\n\n'   # its own section, only with PACE on
+  costs=$(costs_digest); [ -z "$costs" ] || costs+=$'\n\n'
   [ -n "$merges$answered$awaiting$ny$running$notes" ] || [[ $ci == red* ]] && active=1
   if (( CANCCU_DRY )); then
     echo "  would: write $f$( (( active )) && if [ -n "$DIGEST_ISSUE" ]; then echo " and comment on #$DIGEST_ISSUE"; else echo " (DIGEST_ISSUE is empty: not posted)"; fi)"
     return 0
   fi
   mkdir -p "${f%/*}"
-  printf '## Daily digest %s\n\n**Merged in the last 24 h**\n%s\n\n**Questions answered by the answerer** (overrule on the issue)\n%s\n\n**Awaiting your accept** (label the PR `accepted`, or `canccu-ship <n>`)\n%s\n\n**Needs you**\n%s\n\n**CI on main:** %s\n\n**Running**\n%s\n\n**Steps**\n%s\n\n%s**Notes for the leader** (from package PRs, last 24 h; sort them into issues or the plan)\n%s\n\n%s\n' \
-    "$t" "${merges:-none}" "${answered:-none}" "${awaiting:-none}" "${ny:-none}" "$ci" "${running:-none}" "${steps:-none}" "$pace" "${notes:-none}" "$CANCCU_MARK" |
+  printf '## Daily digest %s\n\n**Merged in the last 24 h**\n%s\n\n**Questions answered by the answerer** (overrule on the issue)\n%s\n\n**Awaiting your accept** (label the PR `accepted`, or `canccu-ship <n>`)\n%s\n\n**Needs you**\n%s\n\n**CI on main:** %s\n\n**Running**\n%s\n\n**Steps**\n%s\n\n%s%s**Notes for the leader** (from package PRs, last 24 h; sort them into issues or the plan)\n%s\n\n%s\n' \
+    "$t" "${merges:-none}" "${answered:-none}" "${awaiting:-none}" "${ny:-none}" "$ci" "${running:-none}" "${steps:-none}" "$pace" "$costs" "${notes:-none}" "$CANCCU_MARK" |
     home_tilde_stream > "$f"
   if (( ! active )); then log "digest written, no activity: no comment"
   elif [ -z "$DIGEST_ISSUE" ]; then log "digest written; DIGEST_ISSUE is empty: not posted"
