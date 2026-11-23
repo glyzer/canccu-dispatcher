@@ -6,6 +6,20 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 
 ## Unreleased
 
+**Upgrade:**
+
+- The state format is now `5` (#277). The upgrade marks each step that may be finished (idle or
+  health-due, no deep review or health pass yet, no cadence round, no unit of its own) with
+  `pre5=1`. On its next pass, a marked step that is current with its work done is not owed a deep
+  review or health pass (`deep=skipped health=skipped`): it goes on to its checkpoint, or ends,
+  and the next step starts. A marked step with open work loses the marker and keeps its end
+  passes, so a step between waves is not cut short. The weekly drain holds a deep
+  review like a health pass, but a usage reading older than the dispatcher's start counts as
+  unknown, so right after an upgrade restart nothing is draining until a run reports usage
+  again. Going back to 0.3.0: write `4` to `state.format`.
+
+**Changes:**
+
 - Runs clean up their containers (#238): a run's tag (`canccu_<project>_<key>`) reaches it as
   `CANCCU_RUN` and `COMPOSE_PROJECT_NAME`, and its rules say to label containers with it and to
   use `$TMPDIR`, not `/tmp`. The tagged containers, networks and volumes of a unit go when it

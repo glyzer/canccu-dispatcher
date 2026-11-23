@@ -185,6 +185,7 @@ step_tick() {
     [ -n "$r" ] && step_set "$m" ny_reason="$(step_get "$m" ny_next)" ny_next=
     log "step $(step_title "$m"): the stop is resolved; it goes on"; step_ny_clear "$m"
   fi
+  pre5_tick "$m"
   xblock_tick "$m"; budget_tick "$m"; notes_tick "$m"; cadence_tick "$m" "$go"
   ph=$(step_get "$m" phase)
   case $ph in

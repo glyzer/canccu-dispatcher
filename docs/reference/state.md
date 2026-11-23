@@ -41,10 +41,10 @@ Two files in the project's dir ([`review-depth.md`](review-depth.md#the-review-b
 `state.format` holds one number: the format of the project's `state/` and `steps/` files (a
 missing file is format `0`, a release before the file). `canccu-dispatch` runs `state_migrate` at
 start, under its lock and before the first pass: each migration from the file's number up to the
-release's `STATE_FORMAT` (`4`), in order, writing the new number after each and logging
+release's `STATE_FORMAT` (`5`), in order, writing the new number after each and logging
 `state format <a> → <b>: <what it did>`. Migration 0 → 1 changes no field; 1 → 2 sets `owner` on each unit in `accept` or `needs-you` (`phase_at`, `ev_id` and `idle_ev` start empty); 2 → 3 changes no field: workflow v2's
 fields (`review_asked`, `nb_sha`, `plan_lines`, the step's `deep`, `polish`, `round` and
-`cadence_at` fields) start empty, which means the behaviour before them; 3 → 4 changes no field either (the step's `round_from` starts empty). A number above
+`cadence_at` fields) start empty, which means the behaviour before them; 3 → 4 changes no field either (the step's `round_from` starts empty); 4 → 5 sets `pre5=1` on each step that is idle or health-due, has neither field, is in no cadence round and has no unit of its own; the step's next pass then skips its deep review and health pass if it has no open work and some closed (`deep=skipped health=skipped`, on to the checkpoint), else drops the marker, so a step finished before the upgrade is not owed what the new defaults turn on (#277). A number above
 `STATE_FORMAT` (an older release after a newer one ran) stops the start with
 `state format <n> is newer than this release knows (<STATE_FORMAT>); install a newer release`.
 `--dry-run` only says which migrations it would run.
