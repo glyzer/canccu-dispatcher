@@ -149,3 +149,6 @@ kpi_report() {
   guard 120 python3 -I "$_canccu_lib/canccu-kpi.py" "$(now)" "$REPO_NAME" "$(leader_transcripts)" \
     "$WORKERS_DIR/spend.log" "$CANCCU_HOME/dispatch.log" "$CANCCU_HOME/events"
 }
+
+# shellcheck source=canccu-costs.sh
+. "$_canccu_lib/canccu-costs.sh"
