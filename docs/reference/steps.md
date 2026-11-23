@@ -12,7 +12,7 @@ its title): it has open work issues, or an open checkpoint, or its step is plann
 in its deep review, waiting for or in its health pass, at its checkpoint, or needs the leader. Earlier steps are done.
 A milestone named "Parallel tracks" is a second current step whenever it is pending; its
 checkpoint gates nothing else. Only current steps run packages. An empty step with an open
-checkpoint is current and idle: later steps wait. A step whose work issues are all closed is current
+checkpoint is current and idle: later steps wait. An idle step whose work issues are all closed is current
 until its health pass has run, with or without a checkpoint issue (#278): its deep review and health
 pass never depend on one.
 

@@ -25,6 +25,8 @@ ok "step: an open checkpoint keeps its step current (the pause)" \
   eq "$(cs "[$M1,$M2]" "[$(cpi 5 OPEN "1 Skeleton")]" "[$W2]")" "[11]"
 ok "step: a step whose checkpoint is closed is not current" \
   eq "$(cs "[$M1,$M2]" "[$(cpi 5 CLOSED "1 Skeleton")]" "[$W2]")" "[12]"
+ok "step: finished steps with no state and no checkpoint issue are not pending: the next step is current (#278)" \
+  eq "$(cs "[$M1,$M2,$M3]" "[]" "[$W3]")" "[13]"
 ok "step: epic and checkpoint issues are not work" \
   eq "$(cs "[$M1,$M2]" "[$(cpi 5 CLOSED "1 Skeleton")]" "[$(issue 7 epic "" "1 Skeleton"),$W2]")" "[12]"
 ok "step: Parallel tracks runs alongside" \
