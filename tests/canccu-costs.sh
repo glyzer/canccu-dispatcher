@@ -73,5 +73,11 @@ ok "regex kinds: \\b" grep -qE '^  w +1 issue +\$1\.00$' <<<"$out"
 ok "regex kinds: {n}" grep -qE '^  iv +1 issue +\$2\.00$' <<<"$out"
 ok "regex kinds: \\W" grep -qE '^  up +1 issue +\$3\.00$' <<<"$out"
 
+# a big log: the kind map must not go through the environment (one string over 128 KiB)
+env_new costs-big "COST_KINDS='f=^feat'"
+for i in $(seq 1 2500); do printf '%s\t%s\t%s\tauto\tfeat: a typical title of about seventy characters, give or take a few\n' "$(d 2030-11-05T09:00:00Z)" "$i" "$((1000 + i))"; done > "$CANCCU_HOME/merged.log"
+for i in $(seq 1 2500); do sp 2030-11-05T09:00:00Z "$i" 1.00 build; done > "$WORKERS_DIR/spend.log"
+ok "2500 units: the kind report still works" grep -qE '^  f +2500 issues +\$2500\.00$' <<<"$(PATH="$fb:$PATH" "$root/bin/canccu-status" --costs 2>&1)"
+
 echo "canccu-costs tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

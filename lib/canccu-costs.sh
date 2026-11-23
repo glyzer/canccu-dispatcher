@@ -32,9 +32,11 @@ costs_runs() {
       map+=$(grep -iE -e "$re" <<<"$titles" | awk -F '\t' -v n="$name" 'NF { print $0 "\t" n }')$'\n'
     done <<<"$kinds"
   fi
-  MAP=$map awk -F '\t' -v OFS='\t' '
-    BEGIN { n = split(ENVIRON["MAP"], ml, "\n"); for (i = 1; i <= n; i++) { split(ml[i], mp, "\t"); if (mp[1] != "" && !(mp[1] in kind)) kind[mp[1]] = mp[2] } }
-    { print $1, $2, $3, $4, ($4 != "" && ($4 in kind)) ? kind[$4] : "other" }' <<<"$runs"
+  # the title-to-kind map goes to awk as a file (a pipe), never through the environment: one
+  # environment string over 128 KiB keeps awk from starting
+  awk -F '\t' -v OFS='\t' '
+    !r { if ($1 != "" && !($1 in kind)) kind[$1] = $2; next }
+    { print $1, $2, $3, $4, ($4 != "" && ($4 in kind)) ? kind[$4] : "other" }' <(printf '%s' "$map") r=1 <(printf '%s\n' "$runs")
 }
 
 # costs_kinds: COST_KINDS (rules: "<name>=<regex>;<name>=<regex>", grep -iE on the PR title) as
