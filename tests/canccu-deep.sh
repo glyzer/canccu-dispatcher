@@ -428,5 +428,39 @@ RPATH=docs/reports/step-4-r1-deep-review.md report
 dpass
 ok "deep_read of a round's merged report sets round_from to the round's head" eq "$(sf round_from)" "$(printf 'b%.0s' {1..40})"
 
+# ---------------------------------------------------------------- the weekly drain and the upgrade (#277)
+
+# a deep review is new work: under the weekly drain it does not start (the health pass already waits)
+denv deep-drain STEP_DEEP_REVIEW=1
+d="$CANCCU_ROOT/projects/web/workers"; mkdir -p "$d"
+jq -n --argjson at "$((NOW - 60))" --argjson r "$((NOW + 3600))" \
+  '{at: $at, info: {status: "allowed", unifiedWindows: {five_hour: {utilization: 0.1, resetsAt: $r}, seven_day: {utilization: 0.92, resetsAt: ($r + 86400)}}}}' > "$d/usage.json"
+dpass
+ok "weekly usage 92%: the step's deep review does not start (#277)" \
+  eq "$(grep -c -- '--key pkg-12-deep' "$FAKE/worker.log") $(grep -c -- '--key pkg-12-health' "$FAKE/worker.log") $(sf deep)" "0 0 "
+rm -f "$d/usage.json"
+dpass
+ok "… the drain over: it starts on the next pass" eq "$(grep -c -- '--key pkg-12-deep' "$FAKE/worker.log")" 1
+
+# the migration to format 5: a step that was idle or health-due with no deep review or health pass
+# and no unit of its own before the upgrade is not owed either; running, tracked and rounds stay
+denv fmt5
+sstate() { dlib step_set "$@"; }
+sstate 12 phase=idle wave=1 title="4 Search"
+sstate 13 phase=health-due title="5 Later"
+sstate 14 phase=running wave=1
+sstate 15 phase=idle health=merged
+sstate 16 phase=idle round_phase=deep
+sstate 17 phase=idle
+dlib _st_put pkg-17-a step=17 phase=work
+ok "state_migrate_5 says what it did" \
+  eq "$(dlib state_migrate_5)" "the deep review and health pass of 2 finished step(s) marked not owed"
+ok "… an idle step with its work done: both skipped" eq "$(dlib step_get 12 deep) $(dlib step_get 12 health)" "skipped skipped"
+ok "… a health-due one too" eq "$(dlib step_get 13 deep) $(dlib step_get 13 health)" "skipped skipped"
+ok "… a running step keeps its fields" eq "[$(dlib step_get 14 deep)$(dlib step_get 14 health)]" "[]"
+ok "… a step with a health pass keeps it" eq "$(dlib step_get 15 health)" merged
+ok "… a step in a cadence round keeps its fields" eq "[$(dlib step_get 16 deep)$(dlib step_get 16 health)]" "[]"
+ok "… a step with a unit of its own keeps its fields" eq "[$(dlib step_get 17 deep)$(dlib step_get 17 health)]" "[]"
+
 echo "canccu-deep tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
