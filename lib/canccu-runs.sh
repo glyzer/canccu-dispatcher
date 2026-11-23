@@ -395,7 +395,8 @@ review_effort_pure() {
     elif (( rc == 1 )); then effort_cap medium; return; fi
     # the docs paths' lines are no more a reason to review the diff in full than the paths are
     # (the path field only: the line is "path<TAB>count", so a "$"-anchored regex must not see the count)
-    stats=$(awk -F '\t' -v re="$EFFORT_DOCS_PATHS" '$1 !~ re' <<<"$stats")
+    # (grep -E alone reads the regex; awk only selects the stats lines by the paths grep left)
+    stats=$(awk -F '\t' 'NR == FNR { keep[$0]; next } $1 in keep' <(printf '%s\n' "$paths") - <<<"$stats")
   fi
   # a docs file is docs whatever its name says ("05-sessions.svg" is no session code), so the risky
   # paths are tested on what is left outside docs/ and *.md
