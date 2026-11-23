@@ -26,6 +26,8 @@ ok "no class, contracts and docs → medium" eq "$(ef $'contracts/screen.yaml\t4
 ok "no class, contracts and a small fix → medium" eq "$(ef $'src/a.ts\t3\ncontracts/screen.yaml\t2' 'Tier: fix')" medium
 ok "no class, a small fix and a long contract: the contract's lines don't count → medium" \
   eq "$(ef $'src/a.ts\t3\ncontracts/screen.yaml\t400' 'Tier: fix')" medium
+ok "a \$-anchored EFFORT_DOCS_PATHS: the docs lines don't count toward the fix-tier 100 → medium" \
+  eq "$(lib eval "EFFORT_DOCS_PATHS='\\.ya?ml\$'; review_effort_pure \$'contracts/a.yaml\t400\nsrc/a.ts\t3' 'Tier: fix'")" medium
 ok "no class, contracts and feature code → high" eq "$(ef $'src/a.ts\t3\ncontracts/screen.yaml\t2' 'Tier: feature')" high
 ok "no class, contracts and another risky path → high" eq "$(ef $'src/auth/a.ts\t3\ncontracts/screen.yaml\t2' 'Tier: fix')" high
 # docs/ and *.md count as docs before RISKY_PATHS: a risky word in a docs file name is no risk
