@@ -10,6 +10,9 @@
 # (never reviewed, merged or commented on), the next 5 runnable issues and the latest digest.
 # canccu-status [--project <name>] --spend — the cost of every merged PR, every run of it (lost
 # runs and fix rounds too), grouped by model and run type (lib/canccu-spend.sh, spend_report).
+# canccu-status [--project <name>] --costs [--since DATE] [--top N] — the cost by run type, the most expensive
+# issues with their fix rounds and the cost by kind (COST_KINDS in the rules), from spend.log and
+# merged.log (lib/canccu-costs.sh, costs_report).
 # canccu-status [--project <name>] --findings — the most common review findings and the files cited
 # most, across the review records (lib/canccu-findings.sh, findings_report).
 # canccu-status [--project <name>] --kpi — per day, the last 7 days: the leader's tokens, the runs'
@@ -29,6 +32,7 @@ self=$(realpath "$0")
 # shellcheck source=../lib/canccu-brief.sh
 . "$(dirname "$self")/../lib/canccu-brief.sh"
 [ "${1:-}" = --spend ] && { spend_report; exit 0; }
+[ "${1:-}" = --costs ] && { shift; costs_report "$@"; exit; }
 [ "${1:-}" = --findings ] && { findings_report; exit 0; }
 [ "${1:-}" = --kpi ] && { kpi_report; exit; }
 [ "${1:-}" = --pace ] && { pace_report; exit 0; }

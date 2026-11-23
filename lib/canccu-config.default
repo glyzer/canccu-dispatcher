@@ -108,6 +108,10 @@ RISKY_PATHS='^(\.github|deploy)/|migration|sign-?in|login|auth|rights|permission
 # paths (grep -E) that count as docs for a full review's effort, on top of docs/ and *.md, even
 # when RISKY_PATHS names them; never agent configuration or a gated path
 EFFORT_DOCS_PATHS=''
+# cost kinds for canccu-status --costs and the digest: "<name>=<regex>;<name>=<regex>", grep -iE on
+# the issue title (e.g. 'packs=^docs\(briefs\);screenshots=screenshot|demo-stack'); the rest is "other"
+COST_KINDS=''
+COST_ROUNDS_ALERT=5         # the digest names an issue with more fix rounds than this in the last 24 h; 0: never
 REVIEW_EFFORT_MAX=''        # cap for the review and fix-check effort: low, medium, high, xhigh or max; empty: none
 # the same as RISKY_PATHS for a fix-check's fix diff: medium instead of low effort
 FIXCHECK_RISKY='(^|/)deploy/|sign-?in|login|auth|rights|permission|session|secret|tenan|(^|[/_.-])rls([/_.-]|$)|migrations?(/|_|\.|$)|\.sql$|schema'

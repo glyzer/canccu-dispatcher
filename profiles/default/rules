@@ -12,6 +12,10 @@
 # paths (grep -E) that count as docs for the full review's effort, on top of docs/ and *.md
 # (e.g. '^contracts/' when the contracts are specs); never a gated path or agent configuration
 # EFFORT_DOCS_PATHS=''
+# cost kinds for canccu-status --costs: <name>=<regex> (grep -iE on the issue title), joined by ;
+# COST_KINDS=''
+# the digest names an issue with more fix rounds than this in 24 h; 0: never
+# COST_ROUNDS_ALERT=5
 # gated paths (grep -E): the user's accept. Agent configuration is always gated on top.
 # GATED_PATHS='^\.github/'
 # USER_VISIBLE_PATHS: grep -E on the PR's paths; a match always waits for the product owner (pages, screens, wording, step briefs). Test files never match.
