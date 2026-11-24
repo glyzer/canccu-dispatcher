@@ -37,7 +37,11 @@ text: no markup and no link preview. When the item settles, its message is edite
 Each item is sent once. A send that timed out may have landed: it is recorded and never sent again
 (as the ping). A send Telegram refused, or one that could not go (no token, no chat id), is logged
 once and tried again on each pass until it works; an item that settles before that is never sent.
-A send never holds the pass up for more than 10 seconds.
+A refusal no retry can change (the topic was deleted, the bot was blocked) is logged and given up,
+so it never blocks the sends behind it; the same for a group without forum topics, which is not
+asked for a topic again for a day. A message edit or topic close that failed is tried again on
+each pass. A message send never holds the pass up for more than 10 seconds (the images are the
+exception: see below).
 
 ## When it is sent
 
@@ -121,8 +125,12 @@ refused. With no leader (`LEADER=off`), a topic closes by itself when its item s
 
 When a review passes a PR's head, the SVG files the PR changes are read from GitHub at that head,
 rendered with `rsvg-convert` (when it is installed; else one log line) and sent into the unit's
-topic, once per head; under `NOTIFY_CONTENT=link` none are sent. Images linked from a PR body are never fetched: that is worker text, and
-fetching it would send the host to any URL. Other captures go through `canccu-notify photos`.
+topic, once per head; under `NOTIFY_CONTENT=link` none are sent. Up to ten files, each one a gh
+fetch and an `rsvg-convert` capped at 30 seconds, run inside the pass: that is the one step that can
+hold it up for longer than a send. A gh error other than "not found" (a file the PR deleted) leaves
+the head unrecorded, so the next pass tries again. Images linked from a PR body are never fetched:
+that is worker text, and fetching it would send the host to any URL. Other captures go through
+`canccu-notify photos`, which sends PNG files only.
 
 ## Setting it up
 

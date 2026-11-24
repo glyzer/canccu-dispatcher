@@ -87,5 +87,17 @@ dispatch --once
 ok "a settled item's record stays when a failed post stopped the pass (its close was skipped)" test -e "$CANCCU_HOME/pings/9"
 ok "ping: no form is rendered after a failed post stopped the pass" eq "$(grep -c '^issue comment' "$FAKE/gh.log")" 1
 
+env_new ask-no-auto-merge
+{ issue 5 in-progress,awaiting-accept; } | issues
+pr 50 5 $HA green | prs
+state 5 phase=accept pr=50 accept_sha=$HA pass_sha=$HA
+echo '{"allow_auto_merge": false}' > "$FAKE/repo.json"
+OUT=$(form "ask_form 5 accept 50")
+ok "the accept line of the form leaves canccu-ship out in a repo without auto-merge" \
+  eq "$(sed -n 1p <<<"$OUT")" 'For the product owner: PR #50 waits for your accept: label it `accepted`.'
+echo '{"allow_auto_merge": true}' > "$FAKE/repo.json"
+OUT=$(form "ask_form 5 accept 50")
+ok "… and offers it where auto-merge is allowed" eq "$(sed -n 1p <<<"$OUT")" 'For the product owner: PR #50 waits for your accept: label it `accepted`, or `canccu-ship 5`.'
+
 echo "canccu-asks tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

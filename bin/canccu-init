@@ -63,6 +63,9 @@ if [ "${1:-}" = --check ]; then
   p=$(notify_ready)
   if [ -n "$p" ]; then
     echo "Telegram: $p"
+    # the /newbot steps only where they are the fix: a missing token or chat; a wrong mode or a
+    # bad token shape has its own one-line fix in the message above
+    case $p in *"not set"*|*"no Telegram bot token file"*) ;; *) exit 1 ;; esac
     cat <<EOT
 To set it up:
   1. In Telegram, ask @BotFather for /newbot; put the token it gives in $(canccu_tilde "${TELEGRAM_TOKEN_FILE:-~/.config/canccu/telegram-token}") (one line, chmod 600).

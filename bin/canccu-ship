@@ -46,8 +46,8 @@ if is_managed "$n" && ! ship_reviewed "$n" "$pr" "$head"; then
   # armed now, it would wait on a review gate that never runs for it (the merge timeout's hours):
   # the dispatcher checks the head first, and carry_accept merges it on the pass
   st_set "$n" pr="$pr" carry_sha="$head" carry_by="$ch"
-  log "#$n PR #$pr: ${head:0:7} has no review pass yet; sent to the fix-check first, and the accept carries over once it passes"
-  echo "#$n PR #$pr: ${head:0:7} has no review pass yet; sent to the fix-check first, and the accept carries over once it passes"
+  log "#$n PR #$pr: ${head:0:7} has no review pass yet; checked (review or fix-check) first, and the accept carries over once it passes"
+  echo "#$n PR #$pr: ${head:0:7} has no review pass yet; checked (review or fix-check) first, and the accept carries over once it passes"
 elif is_managed "$n"; then
   st_set "$n" pr="$pr" merge_mode=
   merge_auto "$n" "$pr" accepted "$head" || die "PR #$pr was not merged; see the needs-you comment on #$(lead_of "$n")"

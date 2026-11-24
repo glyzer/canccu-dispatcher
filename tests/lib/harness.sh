@@ -188,7 +188,7 @@ done
 printf '%s %s\n' "$m" "${f[*]}" >> "$FAKE/tg.log"
 [ -e "$FAKE/tg-down" ] && { echo "curl: (7) Failed to connect to api.telegram.org port 443" >&2; exit 7; }
 [ -e "$FAKE/tg-slow" ] || [ -e "$FAKE/tg-slow-$m" ] && { echo "curl: (28) Operation timed out" >&2; exit 28; }
-[ -e "$FAKE/tg-refuse-$m" ] && { echo '{"ok":false,"error_code":400,"description":"Bad Request: refused"}'; exit 0; }
+[ -e "$FAKE/tg-refuse-$m" ] && { jq -nc --arg d "$(cat "$FAKE/tg-refuse-$m" 2>/dev/null)" '{ok: false, error_code: 400, description: ($d | if . == "" then "Bad Request: refused" else . end)}'; exit 0; }
 n=$(( $(cat "$FAKE/tg-n" 2>/dev/null || echo 100) + 1 )); echo "$n" > "$FAKE/tg-n"
 case $m in
   getMe) echo '{"ok":true,"result":{"id":1,"is_bot":true,"username":"web_bot"}}' ;;

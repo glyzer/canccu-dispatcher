@@ -187,7 +187,7 @@ ok "… the next pass sends nothing" eq "$(calls sendMessage)" 1
 
 tg notify-photo-timeout
 accept5
-printf 'PNG' > "$E/a.png"
+printf '\x89PNG\r\n\x1a\n' > "$E/a.png"
 touch "$FAKE/tg-slow-sendPhoto"
 out=$(notifycmd --project web photos 5 "$E/a.png" 2>&1)
 lib notify_photos 5 cap "$E/a.png" >/dev/null; rc=$?
@@ -301,7 +301,7 @@ ok "canccu-notify --help" grep -q 'canccu-notify' <<<"$(notifycmd --help)"
 
 tg notify-photos
 accept5
-printf 'PNG' > "$E/a.png"; printf 'PNG' > "$E/b.png"
+printf '\x89PNG\r\n\x1a\n' > "$E/a.png"; cp "$E/a.png" "$E/b.png"
 out=$(notifycmd --project web photos 5 "$E/a.png" 2>&1); rc=$?
 ok "photos: one file is one photo in the unit's topic" eq "$rc $(call sendPhoto | grep -c 'message_thread_id=101')" "0 1"
 ok "… captioned with the link" grep -qF 'pull/50' <<<"$(call sendPhoto)"

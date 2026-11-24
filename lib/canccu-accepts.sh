@@ -91,7 +91,7 @@ accept_held() {
 # (main_merge_only): auto-merge on head. Merges of main with conflicts resolved only inside the
 # PR's own files (resolved_outside) hold the accept for head's fix-check instead (carry_sha,
 # carry_by; carry_accept spends it on the pass), and the caller's requeue reviews head. 1: not
-# carried now, the caller's path. canccu-ship's own hold on head (carry_sha = head) is kept.
+# carried now, the caller's path; 2: the merge failed, tried again next pass. canccu-ship's own hold on head (carry_sha = head) is kept.
 keep_accept() {
   local n=$1 pr=$2 old=$3 head=$4 by out
   [ "$(st_get "$n" carry_sha)" = "$head" ] || st_set "$n" carry_sha= carry_by=
@@ -101,7 +101,9 @@ keep_accept() {
   if main_merge_only "$old" "$head"; then
     st_set "$n" accept_sha="$head" carried="$head" carried_by="$by"
     log "#$n PR #$pr: \`accepted\` carried over from ${old:0:7} to ${head:0:7}: a merge of main only (KEEP_ACCEPT_ON_MAIN_MERGE=1)"
-    merge_auto "$n" "$pr" accepted "$head"
+    # a failed merge (a transient gh error) puts the old head back, so the next pass carries the
+    # accept again instead of asking for a new one
+    merge_auto "$n" "$pr" accepted "$head" || { st_set "$n" accept_sha="$old" carried= carried_by=; return 2; }
     return 0
   fi
   out=$(resolved_outside "$old" "$head") || return 1

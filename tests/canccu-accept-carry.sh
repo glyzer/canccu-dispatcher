@@ -74,6 +74,15 @@ dispatch --once
 ok "accepted with canccu-ship, then a clean merge of main → auto-merge on the new head" has gh.log "pr merge 50 -R example-org/web --auto --match-head-commit $MB_MM1"
 ok "… no new accept request" eq "$(asked) $(st 5 phase)" "0 merging"
 ok "… logged as the carry-over" grep -qF "#5 PR #50: \`accepted\` carried over from ${MB_B:0:7} to ${MB_MM1:0:7}: a merge of main only (KEEP_ACCEPT_ON_MAIN_MERGE=1)" "$CANCCU_HOME/dispatch.log"
+env_new ship-clean-fail; mmrepo
+{ issue 5 in-progress,manual-accept; } | issues
+pr 50 5 "$MB_MM1" | prs
+printf '%s\t5\t50\t%s\tpo\n' "$((NOW - 3600))" "$MB_B" > "$CANCCU_HOME/accepts.log"
+state 5 phase=merging pr=50 "merge_sha=$MB_B" how=accepted "merge_at=$((NOW - 600))" "accept_sha=$MB_B" "accept_at=$((NOW - 7200))"
+echo 'fail:pr merge' >> "$FAKE/routes"
+dispatch --once
+ok "a clean merge of main whose auto-merge call failed: the old head stays the accepted one (merge_auto escalates), no new accept is asked" \
+  eq "$(asked) $(st 5 phase) $(st 5 accept_sha)" "0 needs-you $MB_B"
 env_new ship-clean-off ACCEPT_CHANNELS=label; mmrepo
 { issue 5 in-progress,manual-accept; } | issues
 pr 50 5 "$MB_MM1" | prs
@@ -144,7 +153,7 @@ state 5 phase=check pr=50 "pass_sha=$MB_B" "full_sha=$MB_B" "merge_sha=$MB_B" st
 ship 5; rc=$?
 ok "canccu-ship on a head with no review pass → arms nothing" eq "$rc $(grep -c '^pr merge' "$FAKE/gh.log")" "0 0"
 ok "… records the accept of that head" eq "$(cut -f2- "$CANCCU_HOME/accepts.log")" "5	50	$MB_RC	po"
-ok "… says it goes to the fix-check first" grep -qF "#5 PR #50: ${MB_RC:0:7} has no review pass yet; sent to the fix-check first, and the accept carries over once it passes" "$E/out"
+ok "… says it is checked first" grep -qF "#5 PR #50: ${MB_RC:0:7} has no review pass yet; checked (review or fix-check) first, and the accept carries over once it passes" "$E/out"
 ok "… holds the accept for that head" eq "$(st 5 carry_sha) $(st 5 carry_by) $(st 5 phase)" "$MB_RC ship check"
 fxpass ship-unreviewed-pass pass
 printf 'carry_sha=%s\ncarry_by=ship\n' "$MB_RC" >> "$CANCCU_HOME/state/5"
