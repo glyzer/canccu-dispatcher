@@ -872,8 +872,8 @@ review_env pp-shas-changes 'Review verdict: changes' review
 dispatch --once
 ok "a full review's changes records full_sha, no pass_sha" eq "$(st 5 full_sha) [$(st 5 pass_sha)]" "$HA []"
 review_env pp-new-cycle 'Review verdict: pass' review
-lib eval 'st_set 5 full_sha=x pass_sha=y; new_cycle 5'
-ok "new_cycle clears full_sha and pass_sha" eq "[$(st 5 full_sha)][$(st 5 pass_sha)]" "[][]"
+lib eval 'st_set 5 full_sha=x pass_sha=y passed_rev=z; new_cycle 5'
+ok "new_cycle clears full_sha, pass_sha and passed_rev" eq "[$(st 5 full_sha)][$(st 5 pass_sha)][$(st 5 passed_rev)]" "[][][]"
 
 # ppenv <name> <full_sha> <pass_sha> <head> [numstat]: PR 50 passed, then got a push; CI green
 ppenv() {
@@ -940,12 +940,14 @@ json issue5.json '{"labels": [{"name": "in-progress"}, {"name": "manual-accept"}
 sethead "$MB_MM1"; pr 50 5 "$MB_MM1" green | prs
 mkdir -p "$CANCCU_HOME/reviews/50"
 printf 'Change:\n- adds the flag\n- fixes the typo\n- drops the file\n\nReview verdict: pass %s\n' "$MB_B" > "$CANCCU_HOME/reviews/50/$MB_B.md"
-state 5 phase=check pr=50 stage=review "full_sha=$MB_B" "pass_sha=$MB_B" verdict_at=2030-11-05T11:00:00Z "check_at=$NOW"
+printf 'Change:\n- OLD one\n- OLD two\n- OLD three\n\nReview verdict: changes %s\n' "$HA" > "$CANCCU_HOME/reviews/50/$HA.md"
+state 5 phase=check pr=50 stage=review "full_sha=$HA" "pass_sha=$MB_B" "passed_rev=$MB_B" verdict_at=2030-11-05T11:00:00Z "check_at=$NOW"
 dispatch --once
 ask=$(grep -- '--body-file' "$FAKE/gh.log" | tail -1)
 ok "a merge of main only on a manual-accept unit: the form shows the pass" grep -qF "Review: pass on ${MB_MM1:0:7}" <<<"$ask"
 ok "… recommends the accept" grep -qF "Recommended: accept, review passed and CI is green" <<<"$ask"
 ok "… with the Change: lines of the reviewed pass" grep -qF -- "- adds the flag" <<<"$ask"
+ok "… not those of the older review that asked for changes" not grep -qF -- "OLD one" <<<"$ask"
 
 ppenv pp-main-plus "" "" ""; mmrepo
 sethead "$MB_MX"; printf '1\t0\ta.txt\n' > "$FAKE/numstat"

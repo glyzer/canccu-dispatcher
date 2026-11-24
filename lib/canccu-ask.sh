@@ -126,10 +126,10 @@ ask_form() {
   echo "For the product owner: $what"
   echo "Why you: $(ask_why "$k" "$kind")"
   if [ "$pr" != - ]; then
-    # a head that is a merge of main only has no review file: the pass it took on has (full_sha)
+    # a head that is a merge of main only has no review file: the last verdict that passed has (passed_rev)
     chg=$full
     if [ -n "$full" ] && [[ $rv == pass* ]] && [ ! -f "$CANCCU_HOME/reviews/$pr/$full.md" ]; then
-      fs=$(st_get "$k" full_sha 2>/dev/null); [ -f "$CANCCU_HOME/reviews/$pr/$fs.md" ] && chg=$fs
+      fs=$(st_get "$k" passed_rev 2>/dev/null); [ -f "$CANCCU_HOME/reviews/$pr/$fs.md" ] && chg=$fs
     fi
     echo "Change (reviewer's summary):"; ask_change "$pr" "$chg"
   fi

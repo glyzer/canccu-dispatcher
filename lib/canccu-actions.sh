@@ -185,7 +185,7 @@ to_accept() {
 }
 
 # new_cycle <n>: a new start, an adoption, plan-ok or needs-work: the next review is a full one
-new_cycle() { st_set "$1" accept_sha= carry_sha= carry_by= carried= carried_by= stage= reviewed_sha= review_maccept= review_risk= open_sha= full_sha= pass_sha= extra_fix=; }
+new_cycle() { st_set "$1" accept_sha= carry_sha= carry_by= carried= carried_by= stage= reviewed_sha= review_maccept= review_risk= open_sha= full_sha= pass_sha= passed_rev= extra_fix=; }
 
 # after_pass <n> <pr> <head> <how>: that head passed (a review, a fix-check, or a merge of main only
 # after a pass): classify, then merge it, carry an accept held for it over (carry_accept), or wait
@@ -249,6 +249,9 @@ act_verdict() {
   # one a `full review` ask or a light upgrade waited for (light_upgrade may ask again below)
   case $v in pass|changes) is_fixcheck_mode "$mode" || st_set "$n" full_sha="$head" review_asked= ;; esac
   # non-blocking findings never reach the worker: they go to the wave's follow-up issue
+  # the head of the last verdict that passed: its review file holds the Change: lines the ask form
+  # shows after a merge of main (full_sha may be an older review that asked for changes)
+  [ "$v" = pass ] && st_set "$n" passed_rev="$head"
   case $v in pass|changes) body=$(verdict_body "$j"); collect_nonblocking "$n" "$pr" "$head" "$body" "$at"
       history_record "$n" "$pr" "$head" "$body" "$at"; blocking_note "$n" "$body" "$at" "$head" ;; esac
   case $v in
