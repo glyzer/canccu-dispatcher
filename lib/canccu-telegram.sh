@@ -55,10 +55,13 @@ tg_send() {
   if (( rc == 0 )); then jq -r '.message_id' <<<"$r"; else echo "$r"; fi
   return "$rc"
 }
-# tg_edit <message> <text>
+# tg_edit <message> <text>: on failure prints why (tg_call's)
 tg_edit() {
-  tg_call editMessageText --form-string "chat_id=$TELEGRAM_CHAT_ID" --form-string "message_id=$1" \
-    --form-string "text=${2:0:4000}" >/dev/null
+  local r rc
+  r=$(tg_call editMessageText --form-string "chat_id=$TELEGRAM_CHAT_ID" --form-string "message_id=$1" \
+    --form-string "text=${2:0:4000}"); rc=$?
+  (( rc == 0 )) || echo "$r"
+  return "$rc"
 }
 # tg_topic <name>: a new forum topic; prints its thread id, or why not
 tg_topic() {
@@ -67,7 +70,13 @@ tg_topic() {
   if (( rc == 0 )); then jq -r '.message_thread_id' <<<"$r"; else echo "$r"; fi
   return "$rc"
 }
-tg_topic_close() { tg_call closeForumTopic --form-string "chat_id=$TELEGRAM_CHAT_ID" --form-string "message_thread_id=$1" >/dev/null; }
+# tg_topic_close <thread>: on failure prints why
+tg_topic_close() {
+  local r rc
+  r=$(tg_call closeForumTopic --form-string "chat_id=$TELEGRAM_CHAT_ID" --form-string "message_thread_id=$1"); rc=$?
+  (( rc == 0 )) || echo "$r"
+  return "$rc"
+}
 
 # tg_photos <thread or -> <reply-to or -> <caption> <png...>: one photo, or albums of ten at most
 # (the API's limit), the caption on the first; prints the first message id. The files are copied

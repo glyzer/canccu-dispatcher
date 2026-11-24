@@ -160,7 +160,7 @@ notify_reset_check() {
 }
 _nt_reset() {
   local f; f=$(notify_dir)
-  : > "$f/sent"; : > "$f/retry"; rm -rf "$f/text"
+  : > "$f/sent"; : > "$f/retry"; rm -rf "$f/text"; rm -f "$f/unsettled"
   [ ! -f "$f/topics" ] || { awk -F '\t' -v OFS='\t' '{ $2 = "-" } { print }' "$f/topics" > "$f/topics.tmp" && mv -f "$f/topics.tmp" "$f/topics"; }
 }
 
@@ -183,8 +183,12 @@ notify_send() {
       0) th=$r key=t$r; nt_add topics "$key	$id	$unit	$pr	open	-" ;;
       # the topic may be there, but its id is lost: the message goes to the chat's main thread
       2) log "telegram: opening a topic for feed line $id timed out; the message goes without one" ;;
-      *) warn_once notify-forum "telegram: no forum topic in chat $TELEGRAM_CHAT_ID ($r): each message opens a reply chain instead"
-         mkdir -p "$(notify_dir)" && : > "$(notify_dir)/noforum" ;;
+      # only the refusal that says so means no topics here: a dropped connection, a 429 or a 5xx
+      # says nothing about the chat, and the next message tries a topic again
+      *) if [[ $r == *"not a forum"* ]]; then
+           warn_once notify-forum "telegram: no forum topic in chat $TELEGRAM_CHAT_ID ($r): each message opens a reply chain instead"
+           mkdir -p "$(notify_dir)" && : > "$(notify_dir)/noforum"
+         else log "telegram: opening a topic for feed line $id failed ($r); the message goes without one"; fi ;;
     esac
   fi
   r=$(tg_send "$text" "$th" - "$silent"); rc=$?
@@ -214,18 +218,28 @@ notify_permanent() {
   return 1
 }
 
+# notify_done <telegram's error text>: a refusal that says the edit or the close has no work left
+# (the text is already Closed:, the message or topic is gone, the user closed the topic): it
+# counts as done, a retry would get the same answer for good
+notify_done() {
+  case $1 in *"message is not modified"*|*"message to edit not found"*|*"TOPIC_NOT_MODIFIED"*|*"TOPIC_ID_INVALID"*|*"TOPIC_DELETED"*|*"message thread not found"*) return 0 ;; esac
+  return 1
+}
+
 # notify_settle <feed id>: the item no longer waits: its message is edited to start with Closed:,
 # and with no leader its topic closes (with one, the leader closes it once the thread is settled).
 # An item that settled before its send worked, or while it waited in the queue, is never sent.
 notify_settle() {
-  local id=$1 m key ok=0
+  local id=$1 m key ok=0 r
   notify_retry_del "$id"; nt_del queue "$id"
   [ "${LEADER:-off}" = on ] || notify_batch_settle "$id"
   m=$(nt_get sent "$id" 2); key=$(nt_get sent "$id" 3)
   [ -n "$m" ] || return 0
   # m -: the item reached the product owner only in a digest
   if [ "$m" != "?" ] && [ "$m" != - ] && [ -f "$(notify_dir)/text/$id" ]; then
-    tg_edit "$m" "Closed: $(cat "$(notify_dir)/text/$id")" || { log "telegram: marking the message of feed line $id closed failed; tried again next pass"; ok=1; }
+    if ! r=$(tg_edit "$m" "Closed: $(cat "$(notify_dir)/text/$id")") && ! notify_done "$r"; then
+      log "telegram: marking the message of feed line $id closed failed ($r); tried again next pass"; ok=1
+    fi
   fi
   if [ "${LEADER:-off}" != on ] && [ "$key" != - ] && [ "$(nt_get topics "$key" 5)" = open ]; then
     notify_close "$key" || ok=1
@@ -248,10 +262,11 @@ notify_post() {
 }
 # notify_close <key> [say]: closes an open topic (the forum topic too); with say, posts Closed. first
 notify_close() {
+  local r
   [ "$(nt_get topics "$1" 5)" = open ] || return 1
   [ -z "${2:-}" ] || notify_post "$1" "Closed." >/dev/null || true
-  if [[ $1 == t* ]] && ! tg_topic_close "${1#t}"; then
-    log "telegram: closing the forum topic ${1#t} failed"; return 1   # stays open: notify_settle tries again
+  if [[ $1 == t* ]] && ! r=$(tg_topic_close "${1#t}") && ! notify_done "$r"; then
+    log "telegram: closing the forum topic ${1#t} failed ($r)"; return 1   # stays open: notify_settle tries again
   fi
   nt_put topics "$1" 5 closed
 }
@@ -366,7 +381,8 @@ notify_tick() {
   notify_on telegram || return 0
   local id
   for id in $(cat "$(notify_dir)/retry" 2>/dev/null); do notify_event "$id" || break; done
-  for id in $(cut -f1 "$(notify_dir)/unsettled" 2>/dev/null); do notify_settle "$id" || true; done
+  # the first transient failure ends the loop, as with the retries: Telegram down costs one call
+  for id in $(cut -f1 "$(notify_dir)/unsettled" 2>/dev/null); do notify_settle "$id" || break; done
   notify_flush
   notify_digest_tick
   notify_images

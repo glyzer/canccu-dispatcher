@@ -165,6 +165,20 @@ sed -i '/^fail124:issue comment$/d' "$FAKE/routes"
 dispatch --once
 ok "… not posted again on the next pass" eq "$(grep -c '^issue comment 8 ' "$FAKE/gh.log")" 1
 
+# a timed-out post finds only a comment made since it started: an older ping is not it
+pingfind() { # <name> <extra comments, json objects after a comma, or empty>
+  env_new "ping-timeout-find-$1" PING_KINDS=all
+  { issue 8 needs-you; } | issues
+  json c8.json '[{"id": 777, "user": {"login": "review-bot"}, "created_at": "2030-11-01T09:00:00Z", "body": "@octo\nClosed: For the product owner: x\n\n<!-- canccu-dispatch -->"}'"$2"']'
+  route 'api repos/example-org/web/issues/8/comments*' c8.json
+  echo 'fail124:issue comment' >> "$FAKE/routes"
+  dispatch --once
+}
+pingfind old ''
+ok "a timed-out ping with only an older ping on the issue: the record has no id" eq "$(cat "$CANCCU_HOME/pings/8" 2>/dev/null)" needs-you
+pingfind landed ', {"id": 778, "user": {"login": "review-bot"}, "created_at": "2030-11-05T12:00:00Z", "body": "@octo\nFor the product owner: x\n\n<!-- canccu-dispatch -->"}'
+ok "… with the post landed (made since it started): its id is recorded" eq "$(cat "$CANCCU_HOME/pings/8" 2>/dev/null)" "needs-you 778"
+
 # finding 5: a managed unit in phase needs-you whose label did not land is pinged too (once)
 env_new ping-ny-unlabelled PING_KINDS=all
 { issue 5 in-progress; issue 6 in-progress,needs-you; } | issues

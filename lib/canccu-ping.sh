@@ -140,7 +140,7 @@ ping_pr_issue() {
 # landed: it is recorded, so it is never posted twice (the next state change pings again). Records
 # are dropped only when ping_states listed everything (its END line). The pass goes on either way.
 ping_tick() {
-  local d="$CANCCU_HOME/pings" n kind pr form text out rc f rk rid id prob='' checked='' stop='' complete=''
+  local d="$CANCCU_HOME/pings" posted_at n kind pr form text out rc f rk rid id prob='' checked='' stop='' complete=''
   local -A cur=() seen=()
   # NOTIFY sends no GitHub ping (telegram, off): as PING=off
   local ping=${PING:-on}; notify_on github || ping=off
@@ -180,10 +180,11 @@ ping_tick() {
       fi
     fi
     if [ -z "$rid" ] || (( rc != 0 )); then
+      posted_at=$(now)
       out=$(as_reviewer gh issue comment "$n" -R "$REPO" --body "$text" 2>&1); rc=$? id=''
       [[ $out =~ issuecomment-([0-9]+) ]] && id=${BASH_REMATCH[1]}
       # a post that timed out may have landed with no link printed: find it, or it is never closed
-      (( rc == 124 || rc == 137 )) && id=$(ping_find "$n")
+      (( rc == 124 || rc == 137 )) && id=$(ping_find "$n" "$posted_at")
     fi
     case $rc in
       0) rm -f "$CANCCU_HOME/.warned-ping"; log "#$n pinged @$USER_LOGIN as $REVIEWER_LOGIN: $kind${rk:+ (was $rk)}" ;;
@@ -213,11 +214,14 @@ ping_tick() {
   return 0
 }
 
-# ping_find <issue>: the id of the newest comment of the reviewer's mark on the issue (a post that
-# timed out before gh printed its link); empty when there is none or gh fails
+# ping_find <issue> <epoch>: the id of the newest comment of the reviewer's mark on the issue
+# created since the post started (a post that timed out before gh printed its link); an older
+# ping, settled or not, is not that post. Empty when there is none or gh fails. The slack covers
+# the clocks of this host and GitHub.
 ping_find() {
+  local since; since=$(iso $(( $2 - 30 )))
   as_reviewer gh api "repos/$REPO/issues/$1/comments" --paginate -q \
-    "[.[] | select(.user.login == \"$REVIEWER_LOGIN\" and (.body | contains(\"$CANCCU_MARK\")))] | last | .id // empty" 2>/dev/null | tail -n1
+    "[.[] | select(.user.login == \"$REVIEWER_LOGIN\" and (.body | contains(\"$CANCCU_MARK\")) and .created_at >= \"$since\")] | last | .id // empty" 2>/dev/null | tail -n1
 }
 
 # ping_close <issue> <comment id>: the item settled: its comment's first line of the form becomes
