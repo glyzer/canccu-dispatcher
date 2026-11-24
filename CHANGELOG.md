@@ -20,6 +20,8 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 
 **Changes:**
 
+- `canccu-run` starts and resumes a worker by hand again (#309): `lib/canccu-continue.sh` is now
+  sourced by `lib/canccu-runs.sh`, so the budget and the progress mark exist outside the dispatcher.
 - CI (#301): `CI (oldstable)` runs `tests/run --short` (a fixed set of 29 parts, every shell file
   linted) within 20 minutes. The whole suite runs on Debian 12 in the new `Nightly` workflow (a
   red night opens or updates the issue "Nightly: the full check on Debian 12 failed") and before

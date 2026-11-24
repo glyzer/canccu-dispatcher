@@ -299,6 +299,8 @@ PR_BRANCH=pkg-12-auth pr 50 101 "$HA" | prs
 PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-run" 103 go on > "$E/out" 2>&1
 ok "canccu-run <member> resumes the package, never a run of the issue alone" \
   eq "$(grep -c -- '--key pkg-12-auth' "$FAKE/worker.log") $(grep -c -- '--name #103' "$FAKE/worker.log")" "1 0"
+ok "… with the budget's three numbers" grep -qE -- '--key pkg-12-auth.*turns=[0-9]+ cost=[0-9.]+ min=[0-9]+' "$FAKE/worker.log"
+ok "… and no command missing" not grep -q 'command not found' "$E/out"
 PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-stop" 103 > "$E/out" 2>&1
 ok "canccu-stop <member> stops the package" grep -q -- '--kill web pkg-12-auth' "$FAKE/worker.log"
 # a head with a review pass: canccu-ship arms only such a head (an unreviewed one gets its fix-check first)
