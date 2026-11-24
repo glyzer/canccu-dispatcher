@@ -42,6 +42,49 @@ rm "$FAKE/tg-refuse-editMessageText"
 dispatch --once
 ok "… the next pass edits the message and forgets it" eq "$(calls editMessageText) $(cat "$(ND)/unsettled" 2>/dev/null)" "2 "
 
+# a refusal that says there is nothing left to edit or close counts as done: no retry for good
+tg notify3-settle-done
+lib feed po ask accept 5 50 https://example.invalid/50 "#5 accept" >/dev/null
+echo "Bad Request: message is not modified" > "$FAKE/tg-refuse-editMessageText"
+echo "Bad Request: TOPIC_NOT_MODIFIED" > "$FAKE/tg-refuse-closeForumTopic"
+lib feed - info closed 5 - - "closes 1: done" >/dev/null
+ok "an edit 'not modified' and a topic the user closed: done, nothing kept to retry" eq "[$(cat "$(ND)/unsettled" 2>/dev/null)] $(cut -f5 "$(ND)/topics")" "[] closed"
+dispatch --once; dispatch --once
+ok "… and not tried again on later passes" eq "$(calls editMessageText) $(calls closeForumTopic)" "1 1"
+
+# Telegram down: the loop over what is left to settle stops at the first failure
+tg notify3-settle-down
+lib feed po ask accept 5 50 https://example.invalid/50 "#5 accept" >/dev/null
+lib feed po ask accept 6 60 https://example.invalid/60 "#6 accept" >/dev/null
+echo "Bad Request: refused" > "$FAKE/tg-refuse-editMessageText"
+lib feed - info closed 5 - - "closes 1: done" >/dev/null
+lib feed - info closed 6 - - "closes 2: done" >/dev/null
+: > "$FAKE/tg.log"; touch "$FAKE/tg-down"
+dispatch --once
+ok "two ids unsettled, Telegram down: one edit tried in the pass, not one per id" eq "$(calls editMessageText) $(cut -f1 "$(ND)/unsettled" | tr '\n' ' ')" "1 1 2 "
+
+# a reset of the feed ids clears what waits to be settled: a new item with the same id is not closed
+tg notify3-reset-unsettled
+mkdir -p "$(ND)"; printf '1\n' > "$(ND)/unsettled"
+lib _nt_reset
+ok "the events file reset: the unsettled ids go with the other id files" test ! -s "$(ND)/unsettled"
+
+# a createForumTopic that failed for another reason than "not a forum" is asked again
+tg notify3-forum-down
+touch "$FAKE/tg-down"
+lib feed po ask idle 8 - - "#8 idle" >/dev/null
+rm "$FAKE/tg-down"
+lib feed po ask idle 9 - - "#9 idle" >/dev/null
+ok "a connection failure on createForumTopic does not turn topics off for a day" eq "$(test -e "$(ND)/noforum"; echo $?) $(calls createForumTopic)" "1 2"
+
+# a read killed half-way leaves no half-appended inbox lines: the next read appends each reply once
+tg notify3-read-killed
+mkdir -p "$(ND)"; printf 't50\t1\t5\t50\topen\t-\n' > "$(ND)/topics"
+jq -n '[11, 12] | map({update_id: ., message: {message_id: ., chat: {id: -1009876}, from: {id: 777}, is_topic_message: true, message_thread_id: 50, text: "reply \(.)"}})' > "$FAKE/tg-updates.json"
+( lib eval 'nt_add() { [[ $2 == 12* ]] && kill -9 $BASHPID; _nt_locked _nt_append "$@"; }; notify_read 0' >/dev/null ) 2>/dev/null
+lib notify_read 0 >/dev/null
+ok "a read killed at the second reply: the inbox holds each reply once after the next read" eq "$(grep -c . "$CANCCU_HOME/inbox") $(sort -u "$CANCCU_HOME/inbox" | grep -c .)" "2 2"
+
 tg notify3-photos
 printf 'secret\n' > "$E/s.png"
 out=$(notifycmd --project web photos 5 "$E/s.png" 2>&1); rc=$?
