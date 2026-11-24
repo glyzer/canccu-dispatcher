@@ -20,6 +20,9 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 
 **Changes:**
 
+- `canccu-run` starts and resumes a worker by hand again (#309): `lib/canccu-continue.sh` is now
+  sourced by `lib/canccu-runs.sh`, so the budget and the progress mark exist outside the dispatcher.
+
 - Runs clean up their containers (#238): a run's tag (`canccu_<project>_<key>`) reaches it as
   `CANCCU_RUN` and `COMPOSE_PROJECT_NAME`, and its rules say to label containers with it and to
   use `$TMPDIR`, not `/tmp`. The tagged containers, networks and volumes of a unit go when it

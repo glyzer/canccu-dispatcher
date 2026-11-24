@@ -72,5 +72,8 @@ ok "every command and the engine find their libs from their real path" \
 mkdir -p "$T/links"; ln -s "$root/bin/canccu-status" "$T/links/canccu-status"
 ok "… so a symlink to a command works" grep -q "no project in" <<<"$(env -u CANCCU_PROJECT CANCCU_ROOT="$T/none" "$T/links/canccu-status" 2>&1)"
 
+ok "common.sh alone brings run_mark, resume_budget, work_left and continue_budget" \
+  eq "$(bash -c '. "$1/lib/canccu-common.sh"; declare -F run_mark resume_budget work_left continue_budget | wc -l' _ "$root" 2>/dev/null)" 4
+
 echo "canccu-repo tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

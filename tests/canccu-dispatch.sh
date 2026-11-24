@@ -1088,6 +1088,13 @@ env_new canccu-run-ship
 state 5 phase=needs-you
 PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-run" 5 ship it after the fix > "$E/out" 2>&1
 ok "canccu-run never hands the engine a leading word" grep -q 'web 5 Rules for this run: .* The user says: ship it after the fix This run is a fresh session.* Do not review your own work; run the checks only. turns=' "$FAKE/worker.log"
+ok "… and the budget has a number after turns=, cost= and min=" grep -qE 'turns=[0-9]+ cost=[0-9.]+ min=[0-9]+' "$FAKE/worker.log"
+ok "… and no function is missing" not grep -q 'run_mark' "$E/out"
+
+env_new canccu-run-start
+{ issue 5 ready; } | issues
+PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-run" 5 > "$E/out" 2>&1
+ok "a hand start of a ready issue prints no command not found" not grep -q 'command not found' "$E/out"
 
 # ---------------------------------------------------------------- contract-first for a single issue (#87)
 

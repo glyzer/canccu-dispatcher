@@ -392,8 +392,6 @@ resume_step() {
   return 0
 }
 
-# shellcheck source=canccu-continue.sh
-. "$_canccu_lib/canccu-continue.sh"
 # shellcheck source=canccu-exits.sh
 . "$_canccu_lib/canccu-exits.sh"
 # shellcheck source=canccu-prbody.sh
