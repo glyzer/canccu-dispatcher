@@ -55,6 +55,9 @@ flow below; a session started by hand follows it too.
 - `bin/canccu-monitor --self-test`;
 - `tests/leak-check.sh`.
 
-CI (`.github/workflows/ci.yml`) runs the same command twice: job `CI` on the newest runner (then
-the release tarball's install smoke test), job `CI (oldstable)` on Debian 12, whose jq 1.6 is slow
-enough to need `CANCCU_TEST_TIMEOUT=20m` (each test file's limit; default 8m).
+CI (`.github/workflows/ci.yml`) runs on every push: job `CI` runs the same command on the newest
+runner (then the release tarball's install smoke test); job `CI (oldstable)` runs `tests/run
+--short` (a fixed set, lint included) on Debian 12, whose jq 1.6 is slow enough to need
+`CANCCU_TEST_TIMEOUT=20m` (each test file's limit; default 8m). The whole suite runs on Debian 12
+every night (`.github/workflows/nightly.yml`, which opens an issue when it is red) and before a
+release publishes (`release.yml`).

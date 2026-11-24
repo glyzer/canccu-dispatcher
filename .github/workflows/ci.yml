@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # CI: the local check of CLAUDE.md (tests/run), on every PR, every merge-queue entry and every
 # push to main. The job `CI` is the one a ruleset requires: the check on the newest runner, then
-# the release tarball's install smoke test. `CI (oldstable)` runs the same check on Debian 12's
-# own bash, jq 1.6, tmux, Python 3.11 and git, the oldest distribution the tool supports. No
-# secrets; the token only reads the repo.
+# the release tarball's install smoke test. `CI (oldstable)` runs the short set (tests/run
+# --short) on Debian 12's own bash, jq 1.6, tmux, Python 3.11 and git, the oldest distribution the
+# tool supports; nightly.yml and release.yml run the whole suite there. No secrets; the token
+# only reads the repo.
 name: CI
 
 on:
@@ -101,8 +102,9 @@ jobs:
     name: CI (oldstable)
     runs-on: ubuntu-latest
     # jq 1.6 starts about 8 times slower than 1.7, and the tests call it thousands of times: the
-    # same check takes more than twice as long here, so each test file gets 20 minutes, not 8
-    timeout-minutes: 30
+    # whole suite takes about half an hour here, so a push runs the short set (about 8 minutes on
+    # 4 cores) and each test file gets 20 minutes, not 8
+    timeout-minutes: 20
     permissions:
       contents: read
     container:
@@ -129,7 +131,7 @@ jobs:
           chown -R ci "$GITHUB_WORKSPACE"
           runuser -u ci -- python3 -m venv /var/lib/ci/venv
           runuser -u ci -- /var/lib/ci/venv/bin/pip install --quiet --disable-pip-version-check -r lib/canccu-monitor.requirements.txt
-          runuser -u ci -- env HOME=/var/lib/ci CANCCU_TEST_TIMEOUT=20m CANCCU_VENV=/var/lib/ci/venv CANCCU_TEST_LOGS=/var/lib/ci/test-logs tests/run
+          runuser -u ci -- env HOME=/var/lib/ci CANCCU_TEST_TIMEOUT=20m CANCCU_VENV=/var/lib/ci/venv CANCCU_TEST_LOGS=/var/lib/ci/test-logs tests/run --short
 
       - name: Full logs of a failed check
         if: failure()

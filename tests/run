@@ -8,6 +8,9 @@
 #                                 "lint", a source file (lint it when it is shell, and run the
 #                                 test files that cover it), or a pattern: tests/*<pattern>*.sh
 #   tests/run --affected          the files changed against origin/main, as source files
+#   tests/run --short             lint every shell file and run the fixed set in `short` below: what
+#                                 CI (oldstable) runs on every push; the whole suite runs there at
+#                                 night and before a release. Any other argument, or --affected: exit 2
 #   tests/run --list ...          print what it would run, run nothing
 # Each test file may run for CANCCU_TEST_TIMEOUT (a duration of timeout(1); default 8m): a slow
 # host, such as an older distribution's jq 1.6 with its slow start, needs longer.
@@ -18,6 +21,13 @@ set -uo pipefail
 caller=$PWD
 root=$(cd "$(dirname "$0")/.." && pwd) || exit 2
 cd "$root" || exit 2
+
+# The set of --short: the tests that depend on the host's tools (install, doctor, engine, tmux
+# panes, configuration, releases) and one per pipeline area. The slowest files stay out of it.
+short=(
+  ci claim compat config costs dispatch2 docs doctor engine hosts install install2 notify openpr
+  pane projects release repo scenarios snapshot2 spend titles upgrade usage verdict version
+)
 
 # tests_for <file>: the test files (and "monitor") that cover a source file; "all" for the harness
 tests_for() {
@@ -100,10 +110,12 @@ all_shell() {
 
 limit=${CANCCU_TEST_TIMEOUT:-8m}
 [[ $limit =~ ^[0-9]+[smh]?$ ]] || { echo "tests/run: CANCCU_TEST_TIMEOUT=$limit is no duration (like 8m)" >&2; exit 2; }
-list=0 affected=0 args=()
+list=0 affected=0 short_=0 args=()
 for a; do
-  case $a in --list) list=1 ;; --affected) affected=1 ;; -*) echo "tests/run: unknown flag $a" >&2; exit 2 ;; *) args+=("$a") ;; esac
+  case $a in --list) list=1 ;; --affected) affected=1 ;; --short) short_=1 ;; -*) echo "tests/run: unknown flag $a" >&2; exit 2 ;; *) args+=("$a") ;; esac
 done
+
+(( short_ && (affected || ${#args[@]}) )) && { echo "tests/run: --short takes no other argument" >&2; exit 2; }
 
 declare -A seen=()
 lint=() parts=()
@@ -115,7 +127,14 @@ source_file() {   # source_file <path relative to root>
   for t in $(tests_for "$1"); do if [ "$t" = all ]; then addall; else add "$t"; fi; done
 }
 
-if (( affected )); then
+if (( short_ )); then
+  mapfile -t lint < <(all_shell)
+  for n in "${short[@]}"; do
+    [ -f "tests/canccu-$n.sh" ] || { echo "tests/run: the short set names tests/canccu-$n.sh, which does not exist" >&2; exit 2; }
+    add "tests/canccu-$n.sh"
+  done
+  add tests/leak.sh; add tests/leak-check.sh; add monitor
+elif (( affected )); then
   base=$(git merge-base origin/main HEAD) || { echo "tests/run: no origin/main to compare with" >&2; exit 2; }
   while IFS= read -r f; do source_file "$f"; done < <({ git diff --name-only --diff-filter=d "$base"; git ls-files --others --exclude-standard; } | sort -u)
 elif (( ${#args[@]} == 0 )); then
