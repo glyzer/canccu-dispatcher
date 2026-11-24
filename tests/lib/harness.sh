@@ -163,7 +163,7 @@ while IFS=$'\t' read -r pat file; do
   # shellcheck disable=SC2053
   [[ $a == $pat ]] || continue
   [ "$file" = FAIL ] && { echo "fake gh: failing $a" >&2; exit 1; }
-  [ "$file" = RERUN_REFUSED ] && { echo "run 700 cannot be rerun; This workflow is already running" >&2; exit 1; }
+  [ "$file" = RERUN_REFUSED ] && { x=${a#run rerun }; echo "run ${x%% *} cannot be rerun; This workflow is already running" >&2; exit 1; }
   if [ -n "$q" ]; then jq -r "$q" "$FAKE/$file"; else cat "$FAKE/$file"; fi
   exit
 done <<<"$routes"

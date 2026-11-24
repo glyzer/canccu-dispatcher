@@ -107,9 +107,11 @@ run_tmp_sweep() {
 # folder name of CANCCU_HOME, which the worker gets too). Its containers carry it as the label
 # canccu.run or as their Compose project's name, which allows only [a-z0-9_-]: both parts are
 # lowercased with every other character a "-", so the first "_" after "canccu_" ends the project.
+# A project name's own "_" becomes "--", so web_x and web-x do not share the prefix canccu_web-x_
+# (each one's sweep would remove the other's containers).
 run_tag() {
   local p=${CANCCU_HOME##*/} k=$1
-  p=${p,,} k=${k,,}
+  p=${p,,} k=${k,,} p=${p//_/--}
   echo "canccu_${p//[^a-z0-9-]/-}_${k//[^a-z0-9-]/-}"
 }
 

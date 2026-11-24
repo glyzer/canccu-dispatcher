@@ -114,19 +114,20 @@ _doc_project() {
   return 0
 }
 
+# _doc_iec <KiB>: a size for people (GNU numfmt, which canccu_check_deps tests for)
+_doc_iec() { numfmt --from-unit=1024 --to=iec --round=nearest --format=%.1f "$1"; }
 # _doc_room: the host's /tmp and memory under 10% free, and the running containers no run tagged
 # that are over 2 days old (#238): a RAM /tmp full of leftovers starves memory until Claude Code
 # kills background tasks, and a forgotten test database's health check costs CPU for days.
 # CANCCU_TMP_ROOT and CANCCU_MEMINFO: the tests' /tmp and /proc/meminfo.
 _doc_room() {
   local t=${CANCCU_TMP_ROOT:-/tmp} s a id name st cr tag c since old=()
-  iec() { numfmt --from-unit=1024 --to=iec --round=nearest --format=%.1f "$1"; }
   read -r s a < <(df -Pk "$t" 2>/dev/null | awk 'NR == 2 { print $2, $4 }')
   [[ ${s:-} =~ ^[0-9]+$ && ${a:-} =~ ^[0-9]+$ ]] && (( s > 0 && a * 10 < s )) &&
-    echo "$t: $(iec "$a") free of $(iec "$s"): what runs leave there fills it (du -sh $t/*)"
+    echo "$t: $(_doc_iec "$a") free of $(_doc_iec "$s"): what runs leave there fills it (du -sh $t/*)"
   read -r s a < <(awk '$1 == "MemTotal:" { s = $2 } $1 == "MemAvailable:" { a = $2 } END { print s, a }' "${CANCCU_MEMINFO:-/proc/meminfo}" 2>/dev/null)
   [[ ${s:-} =~ ^[0-9]+$ && ${a:-} =~ ^[0-9]+$ ]] && (( s > 0 && a * 10 < s )) &&
-    echo "memory: $(iec "$a") available of $(iec "$s"): Claude Code kills background tasks when it runs out"
+    echo "memory: $(_doc_iec "$a") available of $(_doc_iec "$s"): Claude Code kills background tasks when it runs out"
   since=$(( ${CANCCU_NOW:-$(date +%s)} - 2 * 86400 ))
   while IFS=$'\t' read -r id name st cr tag; do
     [ "$st" = running ] && [ -z "$tag" ] || continue

@@ -482,6 +482,7 @@ pr 50 5 $HA red | jq '.statusCheckRollup = [
 dispatch --once
 ok "one rerun through, a later one refused → the head stays marked, no fix run" \
   eq "$(grep -c '^run rerun 700 --failed' "$FAKE/gh.log") $(wc -l < "$FAKE/worker.log") [$(st 5 ci_rerun)] $([ -n "$(st 5 ci_rerun_at)" ] && echo at)" "1 0 [$HA] at"
+ok "… the refused run is the second one, named in the log" grep -qF 'rerun of run 701 refused (still running)' "$CANCCU_HOME/dispatch.log"
 
 # a health pass's fresh follow-up names the pass and its limits, not an empty package
 env_new handoff-health

@@ -50,7 +50,7 @@ CANCCU_NOW=$((NOW - 61 * 60)) lib feed leader ask idle 5 50 - "#5 sits in check 
 state 5 phase=check pr=50 "check_at=$NOW" "phase_at=$((NOW - 121 * 60))" idle_ev=1
 dispatch --once
 ok "an idle line of the leader's unacked for 61 min → closed, a handover line for po" \
-  eq "$(field 2 5) $(field 2 9)|$(field 3 3) $(field 3 5)|$(st 5 idle_ev)" "closed closes 1: passed to the product owner|po handover|3"
+  eq "$(field 3 5) $(field 3 9)|$(field 2 3) $(field 2 5)|$(st 5 idle_ev)" "closed closes 1: passed to the product owner|po handover|2"
 dispatch --once
 ok "… once" eq "$(lines)" 3
 
