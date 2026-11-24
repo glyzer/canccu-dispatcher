@@ -73,7 +73,7 @@ tests/scenarios/run --repo <owner/sandbox> [--keep] [scenario...]
 
 It takes `libexec/canccu-worker`'s arguments ([`engine.md`](engine.md)), takes the lock with
 the real engine's helpers (`lib/canccu-engine.sh`), and writes `.last` in the layout of
-canccu-worker's `report()` (`tests/canccu-scenarios.sh` checks the two are byte-identical). What
+canccu-worker's `report()` (`tests/canccu-scenarios.sh` checks that the two use the same format string). What
 each run does comes from the scenario's `script`, lines `<role> <round> <action>`; every run
 adds `<role> <round> <key> <action>` to the scenario's `engine.log`.
 

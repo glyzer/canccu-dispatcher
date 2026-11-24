@@ -6,10 +6,11 @@
 # what is left of an earlier scenario (closed, but still listed) never counts.
 
 # must <cmd...>: run cmd; when it fails, $SCENARIO_DIR/why names it, its exit and the last line it
-# printed on stderr (a file, since a setup step may run in $(...)), and the setup's FAIL prints that
+# printed on stderr (a file, since a setup step may run in $(...)), and the setup's FAIL prints that. A later success clears it, so a tolerated failure never
+# names a later one
 must() {
   local rc
-  "$@" 2> "$SCENARIO_DIR/must.err" && return 0
+  "$@" 2> "$SCENARIO_DIR/must.err" && { rm -f "$SCENARIO_DIR/why"; return 0; }
   rc=$?
   echo "$* failed (exit $rc)$(tail -1 "$SCENARIO_DIR/must.err" | sed 's/^./: &/')" > "$SCENARIO_DIR/why"
   return "$rc"
@@ -22,7 +23,7 @@ home() {
   export CANCCU_HOME=$CANCCU_ROOT/projects/sandbox
   CLONE=$W/$1/code/sandbox
   mkdir -p "$CANCCU_HOME/state" "$SCENARIO_DIR" "${CLONE%/*}"
-  : > "$SCENARIO_DIR/engine.log"; : > "$SCENARIO_DIR/issues"; : > "$SCENARIO_DIR/script"
+  : > "$SCENARIO_DIR/engine.log"; : > "$SCENARIO_DIR/issues"; : > "$SCENARIO_DIR/script"; rm -f "$SCENARIO_DIR/why"
   must git clone -q "$CLONE_URL" "$CLONE" || return 1
   # the reviewer's verdicts are posted as the same login that runs the suite: the token file is
   # the login's own token, mode 600, inside the temp dir the run removes

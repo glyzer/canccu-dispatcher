@@ -28,6 +28,7 @@ tests_for() {
     tests/review-set/*) echo tests/canccu-brake.sh tests/canccu-repo.sh ;;
     tests/fixtures/compat/*) echo tests/canccu-compat.sh ;;
     tests/leak-check.sh) echo tests/leak.sh tests/leak-check.sh ;;
+    tests/scenarios/*) echo tests/canccu-scenarios.sh ;;   # before tests/*.sh: that glob matches these too
     tests/*.sh) [ -e "$1" ] && echo "$1" ;;   # a deleted test file is not run
     tests/fixtures/monitor/*|lib/canccu-monitor.py|lib/canccu_monitor/*|bin/canccu-monitor|lib/canccu-monitor.requirements.txt)
       echo monitor tests/canccu-pane.sh tests/canccu-snapshot2.sh ;;
@@ -91,7 +92,7 @@ is_shell() {
 }
 all_shell() {
   local f
-  for f in install.sh bin/* libexec/* lib/* hosts/* profiles/*/* tests/*.sh tests/lib/*.sh tests/run tests/review-set/run tests/fixtures/rules/* \
+  for f in install.sh bin/* libexec/* lib/* hosts/* profiles/*/* tests/*.sh tests/lib/*.sh tests/scenarios/* tests/run tests/review-set/run tests/fixtures/rules/* \
     .github/scripts/* templates/repo/.github/scripts/*; do
     is_shell "$f" && echo "$f"
   done

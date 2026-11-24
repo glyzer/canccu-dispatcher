@@ -30,6 +30,12 @@ fe() {
 }
 lastx() { lib run_exit "$WORKERS_DIR/web-$1.last"; }
 
+# the fake's .last layout is the real report()'s: the same printf format
+fmt() { grep -oF "printf '%s#%s · \"%s\" · %s · %s · %s turns · \$%s · %dm%02ds\n\n%s\n'" "$1" | head -1; }
+ok "the fake engine's .last format is canccu-worker's report() format" \
+  eq "$(fmt "$root/tests/scenarios/fake-engine")" "$(fmt "$root/libexec/canccu-worker")"
+ok "… and neither is empty" test -n "$(fmt "$root/libexec/canccu-worker")"
+
 # ---------------------------------------------------------------- fake engine: a worker opens its PR
 
 fe_env worker-pr; key=7
@@ -272,7 +278,8 @@ ok "setup: run again, the tag stays where it is and the ruleset is set again, no
 echo '{"permissions": {"push": true, "admin": false}}' > "$FAKE/repo.json"; sup --repo example-org/web
 ok "setup: a login that is no admin of the sandbox is refused, exit 1" eq "$rc $(grep -c 'no admin' "$E/out")" "1 1"
 
-ok "tests/run never runs the live suite" eq "$("$root/tests/run" --list 2>/dev/null | grep -c 'tests/scenarios/')" 0
+ok "tests/run lints the scenario files" eq "$("$root/tests/run" --list 2>/dev/null | grep '^lint:' | grep -c 'tests/scenarios/fake-engine')" 1
+ok "tests/run never runs the live suite" eq "$("$root/tests/run" --list 2>/dev/null | grep -v '^lint:' | grep -c 'tests/scenarios/')" 0
 
 echo "canccu-scenarios tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
