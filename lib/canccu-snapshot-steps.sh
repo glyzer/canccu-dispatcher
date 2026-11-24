@@ -149,7 +149,8 @@ snap_step_issues() {
 
 # snap_step_overview: every open milestone in milestone order (the monitor's step view):
 # milestone, title, track, place (done, current, next, later), work_open, work_closed (without
-# epics and checkpoints), issues (snap_step_issues; only for the current steps and the next one)
+# epics and checkpoints), issues (snap_step_issues, for every open step; a next or later step's
+# blockers are not read: peek)
 snap_step_overview() {
   local list m out=""
   list=$(jq -c --arg cur " $(current_step_ids | tr '\n' ' ') " '
@@ -164,7 +165,7 @@ snap_step_overview() {
                      elif .pending or .work_closed <= 0 then "later" else "done" end)})' <<<"$(step_list)") || return 1
   while read -r m place; do
     [ -n "$m" ] || continue
-    out+="$(snap_step_issues "$m" "$([ "$place" = next ] && echo peek)" | jq -sc --argjson m "$m" '{key: ($m | tostring), value: .}')"$'\n'
-  done < <(jqr '.[] | select(.place == "current" or .place == "next") | "\(.milestone) \(.place)"' <<<"$list")
+    out+="$(snap_step_issues "$m" "$([ "$place" != current ] && echo peek)" | jq -sc --argjson m "$m" '{key: ($m | tostring), value: .}')"$'\n'
+  done < <(jqr '.[] | select(.place == "current" or .place == "next" or .place == "later") | "\(.milestone) \(.place)"' <<<"$list")
   jq -c --slurpfile is <(jq -sc 'from_entries' <<<"$out") 'map(.issues = ($is[0][.milestone | tostring] // []))' <<<"$list"
 }

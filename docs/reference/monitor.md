@@ -9,14 +9,14 @@ Part of the reference; the index is [`README.md`](README.md).
 `status.json` every 2 s and at once after a key, with the other projects' snapshots in the same
 view. It never calls GitHub, git or tmux and never changes anything. It is `lib/canccu-monitor.py`
 with its parts in `lib/canccu_monitor/` (`data` reads the snapshots, `views` the state, the
-strip, the view bar and the loop, `summary`, `projects`, `roadmap` and `activity` the four views,
+strip, the view bar and the loop, `summary`, `projects`, `roadmap`, `activity` and `queue` the five views,
 `inbox`, `now` and `recent` the parts they share, `keys` the keyboard, `screen` the terminal,
 `selftest`), run with the venv's Python and `rich` (`CANCCU_VENV`, default
 `~/.local/share/canccu/venv`).
 
 ## The views
 
-Four views, one screen each. Line 1 of every view is a one-line strip (each project's pass age
+Five views, one screen each. Line 1 of every view is a one-line strip (each project's pass age
 and `✓`/`⚠`, the slots, today's spend, the 5-hour and weekly usage, or `usage unknown`); the
 Summary has the full 2-line header instead. The last line is the view bar:
 
@@ -50,15 +50,23 @@ fit. Up to 80 columns the names are short (`Sum`, `Proj`, `Road`, `Act`).
   it); EVENTS of every project, newest first, repeats folded `×N`, `⚠` on failures, merges green,
   needs-you red, the steps' `Follow-up:` and `Roadmap note:` items among them, a URL as a terminal
   link on the number.
+- **5 Queue**: every open issue of a project, one line each, in the order the dispatcher takes
+  them, under bold headings: Running, Needs you (items with an issue), Queue (the snapshot's
+  `queue[]`, blocked ones in place), one heading `<step> · NOW|NEXT|LATER` per open step with its
+  issues, and Not scheduled (`unscheduled[]`, the issues waiting for your `ready` label). An issue
+  shows once, under the first heading that lists it; an empty heading is left out, and with no
+  open issue one dim line says so. A line: mark, `#n`, title, the package (else `fast lane`), the
+  status word and what it waits on, with the Roadmap's marks and words; up to 80 columns the
+  mark, number and title are one line and the rest a second. Nothing is hidden, unlike the Roadmap.
 
-Projects, Roadmap and Activity scroll. Up to 80 columns every view has its phone form: no boxes
+Projects, Roadmap, Activity and Queue scroll. Up to 80 columns every view has its phone form: no boxes
 and no tables, a line per row.
 
 ### Keys
 
 | Key | What it does |
 |---|---|
-| `1` `2` `3` `4` | that view |
+| `1` `2` `3` `4` `5` | that view |
 | `Tab` `→` / `Shift-Tab` `←` | the next / the previous view (wrapping around) |
 | `↑` `↓` `j` `k` | scroll a line |
 | `PgUp` `PgDn` / `Home` `End` | scroll a page / to the top, to the end |
@@ -74,7 +82,7 @@ settings are restored on every way out (q, Ctrl-C, an error, SIGTERM) before the
 is left. They work with or without tmux; from outside the pane,
 `tmux send-keys -t <session>:main.1 2` switches the monitor to Projects.
 
-`--view <name>` (`summary`, `projects`, `roadmap`, `activity`, or `1`–`4`) picks the start view,
+`--view <name>` (`summary`, `projects`, `roadmap`, `activity`, `queue`, or `1`–`5`) picks the start view,
 also with `--once`. `--rotate [secs]` cycles the views (default 30 s, the Summary twice as long),
 skipping a view with nothing to show; any key but `a` stops it.
 

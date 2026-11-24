@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""The views (#37): Summary (the default), Projects, Roadmap and Activity; the state the keys
+"""The views (#37): Summary (the default), Projects, Roadmap, Activity and Queue; the state the keys
 change (view, scroll, focus, rotation, help); the strip at the top and the view bar at the
 bottom of every view; the loop that draws and reads keys.
 
@@ -17,11 +17,11 @@ from .inbox import banners, items, project_mark, slots, spend, usage_of
 from .parts import LEGEND, PHONE_UPTO, YOU, glyph, wrap
 from .roadmap import MARK_STYLE, VOCAB, fast_rows, has_steps, later_line, legend, roadmap, step_sections, title_line
 
-NAMES = ["Summary", "Projects", "Roadmap", "Activity"]
-SHORT = ["Sum", "Proj", "Road", "Act"]
-HINTS = ["", "p focus  ↑↓ scroll", "↑↓ scroll", "↑↓ scroll"]
+NAMES = ["Summary", "Projects", "Roadmap", "Activity", "Queue"]
+SHORT = ["Sum", "Proj", "Road", "Act", "Que"]
+HINTS = ["", "p focus  ↑↓ scroll", "↑↓ scroll", "↑↓ scroll", "↑↓ scroll"]
 ROTATE = 30  # --rotate's default seconds; the Summary stays twice as long
-HELP = [("1–4", "a view"), ("Tab →  Shift-Tab ←", "the next, the previous view"),
+HELP = [("1–5", "a view"), ("Tab →  Shift-Tab ←", "the next, the previous view"),
         ("↑ ↓  j k", "scroll a line"), ("PgUp PgDn", "scroll a page"), ("Home End", "the top, the end"),
         ("p", "Projects: all projects → one at full detail → …"), ("a", "rotate the views on or off"),
         ("r", "redraw the whole screen now"), ("?", "this help"), ("q  Ctrl-C", "quit")]
@@ -67,7 +67,7 @@ class State:
         n, v = len(NAMES), self.view
         if k == "q":
             return "quit"
-        if k in ("1", "2", "3", "4"):
+        if k in ("1", "2", "3", "4", "5"):
             self.view = int(k) - 1
         elif k in ("next", "prev"):
             self.view = (v + (1 if k == "next" else -1)) % n
@@ -112,10 +112,10 @@ def strip(projects, now, width):
 
 
 def view_bar(st, needs, width):
-    """ 1 Summary ✖2   2 Projects   3 Roadmap   4 Activity   ? help   q quit, the current view in
+    """ 1 Summary ✖2   2 Projects   3 Roadmap   4 Activity   5 Queue   ? help   q quit, the current view in
     [ ] (reverse); the view's hints and rotate off|Ns on the right when they fit."""
     names = SHORT if width <= PHONE_UPTO else NAMES
-    gap = "  " if width <= PHONE_UPTO else "   "
+    gap = " " if width < 70 else "  " if width <= 110 else "   "  # five names: the gap shrinks to keep the bar whole
     left = Text()
     for k, name in enumerate(names):
         cur = k == st.view
@@ -125,7 +125,7 @@ def view_bar(st, needs, width):
             left.append(" ")
             glyph(YOU, left).append("%d" % needs, style="bold red")
         left.append("]" if cur else " ", style="reverse bold" if cur else "")
-    left.append(gap + "? help" + gap + "q quit", style="dim")
+    left.append(gap + ("?" if width < 70 else "? help") + gap + "q quit", style="dim")
     rot = "rotate off" if st.rotate is None else "rotate %ds" % st.rotate
     for right in ("%s   %s" % (HINTS[st.view], rot) if HINTS[st.view] else rot, rot):
         if len(left.plain) + 2 + len(right) <= width:
@@ -197,7 +197,7 @@ def shows(projects):
     snaps = [s for _, s in projects if isinstance(s, dict)]
     road = any(has_steps(s) or lst(s, "milestones") for s in snaps)
     act = any(lst(s, "events") or lst(s, "finished") for s in snaps)
-    return [True, bool(snaps), road, act]
+    return [True, bool(snaps), road, act, bool(snaps)]
 
 
 # ------------------------------------------------------------------ a frame
@@ -205,12 +205,15 @@ def shows(projects):
 def body_of(st, projects, now, width):
     from .activity import activity
     from .projects import projects_view
+    from .queue import queue_view
     if st.view == 1:
         if st.focus is not None and st.focus >= len(projects):
             st.focus = None
         return projects_view(projects, now, width, st.focus)
     if st.view == 2:
         return roadmap_view(projects, width)
+    if st.view == 4:
+        return queue_view(projects, width)
     return activity(projects, now, width)
 
 

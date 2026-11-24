@@ -17,7 +17,7 @@ ANSI = re.compile(r"\x1b\[[0-9;]*m|\x1b\]8;[^\x1b]*\x1b\\")
 
 
 def decoder_checks(check):
-    single = {"1": "1", "4": "4", "\t": "next", "q": "q", "p": "p", "a": "a", "r": "r", "?": "?", "j": "down",
+    single = {"1": "1", "4": "4", "5": "5", "\t": "next", "q": "q", "p": "p", "a": "a", "r": "r", "?": "?", "j": "down",
               "k": "up", "\x03": "q", "\r": None, "x": None}
     for ch, want in single.items():
         check(decode(ch, True) == ([want] if want else [], ""), "keys: %r decodes to %r, not %r" % (ch, want, decode(ch, True)))
@@ -157,12 +157,23 @@ def loop(snaps, keys, width=100, height=30, error_at=None, state=None):
 
 
 def loop_checks(snap, check):
-    log, shots, st = loop([snap], ["2", "", "\t\t\t", "\x1b[Z", "?", "x", "q"])
+    log, shots, st = loop([snap], ["2", "", "\t\t\t\t", "\x1b[Z", "?", "x", "q"])
     bars = [s[-1] for s in shots if s[-1].strip()]
     check(any("[2 Projects]" in b for b in bars), "loop: 2 does not switch to Projects")
     first = next((i for i, b in enumerate(bars) if "[2 Projects]" in b), len(bars))
-    check(any("[1 Summary" in b for b in bars[first:]), "loop: Tab ×3 from Projects does not wrap to the Summary")
-    check(st.view == 3 and any("[4 Activity]" in b for b in bars), "loop: Shift-Tab from the Summary does not wrap to Activity")
+    check(any("[1 Summary" in b for b in bars[first:]), "loop: Tab ×4 from Projects does not wrap to the Summary")
+    check(st.view == 4 and any("[5 Queue]" in b for b in bars), "loop: Shift-Tab from the Summary does not wrap to Queue")
+    _, shots5, _ = loop([snap], ["5", "", "\t", "q"])
+    bars5 = [s[-1] for s in shots5 if s[-1].strip()]
+    check(any("[5 Queue]" in b for b in bars5) and any("[1 Summary" in b for b in bars5[1:]),
+          "loop: 5 does not open Queue, or Tab from Queue does not go to the Summary")
+    st5 = State(view=3)
+    st5.key("next")
+    check(st5.view == 4, "keys: Tab from Activity does not go to Queue")
+    st5.key("next")
+    check(st5.view == 0, "keys: Tab from Queue does not go to the Summary")
+    st5.key("5")
+    check(st5.view == 4, "keys: 5 does not select Queue")
     writes = [e[1] for e in log if e[0] == "write"]
     check(len(writes) == len(shots), "loop: a write per screen")
     log2, shots2, st2 = loop([snap, dict(snap, events=[])], ["3", "", "", ""])

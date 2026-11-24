@@ -215,6 +215,46 @@ def activity_checks(mock, fx, check):
     check(all(not set(x) & set("┏┃┌│") for x in lines), "activity phone: a box or table")
 
 
+QUEUE_ORDER = [20, 21, 22, 23, 31, 30, 32, 40, 50, 51, 60, 61]
+
+
+def queue_checks(fx, check):
+    """The Queue view (#293): every open issue once, in take order, at both widths; scrolling to
+    the last line; an older snapshot without unscheduled[]."""
+    snap, _ = load(os.path.join(fx, "queue.json"))
+    for w in (120, 60):
+        lines, _ = shot([("web", snap)], State(view=4), w, 100)
+        seen = [int(m) for m in re.findall(r"^ +\S #(\d+)", "\n".join(lines), re.M)]
+        check(seen == QUEUE_ORDER, "queue at %d: the issues %r" % (w, seen))
+        check(all(len(x) <= w for x in lines), "queue at %d: a line is wider" % w)
+        names = ["Running", "Needs you", "Queue", "3 Events · NOW", "4 Payments · NEXT", "5 Reports · LATER", "Not scheduled"]
+        check([x.strip() for x in lines if x.strip() in names] == names, "queue at %d: the sections" % w)
+    wide, _ = shot([("web", snap)], State(view=4), 120, 100)
+    check(sum("#21 " in x for x in wide) == 1, "queue: an issue listed twice in one section shows once")
+    check(any("#22" in x and " list" in x and "104" not in x for x in wide),
+          "queue: a single-issue package shows its name, not its issue number")
+    longt = dict(snap, step_overview=[dict(o, title="5 A very long step title that certainly will not fit on one line of a phone-width screen at all")
+                                      if o.get("place") == "later" else o for o in snap["step_overview"]])
+    lines, _ = shot([("web", longt)], State(view=4), 60, 100)
+    check(all(len(x) <= 60 for x in lines) and any("LATER" in x for x in lines), "queue: a long step title wraps and keeps LATER")
+    check(any("#23" in x and "blocked" in x for x in wide), "queue: a blocked issue keeps its place, marked blocked")
+    check(any(x.startswith("Not scheduled") for x in wide), "queue: no Not scheduled section")
+    old = {k: v for k, v in snap.items() if k != "unscheduled"}
+    lines, _ = shot([("web", old)], State(view=4), 120, 100)
+    check(not any(x.startswith("Not scheduled") for x in lines) and any("#50" in x for x in lines),
+          "queue: a snapshot without unscheduled[]")
+    lines, _ = shot([("web", dict(old, running=[], needs_you=[], queue=[], step_overview=[]))], State(view=4), 120, 20)
+    check(any("no open issues" in x for x in lines), "queue: nothing open has no line")
+    long = dict(snap, unscheduled=[{"issue": 100 + k, "title": "Idea %d" % k, "url": "u"} for k in range(40)])
+    st = State(view=4)
+    st.key("end", 1, 11)
+    lines, _ = shot([("web", long)], st, 120, 12)
+    check(any("#139" in x for x in lines), "queue: End does not show the last issue")
+    st.key("home", 1, 11)
+    lines, _ = shot([("web", long)], st, 120, 12)
+    check(any("QUEUE" in x for x in lines), "queue: Home does not show the top")
+
+
 def view_checks(mock, fx, check):
     every_view_checks(mock_projects(mock), "mockup", check)
     for f in sorted(os.listdir(fx)):
@@ -227,6 +267,7 @@ def view_checks(mock, fx, check):
     projects_checks(mock, check)
     roadmap_view_checks(mock, check)
     activity_checks(mock, fx, check)
+    queue_checks(fx, check)
     one = [("web", mock["web"])]
     every_view_checks(one, "one project", check)
     lines, _ = shot(one, State(view=1), 120, 100)

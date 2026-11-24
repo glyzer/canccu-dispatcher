@@ -198,7 +198,7 @@ route 'issue list -R example-org/web -s open*' FAIL
 dispatch --once
 ok "snapshot: a failed pass writes ok=false and its error" eq "$(sj '[.pass.ok, .pass.error] | map(tostring) | join(" ")')" "false gh error reading issues or PRs"
 ok "snapshot: … the GitHub sections are the last ones, listed stale" \
-  eq "$(sj '.stale | join(" ")') $(jq -c '.queue' "$S" | cmp -s - <(jq -c .queue "$E/prev.json") && echo same)" "running needs_you queue milestones steps step_overview same"
+  eq "$(sj '.stale | join(" ")') $(jq -c '.queue' "$S" | cmp -s - <(jq -c .queue "$E/prev.json") && echo same)" "running needs_you queue unscheduled milestones steps step_overview same"
 ok "snapshot: … the running items keep the titles of the last snapshot" eq "$(sj '.running[] | select(.key == "review-60") | .title')" "Issue 10"
 # broken old file, failed milestones read
 echo '{"schema": 1, "queue": [' > "$S"
@@ -223,7 +223,7 @@ out=$(mon --self-test)
 if grep -q 'needs the Python package rich' <<<"$out"; then
   nfail=$((nfail + 1)); echo "FAIL [monitor] canccu-monitor needs rich: set CANCCU_VENV to a venv with lib/canccu-monitor.requirements.txt"
 else
-  ok "monitor: --self-test (the Inbox First mockup and the four views at 160x60 … 60x20, the drop order, the keys on a fake tty; redraws keep the cursor hidden)" eq "$(tail -1 <<<"$out")" "canccu-monitor self-test: ok"
+  ok "monitor: --self-test (the Inbox First mockup and the five views at 160x60 … 60x20, the drop order, the keys on a fake tty; redraws keep the cursor hidden)" eq "$(tail -1 <<<"$out")" "canccu-monitor self-test: ok"
   { issue 3 ready; issue 8 needs-you; } | issues
   dispatch --once
   : > "$FAKE/gh.log"; : > "$FAKE/git.log"
@@ -234,6 +234,14 @@ else
   last() { CANCCU_PROJECT=web mon --once --width 100 "$@" | sed 's/\x1b\[[0-9;]*m//g' | tail -1; }
   ok "monitor: --view projects starts on Projects, also with --once" grep -qF '[2 Projects' <<<"$(last --view projects)"
   ok "monitor: --view 4 (a number) starts on Activity" grep -qF '[4 Activity' <<<"$(last --view 4)"
+  q=$root/tests/fixtures/monitor/queue.json
+  qv() { CANCCU_PROJECT=web mon --file "$q" --once --now 1920110430 --width "$1" --view "$2" | sed 's/\x1b\[[0-9;]*m//g'; }
+  ok "#293: --view queue lists the 12 distinct issues in take order, at 120 and at 60 columns" \
+    eq "$(for w in 120 60; do qv $w queue | grep -oE '^ +[^ ]+ #[0-9]+' | grep -oE '[0-9]+$' | tr '\n' ,; done)" \
+    "20,21,22,23,31,30,32,40,50,51,60,61,20,21,22,23,31,30,32,40,50,51,60,61,"
+  ok "#293: --view 5 is the same frame as --view queue" eq "$(qv 100 5 | md5sum)" "$(qv 100 queue | md5sum)"
+  ok "#293: an older snapshot without unscheduled[] draws, without Not scheduled" \
+    eq "$(jq 'del(.unscheduled)' "$q" > "$E/old.json"; CANCCU_PROJECT=web mon --file "$E/old.json" --once --width 100 --view queue | grep -c 'Not scheduled')" 0
   ok "monitor: --view=roadmap starts on Roadmap" grep -qF '[3 Roadmap' <<<"$(last --view=roadmap)"
   out=$(CANCCU_PROJECT=web mon --once --view nope); rc=$?
   ok "monitor: an unknown --view exits non-zero and names it" eq "$((rc != 0)) $(grep -c "no view 'nope'" <<<"$out")" "1 1"
