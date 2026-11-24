@@ -33,8 +33,9 @@ step_phases() {
 # STEP_JQ: per open milestone, in milestone order: its track, work issues open and closed, epic,
 # checkpoint (the open one, else the newest closed one) and whether it is pending. Its values come
 # by --slurpfile (step_jq), each one as [value]. A step's phase is a string or {phase, health}.
-# An idle step with work done and no health pass yet is pending (#239), with or without a checkpoint issue (#278): its last issue can close
-# after its wave ended, and the step keeps its turn until step_tick sets health-due.
+# An idle step with work done and no health pass yet is pending (#239): its last issue can close
+# after its wave ended, and the step keeps its turn until step_tick sets health-due. That holds
+# with or without a checkpoint issue (#278).
 STEP_JQ="$MILESTONE_KEY_JQ"'
   def work: [.labels[]?.name] | (index("epic") or index("checkpoint") or index("follow-up")) | not;
   [ $ms[0][] | select(.number != null) | .title as $t
@@ -331,7 +332,6 @@ digest_notes() {
     awk -F '\t' -v s=$(( $(now) - 86400 )) -v t="$(step_get "$m" title)" '$1 >= s { printf "- %s · %s: %s (PR #%s)\n", t, $2, $4, $3 }' "$f"
   done
 }
-
 
 # shellcheck source=canccu-checkpoint.sh
 . "$_canccu_lib/canccu-checkpoint.sh"

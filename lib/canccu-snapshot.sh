@@ -183,11 +183,11 @@ snap_queue() {
 # snap_unscheduled: the issues the product owner has not released yet (what canccu-status lists
 # under "Waiting for the product owner"), from the pass's own issue read: no extra gh call
 snap_unscheduled() {
-  local n
-  while read -r n; do
-    jq -nc --arg n "$n" --arg title "$(title_of "$n")" --arg r "$REPO" \
-      '{issue: ($n | tonumber), title: $title, url: "https://github.com/\($r)/issues/\($n)"}'
-  done < <(waiting_for_po)
+  # one jq pass: the pass's issue read holds every title (the same safe titles title_of gives)
+  # (as a file: the issues alone can pass the one-argument limit, see step_jq)
+  waiting_for_po | jq -Rc --slurpfile is <(printf '%s' "${ISSUES:-[]}") --arg r "$REPO" \
+    'tonumber as $n | ($is[0][] | select(.number == $n) | .title) as $t
+     | {issue: $n, title: $t, url: "https://github.com/\($r)/issues/\($n)"}'
 }
 
 # snap_milestones: {milestones, checkpoints} from two reads (the open milestones; the issues

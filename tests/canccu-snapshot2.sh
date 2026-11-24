@@ -212,6 +212,7 @@ ok "snap_events: an old local-time line and a new UTC line, both with their epoc
 gh_calls() {
   env_new "$1"
   jq -s . < <(jq -nc '{number: 13, title: "4 Payments", open_issues: 2, closed_issues: 0, due_on: null}'
+              jq -nc '{number: 14, title: "5 Between", open_issues: 0, closed_issues: 0, due_on: null}'
               jq -nc '{number: 15, title: "6 Later", open_issues: 2, closed_issues: 0, due_on: null}') > "$FAKE/ms.json"
   { issue 110 ready "" "4 Payments"; issue 113 ready "Blocked by #110" "4 Payments"; [ "$2" = few ] || {
       issue 120 "" "" "6 Later"; issue 121 ready "Blocked by #110" "6 Later"; issue 122; }; } | issues

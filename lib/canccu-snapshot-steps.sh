@@ -115,7 +115,7 @@ issue_own_status() {
 # snap_step_issues <m> [peek]: one JSON line per open work issue of step m (no epic, no checkpoint),
 # by number: issue, title, url, status (done, running, accept, needs-you, ready, next-wave, blocked), waits_on,
 # package (its key in the current plan, or null). An issue of the plan has its package's status.
-# peek (the next step): no GitHub read for an issue's blockers (issue_own_status).
+# peek (the next step, and later ones): no GitHub read for an issue's blockers (issue_own_status).
 snap_step_issues() {
   local m=$1 peek=${2:-} nm is rk dep k s why n title labels st ph
   local -A pst=() pwhy=() pkey=()
