@@ -27,7 +27,8 @@ a feature once its acceptance criteria are agreed. Only the maintainer labels an
 file it names: `bash -n` and `shellcheck` on every shell file, every `tests/*.sh` (the docs test
 and the leak check too), and `bin/canccu-monitor --self-test`. While working, run only what your
 change touches: `tests/run <file or pattern>`, or `tests/run --affected`. Run the full check once
-before you push; CI runs the same command on the newest runner and on Debian 12.
+before you push; CI runs the same command on the newest runner, the short set (`tests/run --short`) on Debian 12,
+and the whole suite on Debian 12 every night.
 
 Tests and docs use invented names only (projects `web` and `tools`, repos `example-org/web` and
 `example-user/tools`, users `octo` and `review-bot`, dates in 2030). `tests/leak-check.sh` checks
