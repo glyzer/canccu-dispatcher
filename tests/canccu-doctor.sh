@@ -184,6 +184,8 @@ ok "… the test tier, from the profile" eq "$(hline '^host: test tier targeted$
 ok "… no project line while a project keeps it" eq "$(hline '^host: project web: test tier')" 0
 echo TEST_TIER=full >> "$C/projects/web/config"; doctor
 ok "… a project's own tier" eq "$(hline '^host: project web: test tier full$')" 1
+echo 'if then' >> "$C/projects/web/config"; doctor
+ok "… a project whose config does not load: unknown, never a guessed tier" eq "$(hline '^host: project web: test tier unknown$')" 1
 
 echo "canccu-doctor tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

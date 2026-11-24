@@ -329,6 +329,11 @@ ok "canccu-resume clears the marker: the next pause logs again" eq "$(grep -c 'p
 echo finish > "$CANCCU_HOME/paused"
 lib engine "worker #9" 9 --key 9 web z
 ok "paused with --finish: the engine starts runs" eq "$(grep -c -- '--key 9' "$FAKE/worker.log")" 1
+echo 0.9 > "$CANCCU_HOME/upgrade"
+lib engine "worker #9" 9 --key 9 web z
+ok "paused with --finish and an upgrade pending: a start by hand still goes (the dispatcher holds its own)" eq "$(grep -c -- '--key 9' "$FAKE/worker.log")" 2
+ok "… pause_holds is true (an upgrade), the paused file alone does not hold (the status header's PAUSED line)" \
+  eq "$(lib eval 'pause_holds && echo holds; pause_file_holds && echo file; true')" "holds"
 
 echo "canccu-engine tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

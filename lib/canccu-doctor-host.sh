@@ -15,9 +15,11 @@ _doc_runs() {
 }
 
 # _doc_tier <project or empty>: the TEST_TIER its runs are told, as test_rule reads it (any value
-# but full is targeted)
+# but full is targeted); "unknown" when the config does not load
 _doc_tier() {
-  local v; v=$(cfg_values "$1" 2>/dev/null | awk -F '\t' '$1 == "TEST_TIER" { print $2 }')
+  local v out
+  out=$(cfg_values "$1" 2>/dev/null) || { echo unknown; return 0; }
+  v=$(awk -F '\t' '$1 == "TEST_TIER" { print $2 }' <<<"$out")
   if [ "$v" = full ]; then echo full; else echo targeted; fi
 }
 
