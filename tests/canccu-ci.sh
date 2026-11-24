@@ -112,13 +112,13 @@ ok "nightly: report's script has no \${{ in it" eq "$(grep -c '\${{' "$nr/script
 cat > "$nr/bin/gh" <<'GH'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$NR/gh.log"
-case "$1 $2" in "issue list") cat "$NR/issues.json" ;; esac
+case "$1 $2" in "issue list") [ -z "${NR_FAIL:-}" ] || exit 1; cat "$NR/issues.json" ;; esac
 GH
 chmod +x "$nr/bin/gh"
 title='Nightly: the full check on Debian 12 failed'
 nrun() {   # nrun <failed parts>: the script with an invented run; its calls to gh in gh.log
   : > "$nr/gh.log"
-  NR=$nr PATH="$nr/bin:$PATH" FAILED="$1" SHA=abc123 RUN_URL=https://example.com/run/7 bash "$nr/script" > "$nr/out" 2>&1
+  NR=$nr PATH="$nr/bin:$PATH" FAILED="$1" SHA=abc123 RUN_URL=https://example.com/run/7 bash -e "$nr/script" > "$nr/out" 2>&1
 }
 jq -n --arg t "$title" '[{number: 4, title: "Nightly: something else"}]' > "$nr/issues.json"
 nrun "tests/canccu-usage.sh lint"
@@ -130,6 +130,9 @@ jq -n --arg t "$title" '[{number: 4, title: "Nightly: something else"}, {number:
 nrun "monitor"
 ok "nightly report: an open issue gets a comment, none is created" \
   eq "$(grep -c '^issue create' "$nr/gh.log") $(grep -c '^issue comment 9 ' "$nr/gh.log")" "0 1"
+NR_FAIL=1 nrun "monitor"; st=$?
+ok "nightly report: a failed issue lookup fails the step and creates nothing" \
+  eq "$([ "$st" -ne 0 ] && echo red) $(grep -c '^issue create' "$nr/gh.log")" "red 0"
 nrun ""
 ok "nightly report: an empty list says the job did not finish" \
   grep -qF "Failed: no list, the job did not finish. Run:" "$nr/gh.log"

@@ -81,6 +81,7 @@ jobs:
     steps:
       # no repo code at all; the values reach the script through env, never interpolated
       - name: Issue
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -92,7 +93,9 @@ jobs:
           failed=${FAILED:-}
           [ -n "$failed" ] || failed='no list, the job did not finish'
           body="The full check on Debian 12 failed on $SHA. Failed: $failed. Run: $RUN_URL"
-          n=$(gh issue list --state open --search "\"$title\" in:title" --limit 100 --json number,title | jq -r --arg t "$title" 'map(select(.title == $t))[0].number // empty')
+          # two steps: a failed lookup must make the step red, not look like "no open issue"
+          issues=$(gh issue list --state open --search "\"$title\" in:title" --limit 100 --json number,title)
+          n=$(jq -r --arg t "$title" 'map(select(.title == $t))[0].number // empty' <<<"$issues")
           if [ -n "$n" ]; then
             gh issue comment "$n" --body "$body"
           else
