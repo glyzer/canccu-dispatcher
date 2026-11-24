@@ -17,5 +17,5 @@ tests them.
    sha>`. CI runs `release check v<VERSION> --body <the PR body>` on a PR that changes `VERSION`:
    a body without a needed line is red.
 4. Once it is merged, tag the merge commit `v<VERSION>` and push the tag. `release.yml` checks the
-   tag against `VERSION` and the changelog, runs the local check, builds the tarball and
-   `SHA256SUMS`, and publishes the GitHub release with the changelog section as its notes.
+   tag against `VERSION` and the changelog, runs the local check, runs the whole suite on Debian
+   12 too (a red run stops the release), builds the tarball and `SHA256SUMS`, and publishes the GitHub release with the changelog section as its notes.

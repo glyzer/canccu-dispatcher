@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Release: on a v* tag, check that VERSION and CHANGELOG.md match the tag, run the local check,
 # build canccu-dispatcher-<version>.tar.gz with git archive plus SHA256SUMS (and install-test the
-# tarball), then publish a GitHub release with the changelog section as its notes. The steps are
+# tarball), run the whole suite on Debian 12 too (job oldstable, a copy of nightly.yml's), then
+# publish a GitHub release with the changelog section as its notes. The steps are
 # .github/scripts/release; tests/canccu-release.sh tests them. The workflow token only: no secret,
 # and only the publishing job, which runs no repo code, may write.
 name: Release
@@ -21,7 +22,8 @@ jobs:
   build:
     name: Check, test and build
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # the suite alone takes up to 14 minutes
+    timeout-minutes: 25
     permissions:
       contents: read
     steps:
@@ -64,9 +66,62 @@ jobs:
           if-no-files-found: error
           retention-days: 5
 
+  oldstable:
+    name: Debian 12 (full)
+    runs-on: ubuntu-latest
+    # the whole suite on Debian 12's own bash, jq 1.6, tmux, Python 3.11 and git: jq 1.6 starts
+    # about 8 times slower than 1.7, so the run takes about an hour of the 60 minutes it gets, and
+    # each test file gets 20 minutes, not 8. CI runs the short set there on every push instead.
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    container:
+      image: debian:12
+    outputs:
+      failed: ${{ steps.failed.outputs.failed }}
+    steps:
+      # git before the checkout: without it, checkout fetches a tarball, and the tests need a repo
+      - name: Tools
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends ca-certificates coreutils procps util-linux bash jq tmux python3 python3-venv git shellcheck > /dev/null
+          bash --version | head -n1; shellcheck --version | sed -n 2p; jq --version; tmux -V; python3 --version; git --version
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # as a user, not as the container's root: root passes every permission check, so the tests
+      # of a mode or an unwritable dir would prove nothing. The monitor's venv straight from PyPI.
+      # bash for pipefail: tee must not hide the check's exit status.
+      - name: Local check
+        shell: bash
+        run: |
+          useradd -m -d /var/lib/ci ci
+          chown -R ci "$GITHUB_WORKSPACE"
+          runuser -u ci -- python3 -m venv /var/lib/ci/venv
+          runuser -u ci -- /var/lib/ci/venv/bin/pip install --quiet --disable-pip-version-check -r lib/canccu-monitor.requirements.txt
+          runuser -u ci -- env HOME=/var/lib/ci CANCCU_TEST_TIMEOUT=20m CANCCU_VENV=/var/lib/ci/venv CANCCU_TEST_LOGS=/var/lib/ci/test-logs tests/run | tee "$RUNNER_TEMP/check.out"
+
+      # the parts whose summary line says FAILED, for the nightly report
+      - name: Failed parts
+        id: failed
+        if: failure()
+        run: |
+          f=""
+          [ -f "$RUNNER_TEMP/check.out" ] && f=$(grep -E '^(lint|monitor|tests/[^ ]+\.sh): FAILED' "$RUNNER_TEMP/check.out" | sed -E 's/: FAILED.*//' | paste -sd' ' -)
+          echo "failed=$f" >> "$GITHUB_OUTPUT"
+
+      - name: Full logs of a failed check
+        if: failure()
+        run: |
+          for f in /var/lib/ci/test-logs/*.log; do echo "::group::${f##*/}"; cat "$f"; echo "::endgroup::"; done
+
   publish:
     name: Publish
-    needs: [build]
+    needs: [build, oldstable]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:

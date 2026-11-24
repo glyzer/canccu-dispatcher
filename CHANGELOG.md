@@ -22,7 +22,10 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 
 - `canccu-run` starts and resumes a worker by hand again (#309): `lib/canccu-continue.sh` is now
   sourced by `lib/canccu-runs.sh`, so the budget and the progress mark exist outside the dispatcher.
-
+- CI (#301): `CI (oldstable)` runs `tests/run --short` (a fixed set of 29 parts, every shell file
+  linted) within 20 minutes. The whole suite runs on Debian 12 in the new `Nightly` workflow (a
+  red night opens or updates the issue "Nightly: the full check on Debian 12 failed") and before
+  `release.yml` publishes.
 - Runs clean up their containers (#238): a run's tag (`canccu_<project>_<key>`) reaches it as
   `CANCCU_RUN` and `COMPOSE_PROJECT_NAME`, and its rules say to label containers with it and to
   use `$TMPDIR`, not `/tmp`. The tagged containers, networks and volumes of a unit go when it
