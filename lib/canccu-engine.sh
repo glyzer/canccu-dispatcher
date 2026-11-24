@@ -9,7 +9,7 @@ WORKER_REPO_CAP="${WORKER_REPO_CAP:-3}"
 WORKER_EXCLUSIVE_RE="${WORKER_EXCLUSIVE_RE:-}"   # canccu-worker: issues matching it run one at a time per repo
 
 # cron and fresh tmux servers start with a bare PATH: the host names its own dirs (EXTRA_PATH),
-# put first in their order, each once
+# added in front of PATH in the order named (the first one ends up first), each once, if it exists
 _canccu_xp=()
 IFS=: read -ra _canccu_xp <<<"${EXTRA_PATH:-}"
 for (( _i=${#_canccu_xp[@]}-1; _i>=0; _i-- )); do

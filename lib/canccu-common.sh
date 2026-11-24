@@ -299,10 +299,8 @@ backing_off() { (( $(backoff_until) > $(now) )); }
 paused() { [ -e "$CANCCU_HOME/paused" ]; }
 # pause_holds: the pause holds every new run, a resume, review or answer too (#215): it is how the
 # product owner stops spending. `finish` in the file (canccu-pause --finish) is the old pause, for a
-# host move: work in flight still gets its reviews, answers and resumes. A pending upgrade holds as it does (#20).
-pause_holds() { pause_file_holds || upgrade_holds; }
-# pause_file_holds: the paused file alone holds (not a --finish pause, not a pending upgrade)
-pause_file_holds() { paused && [ "$(cat "$CANCCU_HOME/paused" 2>/dev/null)" != finish ]; }
+# host move: work in flight still gets its reviews, answers and resumes. A pending upgrade holds as it does (#20); pause_file_holds is the file alone.
+pause_holds() { pause_file_holds || upgrade_holds; }; pause_file_holds() { paused && [ "$(cat "$CANCCU_HOME/paused" 2>/dev/null)" != finish ]; }
 
 # ---------------------------------------------------------------- spend and progress
 

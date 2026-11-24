@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # shellcheck shell=bash disable=SC2034,SC2154  # globals are shared with the other lib/canccu-*.sh parts
-# Sourced by canccu-steps.sh; never run: a step's health pass, closing checkpoint and end.
+# Sourced by canccu-steps.sh; never run: a step's health pass, closing checkpoint and end, and step_tick, which drives every phase of a step.
 
 # ---------------------------------------------------------------- health pass and checkpoint
 
