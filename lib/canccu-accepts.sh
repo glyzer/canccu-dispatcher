@@ -21,13 +21,15 @@ accept_label_held() {
   for m in $(members_of "$1"); do has_label "$m" accepted && return 0; done
   return 1
 }
-# accept_ways <lead>: how to accept, by the channels that count (the ask form's first line).
-# canccu-ship arms auto-merge: not offered in a repo without it.
+# ship_offered: canccu-ship is offered: the channel counts, and the repo allows auto-merge, which
+# it arms. Reads AUTO_MERGE_ALLOWED: the caller ran auto_merge_read outside any $(…), or the
+# cached value would be lost and every ask would cost a gh call.
+ship_offered() { accept_channel ship && [ "$AUTO_MERGE_ALLOWED" != false ]; }
+# accept_ways <lead>: how to accept, by the channels that count (the ask form's first line)
 accept_ways() {
   local w=""
   accept_channel label && w="label it \`accepted\`"
-  auto_merge_read
-  accept_channel ship && [ "$AUTO_MERGE_ALLOWED" != false ] && w="${w:+$w, or }\`canccu-ship $1\`"
+  ship_offered && w="${w:+$w, or }\`canccu-ship $1\`"
   echo "${w:-as ACCEPT_CHANNELS ($ACCEPT_CHANNELS) allows}"
 }
 

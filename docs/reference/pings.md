@@ -5,7 +5,7 @@ Part of the reference; the index is [`README.md`](README.md).
 
 ## Pings
 
-You learn at once, on your phone, when something needs you: the dispatcher posts one comment as
+You learn at once, on your phone, when something new needs you (a state change on an issue that already has its comment is an edit and is silent, see below): the dispatcher posts one comment as
 `REVIEWER_LOGIN` that starts with `@USER_LOGIN` and carries [the ask form](#the-ask-form), so the
 GitHub mobile app sends a push (your own comments notify nobody). Only items whose owner is the product owner ping: one of owner `leader`
 ([`leader.md`](leader.md#the-owner-of-a-waiting-item)) is the leader's to read. No run, no Claude tokens. `PING=off` turns them off; so does `NOTIFY` `telegram` or `off` ([`notify.md`](notify.md): the same asks on Telegram).
@@ -31,6 +31,11 @@ pings nothing and is logged once.
   owner: …`, and the record goes, so the state coming back posts a new comment. An old one-word
   record (no id) posts a new comment for the next state. An issue in two states counts the first
   row `PING_KINDS` lets through.
+- **An edit is silent.** GitHub sends no notification for an edited comment, so a state change on
+  an issue that already has its comment (a plan that becomes an accept) updates the comment but
+  does not reach your phone; the status, the monitor and Telegram (`NOTIFY`) still show it. A
+  post or an edit that timed out keeps the old record (an edit) or is looked up on the issue (a
+  post), and a close that could not be made (the pass stopped on a failed post) is retried.
 - **When.** Each pass, right after reading GitHub and before acting: a state set during a pass is
   pinged on the next one, at most `INTERVAL` seconds later. A state you already answered by label
   (`plan-ok`, `checkpoint-ok`, `accepted`) is not pinged.

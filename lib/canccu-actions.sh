@@ -164,8 +164,7 @@ plan_merged_text() { echo "The plan $1 is approved and merged on $BASE_BRANCH: e
 accept_lines() {
   local how=""
   accept_channel label && how="add the label \`accepted\` to this PR"
-  auto_merge_read
-  accept_channel ship && [ "$AUTO_MERGE_ALLOWED" != false ] && how="${how:+$how, or }\`canccu-ship $(lead_of "$1")\`"
+  ship_offered && how="${how:+$how, or }\`canccu-ship $(lead_of "$1")\`"
   [ -n "$how" ] || how="as ACCEPT_CHANNELS ($ACCEPT_CHANNELS) allows"
   printf '%s\n' "Accept: $how." "Reject: comment here and label issue #$(lead_of "$1") \`needs-work\`."
 }
@@ -180,6 +179,7 @@ to_accept() {
   [ "$(pr_get "$pr" '.autoMergeRequest != null')" = true ] && mut gh pr merge "$pr" -R "$REPO" --disable-auto
   edit_issue "$n" --add-label awaiting-accept
   st_set "$n" phase=accept accept_sha="$head" accept_at="$(now)" reason="$(oneline 200 "$reason")" accept_reason="$(oneline 200 "$reason")"
+  auto_merge_read
   ask_block "$n" "$pr" "$(accept_lines "$n")"
   log "#$n PR #$pr: awaiting accept ($reason)$(its_url "$(pr_url "$pr")")"
 }

@@ -100,8 +100,18 @@ fi
 if [ "$1" = api ] && [[ " $* " == *" -X PATCH "* ]]; then
   { routes=$(< "$FAKE/routes"); } 2>/dev/null
   grep -qxF "fail:api patch" <<<"$routes" && { echo "gh: Not Found (HTTP 404)" >&2; exit 1; }
+  grep -qxF "fail124:api patch" <<<"$routes" && exit 124
   for ((i = 0; i < $#; i++)); do [[ ${args[i]} == body=* ]] && printf '%s\n' "${args[i]#body=}" > "$FAKE/patched-${2##*/}"; done
   echo '{}'; exit 0
+fi
+# `gh pr view <n> --json body` (the fresh body ask_block reads): the body the last `pr edit` kept
+# in $FAKE/prbody-<n>, else the one in $FAKE/prs.json; "fail:pr body" in the routes makes it fail
+if [ "$1 $2" = "pr view" ] && [[ " $* " == *" --json body "* ]]; then
+  { routes=$(< "$FAKE/routes"); } 2>/dev/null
+  grep -qxF "fail:pr body" <<<"$routes" && { echo "fake gh: failing pr body" >&2; exit 1; }
+  if [ "$FAKE/prbody-$3" -nt "$FAKE/prs.json" ]; then cat "$FAKE/prbody-$3"
+  else jq -r --argjson p "$3" '.[] | select(.number == $p) | .body // ""' "$FAKE/prs.json" 2>/dev/null || exit 1; fi
+  exit 0
 fi
 q=""
 for ((i = 0; i < ${#args[@]}; i++)); do case ${args[i]} in -q|--jq) q=${args[i+1]} ;; esac; done

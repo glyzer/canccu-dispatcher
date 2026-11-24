@@ -140,7 +140,7 @@ ping_pr_issue() {
 # landed: it is recorded, so it is never posted twice (the next state change pings again). Records
 # are dropped only when ping_states listed everything (its END line). The pass goes on either way.
 ping_tick() {
-  local d="$CANCCU_HOME/pings" n kind pr form line text out rc f rk rid id prob='' checked='' stop='' complete=''
+  local d="$CANCCU_HOME/pings" n kind pr form text out rc f rk rid id prob='' checked='' stop='' complete=''
   local -A cur=() seen=()
   # NOTIFY sends no GitHub ping (telegram, off): as PING=off
   local ping=${PING:-on}; notify_on github || ping=off
@@ -158,23 +158,36 @@ ping_tick() {
     cur[$n]=$kind
     rk='' rid=''; [ -f "$d/$n" ] && read -r rk rid < "$d/$n"
     [ "$rk" = "$kind" ] && continue
-    if [ "$kind" = checkpoint ]; then form=$(ask_form "$(unit_of_issue "$n")" checkpoint - "$pr")
-    else form=$(ask_form "$(unit_of_issue "$n")" "$kind" "$pr"); fi
-    line="@$USER_LOGIN ${form%%$'\n'*}"
-    if (( CANCCU_DRY )); then echo "  would: ping #$n as $REVIEWER_LOGIN: $line"; continue; fi
+    if (( CANCCU_DRY )); then
+      if [ "$kind" = checkpoint ]; then form=$(ask_form "$(unit_of_issue "$n")" checkpoint - "$pr")
+      else form=$(ask_form "$(unit_of_issue "$n")" "$kind" "$pr"); fi
+      echo "  would: ping #$n as $REVIEWER_LOGIN: @$USER_LOGIN ${form%%$'\n'*}"; continue
+    fi
+    # before the form: it costs gh calls (CI, auto-merge), pointless when nothing can be posted
     [ -z "$stop" ] || continue
     [ -n "$checked" ] || { prob=$(reviewer_token_problem); checked=1; }
     if [ -n "$prob" ]; then warn_once ping "ping: $prob; @$USER_LOGIN is pinged once the token works"; continue; fi
+    auto_merge_read
+    if [ "$kind" = checkpoint ]; then form=$(ask_form "$(unit_of_issue "$n")" checkpoint - "$pr")
+    else form=$(ask_form "$(unit_of_issue "$n")" "$kind" "$pr"); fi
     text="@$USER_LOGIN"$'\n'"$(home_tilde "$form")"$'\n\n'"$CANCCU_MARK"
     rc=1 id=$rid
-    [ -n "$rid" ] && { out=$(as_reviewer gh api "repos/$REPO/issues/comments/$rid" -X PATCH -f "body=$text" 2>&1); rc=$?; }
-    if [ -z "$rid" ] || { (( rc != 0 && rc != 124 && rc != 137 )); }; then
+    if [ -n "$rid" ]; then
+      out=$(as_reviewer gh api "repos/$REPO/issues/comments/$rid" -X PATCH -f "body=$text" 2>&1); rc=$?
+      # timed out: the edit may not have landed, so the old kind stays recorded and it is tried again
+      if (( rc == 124 || rc == 137 )); then
+        stop=1; log "#$n ping edit as $REVIEWER_LOGIN timed out; tried again next pass"; continue
+      fi
+    fi
+    if [ -z "$rid" ] || (( rc != 0 )); then
       out=$(as_reviewer gh issue comment "$n" -R "$REPO" --body "$text" 2>&1); rc=$? id=''
       [[ $out =~ issuecomment-([0-9]+) ]] && id=${BASH_REMATCH[1]}
+      # a post that timed out may have landed with no link printed: find it, or it is never closed
+      (( rc == 124 || rc == 137 )) && id=$(ping_find "$n")
     fi
     case $rc in
       0) rm -f "$CANCCU_HOME/.warned-ping"; log "#$n pinged @$USER_LOGIN as $REVIEWER_LOGIN: $kind${rk:+ (was $rk)}" ;;
-      124|137) stop=1; log "#$n ping as $REVIEWER_LOGIN timed out; it may have landed, so it is not posted again for this state" ;;
+      124|137) stop=1; log "#$n ping as $REVIEWER_LOGIN timed out; it may have landed, so it is not posted again for this state${id:+ (found as comment $id)}" ;;
       *) stop=1; warn_once ping "ping as $REVIEWER_LOGIN failed (gh: $(oneline 200 "${out:-no output}")); tried again next pass"; continue ;;
     esac
     mkdir -p "$d" && printf '%s\n' "$kind${id:+ $id}" > "$d/$n"
@@ -190,10 +203,21 @@ ping_tick() {
     n=${f##*/}
     [ -n "${cur[$n]+x}" ] && continue
     rk='' rid=''; read -r rk rid < "$f"
-    [ -n "$rid" ] && [ -z "${seen[$n]+x}" ] && [ -z "$stop" ] && [ -z "$prob" ] && ping_close "$n" "$rid"
+    if [ -n "$rid" ] && [ -z "${seen[$n]+x}" ]; then
+      # the close is skipped when nothing can be posted this pass: the record stays, so a later pass closes it
+      [ -z "$stop" ] && [ -z "$prob" ] || continue
+      ping_close "$n" "$rid"
+    fi
     rm -f "$f"
   done
   return 0
+}
+
+# ping_find <issue>: the id of the newest comment of the reviewer's mark on the issue (a post that
+# timed out before gh printed its link); empty when there is none or gh fails
+ping_find() {
+  as_reviewer gh api "repos/$REPO/issues/$1/comments" --paginate -q \
+    "[.[] | select(.user.login == \"$REVIEWER_LOGIN\" and (.body | contains(\"$CANCCU_MARK\")))] | last | .id // empty" 2>/dev/null | tail -n1
 }
 
 # ping_close <issue> <comment id>: the item settled: its comment's first line of the form becomes
