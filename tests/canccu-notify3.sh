@@ -53,7 +53,7 @@ ok "a digest hour beyond 23 is named, not reported as quiet hours" grep -q 'NOTI
 
 tg notify3-listener2
 mkdir -p "$(ND)"; exec 8>>"$(ND)/.listen.lock"; flock -n 8
-out=$(CANCCU_LISTEN_ROUNDS=1 timeout 60 "$root/bin/canccu-notify" --project web listen 2>&1); rc=$?
+out=$(CANCCU_LISTEN_ROUNDS=1 timeout 60 env PATH="$fb:$PATH" "$root/bin/canccu-notify" --project web listen 2>&1); rc=$?
 exec 8>&-
 ok "a second listener is refused when one holds the lock" eq "$rc $(grep -c 'another listener' <<<"$out")" "1 1"
 
