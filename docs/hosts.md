@@ -49,6 +49,11 @@ at: 2030-11-05T12:00:00Z
 - On a gh error reading or writing the claim, a dispatcher whose own claim is still fresh works on
   under it, until it would have expired; it never takes a foreign claim it cannot read.
 
+- There is no compare-and-set. Two hosts that take a free claim in the same moment can both read
+  their own id back and act for one pass; the next pass refuses the loser. A release can likewise
+  blank a take-over that lands between its read and its write. Keep `CLAIM_EXPIRY_MIN` well above
+  `CLAIM_RENEW_MIN` (twice as much or more), or another host takes a live claim before it is renewed.
+
 The claim issue is not work: the queue and the product owner's list leave it out.
 Leave it open; closing it only makes the next pass create another.
 

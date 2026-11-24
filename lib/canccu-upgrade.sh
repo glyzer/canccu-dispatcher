@@ -22,7 +22,9 @@ upgrade_current() {
 # is) and succeeds when the loop should run the new release now.
 upgrade_check() {
   local cur rel new v
-  cur=$(upgrade_current "$1") && [ -e "$cur" ] || return 1
+  # a checkout or --dev loop has no release to leave: a file a killed loop left behind would hold
+  # every new run for good, so it goes
+  cur=$(upgrade_current "$1") && [ -e "$cur" ] || { rm -f "$CANCCU_HOME/upgrade"; return 1; }
   rel=$(realpath "$(dirname "$1")/..") && new=$(realpath "$cur") || return 1
   if [ "$new" = "$rel" ]; then rm -f "$CANCCU_HOME/upgrade" "$CANCCU_HOME/.warned-upgrade"; return 1; fi
   v=$(canccu_version "$new")

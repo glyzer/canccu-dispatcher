@@ -186,6 +186,18 @@ ready5; claim_json "$HOST_OTHER" "lab-2" "$(at -40)"; echo 'fail:issue edit' >> 
 dispatch --once
 ok "gh error: a take whose write fails does not act" eq "$(grep -c . "$FAKE/worker.log")" 0
 
+# a repo without the label: the create is tried again after the label is made
+env_new claim-nolabel
+ready5; echo '[]' > "$FAKE/claim.json"; echo 'fail:issue create' >> "$FAKE/routes"
+dispatch --once
+ok "claim: a failed create makes the label and tries again" eq "$(grep -c '^issue create ' "$FAKE/gh.log") $(grep -c '^label create dispatcher-claim' "$FAKE/gh.log")" "2 1"
+# a create whose answer names no issue and a re-read that lists none: a gh error, not "claimed by host"
+env_new claim-nourl
+ready5; echo '[]' > "$FAKE/claim.json"; printf 'nourl:issue create\nlag:issue create\n' >> "$FAKE/routes"
+dispatch --once
+ok "claim: no issue to read back is a gh error" eq "$(dlog 'claimed by host')" 0
+ok "… and nothing starts" not started 5
+
 # ---------------------------------------------------------------- the queue and canccu-init
 
 env_new claim-queue

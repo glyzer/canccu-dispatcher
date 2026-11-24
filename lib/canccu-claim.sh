@@ -94,6 +94,11 @@ claim_create() {
   CLAIM_NEW=""
   f=$(claim_body_file "$1") || return 1
   mut_out gh issue create -R "$REPO" --title "$CLAIM_TITLE" --label "$CLAIM_LABEL" --body-file "$f"; rc=$?
+  # a repo without the label (ensure_labels runs once at startup and a rate limit skips it): create
+  # it, then try once more
+  if (( rc != 0 )) && ! (( CANCCU_DRY )) && mut gh label create "$CLAIM_LABEL" -R "$REPO" >/dev/null 2>&1; then
+    mut_out gh issue create -R "$REPO" --title "$CLAIM_TITLE" --label "$CLAIM_LABEL" --body-file "$f"; rc=$?
+  fi
   rm -f "$f"
   (( rc == 0 )) || return 1
   (( CANCCU_DRY )) && return 0
@@ -134,7 +139,10 @@ claim_gh_error() {
 # claim_tick: once a pass, before it reads anything else. 0: this host holds the repo (or holds a
 # fresh claim through a gh error); 1: the pass does nothing for the project. A free claim is
 # taken, a missing one created; both are read again, and of two hosts writing at once the one
-# GitHub shows holds it. Our own claim is written at most every CLAIM_RENEW_MIN.
+# GitHub shows holds it. Our own claim is written at most every CLAIM_RENEW_MIN. There is no
+# compare-and-set: two hosts taking a free claim in the same moment can both read their own id
+# back and act for one pass (the next pass refuses the loser), and claim_release can blank a
+# take-over that lands between its read and its write (docs/hosts.md).
 claim_tick() {
   local id
   CLAIM_NEW=""
@@ -162,6 +170,8 @@ claim_tick() {
   (( CANCCU_DRY )) && return 0
   claim_read "$CLAIM_NEW" "$id" || { claim_gh_error; return; }
   if [ "$CLAIM_HOST" = "$id" ]; then claim_ours; return; fi
+  # a re-read that lists no claim issue at all is a gh error, not a lost race
+  [ -n "$CLAIM_ISSUE" ] || { claim_gh_error; return; }
   # another host created one at the same moment and its issue is the lower: ours goes
   [ -n "${CLAIM_NEW:-}" ] && [ "$CLAIM_NEW" != "$CLAIM_ISSUE" ] && mut gh issue close "$CLAIM_NEW" -R "$REPO" >/dev/null
   claim_foreign
