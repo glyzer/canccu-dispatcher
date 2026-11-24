@@ -101,9 +101,13 @@ keep_accept() {
   if main_merge_only "$old" "$head"; then
     st_set "$n" accept_sha="$head" carried="$head" carried_by="$by"
     log "#$n PR #$pr: \`accepted\` carried over from ${old:0:7} to ${head:0:7}: a merge of main only (KEEP_ACCEPT_ON_MAIN_MERGE=1)"
-    # a failed merge (a transient gh error) puts the old head back, so the next pass carries the
-    # accept again instead of asking for a new one
-    merge_auto "$n" "$pr" accepted "$head" || { st_set "$n" accept_sha="$old" carried= carried_by=; return 2; }
+    # a merge left to retry (a transient gh error: no needs-you) puts the old head back, so the
+    # next pass carries the accept again instead of asking for a new one; one that raised the
+    # needs-you keeps head as the accept, so lifting it retries the merge (merge_unpark)
+    merge_auto "$n" "$pr" accepted "$head" || {
+      [ "$(st_get "$n" phase)" = needs-you ] || st_set "$n" accept_sha="$old" carried= carried_by=
+      return 2
+    }
     return 0
   fi
   out=$(resolved_outside "$old" "$head") || return 1

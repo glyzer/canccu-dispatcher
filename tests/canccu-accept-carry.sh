@@ -74,15 +74,47 @@ dispatch --once
 ok "accepted with canccu-ship, then a clean merge of main → auto-merge on the new head" has gh.log "pr merge 50 -R example-org/web --auto --match-head-commit $MB_MM1"
 ok "… no new accept request" eq "$(asked) $(st 5 phase)" "0 merging"
 ok "… logged as the carry-over" grep -qF "#5 PR #50: \`accepted\` carried over from ${MB_B:0:7} to ${MB_MM1:0:7}: a merge of main only (KEEP_ACCEPT_ON_MAIN_MERGE=1)" "$CANCCU_HOME/dispatch.log"
-env_new ship-clean-fail; mmrepo
-{ issue 5 in-progress,manual-accept; } | issues
-pr 50 5 "$MB_MM1" | prs
-printf '%s\t5\t50\t%s\tpo\n' "$((NOW - 3600))" "$MB_B" > "$CANCCU_HOME/accepts.log"
-state 5 phase=merging pr=50 "merge_sha=$MB_B" how=accepted "merge_at=$((NOW - 600))" "accept_sha=$MB_B" "accept_at=$((NOW - 7200))"
+# flaky <error>: the first `gh pr merge` call on the new head (MB_MM1) fails with that error
+flaky() {
+  mkdir -p "$E/sbin"
+  cat > "$E/sbin/gh" <<SH
+#!/usr/bin/env bash
+if [ "\$1 \$2" = "pr merge" ] && [[ " \$* " == *" $MB_MM1 "* ]] && [ ! -e "$E/failed" ]; then touch "$E/failed"; echo "$1" >&2; exit 1; fi
+exec "$fb/gh" "\$@"
+SH
+  chmod +x "$E/sbin/gh"
+}
+fpass() { PATH="$E/sbin:$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-dispatch" --once > "$E/out" 2>&1; }
+shipclean() {
+  env_new "$@"; mmrepo
+  { issue 5 in-progress,manual-accept; } | issues
+  pr 50 5 "$MB_MM1" | prs
+  printf '%s\t5\t50\t%s\tpo\n' "$((NOW - 3600))" "$MB_B" > "$CANCCU_HOME/accepts.log"
+  state 5 phase=merging pr=50 "merge_sha=$MB_B" how=accepted "merge_at=$((NOW - 600))" "accept_sha=$MB_B" "accept_at=$((NOW - 7200))"
+}
+# the accept by the `accepted` label (the reviewer's case), so a lifted needs-you finds it again
+shipclean label-clean-fail
+pr 50 5 "$MB_MM1" green accepted | prs
+json events50.json '[{"event": "labeled", "label": {"name": "accepted"}, "actor": {"login": "octo"}, "created_at": "2030-11-05T11:30:00Z"}]'
+route 'api --paginate repos/example-org/web/issues/50/events' events50.json
 echo 'fail:pr merge' >> "$FAKE/routes"
 dispatch --once
-ok "a clean merge of main whose auto-merge call failed: the old head stays the accepted one (merge_auto escalates), no new accept is asked" \
-  eq "$(asked) $(st 5 phase) $(st 5 accept_sha)" "0 needs-you $MB_B"
+ok "a clean merge of main whose auto-merge call was refused: needs-you, the new head is the accepted one, no new accept is asked" \
+  eq "$(asked) $(st 5 phase) $(st 5 accept_sha)" "0 needs-you $MB_MM1"
+sed -i '/^fail:pr merge$/d' "$FAKE/routes"
+json nocomments.json '{"comments": []}'
+route 'issue view 5 -R example-org/web --json comments' nocomments.json; route 'pr view 50 -R example-org/web --json comments' nocomments.json
+dispatch --once
+ok "… lifting the needs-you tries the merge again, no phase-check requeue" \
+  eq "$(grep -c -- "--auto --match-head-commit $MB_MM1" "$FAKE/gh.log") $(st 5 phase) $(grep -c 'new push since the merge needs-you' "$CANCCU_HOME/dispatch.log")" "2 merging 0"
+shipclean ship-clean-502
+flaky 'HTTP 502: Bad Gateway'
+fpass
+ok "a clean merge of main whose auto-merge call failed transiently: the old head is put back, no needs-you" \
+  eq "$(st 5 phase) $(st 5 accept_sha) $(asked)" "merging $MB_B 0"
+fpass
+ok "… the next pass carries the accept and merges the new head" \
+  eq "$(grep -c -- "--auto --match-head-commit $MB_MM1" "$FAKE/gh.log") $(st 5 accept_sha) $(asked)" "1 $MB_MM1 0"
 env_new ship-clean-off ACCEPT_CHANNELS=label; mmrepo
 { issue 5 in-progress,manual-accept; } | issues
 pr 50 5 "$MB_MM1" | prs
