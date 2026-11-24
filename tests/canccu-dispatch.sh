@@ -1005,6 +1005,16 @@ json runs.json '[{"headSha": "x", "status": "completed", "conclusion": "success"
 dispatch --once
 ok "quiet day: file written" test -s "$CANCCU_HOME/digest/2030-11-05.md"
 ok "quiet day: no comment" hasnt gh.log "issue comment 42"
+# the cost section: in the written digest, and an alert alone makes a quiet day post
+for al in 1 5; do
+  env_new "digest-cost-$al" DIGEST_HOUR_UTC=6 COST_ROUNDS_ALERT=$al
+  json runs.json '[{"headSha": "x", "status": "completed", "conclusion": "success", "workflowName": "ci"}]'
+  for i in 1 2 3; do printf '%s\tweb\t13\t1.00\tfix\n' "$((NOW - i * 600))"; done > "$WORKERS_DIR/spend.log"
+  dispatch --once
+  ok "digest: the written file holds the cost section (alert $al)" grep -qF '**Cost today:** $3.00 total' "$CANCCU_HOME/digest/2030-11-05.md"
+  ok "… posted only with an alert (alert $al: $([ $al = 1 ] && echo 3 rounds is over it || echo none))" \
+    eq "$(grep -c '^issue comment 42 ' "$FAKE/gh.log")" "$([ $al = 1 ] && echo 1 || echo 0)"
+done
 env_new digest-early DIGEST_HOUR_UTC=13
 printf '%s\t5\t50\tauto\tfeat\n' "$((NOW - 60))" > "$CANCCU_HOME/merged.log"
 dispatch --once

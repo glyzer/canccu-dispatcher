@@ -51,8 +51,17 @@ dg=$(lib costs_digest)
 ok "digest: today's cost by kind" grep -qF '**Cost today:** $5.50 total (other $5.50)' <<<"$dg"
 ok "… an issue over COST_ROUNDS_ALERT rounds" grep -qF -- '- #13: 3 rounds, $5.50' <<<"$dg"
 env_new costs-quiet COST_ROUNDS_ALERT=0
-printf '%s\tweb\t13\t1\tfix\n' "$(d 2030-11-05T09:00:00Z)" > "$WORKERS_DIR/spend.log"
-ok "COST_ROUNDS_ALERT=0: no round line" not grep -qF rounds <<<"$(lib costs_digest)"
+printf '%s\tweb\t13\t1\tfix\n' "$(d 2030-11-05T09:00:00Z)" "$(d 2030-11-05T09:10:00Z)" "$(d 2030-11-05T09:20:00Z)" > "$WORKERS_DIR/spend.log"
+ok "COST_ROUNDS_ALERT=0: no round line, with an issue of 3 fix rounds" \
+  eq "$(grep -c rounds <<<"$(lib costs_digest)") $(grep -c rounds <<<"$(lib eval 'COST_ROUNDS_ALERT=2; costs_digest')")" "0 1"
+: > "$WORKERS_DIR/spend.log"
+# COST_KINDS: a trailing ; is no part, and two bad parts are each said once
+env_new costs-parts "COST_KINDS='a=x;bad;b=(;c=y;'"
+printf '%s\tweb\t1\t1\tbuild\n' "$(d 2030-11-05T09:00:00Z)" > "$WORKERS_DIR/spend.log"
+lib costs_digest >/dev/null 2>&1; lib costs_digest >/dev/null 2>&1
+ok "COST_KINDS: a trailing ; is no part; each bad part is logged once, not on every report" \
+  eq "$(grep -c "empty\|''" "$CANCCU_HOME/dispatch.log") $(grep -c "COST_KINDS: 'bad' is not" "$CANCCU_HOME/dispatch.log") $(grep -c "COST_KINDS: 'b' is not a valid" "$CANCCU_HOME/dispatch.log")" "0 1 1"
+env_new costs-quiet2 COST_ROUNDS_ALERT=0
 : > "$WORKERS_DIR/spend.log"
 ok "no run today: no section" eq "$(lib costs_digest)" ""
 

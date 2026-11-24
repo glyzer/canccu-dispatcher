@@ -43,16 +43,29 @@ costs_runs() {
 # "<name>\t<regex>" lines; a part with no name, or a regex grep rejects, is said once and skipped,
 # so one typo never blanks the whole report
 costs_kinds() {
-  local part name re rc
+  local part name re rc key
   [ -n "${COST_KINDS:-}" ] || return 0
   while IFS= read -r part; do
+    [ -n "${part//[[:space:]]/}" ] || continue   # a trailing or doubled ; is no part
     name=${part%%=*} re=${part#*=}
-    if [ -z "$name" ] || [ "$name" = "$part" ] || [ -z "$re" ]; then warn_once cost-kinds "COST_KINDS: '$part' is not <name>=<regex>; skipped" >&2; continue; fi
+    # one warn_once key per part, so two bad parts are each said once
+    key=cost-kinds-$(tr -c 'A-Za-z0-9' - <<<"$name")
+    if [ -z "$name" ] || [ "$name" = "$part" ] || [ -z "$re" ]; then warn_once "$key" "COST_KINDS: '$part' is not <name>=<regex>; skipped" >&2; continue; fi
     rc=0; grep -iE "$re" </dev/null >/dev/null 2>&1 || rc=$?
-    (( rc == 2 )) && { warn_once cost-kinds "COST_KINDS: '$name' is not a valid regex; skipped" >&2; continue; }
+    (( rc == 2 )) && { warn_once "$key" "COST_KINDS: '$name' is not a valid regex; skipped" >&2; continue; }
     printf '%s\t%s\n' "$name" "$re"
   done < <(tr ';' '\n' <<<"$COST_KINDS")
 }
+
+# COSTS_KIND_AWK: the awk function both reports share: the issues (order[1..nu], ukind[], ucost[])
+# summed by kind into kord[1..nkk], kcost[] and kn[]
+COSTS_KIND_AWK='function by_kind(   i, u, k) {
+  for (i = 1; i <= nu; i++) {
+    u = order[i]; k = ukind[u]
+    if (!(k in kcost)) { kord[++nkk] = k; kcost[k] = 0 }
+    kcost[k] += ucost[u]; kn[k]++
+  }
+}'
 
 # costs_report [--since DATE] [--top N]: totals by run type, per issue (its fix rounds and cost),
 # the N most expensive issues (default 5) and the cost by kind, over the runs since DATE (UTC;
@@ -70,7 +83,7 @@ costs_report() {
   done
   local runs; runs=$(costs_runs "$since")
   [ -n "$runs" ] || { echo "costs ($label): no runs in the spend log"; return 0; }
-  awk -F '\t' -v label="$label" -v top="$top" '
+  awk -F '\t' -v label="$label" -v top="$top" "$COSTS_KIND_AWK"'
     function money(v) { return sprintf("$%.2f", v) }
     {
       u = $1; ty = $2; c = $3; n++
@@ -95,38 +108,30 @@ costs_report() {
         done[best] = 1
         printf "  %-8s %9s  %d fix round%s  %s\n", best, money(ucost[best]), rounds[best] + 0, (rounds[best] == 1 ? "" : "s"), utitle[best]
       }
-      for (i = 1; i <= nu; i++) {
-        u = order[i]; k = ukind[u]
-        if (!(k in kcost)) { kord[++nkk] = k; kcost[k] = 0 }
-        kcost[k] += ucost[u]; kn[k]++
-      }
+      by_kind()
       print "by kind:"
       for (i = 1; i <= nkk; i++) printf "  %-16s %4d issue%s  %9s\n", kord[i], kn[kord[i]], (kn[kord[i]] == 1 ? " " : "s"), money(kcost[kord[i]])
     }' <<<"$runs"
 }
 
 # costs_digest: the digest's section: today's (24 h) cost by kind, and a line per issue with more
-# fix rounds than COST_ROUNDS_ALERT in that time ("PR #N: 7 rounds, $X"; 0: no such line). Nothing
+# fix rounds than COST_ROUNDS_ALERT in that time ("- #N: 7 rounds, $X"; 0: no such line). Nothing
 # when no run ended today.
 costs_digest() {
   local runs alert=${COST_ROUNDS_ALERT:-5}
   [[ $alert =~ ^[0-9]+$ ]] || alert=5
   runs=$(costs_runs $(( $(now) - 86400 )))
   [ -n "$runs" ] || return 0
-  awk -F '\t' -v alert="$alert" '
-    { if (!($1 in uc)) { ord[++nu] = $1; uc[$1] = 0 }
-      if ($3 ~ /^[0-9]+(\.[0-9]+)?$/) { uc[$1] += $3; total += $3 }
+  awk -F '\t' -v alert="$alert" "$COSTS_KIND_AWK"'
+    { if (!($1 in ucost)) { order[++nu] = $1; ucost[$1] = 0 }
+      if ($3 ~ /^[0-9]+(\.[0-9]+)?$/) { ucost[$1] += $3; total += $3 }
       ukind[$1] = $5
       if ($2 == "fix") rounds[$1]++ }
     END {
-      for (i = 1; i <= nu; i++) {
-        u = ord[i]; k = ukind[u]
-        if (!(k in kc)) { kord[++nkk] = k; kc[k] = 0 }
-        kc[k] += uc[u]
-      }
+      by_kind()
       s = ""
-      for (i = 1; i <= nkk; i++) s = s (s == "" ? "" : ", ") kord[i] " " sprintf("$%.2f", kc[kord[i]])
+      for (i = 1; i <= nkk; i++) s = s (s == "" ? "" : ", ") kord[i] " " sprintf("$%.2f", kcost[kord[i]])
       printf "**Cost today:** %s total (%s)\n", sprintf("$%.2f", total), s
-      if (alert > 0) for (i = 1; i <= nu; i++) if (rounds[ord[i]] > alert) printf "- %s: %d rounds, $%.2f\n", ord[i], rounds[ord[i]], uc[ord[i]]
+      if (alert > 0) for (i = 1; i <= nu; i++) if (rounds[order[i]] > alert) printf "- %s: %d rounds, $%.2f\n", order[i], rounds[order[i]], ucost[order[i]]
     }' <<<"$runs"
 }
