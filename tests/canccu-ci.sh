@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # tests/canccu-ci.sh — the repo's GitHub configuration: the workflows (CI, its oldstable job, the
-# release, the review gate), the review-gate templates this repo runs as they ship, Dependabot,
+# nightly, the release, the review gate), the review-gate templates this repo runs as they ship, Dependabot,
 # and the issue and PR templates (the harness: tests/lib/harness.sh).
 # shellcheck source=lib/harness.sh
 . "$(dirname "$0")/lib/harness.sh"
@@ -17,8 +17,8 @@ job() { sed -n '/^jobs:/,$p' "$1" | awk -v id="  $2:" '$0 == id { on = 1; next }
 
 # ---------------------------------------------------------------- every workflow
 
-ok "the workflows: CI, release and the review gate, plus the template's" \
-  eq "$(echo "$workflows" | tr '\n' ' ')" "$W/ci.yml $W/release.yml $W/review-gate.yml $TR/workflows/review-gate.yml "
+ok "the workflows: CI, nightly, release and the review gate, plus the template's" \
+  eq "$(echo "$workflows" | tr '\n' ' ')" "$W/ci.yml $W/nightly.yml $W/release.yml $W/review-gate.yml $TR/workflows/review-gate.yml "
 unpinned="" notimeout="" noperm=""
 for y in $workflows; do
   while IFS= read -r l; do unpinned+=" $y: $l"; done < <(grep -E '^\s*-?\s*uses:' "$y" | grep -vE 'uses: [^@ ]+@[0-9a-f]{40} # v[0-9]')
@@ -40,7 +40,7 @@ ok "CI: two jobs, CI and CI (oldstable)" eq "$(grep -E '^    name: ' <(sed -n '/
   "    name: CI|    name: CI (oldstable)|"
 for j in $(jobs "$Y"); do
   ok "CI: job $j only reads the repo" eq "$(job "$Y" "$j" | sed -n '/^    permissions:/,/^    [a-z]/p' | grep -E '^      ' | tr -d ' ')" "contents:read"
-  ok "CI: job $j runs the local check" grep -qE '^ +[^#]*tests/run$' <(job "$Y" "$j")
+  ok "CI: job $j runs the local check" grep -qE '^ +[^#]*tests/run( --short)?$' <(job "$Y" "$j")
 done
 old=$(job "$Y" "$(jobs "$Y" | sed -n 2p)")
 ok "CI (oldstable): in a debian:12 container" grep -qE '^      image: debian:12$' <<<"$old"
@@ -50,9 +50,10 @@ done
 ok "CI: the job CI ends within 20 minutes" grep -qE '^    timeout-minutes: ([1-9]|1[0-9]|20)$' <(job "$Y" ci)
 # jq 1.6 starts about 8 times slower than 1.7, and the dispatcher's tests call it thousands of
 # times: the same tests take more than twice as long there
-ok "CI (oldstable): each test file may take 20 minutes" grep -qE 'CANCCU_TEST_TIMEOUT=20m .*tests/run$' <<<"$old"
-ok "CI (oldstable): the job ends within 30 minutes" grep -qx '    timeout-minutes: 30' <<<"$old"
-ok "CI (oldstable): the tests run as a user, not as root" grep -qE 'runuser -u [a-z]+ -- .*tests/run$' <<<"$old"
+ok "CI (oldstable): each test file may take 20 minutes" grep -qE 'CANCCU_TEST_TIMEOUT=20m .*tests/run --short$' <<<"$old"
+ok "CI (oldstable): the job ends within 20 minutes" grep -qx '    timeout-minutes: 20' <<<"$old"
+ok "CI (oldstable): the short set, as a user, not as root" grep -qE 'runuser -u [a-z]+ -- .*tests/run --short$' <<<"$old"
+ok "CI: the job CI runs the whole suite, no argument" grep -qE '^ +run: tests/run$' <<<"$(job "$Y" ci)"
 ci=$(job "$Y" ci)
 gate=$(sed -n '/name: Release PR scenarios line/,/^$/p' <<<"$ci")
 ok "CI: a release PR's body is checked for the scenarios line" grep -qF 'release check "v$(cat VERSION)" --body' <<<"$gate"
@@ -73,6 +74,7 @@ Y=$W/release.yml
 ok "release: runs on a v* tag only" eq "$(sed -n '/^on:/,/^[a-z]/p' "$Y" | grep -vE '^(on:|[a-z].*|)$' | tr -d ' ' | tr '\n' '|')" "push:|tags:[\"v*\"]|"
 ok "release: checks the tag against VERSION and CHANGELOG.md" grep -qF '.github/scripts/release check "$GITHUB_REF_NAME"' "$Y"
 ok "release: runs the suite" grep -qE '^ +run: .*tests/run$' "$Y"
+ok "release: job build ends within 25 minutes" grep -qx '    timeout-minutes: 25' <(job "$Y" build)
 ok "release: builds the tarball and SHA256SUMS" grep -qF '.github/scripts/release build' "$Y"
 ok "release: the changelog section is the notes" grep -qF '.github/scripts/release notes' "$Y"
 ok "release: publishes with gh and the workflow token" grep -qF 'GH_TOKEN: ${{ github.token }}' "$Y"
@@ -82,7 +84,55 @@ ok "release: gh release create with the tarball, SHA256SUMS and the notes" \
   grep -qE 'gh release create "\$GITHUB_REF_NAME" "dist/canccu-dispatcher-\$v\.tar\.gz" dist/SHA256SUMS .*--notes-file dist/notes\.md' <(joined "$Y")
 ok "release: only the publishing job may write the repo's contents" \
   eq "$(grep -c 'contents: write' "$Y") $(job "$Y" publish | grep -c 'contents: write')" "1 1"
-ok "release: it publishes only after the check, suite and build" grep -qE '^    needs: \[?build' <(job "$Y" publish)
+ok "release: it publishes only after the check, suite and build, and the full Debian 12 run" grep -qx '    needs: \[build, oldstable\]' <(job "$Y" publish)
+ok "release: the oldstable job is nightly.yml's, line for line" eq "$(job "$Y" oldstable | md5sum)" "$(job "$W/nightly.yml" oldstable | md5sum)"
+ok "release: … and not empty" test -n "$(job "$Y" oldstable)"
+
+# ---------------------------------------------------------------- nightly
+
+Y=$W/nightly.yml
+ok "nightly: the schedule and workflow_dispatch only" eq "$(sed -n '/^on:/,/^[a-z]/p' "$Y" | grep -vE '^(on:|[a-z].*|)$' | tr -d ' ' | tr '\n' '|')" 'schedule:|-cron:"172***"|workflow_dispatch:|'
+ok "nightly: named Nightly, one run at a time, none cancelled" eq "$(grep -cE '^name: Nightly$|^  group: nightly$|^  cancel-in-progress: false$' "$Y")" 3
+ok "nightly: jobs oldstable and report" eq "$(jobs "$Y" | tr '\n' ' ')" "oldstable report "
+nold=$(job "$Y" oldstable)
+ok "nightly: the full suite on Debian 12, 60 minutes, reading the repo only" eq \
+  "$(grep -cE 'tests/run \| tee ' <<<"$nold") $(grep -c -- '--short' <<<"$nold") $(grep -cx '    timeout-minutes: 60' <<<"$nold") $(grep -c 'contents: read' <<<"$nold") $(grep -cx '    name: Debian 12 (full)' <<<"$nold")" "1 0 1 1 1"
+ok "nightly: its check runs in bash and keeps its output for the report" \
+  eq "$(grep -cx '        shell: bash' <<<"$nold") $(grep -c 'check\.out' <<<"$nold")" "1 2"
+ok "nightly: the failed parts are a step output, only on failure" eq "$(grep -cE '^        id: failed$|^        if: failure\(\)$|^      failed: \$\{\{ steps\.failed\.outputs\.failed \}\}$' <<<"$nold")" 4
+rep=$(job "$Y" report)
+ok "nightly: only report writes, and only issues" eq "$(grep -c ": write" "$Y") $(grep -c 'issues: write' <<<"$rep")" "1 1"
+ok "nightly: report has no checkout" not grep -q 'checkout' <<<"$rep"
+ok "nightly: report waits for the full run, on main, and only when it did not pass" \
+  grep -qxF "    if: always() && needs.oldstable.result != 'success' && github.ref == 'refs/heads/main'" <<<"$rep"
+ok "nightly: report ends within 5 minutes, named Report" eq "$(grep -cE '^    timeout-minutes: 5$|^    name: Report$|^    needs: \[oldstable\]$' <<<"$rep")" 3
+nr=$T/nightly; mkdir -p "$nr/bin"
+awk '/^    steps:/ { s = 1 } s && /^        run: \|/ { r = 1; next } r && /^          / { print substr($0, 11); next } r { exit }' <<<"$rep" > "$nr/script"
+ok "nightly: report's script has no \${{ in it" eq "$(grep -c '\${{' "$nr/script")" 0
+cat > "$nr/bin/gh" <<'GH'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$NR/gh.log"
+case "$1 $2" in "issue list") cat "$NR/issues.json" ;; esac
+GH
+chmod +x "$nr/bin/gh"
+title='Nightly: the full check on Debian 12 failed'
+nrun() {   # nrun <failed parts>: the script with an invented run; its calls to gh in gh.log
+  : > "$nr/gh.log"
+  NR=$nr PATH="$nr/bin:$PATH" FAILED="$1" SHA=abc123 RUN_URL=https://example.com/run/7 bash "$nr/script" > "$nr/out" 2>&1
+}
+jq -n --arg t "$title" '[{number: 4, title: "Nightly: something else"}]' > "$nr/issues.json"
+nrun "tests/canccu-usage.sh lint"
+ok "nightly report: no open issue with the title creates one, no label" \
+  eq "$(grep -c '^issue create' "$nr/gh.log") $(grep -c '^issue comment' "$nr/gh.log") $(grep -cE -- '--(label|milestone)' "$nr/gh.log")" "1 0 0"
+ok "… its text names the sha, the parts and the run" \
+  grep -qF -- "--title $title --body The full check on Debian 12 failed on abc123. Failed: tests/canccu-usage.sh lint. Run: https://example.com/run/7" "$nr/gh.log"
+jq -n --arg t "$title" '[{number: 4, title: "Nightly: something else"}, {number: 9, title: $t}]' > "$nr/issues.json"
+nrun "monitor"
+ok "nightly report: an open issue gets a comment, none is created" \
+  eq "$(grep -c '^issue create' "$nr/gh.log") $(grep -c '^issue comment 9 ' "$nr/gh.log")" "0 1"
+nrun ""
+ok "nightly report: an empty list says the job did not finish" \
+  grep -qF "Failed: no list, the job did not finish. Run:" "$nr/gh.log"
 
 # ---------------------------------------------------------------- the review gate
 
