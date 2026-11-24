@@ -71,7 +71,7 @@ ok "… and the next pass edits the comment" eq "$(cat "$CANCCU_HOME/pings/5")" 
 env_new ask-post-timeout PING_KINDS=all
 { issue 5 in-progress,needs-you; } | issues
 state 5 phase=needs-you "ny_at=$NOW" "reason=x"
-jq -n --arg m "$(lib eval 'echo "$CANCCU_MARK"')" '[{id: 777, user: {login: "review-bot"}, body: ("@octo\nx\n\n" + $m)}]' > "$FAKE/c5.json"
+jq -n --arg m "$(lib eval 'echo "$CANCCU_MARK"')" '[{id: 777, user: {login: "review-bot"}, created_at: "2030-11-05T12:00:00Z", body: ("@octo\nx\n\n" + $m)}]' > "$FAKE/c5.json"
 route 'api repos/example-org/web/issues/5/comments*' c5.json
 echo 'fail124:issue comment' >> "$FAKE/routes"
 dispatch --once

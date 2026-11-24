@@ -226,7 +226,7 @@ ok "a private chat: no forum topic, the message opens a reply chain" eq "$(calls
 ok "… not in a thread" not grep -q message_thread_id <<<"$(call sendMessage)"
 
 tg notify-noforum
-touch "$FAKE/tg-refuse-createForumTopic"
+echo "Bad Request: the chat is not a forum" > "$FAKE/tg-refuse-createForumTopic"
 lib feed po ask idle 8 - - "#8 idle" >/dev/null
 ok "a group without topics: falls back to a reply chain" eq "$(calls createForumTopic) $(calls sendMessage) $(cut -f1 "$(ND)/topics")" "1 1 m101"
 ok "… and says so once" eq "$(grep -c 'telegram: no forum topic' "$CANCCU_HOME/dispatch.log")" 1
