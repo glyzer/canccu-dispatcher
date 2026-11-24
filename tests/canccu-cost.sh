@@ -145,6 +145,18 @@ ok "… the release and review-gate scripts, and the template's" \
 ok "… lints no non-shell file" not grep -qE '^lint: .*(canccu-monitor\.py|canccu-plan\.jq|\.json)' <<<"$full"
 ok "… runs every test file, the leak check and the monitor's self-test" \
   eq "$(grep -v '^lint:' <<<"$full" | sort | tr '\n' ' ')" "$(cd "$root" && { ls tests/*.sh; echo monitor; } | sort | tr '\n' ' ')"
+# --short (#301): the set CI (oldstable) runs on every push
+short=$(tr_ --list --short)
+want=$(for n in ci claim compat config costs dispatch2 docs doctor engine hosts install install2 notify openpr pane projects release repo scenarios snapshot2 spend titles upgrade usage verdict version; do
+  echo "tests/canccu-$n.sh"; done; echo tests/leak.sh; echo tests/leak-check.sh; echo monitor)
+ok "tests/run --short --list: the fixed set, every part existing" eq "$(grep -v '^lint:' <<<"$short" | sort | tr '\n' ' ')" "$(sort <<<"$want" | tr '\n' ' ')"
+ok "… and lints every shell file" eq "$(grep '^lint:' <<<"$short")" "$(grep '^lint:' <<<"$full")"
+for n in $(grep -v '^monitor$' <<<"$want"); do [ -f "$root/$n" ] || ok "tests/run --short: $n exists" false; done
+ok "tests/run --short with an argument → exit 2" eq "$(tr_ --short tests/canccu-usage.sh >/dev/null; echo $?)" 2
+ok "tests/run --short --affected → exit 2" eq "$(tr_ --short --affected >/dev/null; echo $?)" 2
+ok "… the slowest files are not in the short set" not grep -qE '^tests/canccu-(steps2|dispatch|review|merge|deep|followup|steps)\.sh$' <<<"$short"
+F=$T/shortroot; mkdir -p "$F/tests/lib"; cp "$root/tests/run" "$F/tests/"; : > "$F/tests/lib/harness.sh"
+ok "tests/run --short: a name of the set that does not exist → exit 2" eq "$(cd "$F" && tests/run --short --list >/dev/null 2>&1; echo $?)" 2
 # a run: one summary line per file, the failing checks only, the full log in a file
 F=$T/runroot; mkdir -p "$F/tests/lib"; cp "$root/tests/run" "$F/tests/"
 # like the harness's eq: the expected/got lines first, then the FAIL line (#147)
