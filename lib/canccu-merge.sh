@@ -301,8 +301,10 @@ postpass_step() {
   pr_fetch "$pr"
   if main_merge_only "$psha" "$head"; then
     log "#$n PR #$pr: the new head ${head:0:7} is a merge of main only since the pass at ${psha:0:7}; no new review"
-    # moved only once acted on: a classify retry or a failed merge sees this head again
-    after_pass "$n" "$pr" "$head" "merge of main" && st_set "$n" pass_sha="$head"
+    # the pass moves first, so the ask form after_pass writes shows this head as passed; put back
+    # when it fails: a classify retry or a failed merge sees this head again
+    st_set "$n" pass_sha="$head"
+    after_pass "$n" "$pr" "$head" "merge of main" || st_set "$n" pass_sha="$psha"
     return 0
   fi
   base=$(st_get "$n" full_sha); base=${base:-$psha}

@@ -93,7 +93,7 @@ ask_why() {
 # NOTIFY_CONTENT=link only the first and the last line (the link) are printed.
 ask_form() {
   auto_merge_read   # here, not in the $(…) of ask_what: the once-per-pass value stays
-  local k=$1 kind=$2 pr=$3 step=${4:-} extra=${5:-} n what rv=none ci=none head=- link rec acc full=''
+  local k=$1 kind=$2 pr=$3 step=${4:-} extra=${5:-} n what rv=none ci=none head=- link rec acc full='' chg fs
   n=$(lead_of "$k"); n=${n:-$k}
   if [ "$pr" = - ]; then
     case $kind in needs-you|plan|question)
@@ -125,7 +125,14 @@ ask_form() {
   fi
   echo "For the product owner: $what"
   echo "Why you: $(ask_why "$k" "$kind")"
-  [ "$pr" = - ] || { echo "Change (reviewer's summary):"; ask_change "$pr" "$full"; }
+  if [ "$pr" != - ]; then
+    # a head that is a merge of main only has no review file: the pass it took on has (full_sha)
+    chg=$full
+    if [ -n "$full" ] && [[ $rv == pass* ]] && [ ! -f "$CANCCU_HOME/reviews/$pr/$full.md" ]; then
+      fs=$(st_get "$k" full_sha 2>/dev/null); [ -f "$CANCCU_HOME/reviews/$pr/$fs.md" ] && chg=$fs
+    fi
+    echo "Change (reviewer's summary):"; ask_change "$pr" "$chg"
+  fi
   echo "Review: $rv · CI: $ci"
   echo "Recommended: $rec"
   echo "If you accept: $acc"
