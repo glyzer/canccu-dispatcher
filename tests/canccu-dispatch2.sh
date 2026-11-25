@@ -402,5 +402,33 @@ ok "… an open unit's, its reviewer's, a live run's, a planner's, another proje
 rm "$FAKE/docker.containers"; PATH="$fb:/usr/bin:/bin" lib containers_sweep
 ok "sweep: no docker listing, nothing to do" eq "$(grep -c 'rm ' "$FAKE/docker.log")" 2
 
+# projects whose names differ in _ and -: each one's sweep takes only its own tags (#317)
+env_new ctr-names
+for p in web_x web-x web--x; do cp -r "$CANCCU_HOME" "$CANCCU_ROOT/projects/$p"; done
+{ ctr c1 a running canccu_web_7 ""; ctr c2 b running canccu_web_x_7 ""; ctr c3 c running canccu_web-x_7 ""
+  ctr c4 d running canccu_web--x_7 ""; } > "$FAKE/docker.containers"
+CANCCU_PROJECT=web_x lib containers_sweep
+ok "sweep: web_x removes its own run's container, not web's, web-x's or web--x's" eq "$(cut -f1 "$FAKE/docker.containers" | tr '\n' ' ')" "c1 c3 c4 "
+CANCCU_PROJECT=web lib containers_sweep
+ok "… web does not take web_x's tags for its own" eq "$(cut -f1 "$FAKE/docker.containers" | tr '\n' ' ')" "c3 c4 "
+CANCCU_PROJECT=web--x lib containers_sweep
+ok "… web--x removes only its own" eq "$(cut -f1 "$FAKE/docker.containers" | tr '\n' ' ')" "c3 "
+
+# a unit of web_x open at the upgrade from 0.3 has objects under the old tag canccu_web-x_<key>:
+# its end removes them too, unless a project web-x owns that tag
+env_new ctr-oldtag
+cp -r "$CANCCU_HOME" "$CANCCU_ROOT/projects/web_x"
+printf 'phase=needs-you\npr=70\n' > "$CANCCU_ROOT/projects/web_x/state/7"
+{ ctr c1 a running canccu_web-x_7 ""; ctr c2 b running "" canccu_web-x_review-70; ctr c3 c running canccu_web_x_7 ""; } > "$FAKE/docker.containers"
+printf 'v1\tv1\t-\t-\t\tcanccu_web-x_7\n' > "$FAKE/docker.volumes"
+CANCCU_PROJECT=web_x lib containers_sweep
+ok "old tags: an open unit's objects under the old tag stay at the sweep" eq "$(cut -f1 "$FAKE/docker.containers" | tr '\n' ' ')" "c1 c2 c3 "
+CANCCU_PROJECT=web_x lib unit_containers_rm 7
+ok "… the unit's end removes them with the new ones, volume too" eq "$(cut -f1 "$FAKE/docker.containers" | tr '\n' ' ')[$(cat "$FAKE/docker.volumes")]" "[]"
+mkdir -p "$CANCCU_ROOT/projects/web-x"
+ok "… a project web-x owns the old tag: web_x's unit leaves it alone" eq "$(CANCCU_PROJECT=web_x lib unit_tags 7 | tr '\n' ' ')" "canccu_web_x_7 canccu_web_x_answer-7 canccu_web_x_review-70 "
+rm -r "$CANCCU_ROOT/projects/web-x"
+ok "… web has no _: no old tag" eq "$(lib unit_tags 5 | tr '\n' ' ')" "canccu_web_5 canccu_web_answer-5 "
+
 echo "canccu-dispatch2 tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

@@ -63,6 +63,26 @@ lib feed - info closed 6 - - "closes 2: done" >/dev/null
 dispatch --once
 ok "two ids unsettled, Telegram down: one edit tried in the pass, not one per id" eq "$(calls editMessageText) $(cut -f1 "$(ND)/unsettled" | tr '\n' ' ')" "1 1 2 "
 
+# a refusal at the head of what is left to settle does not hold up the lines behind it (#317)
+settle_two() {
+  tg "$1"
+  lib feed po ask accept 5 50 https://example.invalid/50 "#5 accept" >/dev/null
+  lib feed po ask accept 6 60 https://example.invalid/60 "#6 accept" >/dev/null
+  echo "Bad Request: refused" > "$FAKE/tg-refuse-editMessageText"; cp "$FAKE/tg-refuse-editMessageText" "$FAKE/tg-refuse-closeForumTopic"
+  lib feed - info closed 5 - - "closes 1: done" >/dev/null
+  lib feed - info closed 6 - - "closes 2: done" >/dev/null
+  rm "$FAKE/tg-refuse-editMessageText" "$FAKE/tg-refuse-closeForumTopic"; : > "$FAKE/tg.log"
+}
+settle_two notify3-settle-cant-edit
+echo "Bad Request: message can't be edited" > "$FAKE/tg-refuse-editMessageText"
+dispatch --once
+ok "an edit refused for good at the head: given up, and the line behind it is tried" eq "$(calls editMessageText) [$(cat "$(ND)/unsettled" 2>/dev/null)]" "2 []"
+settle_two notify3-settle-no-rights
+echo "Bad Request: not enough rights to manage forum topics" > "$FAKE/tg-refuse-closeForumTopic"
+dispatch --once
+ok "a close refused at the head: kept, and the line behind it is tried" eq "$(calls closeForumTopic) $(cut -f1 "$(ND)/unsettled" | tr '\n' ' ')" "2 1 2 "
+ok "… Telegram's refusal still keeps the edits done" eq "$(calls editMessageText)" 2
+
 # a reset of the feed ids clears what waits to be settled: a new item with the same id is not closed
 tg notify3-reset-unsettled
 mkdir -p "$(ND)"; printf '1\n' > "$(ND)/unsettled"
@@ -109,6 +129,26 @@ json files50 '[{"filename": "web/mock/home.svg"}]'
 route 'api --paginate repos/example-org/web/pulls/50/files*' files50
 PATH="$E/bin:$PATH" dispatch --once
 ok "an SVG fetch that failed (not a 404): the head is not recorded as done" eq "$(cut -f1 "$(ND)/images" 2>/dev/null)" ""
+
+# an SVG fetch: only gh's (HTTP 404) means the file is gone; a 404 in the path or another error's
+# text is an error, tried again next pass (#317)
+svg_env() {
+  tg "$1"
+  mkdir -p "$E/bin"; printf '#!/bin/sh\nwhile [ $# -gt 1 ]; do [ "$1" = -o ] && printf PNG > "$2"; shift; done\n' > "$E/bin/rsvg-convert"; chmod +x "$E/bin/rsvg-convert"
+  { issue 5 in-progress,awaiting-accept; } | issues
+  pr 50 5 "$HA" green | prs
+  lib st_set 5 phase=accept pr=50 accept_sha="$HA" pass_sha="$HA" "accept_at=$NOW" reason=x
+  json files50 '[{"filename": "img/404.svg"}]'
+  route 'api --paginate repos/example-org/web/pulls/50/files*' files50
+}
+svg_env notify3-svg-404-path
+route "api repos/example-org/web/contents/img/404.svg?ref=$HA*" FAIL
+PATH="$E/bin:$PATH" dispatch --once
+ok "an SVG named 404 that failed to load: the head is not recorded as done" eq "$(cut -f1 "$(ND)/images" 2>/dev/null)" ""
+svg_env notify3-svg-404-gone
+route "api repos/example-org/web/contents/img/404.svg?ref=$HA*" NOTFOUND
+PATH="$E/bin:$PATH" dispatch --once
+ok "… a file the PR deleted (HTTP 404): skipped, the head is done" eq "$(cut -f1 "$(ND)/images" 2>/dev/null)" 50
 
 echo "canccu-notify3 tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
