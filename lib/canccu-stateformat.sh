@@ -59,8 +59,9 @@ pre5_tick() {
   log "step $(step_title "$m"): finished before the upgrade; no deep review or health pass owed"
 }
 # state_migrate: run by canccu-dispatch under its lock before the first pass. An older release
-# after a newer one would misread fields it does not know: it stops instead. Under --dry-run it
-# only checks.
+# after a newer one would misread fields it does not know: it stops instead. Under --dry-run the
+# migrations run in memory (every write goes through _st_put or step_set, so into DRY_ST): the
+# pass after them shows what the first real pass would do. Not in $(…), which would lose DRY_ST.
 state_migrate() {
   local f="$CANCCU_HOME/state.format" v=0 what
   if [ -e "$f" ]; then
@@ -69,7 +70,11 @@ state_migrate() {
   fi
   (( v > STATE_FORMAT )) && die "state format $v is newer than this release knows ($STATE_FORMAT); install a newer release"
   while (( v < STATE_FORMAT )); do
-    if (( CANCCU_DRY )); then echo "  would: migrate the state format $v → $((v + 1))"; v=$((v + 1)); continue; fi
+    if (( CANCCU_DRY )); then
+      echo "  would: migrate the state format $v → $((v + 1))"
+      "state_migrate_$((v + 1))" > /dev/null || die "state format $v → $((v + 1)) failed; the state stays at format $v"
+      v=$((v + 1)); continue
+    fi
     what=$("state_migrate_$((v + 1))") || die "state format $v → $((v + 1)) failed; the state stays at format $v"
     # the number is written after each step: a migration that dies later starts from there
     echo "$((v + 1))" > "$f.tmp" && mv -f "$f.tmp" "$f" || die "cannot write ${f/#$HOME/\~}"

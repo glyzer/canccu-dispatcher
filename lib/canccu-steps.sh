@@ -137,10 +137,23 @@ step_ny_clear() {
   [ -n "$i" ] && has_label "$i" needs-you && edit_issue "$i" --remove-label needs-you
   return 0
 }
+# step_ended <m>: no open work and nothing of the step's own left to run: its checkpoint or its
+# end follows, so a budget ask would only come after the step is gone (a done step is not
+# current, and its hold would never be cleared)
+step_ended() {
+  local m=$1
+  [ "$(cur "$m" .work_open)" = 0 ] || return 1
+  case $(step_get "$m" phase) in
+    checkpoint|done) return 0 ;;
+    health) case $(step_get "$m" health) in merged|skipped|closed) return 0 ;; esac ;;
+  esac
+  return 1
+}
 budget_tick() {
   local m=$1 i sp; i=$(step_issue "$m")
   if step_over_budget "$m"; then
     [ -n "$(step_get "$m" budget_ny)" ] && return 0
+    step_ended "$m" && return 0
     sp=$(step_spend "$m" | cut -d' ' -f1)
     step_set "$m" budget_ny=1
     log "step $(step_title "$m") reached STEP_BUDGET (\$$sp of \$$STEP_BUDGET): no new run of it starts$(its_url "$( [ -n "$i" ] && issue_url "$i")")"
