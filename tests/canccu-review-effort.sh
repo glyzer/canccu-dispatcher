@@ -44,6 +44,15 @@ ok "no EFFORT_DOCS_PATHS: contracts are a risky path again → high" \
   eq "$(lib eval "EFFORT_DOCS_PATHS=; review_effort_pure \$'contracts/screen.yaml\t2' 'Tier: fix'")" high
 ok "EFFORT_DOCS_PATHS never lightens a gated path" \
   eq "$(lib eval "EFFORT_DOCS_PATHS='^setup/'; review_effort_pure \$'setup/x.md\t2' 'Tier: fix'")" high
+# the lines of docs/ and *.md files never count toward the fix-tier 100 (docs/reference/reviews.md)
+ok "a small fix plus a long docs file and a long Markdown file: their lines don't count → medium" \
+  eq "$(ef $'src/a.ts\t3\ndocs/guide.md\t200\nnotes/x.md\t90' 'Tier: fix')" medium
+ok "… the code's own lines still count: 120 lines of code → high" eq "$(ef $'src/a.ts\t120\ndocs/guide.md\t2' 'Tier: fix')" high
+# an invalid RISKY_PATHS (a hand-edited rules file) is no "not risky": high, with a warning
+ok "an invalid RISKY_PATHS fails closed → high" \
+  eq "$(lib eval "RISKY_PATHS='('; review_effort_pure \$'src/a.ts\t2' 'Tier: fix' 2>/dev/null")" high
+lib eval "RISKY_PATHS='('; review_effort_pure \$'src/a.ts\t2' 'Tier: fix'" >/dev/null 2>&1
+ok "… with a warning in the log" grep -q 'RISKY_PATHS is not a valid regex' "$CANCCU_HOME/dispatch.log"
 ok "an invalid EFFORT_DOCS_PATHS fails closed → high" \
   eq "$(lib eval "EFFORT_DOCS_PATHS='('; review_effort_pure \$'docs/x.md\t2' 'Tier: fix' 2>/dev/null")" high
 ok "… and a docs-only diff is still medium with a valid one" \
