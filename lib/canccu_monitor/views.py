@@ -59,6 +59,7 @@ class State:
         if k == "a":
             self.rotate = None if self.rotate is not None else self.rotate_secs
             self.switch_at = None
+            self.help = False
             return None
         self.rotate = None
         if self.help:
@@ -115,7 +116,8 @@ def view_bar(st, needs, width):
     """ 1 Summary ✖2   2 Projects   3 Roadmap   4 Activity   5 Queue   ? help   q quit, the current view in
     [ ] (reverse); the view's hints and rotate off|Ns on the right when they fit."""
     names = SHORT if width <= PHONE_UPTO else NAMES
-    gap = " " if width < 70 else "  " if width <= 110 else "   "  # five names: the gap shrinks to keep the bar whole
+    # five names: the gap shrinks to keep the bar whole (81 and 82 columns fit the long names only with one space)
+    gap = " " if width < 70 or 80 < width < 83 else "  " if width <= 110 else "   "
     left = Text()
     for k, name in enumerate(names):
         cur = k == st.view

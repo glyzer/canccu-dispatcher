@@ -79,7 +79,12 @@ def main(argv):
         elif a.startswith("--view="):
             view = a.split("=", 1)[1]
         elif a == "--rotate":
-            rotate = int(args.pop(0)) if args and args[0].isdigit() and int(args[0]) > 0 else 30
+            rotate = 30
+            if args and args[0].isdigit():
+                # 0 would switch views every tick: refuse it rather than fall into the usage text
+                rotate = int(args.pop(0))
+                if rotate < 1:
+                    sys.exit("canccu-monitor: --rotate needs at least 1 second (or no number for 30)")
         else:
             print(__doc__.strip(), file=sys.stderr)
             return 2
