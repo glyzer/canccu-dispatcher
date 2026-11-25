@@ -47,8 +47,9 @@ canccu-worker --kill <repo> <key>
   stale run temp dirs`; `canccu-dispatcher doctor` warns when `workers/tmp` holds over 5 GB.
   `RUN_TMPDIR=system`: the run keeps the inherited `TMPDIR`. Caches a tool keeps in the home
   directory are not cleaned. The run's rules tell it to use `$TMPDIR`, never `/tmp`.
-- **Containers**: a run's tag, `canccu_<project>_<key>` (lowercased, any character but
-  `a-z0-9-` a `-`), reaches it as `CANCCU_RUN` and as `COMPOSE_PROJECT_NAME`; its rules tell it to
+- **Containers**: a run's tag, `canccu_<project>_<key>` (lowercased; any other character but
+  `a-z0-9_-` in the project, and but `a-z0-9-` in the key, a `-`, so `web`, `web_x` and `web-x`
+  never share a tag), reaches it as `CANCCU_RUN` and as `COMPOSE_PROJECT_NAME`; its rules tell it to
   start every container with `--label canccu.run=$CANCCU_RUN` and to run `docker compose` without
   `-p`. A container, network or volume with the label, or of a Compose project with that name,
   is the run's. It outlives the run while its unit is open (a test database the next run reuses)

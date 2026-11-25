@@ -13,7 +13,7 @@
 #   sent     <feed id> <message id, ? when the send timed out> <key or ->
 #   text/<feed id>   the text sent, for the edit that marks it closed
 #   retry    the feed ids whose send failed; offset: the next update to read; images: <pr> <sha>
-# The queue, the cap, the digest and the listener: lib/canccu-notifyq.sh.
+# The queue, the cap, the digest and the listener: lib/canccu-notifyq.sh; the images: lib/canccu-notifyimg.sh.
 
 notify_dir() { echo "$CANCCU_HOME/notify"; }
 _nt_locked() { mkdir -p "$(notify_dir)" && ( flock -w 30 9 || exit 1; "$@" ) 9>>"$(notify_dir)/.lock"; }
@@ -219,33 +219,43 @@ notify_permanent() {
 }
 
 # notify_done <telegram's error text>: a refusal that says the edit or the close has no work left
-# (the text is already Closed:, the message or topic is gone, the user closed the topic): it
-# counts as done, a retry would get the same answer for good
+# (the text is already Closed:, the message or topic is gone, the user closed the topic), or that
+# no retry changes (a message too old to edit): it counts as done, a retry would get the same
+# answer for good
 notify_done() {
-  case $1 in *"message is not modified"*|*"message to edit not found"*|*"TOPIC_NOT_MODIFIED"*|*"TOPIC_ID_INVALID"*|*"TOPIC_DELETED"*|*"message thread not found"*) return 0 ;; esac
+  case $1 in *"message is not modified"*|*"message can't be edited"*|*"message to edit not found"*|*"TOPIC_NOT_MODIFIED"*|*"TOPIC_ID_INVALID"*|*"TOPIC_DELETED"*|*"message thread not found"*) return 0 ;; esac
   return 1
 }
+
+# notify_unreached <rc> <why>: a Telegram call that got no answer (curl failed or timed out, as
+# tg_call reports it), as against a refusal by Telegram
+notify_unreached() { (( $1 == 2 )) || [[ $2 == curl:* ]]; }
 
 # notify_settle <feed id>: the item no longer waits: its message is edited to start with Closed:,
 # and with no leader its topic closes (with one, the leader closes it once the thread is settled).
 # An item that settled before its send worked, or while it waited in the queue, is never sent.
+# 1: Telegram refused, 2: it was not reached (curl failed, timed out); both keep it in unsettled.
 notify_settle() {
-  local id=$1 m key ok=0 r
+  local id=$1 m key ok=0 r rc
   notify_retry_del "$id"; nt_del queue "$id"
   [ "${LEADER:-off}" = on ] || notify_batch_settle "$id"
   m=$(nt_get sent "$id" 2); key=$(nt_get sent "$id" 3)
   [ -n "$m" ] || return 0
   # m -: the item reached the product owner only in a digest
   if [ "$m" != "?" ] && [ "$m" != - ] && [ -f "$(notify_dir)/text/$id" ]; then
-    if ! r=$(tg_edit "$m" "Closed: $(cat "$(notify_dir)/text/$id")") && ! notify_done "$r"; then
-      log "telegram: marking the message of feed line $id closed failed ($r); tried again next pass"; ok=1
+    r=$(tg_edit "$m" "Closed: $(cat "$(notify_dir)/text/$id")"); rc=$?
+    if (( rc )) && ! notify_done "$r"; then
+      log "telegram: marking the message of feed line $id closed failed ($r); tried again next pass"
+      ok=1; notify_unreached "$rc" "$r" && ok=2
     fi
   fi
-  if [ "${LEADER:-off}" != on ] && [ "$key" != - ] && [ "$(nt_get topics "$key" 5)" = open ]; then
-    notify_close "$key" || ok=1
+  # Telegram not reached: the close would cost a second call that fails the same way
+  if (( ok < 2 )) && [ "${LEADER:-off}" != on ] && [ "$key" != - ] && [ "$(nt_get topics "$key" 5)" = open ]; then
+    notify_close "$key"; rc=$?
+    (( rc > ok )) && ok=$rc
   fi
   # a failed edit or topic close is kept for notify_tick: the message would say "this waits" for good
-  if (( ok )); then [ -n "$(nt_get unsettled "$id" 1)" ] || nt_add unsettled "$id"; return 1; fi
+  if (( ok )); then [ -n "$(nt_get unsettled "$id" 1)" ] || nt_add unsettled "$id"; return "$ok"; fi
   nt_del unsettled "$id"
 }
 
@@ -260,74 +270,21 @@ notify_post() {
   (( rc == 0 )) && nt_add msgs "$m	$key"
   echo "$m"; return "$rc"
 }
-# notify_close <key> [say]: closes an open topic (the forum topic too); with say, posts Closed. first
+# notify_close <key> [say]: closes an open topic (the forum topic too); with say, posts Closed. first.
+# 1 when it is no open topic or Telegram refused the close, 2 when Telegram was not reached.
 notify_close() {
-  local r
+  local r rc
   [ "$(nt_get topics "$1" 5)" = open ] || return 1
   [ -z "${2:-}" ] || notify_post "$1" "Closed." >/dev/null || true
-  if [[ $1 == t* ]] && ! r=$(tg_topic_close "${1#t}") && ! notify_done "$r"; then
-    log "telegram: closing the forum topic ${1#t} failed ($r)"; return 1   # stays open: notify_settle tries again
+  if [[ $1 == t* ]]; then
+    r=$(tg_topic_close "${1#t}"); rc=$?
+    if (( rc )) && ! notify_done "$r"; then
+      log "telegram: closing the forum topic ${1#t} failed ($r)"   # stays open: notify_settle tries again
+      notify_unreached "$rc" "$r" && return 2
+      return 1
+    fi
   fi
   nt_put topics "$1" 5 closed
-}
-
-# notify_photos <unit> <caption> <png...>: the images into the unit's newest open topic, else a
-# new one; prints the first message id
-notify_photos() {
-  local k=$1 cap=$2 key th=- re=- m rc
-  shift 2
-  key=$(awk -F '\t' -v u="$k" '$3 == u && $5 == "open" { x = $1 } END { print x }' "$(notify_dir)/topics" 2>/dev/null)
-  if [ -n "$key" ]; then
-    if [[ $key == t* ]]; then th=${key#t}; else re=$(nt_get topics "$key" 6); re=${re:--}; fi
-  elif [[ $TELEGRAM_CHAT_ID == -* ]] && m=$(tg_topic "#$k images"); then
-    th=$m key=t$m; nt_add topics "$key	-	$k	-	open	-"
-  fi
-  m=$(tg_photos "$th" "$re" "$cap" "$@"); rc=$?
-  # a timed-out upload may have landed: it counts as sent, as for a message
-  if (( rc == 2 )); then log "telegram: sending the images for #$k timed out; they may have landed, so they are not sent again"; echo "?"; return 0; fi
-  (( rc == 0 )) || { echo "$m"; return "$rc"; }
-  [ -n "$key" ] || { key=m$m; nt_add topics "$key	-	$k	-	open	$m"; }
-  nt_add msgs "$m	$key"
-  log "telegram: sent $# image(s) for #$k"
-  echo "$m"
-}
-
-# notify_svgs <unit> <pr> <sha>: the SVG files the PR changes, read from GitHub at that head and
-# rendered here. Never a link from the PR body: that is worker text, and fetching it would send
-# the host to any URL. 1 on a gh error (tried again next pass).
-notify_svgs() {
-  local files p d i=0 out=() svgs=() err
-  files=$(pr_files_raw "$2") || return 1
-  mapfile -t svgs < <(cut -f1 <<<"$files" | grep -iE '^[A-Za-z0-9._/-]+\.svg$' | head -n 10)
-  (( ${#svgs[@]} )) || return 0
-  command -v rsvg-convert >/dev/null || { warn_once notify-svg "telegram: rsvg-convert is not installed: the SVGs a PR changes are not sent"; return 0; }
-  d=$(mktemp -d) || return 1
-  for p in "${svgs[@]}"; do
-    i=$((i + 1))
-    # a file the PR deletes is not there at the head (404): nothing to show; any other error is
-    # transient, so the head is not recorded as done and the next pass tries again
-    if ! err=$(ghj api "repos/$REPO/contents/$p?ref=$3" -H 'Accept: application/vnd.github.raw' 2>&1 > "$d/$i.svg"); then
-      [[ $err == *404* ]] && continue
-      rm -rf "$d"; return 1
-    fi
-    timeout 30 rsvg-convert -o "$d/$i.png" "$d/$i.svg" >/dev/null 2>&1 && [ -s "$d/$i.png" ] && out+=("$d/$i.png")
-  done
-  local rc=0
-  (( ${#out[@]} )) && { notify_photos "$1" "PR #$2 changes ${#out[@]} SVG file(s), rendered at ${3:0:7}"$'\n'"$(pr_url "$2")" "${out[@]}" >/dev/null || rc=1; }
-  rm -rf "$d"; return "$rc"
-}
-# notify_images: once per passed head, the SVGs its PR changes. Only under NOTIFY_CONTENT=full:
-# otherwise only a first line, a last line and a link leave the host (contracts §4).
-notify_images() {
-  local k pr sha
-  [ "${NOTIFY_CONTENT:-full}" = full ] || return 0
-  for k in $(managed); do
-    pr=$(st_get "$k" pr); sha=$(st_get "$k" pass_sha)
-    [ -n "$pr" ] && [ -n "$sha" ] || continue
-    [ "$(nt_get images "$pr" 2)" = "$sha" ] && continue
-    notify_svgs "$k" "$pr" "$sha" || continue
-    if [ -n "$(nt_get images "$pr" 1)" ]; then nt_put images "$pr" 2 "$sha"; else nt_add images "$pr	$sha"; fi
-  done
 }
 
 # notify_poll: the pass's read of the bot's updates, once per pass, under the listener's lock: a
@@ -381,8 +338,9 @@ notify_tick() {
   notify_on telegram || return 0
   local id
   for id in $(cat "$(notify_dir)/retry" 2>/dev/null); do notify_event "$id" || break; done
-  # the first transient failure ends the loop, as with the retries: Telegram down costs one call
-  for id in $(cut -f1 "$(notify_dir)/unsettled" 2>/dev/null); do notify_settle "$id" || break; done
+  # Telegram not reached ends the loop, as with the retries: Telegram down costs one call. A
+  # refusal is that line's own: the lines behind it are still tried
+  for id in $(cut -f1 "$(notify_dir)/unsettled" 2>/dev/null); do notify_settle "$id" || { (( $? == 2 )) && break; }; done
   notify_flush
   notify_digest_tick
   notify_images
@@ -392,3 +350,6 @@ notify_tick() {
 # its queue: batching, quiet hours, the cap, the digest and the listener
 # shellcheck source=canccu-notifyq.sh
 . "$_canccu_lib/canccu-notifyq.sh"
+# the SVGs a PR changes, rendered and sent as images
+# shellcheck source=canccu-notifyimg.sh
+. "$_canccu_lib/canccu-notifyimg.sh"
