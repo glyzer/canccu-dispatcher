@@ -60,6 +60,15 @@ rel "$T/chk" check v1.2.4 --body "$T/body-ok"
 ok "check --body: the tag check still runs first" eq "$rc $(grep -c VERSION "$T/out")" "1 1"
 rel "$T/chk" check v1.2.3 --body
 ok "check --body without a file: a usage error" eq "$rc" 2
+# a large body whose line comes first: the early exit of grep must not read as a missing line
+{ printf '%s\n' 'Scenarios: pass at 1a2b3c4'; head -c 3000000 /dev/zero | tr '\0' 'x' | fold -w 100; } > "$T/body-big"
+rel "$T/chk" check v1.2.3 --body "$T/body-big"
+ok "check --body: a large body with the line near its start: ok" eq "$rc" 0
+printf 'Scenarios: pass at 1a2b3c4\r\n' > "$T/body-crlf"
+rel "$T/chk" check v1.2.3 --body "$T/body-crlf"
+ok "check --body: a CRLF line counts" eq "$rc" 0
+rel "$T/chk" check
+ok "usage: prints the whole header, down to the exit codes" eq "$(grep -c -e 'SHA256SUMS' -e '^Exit 0 ok' "$T/out")" 2
 
 # ---------------------------------------------------------------- check --body: the review set's line (#196)
 

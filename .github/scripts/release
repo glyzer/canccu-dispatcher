@@ -15,7 +15,7 @@
 set -uo pipefail
 
 die() { echo "release: $1" >&2; exit "${2:-1}"; }
-usage() { sed -n '3,12s/^# \{0,1\}//p' "$0" >&2; exit 2; }
+usage() { sed -n '3,14s/^# \{0,1\}//p' "$0" >&2; exit 2; }
 
 version() { local v=""; { read -r v < VERSION; } 2>/dev/null; printf '%s\n' "${v//[[:space:]]/}"; }
 
@@ -83,12 +83,12 @@ case $cmd in
       die "the CHANGELOG.md heading '$head' is not '## [$v] — <YYYY-MM-DD>' (still unreleased?)"
     if [ -n "$body" ]; then
       # the gate is the line a run of tests/scenarios/run asks for; a PR body may end in CRLF
-      tr -d '\r' < "$body" | grep -qE '^Scenarios: pass at [0-9a-f]{7,40}$' ||
+      grep -qE '^Scenarios: pass at [0-9a-f]{7,40}'$'\r''?$' "$body" ||
         die 'the release PR body has no "Scenarios: pass at <sha>" line'
       miss=$(review_gate_missing)
       [ -z "$miss" ] || die "the review gate lists names HEAD lacks (renamed? update review_gate in $0): ${miss//$'\n'/, }"
       if since=$(review_set_since "$tag"); then
-        tr -d '\r' < "$body" | grep -qE '^Review set: pass at [0-9a-f]{7,40}$' ||
+        grep -qE '^Review set: pass at [0-9a-f]{7,40}'$'\r''?$' "$body" ||
           die "the release PR body has no \"Review set: pass at <sha>\" line: the review prompt, REVIEW.md handling, lib/canccu-verdict.sh or REVIEW_MODEL's default changed since $since"
         rs="; the review set passed"
       fi
