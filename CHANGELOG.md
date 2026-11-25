@@ -17,6 +17,11 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
   review like a health pass, but a usage reading older than the dispatcher's start counts as
   unknown, so right after an upgrade restart nothing is draining until a run reports usage
   again. Going back to 0.3.0: write `4` to `state.format`.
+- An ended step is never asked about its budget (#307): a step with no open work that is at its
+  checkpoint, done, or past its health pass opens no `hold-budget-<m>` and gets no `needs-you`,
+  so a step finished before the upgrade with its spend over `STEP_BUDGET` just ends. A hold
+  already open stays. `canccu-dispatch --dry-run` now applies the migrations in memory (it still
+  writes nothing), so it shows what the first real pass after an upgrade would do.
 
 **Changes:**
 

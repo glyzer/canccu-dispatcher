@@ -47,7 +47,8 @@ fields (`review_asked`, `nb_sha`, `plan_lines`, the step's `deep`, `polish`, `ro
 `cadence_at` fields) start empty, which means the behaviour before them; 3 → 4 changes no field either (the step's `round_from` starts empty); 4 → 5 sets `pre5=1` on each step that is idle or health-due, has neither field, is in no cadence round and has no unit of its own; the step's next pass then skips its deep review and health pass if it has no open work and some closed (`deep=skipped health=skipped`, on to the checkpoint), else drops the marker, so a step finished before the upgrade is not owed what the new defaults turn on (#277). A number above
 `STATE_FORMAT` (an older release after a newer one ran) stops the start with
 `state format <n> is newer than this release knows (<STATE_FORMAT>); install a newer release`.
-`--dry-run` only says which migrations it would run.
+`--dry-run` says which migrations it would run, applies them in memory and writes nothing: the
+rest of the dry run shows what the first real pass after the upgrade would do (#307).
 
 A release that adds a state field, or changes one, raises `STATE_FORMAT` (a field whose empty
 value means the behaviour before it gets a migration that changes nothing, so an older release

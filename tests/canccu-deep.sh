@@ -513,7 +513,7 @@ oldenv old-over
 dpass
 ok "#307: an ended step over STEP_BUDGET: done, no budget hold" eq "$(sf phase) [$(sf budget_ny)]" "done []"
 ok "… no needs-you and no comment on its epic" eq "$(grep -cE 'issue (edit 90 .*needs-you|comment 90)' "$FAKE/gh.log")" 0
-ok "… no hold-budget-12 feed item" eq "$(grep -c hold-budget-12 "$CANCCU_HOME/feed.open" 2>/dev/null)" 0
+ok "… no hold-budget-12 feed item" eq "$(cat "$CANCCU_HOME/feed.open" 2>/dev/null | grep -c hold-budget-12)" 0
 oldenv old-over-open
 { issue 90 epic "" "4 Search"; issue 44 ready "" "4 Search"; issue 41 ready "" "5 Later"; } | issues
 dpass
