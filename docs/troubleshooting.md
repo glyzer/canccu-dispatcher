@@ -47,7 +47,7 @@ are in `workers/` ([`reference/engine.md`](reference/engine.md)).
 | `no CI checks on PR #<n>` | No CI ran on the PR: no workflow, or a path filter skipped it | Add a CI check that runs on every PR ([`repo-contract.md`](repo-contract.md)) |
 | `review-gate` fails with "REVIEWER_LOGIN is not set" | The repo variable is missing | Set the repo variable `REVIEWER_LOGIN` |
 | `review-gate` stays red after a pass verdict | The comment was edited, the head moved, or the base branch changed | The dispatcher reviews the new head; never edit a verdict comment |
-| `no valid verdict (…)` | The reviewer's file did not end in a verdict for that head | The issue goes to `needs-you`; `canccu-review <pr>` runs it again |
+| `no valid verdict (…)` | The reviewer's file did not end in a verdict for that head. A run that stopped at its turn or time budget is first given one full review of the head (the log says `stopped at its budget with no verdict; one full review`) | The issue goes to `needs-you` (after the one retry, when it was a budget stop); `canccu-review <pr>` runs it again |
 | `post failed …` | GitHub refused the bot's comment | Check that the bot is a collaborator and accepted the invitation |
 
 ## PRs that wait

@@ -154,7 +154,10 @@ last line is a verdict for exactly that head. A file that fails the check is nev
 run that ended `done` without one (no file, an old one, or no verdict for the head) is asked once
 per head, in its own session (`--keep-session`, 10 turns, 2 USD, 10 minutes), to write the file
 from the review it already did; the log says `asked once to write the review file`. A retry that
-leaves no valid file either, or a run that ended any other way, goes to `needs-you`. Backing off
+leaves no valid file either, or a run that ended any other way, goes to `needs-you`. A review or fix-check that stopped at its turn or
+time budget with no valid verdict is not asked for its file: one full review of the head starts
+(under the same start rules), once per head (`review_retry`); the log says `stopped at its budget
+with no verdict; one full review of <sha7>`. A second such stop on that head goes to `needs-you`. Backing off
 or no free slot: the retry waits for the next pass. A failed post is retried every pass; a run's first failed post, or its second
 time-out in a row, labels the issue `needs-you` once, with a comment saying where the review file
 is, and the label goes again once the verdict is acted on, the run is void, or a new run starts.
