@@ -5,6 +5,7 @@
 . "$(dirname "$0")/lib/harness.sh"
 
 # ---------------------------------------------------------------- projects
+jqt() { jq -e "$@" > /dev/null; }
 
 pick() { ( PATH="$fb:$PATH"; . "$root/lib/canccu-common.sh"; echo "$CANCCU_PROJECT $TMUX_SESSION $REPO" ) 2>&1; }
 
@@ -595,21 +596,21 @@ k=$CANCCU_ROOT/projects/web/leader kt=$CANCCU_ROOT/projects/web/leader; kt=${kt/
 out=$(PATH="$fb:$PATH" "$root/bin/canccu-init" --leader web 2>&1); rc=$?
 ok "canccu-init --leader web: succeeds, says where the kit is" eq "$rc $out" "0 leader kit written to $kt; canccu-up starts the leader there"
 ok "… the leader's instructions, the template's for web" eq "$(cat "$k/CLAUDE.md")" "$(sed 's|@NAME@|web|g; s|@REPO@|example-org/web|g' "$root/templates/leader/CLAUDE.leader.md")"
-ok "… its permissions where claude loads them, valid JSON" jq -e .permissions "$k/.claude/settings.json" > /dev/null
+ok "… its permissions where claude loads them, valid JSON" jqt .permissions "$k/.claude/settings.json"
 ok "… they deny reading this project's reviewer token file" \
-  jq -e --arg t "Read(/$E/reviewer-token)" '.permissions.deny | index($t) != null' "$k/.claude/settings.json" > /dev/null
+  jqt --arg t "Read(/$E/reviewer-token)" '.permissions.deny | index($t) != null' "$k/.claude/settings.json"
 for d in 'Bash(git push --force*)' 'Bash(git rebase*)' 'Bash(gh pr merge*)'; do
-  ok "… they deny $d" jq -e --arg d "$d" '.permissions.deny | index($d) != null' "$k/.claude/settings.json" > /dev/null
+  ok "… they deny $d" jqt --arg d "$d" '.permissions.deny | index($d) != null' "$k/.claude/settings.json"
 done
 for a in 'Bash(canccu-dispatcher leader brief*)' 'Bash(canccu-dispatcher wait *)' 'Bash(canccu-dispatcher watch*)' \
-  'Bash(canccu-dispatcher stall*)' 'Bash(canccu-status*)' 'Bash(canccu-status --pace*)' 'Bash(canccu-ship *)' \
+  'Bash(canccu-dispatcher stall*)' 'Bash(canccu-status*)' 'Bash(canccu-ship *)' \
   'Bash(canccu-dispatcher config set --project web PACE=*)' 'Bash(canccu-dispatcher config set --project web PACE_MARGIN=*)' \
   'Bash(canccu-dispatcher config set --project web PACE_CAP=*)' 'Bash(canccu-dispatcher config set --project web STEP_DEEP_REVIEW=*)' \
   'Bash(gh issue comment *)' 'Bash(gh issue create *)'; do
-  ok "… they allow $a" jq -e --arg a "$a" '.permissions.allow | index($a) != null' "$k/.claude/settings.json" > /dev/null
+  ok "… they allow $a" jqt --arg a "$a" '.permissions.allow | index($a) != null' "$k/.claude/settings.json"
 done
 ok "… no allow rule is a config set with a leading *" \
-  jq -e '[.permissions.allow[] | select(test("config set \\*"))] | length == 0' "$k/.claude/settings.json" > /dev/null
+  jqt '[.permissions.allow[] | select(test("config set \\*"))] | length == 0' "$k/.claude/settings.json"
 for t in LEADER_ACCEPTS_HIGH_RISK=1 STEP_DEEP_REVIEW 'polish (deep review)' 'canccu-status --pace' PACE_MARGIN lead-tools.md; do
   ok "… the role names $t (workflow v2)" grep -qF -- "$t" "$k/CLAUDE.md"
 done
