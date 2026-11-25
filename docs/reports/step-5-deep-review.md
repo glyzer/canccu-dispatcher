@@ -25,7 +25,8 @@ was the step's merged PRs (#299, #306, #305, #311, #313, #315) and their issues 
   A step that ended after it was asked keeps its mark; no second ask follows.
 - **Notifier** (#299): the retries of a failed close or edit (`unsettled`) stop at the first
   failure. That is right for an outage, but a refusal `notify_done` does not know stays at the
-  head and blocks every later line (non-blocking).
+  head and blocks every later line (blocking 4). A transient error of gh that holds 404 loses a
+  passed head's images (blocking 5).
 - **Nightly**: the only Nightly run listed on main (22d6c3c) is red with `fork: retry: Resource
   temporarily unavailable` (#314, open). The release workflow runs the same job before it
   publishes, so the cause matters for step 6. It was not established here: tests/canccu-upgrade.sh,
@@ -72,14 +73,18 @@ Blocking:
 3. [correctness] lib/canccu-spend.sh:78 — a finding written as `* Change: …` is read as the `Change:` heading, and the items after it are not counted
    Evidence: for a review body without a valid verdict, `Blocking:`, `* Change: the lock is dropped early`, `* b second`, a blank line and `Review verdict: changes <sha>`, `findings_count` gives `0 0`; with `* The change: …` it gives `2 0`. The `*` in `^[[:space:]*_#]*change:` matches the bullet. `blocking_note` stores the 0, so `extra_fix_due` judges on it.
    Fix: match a heading only, as `ask_change` does: the line ends after the colon and its markup (`^[[:space:]*_#]*change:[[:space:]*_]*$`). Add the case to the test.
+4. [correctness] lib/canccu-notify.sh:385 — one edit or close that Telegram refuses for a reason `notify_done` does not list stays first in `unsettled`, and the `break` keeps every later line from being tried
+   Evidence: run of `notify_tick` with the Telegram calls stubbed and `unsettled` holding A and B: with `closeForumTopic` of A's topic refused ("not enough rights to manage forum topics"; B's close would work), two passes leave `A B` and B is never tried; the same when A's edit answers "message can't be edited". The loop and its `break` were added in the step (#299).
+   Fix: give up a refusal that no retry changes (such as "message can't be edited"), and go on to the next line after a refusal by Telegram; stop the loop only on a curl failure or a time-out, so that Telegram down still costs one call. Test a refused edit and a refused close at the head with a second line behind each.
+5. [correctness] lib/canccu-notify.sh:310 — `*404*` matches any error text with 404 in it (a path or a request id), so a transient error counts as a deleted file and a passed head's image is never sent
+   Evidence: a PR that changes `img/404.svg`, with a network error from gh that names the URL (`Get "https://api.github.com/repos/example-org/web/contents/img/404.svg?ref=…": dial tcp: i/o timeout`): `notify_svgs` returns 0, so `notify_images` records the head and the image is never sent. With `img/a.svg` and the same error it returns 1 and the next pass retries. The match was added in the step (#299); the comment above it says that any other error is transient.
+   Fix: match gh's status, `*"(HTTP 404)"*`. Test it with a path that holds 404 and such an error (tried again next pass), and keep a real 404 skipped.
 Non-blocking:
 - [docs] docs/reference/engine.md:50 — it says that any character but `a-z0-9-` becomes a `-`; a project's `_` becomes `--`
 - [docs] .github/workflows/nightly.yml:24 — the comment says that the run takes about an hour of its 60 minutes (release.yml:73 too); ci.yml:105 says half an hour, and the Nightly run took 30m40s
 - [other] .github/workflows/nightly.yml:24 — the only Nightly on main is red with `fork: retry: Resource temporarily unavailable` (#314); the cause is not established, and the release runs the same job before it publishes
-- [other] lib/canccu-notify.sh:385 — one edit or close that Telegram refuses for a reason `notify_done` does not list stays first in `unsettled`, and the `break` keeps every later line from being tried
-- [other] lib/canccu-notify.sh:310 — `*404*` matches any error text with 404 in it (a path or a request id), so such a transient error counts as a deleted file
 - [test-gap] tests/canccu-asks.sh:88 — it counts `issue comment` calls, not renderings: it passes with the form still rendered after the failed post
 Pre-existing:
-Risk: normal — blocking 1 removes another project's volumes, but only for two projects with such names on one host; 2 and 3 are small
-Findings: 3 blocking, 6 non-blocking, 0 pre-existing
+Risk: normal — blocking 1 removes another project's volumes, but only for two projects with such names on one host; 2 to 5 are small
+Findings: 5 blocking, 4 non-blocking, 0 pre-existing
 Review verdict: changes 1c6605e65b46e589065c054e5adb2f30d21a060f
