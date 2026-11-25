@@ -109,7 +109,8 @@ is per run) and only the USD the unit's work budget has left. A paused dispatche
 
 Otherwise `needs-you`, saying which: no PR, no new pushed commits on the PR, the
 `CONTINUE_MAX` continuations used (`0`: never continue), the work budget's USD used, a cost-budget
-stop, or a deep review's run. A run that finishes ends the chain (`cont` is cleared). The worker's
+stop, or a deep review's run. Progress is measured through the PR only: a run that pushed commits
+but opened no PR yet goes to `needs-you`, and a checklist that advanced is not a signal. A run that finishes ends the chain (`cont` is cleared). The worker's
 rules ask it, on a long task, to push at least every 30 turns and to end with a short handoff when
 the budget nears.
 

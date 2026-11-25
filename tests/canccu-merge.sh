@@ -772,7 +772,7 @@ ok "… merged, no needs-you" eq "$(st 5 phase) $(st 5 merge_mode) $(grep -c nee
 # offenv <name> <fresh mergeable> <fresh mergeStateStatus>: auto-merge off, not queued, the pass's
 # status UNKNOWN (main just moved); the fresh read of PR 50 says the given
 offenv() {
-  merging_off "$1" "$(jq -n --arg m "$2" --arg s "$3" '{state: "OPEN", mergeable: $m, mergeStateStatus: $s}')"
+  merging_off "$1" "$(jq -n --arg m "$2" --arg s "$3" --arg h "${4:-$HA}" '{state: "OPEN", mergeable: $m, mergeStateStatus: $s, headRefOid: $h}')"
   pr 50 5 $HA green | jq '.mergeStateStatus = "UNKNOWN"' | prs
   mkdir -p "$WORKERS_DIR/worktrees/web/issue-5" && touch "$WORKERS_DIR/worktrees/web/issue-5/.git"
   echo 5-thing > "$FAKE/branch"; echo 2 > "$FAKE/behind"
@@ -781,6 +781,10 @@ offenv off-conflicting CONFLICTING DIRTY
 dispatch --once
 ok "auto-merge off, the fresh read says CONFLICTING → main merged in by script" \
   grep -qF '#5 PR #50: conflicts with main; merged main into the branch by script (no AI run)' "$CANCCU_HOME/dispatch.log"
+ok "… no needs-you" hasnt gh.log "needs-you"
+offenv off-moved CONFLICTING DIRTY $HB
+dispatch --once
+ok "auto-merge off, the fresh read has a newer head → main is not merged into the old head" not grep -qs 'merge --no-edit' "$FAKE/git.log"
 ok "… no needs-you" hasnt gh.log "needs-you"
 offenv off-unknown UNKNOWN UNKNOWN
 dispatch --once

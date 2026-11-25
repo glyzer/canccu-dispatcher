@@ -189,7 +189,7 @@ conflict_merge() {
     current)  # GitHub's merge state is stale: said only; the next head gets its own try
       log "#$n PR #$pr: conflicts with main; the merge by script did not run (main is in already)"; return 1 ;;
     *) # an error (a push refused, a fetch timed out) is often gone a pass later: retried, so only
-       # MERGE_TRIES in a row reach the user. Skipped (uncommitted changes, another branch): at once
+       # 3 in a row (fixed, not a setting) reach the user. Skipped (uncommitted changes, another branch): at once
        if [ "$MERGED" = error ]; then
          local k; k=$(st_get "$n" mm_err); k=$(( ${k:-0} + 1 ))
          log "#$n PR #$pr: conflicts with main; the merge by script did not run ($MERGE_WHY; error $k of ${MERGE_TRIES:-3})"
@@ -245,7 +245,7 @@ merging_step() {
     needs_you "$n" "PR #$pr has not merged $MERGE_WAIT_MIN min after auto-merge was enabled; auto-merge disabled (check the merge queue)"
   elif [ "$(pr_get "$pr" '.autoMergeRequest != null')" = false ] && (( $(now) - at > 120 )) && ! in_merge_queue "$pr"; then
     # merged meanwhile (the queue's reason `merged`, or this pass's list is older): no rejection
-    j=$(ghj pr view "$pr" -R "$REPO" --json state,body,closingIssuesReferences,headRefName,mergeable,mergeStateStatus 2>/dev/null)
+    j=$(ghj pr view "$pr" -R "$REPO" --json state,body,closingIssuesReferences,headRefName,headRefOid,mergeable,mergeStateStatus 2>/dev/null)
     if [ "$(jqr '.state // ""' <<<"$j" 2>/dev/null)" = MERGED ]; then
       if plan_pr_merged "$n" "$j"; then plan_back "$n" "$pr" "$(jqr '.headRefName // ""' <<<"$j")"
       else st_set "$n" merge_mode=merged merge_at="$(now)"; log "#$n PR #$pr: merged (auto-merge is off because it is done)"; fi
@@ -254,6 +254,8 @@ merging_step() {
     # GitHub turns auto-merge off when main moves and the PR conflicts, while the pass's status
     # still says UNKNOWN: the fresh read decides. UNKNOWN there too: the next pass looks again
     # (MERGE_WAIT_MIN still bounds it).
+    # a push landed since the pass's list: this pass's head is stale, the next pass decides
+    [ "$(jqr '.headRefOid // ""' <<<"$j" 2>/dev/null)" = "$head" ] || [ -z "$(jqr '.headRefOid // ""' <<<"$j" 2>/dev/null)" ] || return 0
     case $(jqr '"\(.mergeable // "")/\(.mergeStateStatus // "")"' <<<"$j" 2>/dev/null) in
       CONFLICTING/*|*/DIRTY) conflict_merge "$n" "$pr" "$head" "" dirty; return 0 ;;
       UNKNOWN/*) return 0 ;;

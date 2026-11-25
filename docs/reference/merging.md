@@ -170,7 +170,7 @@ main only needs no new review ([`reviews.md`](reviews.md)). Where git cannot mer
 gets one merge run (not a fix round of `FIX_ATTEMPTS`) with the conflicting paths; a run that
 pushed nothing (its PR is still the passed head when the run ends: no second review), or a merge by script that could not run (no worktree, uncommitted changes, another branch
 checked out), is `needs-you`; a git error (a failed fetch or push) is tried again on the next
-passes and is `needs-you` after `MERGE_TRIES` in a row (`mm_err`). A PR only behind main (`BEHIND`) is left to the merge queue.
+passes and is `needs-you` after 3 in a row (a fixed bound, as for a red CI; not a setting) (`mm_err`). A PR only behind main (`BEHIND`) is left to the merge queue.
 GitHub runs no `pull_request` checks on a conflicting PR: one still without checks after
 `NO_CHECKS_MIN` gets the `needs-you` `no CI checks on PR #<pr>: it conflicts with main, so GitHub
 runs no checks; merge main into it or say how`. A draft whose contract PR merged gets main merged

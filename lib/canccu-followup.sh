@@ -321,8 +321,8 @@ fix_max() { [[ ${FIX_ATTEMPTS:-} =~ ^[0-9]+$ ]] && echo "$FIX_ATTEMPTS" || echo 
 # ci_red <K> <pr>: CI is red on the PR. Main is merged in first (by script: another merged PR may
 # have caused the failure) and CI runs again; still red with main in, its failed jobs are rerun once
 # (ci_rerun); still red, a fresh fix session gets the failing job's log tail. At most FIX_ATTEMPTS
-# automatic fix runs per PR, one conflict run and one rerun per head and MERGE_TRIES failed merges
-# in a row, then needs-you (naming the failed checks): nothing repeats unbounded.
+# automatic fix runs per PR, one conflict run and one rerun per head and 3 failed merges in a row
+# (a fixed bound, not a setting), then needs-you (naming the failed checks): nothing repeats unbounded.
 ci_red() {
   local k=$1 pr=$2 head mm at err task f ra to
   head=$(pr_get "$pr" .headRefOid); mm=$(st_get "$k" main_merged); at=$(st_get "$k" check_at)
