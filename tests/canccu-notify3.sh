@@ -82,6 +82,16 @@ echo "Bad Request: not enough rights to manage forum topics" > "$FAKE/tg-refuse-
 dispatch --once
 ok "a close refused at the head: kept, and the line behind it is tried" eq "$(calls closeForumTopic) $(cut -f1 "$(ND)/unsettled" | tr '\n' ' ')" "2 1 2 "
 ok "… Telegram's refusal still keeps the edits done" eq "$(calls editMessageText)" 2
+# Telegram not reached: the close is skipped when the edit was not reached; a time-out ends the loop
+settle_two notify3-settle-unreached-down
+touch "$FAKE/tg-down"; dispatch --once; rm "$FAKE/tg-down"
+ok "topics open, Telegram down: one edit, no close" eq "$(calls editMessageText) $(calls closeForumTopic)" "1 0"
+settle_two notify3-settle-slow-close
+touch "$FAKE/tg-slow-closeForumTopic"; dispatch --once; rm "$FAKE/tg-slow-closeForumTopic"
+ok "a close that times out ends the loop: one edit, one close" eq "$(calls editMessageText) $(calls closeForumTopic)" "1 1"
+settle_two notify3-settle-slow-edit
+touch "$FAKE/tg-slow-editMessageText"; dispatch --once; rm "$FAKE/tg-slow-editMessageText"
+ok "an edit that times out ends the loop, and its close is skipped" eq "$(calls editMessageText) $(calls closeForumTopic)" "1 0"
 
 # a reset of the feed ids clears what waits to be settled: a new item with the same id is not closed
 tg notify3-reset-unsettled
