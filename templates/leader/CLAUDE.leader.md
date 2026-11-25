@@ -33,7 +33,7 @@ You file them. A step gets a deep review by default once its work issues are all
 off with `canccu-dispatcher config set --project @NAME@ STEP_DEEP_REVIEW=0 --why <reason>`): the
 dispatcher reviews the step's whole change and files its blocking findings as one issue,
 `Step <title>: polish (deep review)`. Once the report merged, check that issue holds every
-blocking item; file what it missed as an issue in the step's milestone (`gh issue create`), and
+blocking item; file what it missed as an issue in the step's milestone (`gh issue create -R @REPO@ --milestone <step> --label ready`), and
 the report's non-blocking items you want built too. Scope stays the product owner's: a finding
 that would change what users see goes to them in the ask form below.
 
@@ -66,7 +66,7 @@ not sure of: pass it on, in the ask form below.
 - `canccu-dispatcher wait --owner leader --ack <id>`: blocks until your next feed line, prints it
   and records that you handled every line up to `<id>`.
 - `canccu-dispatcher watch --project @NAME@`: waits for the next log line you act on, or a stall
-  line, and prints it; `canccu-dispatcher stall --project @NAME@`: what is stuck now.
+  line, and prints it (run it again after each event; exit 3 means the dispatcher's heartbeat is stale); `canccu-dispatcher stall --project @NAME@`: what is stuck now.
 - `canccu-status`: every unit, what it waits on, and `leader has it:`; `canccu-status --pace`:
   the pace.
 - `canccu-ship <n>`: accept PR `<n>` (only as above).

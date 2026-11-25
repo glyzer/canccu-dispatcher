@@ -12,7 +12,7 @@ import re
 from rich.console import Console
 
 from .data import load
-from .views import NAMES, State, render_view
+from .views import NAMES, State, render_view, view_bar
 
 SIZES = ((160, 60), (120, 40), (100, 40), (80, 30), (60, 20))
 MOCK_NOW = 1920232860
@@ -239,6 +239,14 @@ def queue_checks(fx, check):
     check(all(len(x) <= 60 for x in lines) and any("LATER" in x for x in lines), "queue: a long step title wraps and keeps LATER")
     check(any("#23" in x and "blocked" in x for x in wide), "queue: a blocked issue keeps its place, marked blocked")
     check(any(x.startswith("Not scheduled") for x in wide), "queue: no Not scheduled section")
+    untitled = dict(snap, step_overview=[{k: v for k, v in o.items() if k != "title"} if o.get("place") == "later" else o
+                                         for o in snap["step_overview"]],
+                    needs_you=[{"issue": 77, "title": "Unknown kind", "kind": "odd", "url": "u"}])
+    lines, _ = shot([("web", untitled)], State(view=4), 120, 100)
+    later = [o["milestone"] for o in snap["step_overview"] if o.get("place") == "later"][0]
+    check(any(x.strip() == "step %d · LATER" % later for x in lines), "queue: a step without a title keeps its number")
+    check(any("#77" in x and x.rstrip().endswith("your decision") for x in lines),
+          "queue: a needs-you item of an unknown kind says your decision")
     old = {k: v for k, v in snap.items() if k != "unscheduled"}
     lines, _ = shot([("web", old)], State(view=4), 120, 100)
     check(not any(x.startswith("Not scheduled") for x in lines) and any("#50" in x for x in lines),
@@ -255,6 +263,15 @@ def queue_checks(fx, check):
     check(any("QUEUE" in x for x in lines), "queue: Home does not show the top")
 
 
+def bar_checks(check):
+    """The view bar keeps its last hint whole at every width a long-name bar nearly fills (81 to 84), also with 12 needs-you items."""
+    for needs in (2, 12):
+        for w in range(60, 131):
+            bar = view_bar(State(view=0), needs, w).plain
+            check(len(bar) <= w and bar.rstrip().endswith("q quit") or "rotate" in bar,
+                  "bar at %d, %d needs-you: the last hint is cut: %r" % (w, needs, bar))
+
+
 def view_checks(mock, fx, check):
     every_view_checks(mock_projects(mock), "mockup", check)
     for f in sorted(os.listdir(fx)):
@@ -268,6 +285,7 @@ def view_checks(mock, fx, check):
     roadmap_view_checks(mock, check)
     activity_checks(mock, fx, check)
     queue_checks(fx, check)
+    bar_checks(check)
     one = [("web", mock["web"])]
     every_view_checks(one, "one project", check)
     lines, _ = shot(one, State(view=1), 120, 100)

@@ -196,6 +196,14 @@ printf '1. [correctness] src/b.sh:4 — a missing quote splits the path\n- [docs
 out=$(PATH="$fb:$PATH" "$root/bin/canccu-status" --findings 2>&1)
 ok "--findings: a §8 block's [class] tag is not the finding: the text is" grep -qx '  1× the loop never ends on empty input (#50)' <<<"$out"
 ok "… the tag alone is never counted" not grep -q '× \[\?\(correctness\|docs\)\]\? (' <<<"$out"
+env_new report-change
+mkdir -p "$CANCCU_HOME/reviews/50"
+printf 'Change:\n- adds the change block\n- renames a flag\n- drops a file\n\n1. [correctness] bin/canccu-status:33 — extless text\n3. [test] a.sh:10,12 — two lines text\n\nReview verdict: changes %s\n' "$HA" > "$CANCCU_HOME/reviews/50/$HA.md"
+out=$(PATH="$fb:$PATH" "$root/bin/canccu-status" --findings 2>&1)
+ok "--findings: the Change: lines are no findings and cite no files" not grep -qE 'adds the change block|renames a flag|drops a file' <<<"$out"
+ok "… a cited file without an extension is a ref: its text is the gist, the file is counted" \
+  eq "$(grep -c '1× extless text (#50)' <<<"$out") $(grep -c '1× bin/canccu-status$' <<<"$out")" "1 1"
+ok "… a list of lines is removed whole: the text is the gist" grep -qF '1× two lines text (#50)' <<<"$out"
 env_new report-empty
 ok "… no review records: says so" grep -q 'no review records' <<<"$(PATH="$fb:$PATH" "$root/bin/canccu-status" --findings 2>&1)"
 
@@ -272,6 +280,19 @@ echo 'fail:issue create' >> "$FAKE/routes"
 rmerged 51 2; rmerged 52 1; rmerged 53 0
 ok "a gh error is logged; the merge goes on" \
   eq "$(grep -c 'recurring finding correctness in lib/a.sh: creating the issue failed (gh)' "$CANCCU_HOME/dispatch.log") $(grep -c '53 merged' "$CANCCU_HOME/dispatch.log")" "1 1"
+
+env_new recur-retry
+json open900.json '{"state": "OPEN"}'; route 'issue view 900 *' open900.json
+rmerged 51 20; rmerged 52 10
+printf '%s\t53\tcorrectness\tlib/a.sh\n' "$((NOW - 1))" >> "$CANCCU_HOME/findings.log"
+rmerged 53 0
+ok "a kill between the findings.log rows and the issue: the next pass of the PR still files it" eq "$(creates)" 1
+ok "… without a second row for the PR" eq "$(awk -F '\t' '$2 == 53' "$CANCCU_HOME/findings.log" | wc -l | tr -d ' ')" 1
+
+env_new recur-mention
+json open900.json '{"state": "OPEN"}'; route 'issue view 900 *' open900.json
+for p in 51 52 53; do rmerged "$p" 0 "N- [correctness] lib/a.sh:$p — ping @octo about it"; done
+ok "an item's text cannot mention a user in the issue" not grep -q 'issue create.*@octo' "$FAKE/gh.log"
 
 echo "canccu-findings tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

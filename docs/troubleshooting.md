@@ -47,7 +47,7 @@ are in `workers/` ([`reference/engine.md`](reference/engine.md)).
 | `no CI checks on PR #<n>` | No CI ran on the PR: no workflow, or a path filter skipped it | Add a CI check that runs on every PR ([`repo-contract.md`](repo-contract.md)) |
 | `review-gate` fails with "REVIEWER_LOGIN is not set" | The repo variable is missing | Set the repo variable `REVIEWER_LOGIN` |
 | `review-gate` stays red after a pass verdict | The comment was edited, the head moved, or the base branch changed | The dispatcher reviews the new head; never edit a verdict comment |
-| `no valid verdict (…)` | The reviewer's file did not end in a verdict for that head | The issue goes to `needs-you`; `canccu-review <pr>` runs it again |
+| `no valid verdict (…)` | The reviewer's file did not end in a verdict for that head. A run that stopped at its turn or time budget is first given one full review of the head (the log says `stopped at its budget with no verdict; one full review`) | The issue goes to `needs-you` (after the one retry, when it was a budget stop); `canccu-review <pr>` runs it again |
 | `post failed …` | GitHub refused the bot's comment | Check that the bot is a collaborator and accepted the invitation |
 
 ## PRs that wait
@@ -71,7 +71,7 @@ are in `workers/` ([`reference/engine.md`](reference/engine.md)).
 | You see | Why | Do |
 |---|---|---|
 | `stalled: no output for 10m, killed` | A hung command (a server, a watch mode, an unbounded wait) | Answer on the issue to resume it; teach the repo's `CLAUDE.md` to bound waits |
-| `stopped: turn budget …`, `cost budget`, `time budget` | The run reached its budget | Comment to resume (a resume has its own budget), or raise `BUDGET_*` |
+| `stopped: turn budget …`, `cost budget`, `time budget` | The run reached its budget | With progress on its PR it continues on its own (`CONTINUE_MAX`); otherwise comment to resume (a resume has its own budget), or raise `BUDGET_*` |
 | `blocked` | Claude Code's permission checks refused a command | Run it yourself or widen the allow list, then comment to resume |
 | `stale run lock … (no process or window of it)` | A run died without cleaning up | Harmless: the next start of that run clears it. Or remove the file `doctor` names |
 | `run temp dirs use … ; a run may leak` | Runs left over 5 GB in `workers/tmp` (killed before they removed their temp dir), or a running one fills its own | The dispatcher's next pass removes those of finished runs over an hour old; or remove the dirs of runs no longer running |

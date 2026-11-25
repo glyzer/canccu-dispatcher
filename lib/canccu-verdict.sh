@@ -211,7 +211,7 @@ review_settle() {
   read -r v b _ _ d _ <<<"$e"
   [ "$v" = "$(file_verdict_raw "$f" "$sha")" ] && return 0
   if [ "$v" = pass ]; then line="Dispatcher: no blocking finding left ($d moved out of Blocking: $(demoted_why "$(cat "$f")")); verdict pass."
-  else line="Dispatcher: $b blocking finding(s) left (a blocking class and Evidence:); verdict changes."; fi
+  else line="Dispatcher: $b blocking finding(s) left (a blocking class$(brake_on || echo ' and Evidence:')); verdict changes."; fi
   (( CANCCU_DRY )) && { echo "  would: rewrite the verdict of $f to $v"; return 0; }
   awk -v l="$line" -v vl="Review verdict: $v $sha" '{ a[NR] = $0; if ($0 ~ /[^[:space:]]/) last = NR }
     END { for (i = 1; i < last; i++) print a[i]; print l; print vl }' "$f" > "$f.tmp" && mv "$f.tmp" "$f" ||
@@ -222,8 +222,10 @@ review_settle() {
 demoted_why() {
   local p s u out=""
   read -r p s u <<<"$(_review_awk why <<<"$1")"
-  (( s || u )) || { echo "never-blocking class, no class or no Evidence:"; return; }
-  (( p )) && out="$p never-blocking class, no class or no Evidence:"
+  local why="never-blocking class, no class or no Evidence:"
+  brake_on && why="never-blocking class or no class"   # the brake keeps the items with no Evidence:
+  (( s || u )) || { echo "$why"; return; }
+  (( p )) && out="$p $why"
   (( s )) && out+="${out:+; }$s already settled"
   (( u )) && out+="${out:+; }$u unchanged since the pass"
   echo "$out"
@@ -266,11 +268,11 @@ preexisting_security() { local l; review_valid "$1" && l=$(_review_awk presec <<
 review_md() {
   local s e ef; ef=$(mktemp)
   s=$(git -C "$(review_wt "$1")" show origin/$BASE_BRANCH:REVIEW.md 2>"$ef" | tr -d '\r' |
-    awk '/^ ? ? ?(```|~~~)/ { fence = !fence }
+    awk 'cmt { if (index($0, "-->")) cmt = 0; next }
+         /^ ? ? ?(```|~~~)/ { fence = !fence }
+         !fence && /^[ \t]*<!--/ { if (!index($0, "-->")) cmt = 1; next }
          !fence && /^#+[ \t]/ { t = $0; sub(/^#+[ \t]+/, "", t); sub(/[ \t#]+$/, "", t)
                       keep = (t == "Also check" || t == "Never blocks" || t == "Known false positives") }
-         !fence && !cmt && /^[ \t]*<!--/ { cmt = 1 }
-         cmt { if ($0 ~ /-->[ \t]*$/) cmt = 0; next }
          keep')
   e=$(cat "$ef"); rm -f "$ef"
   case $e in ''|*"does not exist in"*) ;; *) log "PR #$1 REVIEW.md: git show origin/$BASE_BRANCH failed, read as none: $(oneline 200 "$e")" >&2 ;; esac

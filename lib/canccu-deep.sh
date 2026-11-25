@@ -4,8 +4,8 @@
 # STEP_DEEP_REVIEW=1: once every work issue is closed, one worker run reviews the step's whole change
 # and opens a PR with its report; its blocking findings become one polish issue of the step, then
 # the health pass and the checkpoint follow as before. STEP_TAG: the step's checkpoint OK tags
-# origin/$BASE_BRANCH. The step fields: deep (running, read, merged, closed), deep_head, deep_pr,
-# deep_blocking, polish. CADENCE_DAYS: a long-running step marked `Cadence: on` gets a round every
+# origin/$BASE_BRANCH. The step fields: deep (running, read, merged, closed, skipped), deep_head,
+# deep_pr, deep_blocking, polish. CADENCE_DAYS: a long-running step marked `Cadence: on` gets a round every
 # CADENCE_DAYS days while its waves go on: the deep review, its polish issue, then the checkpoint
 # summary; the fields round, round_phase (deep, read, polish, checkpoint), round_head, round_pr,
 # round_from, round_blocking, round_polish, round_cp_at, cadence_at. docs/reference/steps.md.

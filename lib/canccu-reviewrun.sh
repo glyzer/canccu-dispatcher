@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # shellcheck shell=bash disable=SC2034,SC2154  # globals are shared with the other lib/canccu-*.sh parts
-# Part of lib/canccu-runs.sh (sourced by it, never run): the reviewer and fix-check runs: effort and model, the prompts, starting a review, posting the review file.
+# Part of lib/canccu-runs.sh (sourced by it, never run): the reviewer and fix-check runs: effort and model, the fix-check prompt (`review_prompt` is in lib/canccu-runs.sh), starting a review, posting the review file.
 
 review_wt() { echo "$WORKERS_DIR/worktrees/$REPO_NAME/review-$1"; }
 
@@ -26,8 +26,9 @@ effort_cap() {
 # Agent configuration and gated paths (gated_re) → high; no files → high. With a risk class (a
 # package's, effective_risk): high → high, low or normal → medium, whatever the paths. Without one,
 # by the paths: medium for a docs-only diff (docs/, *.md and the rules' EFFORT_DOCS_PATHS, which
-# count as docs even when RISKY_PATHS names them or their file names match it) or a fix-tier diff under 100 changed lines; high
-# when another path is risky (RISKY_PATHS), and otherwise.
+# count as docs even when RISKY_PATHS names them or their file names match it) or a fix-tier diff
+# under 100 changed lines (the docs' lines left out); high when another path is risky
+# (RISKY_PATHS), and otherwise.
 review_effort_pure() {
   local stats=$1 body=$2 risk=${3:-} paths total rc
   paths=$(cut -f1 <<<"$stats" | grep .) || { effort_cap high; return; }
@@ -45,10 +46,17 @@ review_effort_pure() {
     stats=$(awk -F '\t' 'NR == FNR { keep[$0]; next } $1 in keep' <(printf '%s\n' "$paths") - <<<"$stats")
   fi
   # a docs file is docs whatever its name says ("05-sessions.svg" is no session code), so the risky
-  # paths are tested on what is left outside docs/ and *.md
-  # (no pipe into grep -q: under pipefail its early exit fails the writer with SIGPIPE at random)
+  # paths are tested on what is left outside docs/ and *.md, and their lines count no more than
+  # the docs paths' (no pipe into grep -q: under pipefail its early exit fails the writer with
+  # SIGPIPE at random)
   paths=$(grep -vE '^docs/|\.md$' <<<"$paths") || { effort_cap medium; return; }
-  [ -n "$RISKY_PATHS" ] && grep -qiE "$RISKY_PATHS" <<<"$paths" && { effort_cap high; return; }
+  stats=$(awk -F '\t' 'NR == FNR { keep[$0]; next } $1 in keep' <(printf '%s\n' "$paths") - <<<"$stats")
+  if [ -n "$RISKY_PATHS" ]; then
+    # grep 2: a bad regex, which must not read as "not risky" (the same as EFFORT_DOCS_PATHS above)
+    grep -qiE "$RISKY_PATHS" <<<"$paths" && rc=0 || rc=$?
+    if (( rc == 2 )); then warn_once risky-paths "RISKY_PATHS is not a valid regex ($RISKY_PATHS): every review runs at high effort" >&2; effort_cap high; return
+    elif (( rc == 0 )); then effort_cap high; return; fi
+  fi
   total=$(awk -F '\t' '{ t += $2 } END { print t + 0 }' <<<"$stats")
   if grep -qiE '^[[:space:]*_]*Tier:[[:space:]*_]*fix\b' <<<"$body" && (( total < 100 )); then effort_cap medium; else effort_cap high; fi
 }

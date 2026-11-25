@@ -64,7 +64,7 @@ cenv cont-none run_head="$HB"
 last 5 'stopped: turn budget 250' 'Left: everything.'
 dispatch --once
 ok "no new head: needs-you, saying so" \
-  grep -qF '#5 needs-you: the worker stopped: stopped: turn budget 250, with no new pushed commits on PR #50' "$CANCCU_HOME/dispatch.log"
+  grep -qF '#5 needs-you: the worker stopped: turn budget 250, with no new pushed commits on PR #50' "$CANCCU_HOME/dispatch.log"
 ok "… no continuation" eq "$(runs)" 0
 
 cenv cont-nopr
@@ -77,13 +77,13 @@ cenv cont-cap run_head="$HA" cont=3
 last 5 'stopped: turn budget 250' 'Left: docs.'
 dispatch --once
 ok "CONTINUE_MAX continuations used: needs-you, saying so" \
-  grep -qF '#5 needs-you: the worker stopped: stopped: turn budget 250; its 3 continuations (CONTINUE_MAX) are used' "$CANCCU_HOME/dispatch.log"
+  grep -qF '#5 needs-you: the worker stopped: turn budget 250; its 3 continuations (CONTINUE_MAX) are used' "$CANCCU_HOME/dispatch.log"
 
 cenv cont-usd run_head="$HA" "used=400 79.50 9000"
 last 5 'stopped: turn budget 250' 'Left: docs.'
 dispatch --once
 ok "the unit's USD budget used up: needs-you, saying so" \
-  grep -qF '#5 needs-you: the worker stopped: stopped: turn budget 250; the work budget of $80 is used ($80.50)' "$CANCCU_HOME/dispatch.log"
+  grep -qF '#5 needs-you: the worker stopped: turn budget 250; the work budget of $80 is used ($80.50)' "$CANCCU_HOME/dispatch.log"
 
 cenv cont-cost run_head="$HA"
 last 5 'stopped: cost budget $80' 'Left: docs.'
@@ -95,6 +95,16 @@ echo CONTINUE_MAX=0 >> "$CANCCU_HOME/config"
 last 5 'stopped: turn budget 250' 'Left: docs.'
 dispatch --once
 ok "CONTINUE_MAX=0: needs-you at once" eq "$(runs) $(st 5 phase)" "0 needs-you"
+
+cenv used-garbled "used=12 1.00 180"
+echo 'a header of another shape' > "$WORKERS_DIR/web-5.last"
+lib used_add 5
+ok "a report header of another shape: what the unit used so far is kept" eq "$(st 5 used)" "12 1.00 180"
+
+cenv used-stale "used=12 1.00 180"
+last 5 'done' 'an older run'; touch -d "@$((NOW - 3600))" "$WORKERS_DIR/web-5.last"
+dispatch --once
+ok "a run that left no report of its own (an older .last): its turns and USD are not counted again" eq "$(st 5 used)" "12 1.00 180"
 
 # ---------------------------------------------------------------- the usage-limit resume
 

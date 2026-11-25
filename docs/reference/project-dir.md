@@ -21,6 +21,7 @@ fields are in [`state.md`](state.md). Every file in `~/.canccu/projects/<name>/`
 | `notify/`, `inbox` | The Telegram records, and the product owner's replies for the leader ([`notify.md`](notify.md)) |
 | `digest/<date>.md` | The daily digest |
 | `findings.log` | One tab-separated line per key (class + file) of a merged PR's posted verdicts, written once per PR when it merges, append only: `<time> <pr> <class> <file>` (epoch seconds); `FINDINGS_RECUR=0` writes nothing ([`findings.md`](findings.md#recurring-findings)) |
+| `findings.checked` | One PR number per line: the PRs whose keys were checked against `FINDINGS_RECUR`; a pass killed before this line retries the check on the PR's next merge pass without writing its `findings.log` rows twice |
 | `merged.log` | One line per merged PR of a managed issue: time, issue, PR, how (`auto`, `accepted`, or `by hand` when the dispatcher did not arm it), title |
 | `recurring` | One tab-separated line per key with a recurring-finding issue: `<class> <file> <issue>` ([`findings.md`](findings.md#recurring-findings)) |
 | `brake` | While the review brake is on: `<time> <trigger>` ([`reviews.md`](review-depth.md#the-review-brake)); removed only by `canccu-dispatcher brake release` |

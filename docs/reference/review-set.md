@@ -85,5 +85,10 @@ changes any of these:
 - `lib/canccu-verdict.sh` (the verdict, the demotions and the REVIEW.md text);
 - `REVIEW_MODEL`'s default (`lib/canccu-config.default`).
 
+Other defaults that shape the prompt text (`SECURITY_REVIEW_WHEN`, `REVIEW_EXTRA`, `HIGH_RISK_TEXT`)
+are out of the gate's scope: a change to one of them asks for a run only when a person decides so.
+A name in this list that the gate does not find in its file makes `release check` fail, so a
+rename cannot turn the gate off unseen.
+
 Without an earlier tag the line is needed too. `.github/scripts/release check` enforces it in CI,
 as with `Scenarios: pass at`.

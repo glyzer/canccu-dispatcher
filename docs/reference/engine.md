@@ -98,7 +98,8 @@ of the handoff.
   row leads to `needs-you` with git's error.
 - **Red CI**: main is merged in first and CI runs again (another merged PR may have caused it);
   still red with main in, its failed GitHub Actions jobs are rerun once per head
-  (`gh run rerun <id> --failed`), so a flaky check costs no AI run; still red after that, a fresh
+  (`gh run rerun <id> --failed`), so a flaky check costs no AI run (a run with jobs still running is waited for at most `CI_WAIT_MIN` minutes from the check start; a rerun
+  GitHub refuses as already running, at most 10 minutes; then `needs-you`); still red after that, a fresh
   fix session gets the failing job's log tail (`gh run view --job <id> --log-failed`). Every
   `needs-you` of a red CI ends with `; failed: <the failed checks>`.
 - **Cap**: at most `FIX_ATTEMPTS` (default 2) automatic fix runs per PR, review fix rounds and

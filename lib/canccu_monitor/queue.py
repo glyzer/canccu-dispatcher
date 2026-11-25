@@ -65,7 +65,7 @@ def sections(snap):
     parked = []
     for i in lst(snap, "needs_you"):
         if num(i, "issue") is not None:
-            word, wait = PARKED.get(txt(i, "kind"), ("needs you", "you"))
+            word, wait = PARKED.get(txt(i, "kind"), ("needs you", "your decision"))
             parked.append(row(i, (YOU, word), wait))
     add("Needs you", parked)
     add("Queue", [row(i, (WAIT, "blocked"), waiting(txt(i, "waits_on"))) if i.get("blocked")
@@ -84,7 +84,8 @@ def sections(snap):
             wait = ready_wait(snap) if mw == (NEXT, "ready") else "your accept" if mw[1] == "accept" \
                 else waiting(txt(i, "waits_on"))
             rows.append(row(i, mw, wait))
-        add("%s · %s" % (txt(over, "title") or "step %s" % txt(over, "milestone"), PLACES[place]), rows)
+        ms = num(over, "milestone")
+        add("%s · %s" % (txt(over, "title") or "step %s" % (int(ms) if ms is not None else "?"), PLACES[place]), rows)
     add("Not scheduled", [row(i, (WAIT, "not scheduled"), "your ready label") for i in lst(snap, "unscheduled")
                           if num(i, "issue") is not None])
     return out

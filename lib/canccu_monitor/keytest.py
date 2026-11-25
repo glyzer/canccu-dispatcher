@@ -199,6 +199,17 @@ def loop_checks(snap, check):
     log, shots, st = loop([snap], ["", "", "", "j"], state=st)
     check(st.rotate is None and any("[2 Projects]" in s[-1] for s in shots),
           "loop: rotation does not switch, or a key does not stop it")
+    # rotation skips a view with nothing to show (the Roadmap without steps, the Activity without events)
+    st = State(view=1, rotate=1)
+    st.shows = [True, True, False, False, True]
+    st.tick(0)
+    st.tick(10)
+    check(st.view == 4, "rotation: a view with nothing to show is not stopped on (view %d)" % st.view)
+    # a with the help open: it closes the overlay like any key
+    st = State()
+    st.key("?")
+    st.key("a")
+    check(not st.help, "keys: a with the help open leaves the overlay open")
 
 
 def key_checks(snap, check):

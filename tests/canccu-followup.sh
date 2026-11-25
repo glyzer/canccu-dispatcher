@@ -35,7 +35,7 @@ ok "… no safety block: the session has its rules (#88)" grep -q 'web 5 The ind
 ok "… the fix round's test tier (#250)" grep -qF 'Tests (test tier targeted): run only the test files' <<<"$(wline)"
 review_env resume-fix-full 'Review verdict: changes' review RESUME_ON=answer,plan,fix TEST_TIER=full
 dispatch --once
-ok "TEST_TIER=full: the resumed fix round runs the full suite before its push" grep -qF 'Tests (test tier full): run the tests of the files you change, and the full suite once before you push' <<<"$(wline)"
+ok "TEST_TIER=full: the resumed fix round runs the full suite before its push" grep -qF 'Tests (test tier full): run the tests of the files you change, and the full suite once before marking the PR ready' <<<"$(wline)"
 review_env fresh-fix-full 'Review verdict: changes' review TEST_TIER=full
 wt5; dispatch --once
 ok "… a fresh fix round too" grep -qF 'Tests (test tier full): run the tests of the files you change' <<<"$(wline)"

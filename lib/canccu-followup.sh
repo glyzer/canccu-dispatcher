@@ -104,11 +104,11 @@ test_rule() {
   local t=targeted; [ "${TEST_TIER:-}" = full ] && t=full
   case ${1:-worker}-$t in
     worker-targeted) echo 'Tests (test tier targeted): while working and before marking the PR ready, run only the test files of the areas you touched (the affected-tests command CLAUDE.md names, when it has one), in the foreground; do not run the full suite locally: CI runs it on every push.' ;;
-    worker-full) echo 'Tests (test tier full): while working, run only the tests of the files you change, in the foreground; before marking the PR ready, run the full suite once, in the foreground, bounded with timeout (CI runs it on every push too).' ;;
+    worker-full) echo 'Tests (test tier full): while working, run only the tests of the files you change, in the foreground; before marking the PR ready, run the full suite once, in the foreground, bounded with timeout 9m (a foreground command may run 10 minutes at most; CI runs it on every push too).' ;;
     handoff-targeted) echo 'Tests (test tier targeted): run only the test files of the areas you touched and the repo checks, in the foreground; CI runs the full suite on every push. Never paste whole test logs; never run a command in the background.' ;;
-    handoff-full) echo 'Tests (test tier full): run the tests of the files you change, and the full suite once before you push, in the foreground, bounded with timeout; CI runs it on every push too. Never paste whole test logs; never run a command in the background.' ;;
+    handoff-full) echo 'Tests (test tier full): run the tests of the files you change, and the full suite once before marking the PR ready, in the foreground, bounded with timeout 9m; CI runs it on every push too. Never paste whole test logs; never run a command in the background.' ;;
     fixcheck-targeted) echo 'Tests (test tier targeted): run at most the test files of the files the fix diff touches, in the foreground; never the full suite: CI runs it.' ;;
-    fixcheck-full) echo 'Tests (test tier full): you may run the full suite once, in the foreground, bounded with timeout; CI runs it too.' ;;
+    fixcheck-full) echo 'Tests (test tier full): you may run the full suite once, in the foreground, bounded with timeout 9m; CI runs it too.' ;;
   esac
 }
 
@@ -228,7 +228,7 @@ ci_job_timed_out() {
 ci_timeouts_load() {
   local j
   for j in $(jqr --argjson p "$1" --arg ign "${REVIEW_CHECKS:-}" "$CI_CHECKS"' ci_checks | .[]
-      | select(.s == "COMPLETED" and .c == "CANCELLED") | .u | capture("/job/(?<j>[0-9]+)").j // empty' <<<"$PRS"); do
+      | select(.s == "COMPLETED" and .c == "CANCELLED") | .u | capture("/actions/runs/[0-9]+/job/(?<j>[0-9]+)").j // empty' <<<"$PRS"); do
     ci_job_timed_out "$j" || true
   done
 }
@@ -241,7 +241,7 @@ ci_failed() {
   local run name c jid
   jqr --argjson p "$1" --arg ign "${REVIEW_CHECKS:-}" "$CI_CHECKS"' ci_checks | .[]
       | select(.s == "COMPLETED" and (.c | ci_bad))
-      | [(.u | capture("/actions/runs/(?<id>[0-9]+)/").id // ""), .n, .c, (.u | capture("/job/(?<j>[0-9]+)").j // "")] | join("\u001f")' <<<"$PRS" |
+      | [(.u | capture("/actions/runs/(?<id>[0-9]+)/").id // ""), .n, .c, (.u | capture("/actions/runs/[0-9]+/job/(?<j>[0-9]+)").j // "")] | join("\u001f")' <<<"$PRS" |
     # a tab would do as the separator, but read folds a run of tabs: an empty run id would vanish
     while IFS=$'\x1f' read -r run name c jid; do
       [ "$c" = CANCELLED ] && [ -n "$jid" ] && ci_job_timed_out "$jid" && c=TIMED_OUT
@@ -269,10 +269,36 @@ ci_run_busy() {
       | select(((.status // "COMPLETED") | ascii_upcase) != "COMPLETED")] | length' <<<"$PRS")" != 0 ]
 }
 
+# rerun_wait <K> <pr> <head> <run id> <why>: the rerun of that run waits (<why>, a log phrase) because
+# GitHub refuses it as already running: for at most 600 s per head (ci_wait_at = <head>:<epoch of
+# the first wait>), then needs-you instead of holding the PR for ever. Always 0: the caller has
+# handled the pass. needs_you clears ci_wait_at, so a lifted needs-you starts a new wait.
+rerun_wait() {
+  local k=$1 pr=$2 head=$3 id=$4 w at
+  w=$(st_get "$k" ci_wait_at)
+  if [ "${w%%:*}" = "$head" ] && [[ ${w#*:} =~ ^[0-9]+$ ]]; then at=${w#*:}
+  else at=$(now); st_set "$k" ci_wait_at="$head:$at"; fi
+  if (( $(now) - at >= 600 )); then
+    needs_you "$k" "CI is red on PR #$pr; its failed jobs could not be rerun for 10 minutes: run $id ($(ci_names "$pr")); last: $5" "$(run_msg "$k")" "" ci
+  else warn_once "rerun-wait-$pr" "#$k PR #$pr: CI red; $5"; fi
+  return 0
+}
+
+# busy_wait <K> <pr> <run id>: a job of the failed run still runs (a healthy run: the rest of its jobs
+# finish first): the rerun waits for them, bounded like a pending CI by CI_WAIT_MIN from check_at.
+busy_wait() {
+  local k=$1 pr=$2 id=$3 at; at=$(st_get "$k" check_at); at=${at:-$(now)}
+  if (( $(now) - at > CI_WAIT_MIN * 60 )); then
+    needs_you "$k" "CI is red on PR #$pr; run $id still has jobs running after $CI_WAIT_MIN min ($(ci_names "$pr"))" "" "" ci
+  else warn_once "rerun-wait-$pr" "#$k PR #$pr: CI red; run $id still has jobs running: the rerun waits for them"; fi
+  return 0
+}
+
 # ci_rerun <K> <pr> <head>: the failed GitHub Actions runs of a red head rerun (--failed), once per
 # head, before any fix run: a flaky check costs no AI run. 0 also while a job of such a run still
-# runs, or GitHub refuses the rerun as already running (it waits, spending nothing). 1: none rerun (none to rerun, done for
-# this head, or every rerun call failed), the fix run goes on in this pass.
+# runs, or GitHub refuses the rerun as already running (it waits, spending nothing: busy_wait, bounded by
+# CI_WAIT_MIN; a refused rerun at most 600 s: rerun_wait). 1: none rerun (none to rerun, done for this head, or every rerun call
+# failed), the fix run goes on in this pass.
 ci_rerun() {
   local k=$1 pr=$2 head=$3 id ids done=0
   [ "$(st_get "$k" ci_rerun)" != "$head" ] || return 1
@@ -281,7 +307,7 @@ ci_rerun() {
   # GitHub refuses `rerun --failed` while a job of the run still runs: waiting spends no rerun
   for id in $ids; do
     ci_run_busy "$pr" "$id" || continue
-    warn_once "rerun-wait-$pr" "#$k PR #$pr: CI red; run $id still has jobs running: the rerun waits for them"; return 0
+    busy_wait "$k" "$pr" "$id"; return 0
   done
   st_set "$k" ci_rerun="$head" ci_rerun_at= check_at="$(now)"
   for id in $ids; do
@@ -290,7 +316,7 @@ ci_rerun() {
       # a job the rollup did not list yet still runs: judge the run once it ends, spend nothing
       # (a run already rerun in this pass keeps the once-per-head mark: ci_red waits for its result)
       if (( done )); then st_set "$k" ci_rerun_at="$(now)"; else st_set "$k" ci_rerun= ci_rerun_at=; fi
-      log "#$k PR #$pr: CI red; rerun of run $id refused (still running): it waits"; return 0
+      rerun_wait "$k" "$pr" "$head" "$id" "rerun of run $id refused (still running): it waits"; return 0
     else log "#$k PR #$pr: rerun of run $id failed ($(oneline 200 "$MUT_OUT"))"; fi
   done
   (( done )) || return 1
@@ -305,8 +331,8 @@ fix_max() { [[ ${FIX_ATTEMPTS:-} =~ ^[0-9]+$ ]] && echo "$FIX_ATTEMPTS" || echo 
 # ci_red <K> <pr>: CI is red on the PR. Main is merged in first (by script: another merged PR may
 # have caused the failure) and CI runs again; still red with main in, its failed jobs are rerun once
 # (ci_rerun); still red, a fresh fix session gets the failing job's log tail. At most FIX_ATTEMPTS
-# automatic fix runs per PR, one conflict run and one rerun per head and MERGE_TRIES failed merges
-# in a row, then needs-you (naming the failed checks): nothing repeats unbounded.
+# automatic fix runs per PR, one conflict run and one rerun per head and 3 failed merges in a row
+# (a fixed bound, not a setting), then needs-you (naming the failed checks): nothing repeats unbounded.
 ci_red() {
   local k=$1 pr=$2 head mm at err task f ra to
   head=$(pr_get "$pr" .headRefOid); mm=$(st_get "$k" main_merged); at=$(st_get "$k" check_at)

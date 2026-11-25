@@ -58,7 +58,7 @@ needs_you() {
   [ -n "$msg" ] && body+=$'\n\n'"$(quote 1500 "$msg")"
   edit_issue "$n" --add-label needs-you
   comment_issue "$n" "$body"
-  st_set "$n" phase=needs-you ny_at="$(now)" reason="$(oneline 200 "$reason")" ny_kind="${4:-}" ny_stage="$stg" ny_wait=
+  st_set "$n" phase=needs-you ny_at="$(now)" reason="$(oneline 200 "$reason")" ny_kind="${4:-}" ny_stage="$stg" ny_wait= ci_wait_at=
   log "#$n needs-you: $reason$(its_url "$(issue_url "$n")")"
 }
 
@@ -162,10 +162,7 @@ plan_merged_text() { echo "The plan $1 is approved and merged on $BASE_BRANCH: e
 # accept_lines <n>: the Accept: and Reject: lines of the accept's form (ask_block). Only the
 # channels that count are offered; canccu-ship arms auto-merge: not in a repo without it.
 accept_lines() {
-  local how=""
-  accept_channel label && how="add the label \`accepted\` to this PR"
-  ship_offered && how="${how:+$how, or }\`canccu-ship $(lead_of "$1")\`"
-  [ -n "$how" ] || how="as ACCEPT_CHANNELS ($ACCEPT_CHANNELS) allows"
+  local how; how=$(accept_ways "$(lead_of "$1")" "add the label \`accepted\` to this PR")
   printf '%s\n' "Accept: $how." "Reject: comment here and label issue #$(lead_of "$1") \`needs-work\`."
 }
 

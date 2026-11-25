@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # shellcheck shell=bash disable=SC2034,SC2154  # globals are shared with the other lib/canccu-*.sh parts
-# Part of lib/canccu-common.sh (sourced by it, never run): the run engine: the worker prompt and the run caps; the reviewer and fix-check are in lib/canccu-reviewrun.sh, the continuation marks in lib/canccu-continue.sh.
+# Part of lib/canccu-common.sh (sourced by it, never run): the run engine: the worker prompt, the review prompt (`review_prompt`) and the run caps; the reviewer's and fix-check's runs and the fix-check prompt are in lib/canccu-reviewrun.sh, the continuation marks in lib/canccu-continue.sh.
 
 # ---------------------------------------------------------------- runs (the worker engine)
 

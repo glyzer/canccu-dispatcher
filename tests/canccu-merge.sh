@@ -769,10 +769,22 @@ ok "--auto refused for clean status → a direct merge at the head, without --au
 ok "… logged" grep -qF "#5 PR #50: GitHub can merge it now (clean status); merging directly at ${HA:0:7}" "$CANCCU_HOME/dispatch.log"
 ok "… merged, no needs-you" eq "$(st 5 phase) $(st 5 merge_mode) $(grep -c needs-you "$FAKE/gh.log")" "merging merged 0"
 
+# the same refusal with CI still pending on the head: merge_direct waits, the next pass merges
+macc merge-clean-status-pending
+pr 50 5 $HA pending accepted | prs
+flaky 1 'GraphQL: Pull request Pull request is in clean status (enablePullRequestAutoMerge)'
+fpass
+ok "clean status, CI pending → merge_mode=direct, waiting: no direct merge, no needs-you" \
+  eq "$(st 5 phase) $(st 5 merge_mode) $(grep -c -- '--match-head-commit' "$FAKE/gh.log") $(grep -c needs-you "$FAKE/gh.log")" "merging direct 0 0"
+pr 50 5 $HA green accepted | prs
+fpass
+ok "… CI green on the next pass → merged directly, without --auto" \
+  eq "$(st 5 merge_mode) $(grep -c -- 'pr merge 50 -R example-org/web --squash --match-head-commit' "$FAKE/gh.log")" "merged 1"
+
 # offenv <name> <fresh mergeable> <fresh mergeStateStatus>: auto-merge off, not queued, the pass's
 # status UNKNOWN (main just moved); the fresh read of PR 50 says the given
 offenv() {
-  merging_off "$1" "$(jq -n --arg m "$2" --arg s "$3" '{state: "OPEN", mergeable: $m, mergeStateStatus: $s}')"
+  merging_off "$1" "$(jq -n --arg m "$2" --arg s "$3" --arg h "${4:-$HA}" '{state: "OPEN", mergeable: $m, mergeStateStatus: $s, headRefOid: $h}')"
   pr 50 5 $HA green | jq '.mergeStateStatus = "UNKNOWN"' | prs
   mkdir -p "$WORKERS_DIR/worktrees/web/issue-5" && touch "$WORKERS_DIR/worktrees/web/issue-5/.git"
   echo 5-thing > "$FAKE/branch"; echo 2 > "$FAKE/behind"
@@ -781,6 +793,10 @@ offenv off-conflicting CONFLICTING DIRTY
 dispatch --once
 ok "auto-merge off, the fresh read says CONFLICTING → main merged in by script" \
   grep -qF '#5 PR #50: conflicts with main; merged main into the branch by script (no AI run)' "$CANCCU_HOME/dispatch.log"
+ok "… no needs-you" hasnt gh.log "needs-you"
+offenv off-moved CONFLICTING DIRTY $HB
+dispatch --once
+ok "auto-merge off, the fresh read has a newer head → main is not merged into the old head" not grep -qs 'merge --no-edit' "$FAKE/git.log"
 ok "… no needs-you" hasnt gh.log "needs-you"
 offenv off-unknown UNKNOWN UNKNOWN
 dispatch --once

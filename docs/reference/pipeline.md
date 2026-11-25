@@ -40,20 +40,19 @@ Every `INTERVAL` seconds, under the project's lock:
      finished worker or of a red CI whose label the leader removes with no comment, its PR open,
      not a draft and green (a re-run), goes back to `check` and the review starts.
    - A worker that stopped with a question (a line starting `Question:`) → the answerer.
-   - A worker that finished → phase `check`, then its PR decides (a PR for issue `n`: one that
-     closes it, a plan-only PR with a `Plan for #n` line, or one on its branch `<n>-…`):
+   - A worker that finished → phase `check`, then its PR decides (a PR for issue `n`: one that closes it, a plan-only PR with a `Plan for #n` line, or one on its branch `<n>-…`):
      - an open contract-first PR (on the unit's branch plus `-contract`, closing none of its
        issues, for a repo whose rule is "a contract change is its own PR and merges first") is
-       the unit's PR until it merges: it is reviewed, classified and merged like any other.
-       Once merged, the unit's own PR is back in `check`; a draft resumes the worker to bring
-       in main and finish;
+       the unit's PR until it merges: it is reviewed, classified and merged as any other.
+       Once merged, the unit's own PR is back in `check`; a draft resumes the worker to merge
+       main and finish;
      - no PR, but commits on its branch or uncommitted work in its worktree (its turn ended
-       while work ran in the background, or before its push) → once, a fresh finish session
-       with the handoff: push and open the PR (`finish_tried`); after that, or with nothing
+       with background work, or before its push) → once, a fresh finish session
+       with the handoff to push and open the PR (`finish_tried`); after that, or with nothing
        in the worktree → `needs-you` with the worker's last message;
      - a draft PR with `docs/plans/issue-<n>.md` in its diff or a `Tier: plan` line →
        `needs-you`, "plan ready for OK"; another draft → `needs-you`;
-     - CI pending → wait up to `CI_WAIT_MIN`, then `needs-you`; no check reported at all (never
+     - CI pending → wait up to `CI_WAIT_MIN`, then `needs-you`; no check reported (never
        green) → wait up to `NO_CHECKS_MIN`, then `needs-you`; CI red → main is merged into the
        branch by script (`git merge origin/main`, a normal push, no AI run), CI runs again,
        since another merged PR may have caused it; a merge that conflicts is aborted and a fresh
@@ -65,7 +64,8 @@ Every `INTERVAL` seconds, under the project's lock:
      - CI green, no verdict, body lacking `Testing:`/`Revert:` (no contract, no `Tier: plan`)
        → worker resumed once (`body_lines`; no fix round; no back-off), then review;
      - CI green and no verdict for this head → the review (or, after a fix round, the
-       fix-check) starts; it checks both lines against the diff.
+       fix-check) starts; it checks both lines against the diff (a false `Testing:` is a `[test]`
+       finding, a false `Revert:` a `[correctness]` one).
    - A reviewer that finished: its review file, if valid for the reviewed head, is posted as
      `REVIEWER_LOGIN`; then the verdict on the current head decides:
      - `pass` → classify: **auto** arms the merge (phase `merging`); **manual** labels
@@ -81,17 +81,15 @@ Every `INTERVAL` seconds, under the project's lock:
        those items and your comments, not a full review;
      - a push after the fix-check voids it: a new fix-check of the whole fix diff runs;
      - no counting verdict line → `needs-you`.
-     A verdict counts as acted on only once the merge, the accept request or the resume
-     happened, so a step that fails sees the same verdict again next pass.
+     A verdict counts as acted on only once the merge, accept request or resume
+     happened, so a failed step sees the same verdict next pass.
    - An answerer that finished: `ANSWERED` → the worker resumes with the `Answer:` comment;
      `ESCALATE`, no marker or a failed run → `needs-you`.
    - A run that ended its turn with background work still running (`error: ended with
      background work pending`) → phase `check`, like a finished one: its PR decides, or the
      finish session above.
    - A crashed, stalled or killed run (an `error` result excepted) gets `CRASH_RETRY` fresh runs
-     with its handoff, never its own session: phase `retry`, and the run starts once a slot is
-     free. Past that → `needs-you`. A unit in phase `starting` (its engine was being started)
-     whose run is gone after 60 s counts as killed while starting.
+     with its handoff, never its own session: phase `retry`, started once a slot is free. Past that → `needs-you`. A unit in `starting` whose run is gone after 60 s counts as killed.
    - A run stopped at its turn or time budget whose PR moved on → phase `continue`
      ([`usage.md`](usage.md#continuations)). A blocked, over-budget, stalled or crashed run past
      its retries → `needs-you` with the reason.
@@ -121,16 +119,15 @@ Every `INTERVAL` seconds, under the project's lock:
 4. **Resume.** `plan-ok` → "The user approved the plan. Execute it with the superpowers skill
    executing-plans. Build it in this PR: replace each `Plan for #<n>` line with `Closes #<n>`…", followed by
    your comments on the issue and PR since the `needs-you` (your answers to the plan's questions;
-   a `gh` error reading them keeps `plan-ok` for the next pass). `needs-work` → your comments since the newest of the accept request, the
+   a `gh` error reading them keeps `plan-ok` for next pass). `needs-work` → your comments since the newest of the accept request, the
    arming of the merge and the verdict. A `needs-work` on a `needs-you` the fix-check's open
    items left (`open_sha` set, still in the fix round, not parked at `merge`) is one more fix
    round with a fix-check after it, unless a line of your comment is just `full review`; every
    other `needs-work` (a refused accept, a stopped merge) starts a new cycle: the next review is
    a full one. A `gh` error reading the comments decides nothing: `needs-work` stays for the
    next pass. `needs-work` may be put on the unit's PR too: the pass first moves it to the lead
-   issue (added there, then removed from the PR; logged), then handles it as above in the same
-   pass; a `gh` error on the move leaves it on the PR for the next pass. A `needs-you` issue whose issue or PR got a new comment
-   from `USER_LOGIN` → that comment. `limited` after the back-off, and `continue`, → a fresh session from its handoff ([`usage.md`](usage.md)). `waiting` whose
+   issue (added there, then removed from the PR; logged), then handles it as above in the same pass; a `gh` error on the move leaves it on the PR till next pass. A `needs-you` whose issue or PR got a new comment
+   from `USER_LOGIN` → that comment. `limited` after the back-off, and `continue`, → a fresh session from the handoff ([`usage.md`](usage.md)). `waiting` whose
    `blocked` is gone → "check its blockers again, then do the work". An issue labelled `blocked`
    is never started or resumed, and gets no answerer. A run that finished with no PR is not
    `--resume`d: a fresh session gets the whole task (with `plan_ok`, the order to execute the
@@ -170,7 +167,7 @@ Every `INTERVAL` seconds, under the project's lock:
 
 ## Phases
 
-`starting` (the engine is being started; a start that fails puts back the phase it had) → `work` (worker running) → `check` (waiting for the PR and CI) → `review` (reviewer or
-fix-check running) → `merging` (merge armed) or `accept` (waiting for your accept). A question:
-`question` (waiting for a slot) → `answer` → `work` or `needs-you`. Waiting: `needs-you`,
-`limited` (usage limit), `continue` (a continuation), `retry` (a crashed run waits for a slot for its fresh run), `waiting` (blocked, until `blocked` goes) and `stopped` (`canccu-stop`).
+`starting` (engine starting; a failed start restores the old phase) → `work` (worker running) → `check` (awaiting PR and CI) → `review` (reviewer or
+fix-check running) → `merging` (merge armed) or `accept` (awaiting your accept). A question:
+`question` (awaiting a slot) → `answer` → `work` or `needs-you`. Waiting: `needs-you`,
+`limited` (usage limit), `continue` (continuing), `retry` (a crashed run waits for a slot), `waiting` (blocked until `blocked` goes) and `stopped` (`canccu-stop`).

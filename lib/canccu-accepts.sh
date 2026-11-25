@@ -25,10 +25,11 @@ accept_label_held() {
 # it arms. Reads AUTO_MERGE_ALLOWED: the caller ran auto_merge_read outside any $(…), or the
 # cached value would be lost and every ask would cost a gh call.
 ship_offered() { accept_channel ship && [ "$AUTO_MERGE_ALLOWED" != false ]; }
-# accept_ways <lead>: how to accept, by the channels that count (the ask form's first line)
+# accept_ways <lead> [label phrase]: how to accept, by the channels that count (the ask form's first
+# line and the accept form's Accept: line)
 accept_ways() {
   local w=""
-  accept_channel label && w="label it \`accepted\`"
+  accept_channel label && w=${2:-"label it \`accepted\`"}
   ship_offered && w="${w:+$w, or }\`canccu-ship $1\`"
   echo "${w:-as ACCEPT_CHANNELS ($ACCEPT_CHANNELS) allows}"
 }

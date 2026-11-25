@@ -1,10 +1,9 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 # Reviews, the fix-check, the answerer and the worker prompt
 
-Part of the reference; the index is [`README.md`](README.md). The prompts are in
-`lib/canccu-runs.sh` (`WORKER_PROMPT`, `review_prompt`, `fixcheck_prompt`),
-`lib/canccu-answer.sh` and `lib/canccu-packages.sh`; they rely on the repo contract in
-[`../repo-contract.md`](../repo-contract.md).
+Part of the [reference](README.md). The prompts are in
+`lib/canccu-runs.sh` (`WORKER_PROMPT`, `review_prompt`), `lib/canccu-reviewrun.sh` (`fixcheck_prompt`),
+`lib/canccu-answer.sh`, `lib/canccu-packages.sh`; the repo contract: [`../repo-contract.md`](../repo-contract.md).
 
 ## Reviewer
 
@@ -150,16 +149,17 @@ wins. A `Maintainer accept:` line before the verdict makes the PR manual: the di
 your accept, not `review-gate`.
 
 The dispatcher posts a review only when the file was written after the review started and its
-last line is a verdict for exactly that head. A file that fails the check is never posted. A
-run that ended `done` without one (no file, an old one, or no verdict for the head) is asked once
-per head, in its own session (`--keep-session`, 10 turns, 2 USD, 10 minutes), to write the file
-from the review it already did; the log says `asked once to write the review file`. A retry that
-leaves no valid file either, or a run that ended any other way, goes to `needs-you`. Backing off
-or no free slot: the retry waits for the next pass. A failed post is retried every pass; a run's first failed post, or its second
+last line is a verdict for exactly that head; a file that fails the check is never posted. A
+run that ended `done` without one is asked once per head, in its own session (`--keep-session`,
+10 turns, 2 USD, 10 minutes), to write the file from the review it already did; the log says
+`asked once to write the review file`. A retry that
+leaves no valid file either, or a run that ended any other way, goes to `needs-you`. A review that stopped at its turn or time budget with no verdict is not asked
+for its file: one full review of the head starts, once per head (`review_retry`); a second such stop
+goes to `needs-you`. A failed post is retried every pass; a run's first failed post, or its second
 time-out in a row, labels the issue `needs-you` once, with a comment saying where the review file
 is, and the label goes again once the verdict is acted on, the run is void, or a new run starts.
 A posted review GitHub does not list yet is waited for `POST_WAIT` seconds before
-it counts as missing; a timed-out post is retried only after that wait, never at once. Each
+it counts as missing; a timed-out post waits too. Each
 review run ends with one outcome line in the log: `posted as …`, `post failed …`, `post timed out
 …`, `no valid verdict (<why>)` or `void` (a push during the run).
 
@@ -191,9 +191,9 @@ and the `<n>` / `execute` / `finish` flow in `CLAUDE.md`, with these overrides:
   subagent-driven-development, dispatching-parallel-agents or writing-skills: the dispatcher owns
   worktrees, branches, reviews and questions, and the issue is the agreed spec;
 - create the branch `<n>-<slug>` from `origin/main`; run only the tests of the changed files,
-  in the foreground, never the full suite locally (CI runs it); run nothing in the background
-  (a headless run ends with its turn); commit and push early (after the tests-first commit and
-  when the tests pass); do not review its own work;
+  in the foreground, `tests/run repo` before each push, the full suite only if `TEST_TIER` is `full`
+  ([`hosts.md`](hosts.md#the-test-tier)); nothing in the background; commit and
+  push early (tests-first, then passing); do not review its own work;
 - add `Tier:` and `Decisions made:` to the PR body; stop with a `Question:` line when it must ask;
 - bring in main with `git merge origin/main`, never rebase or force-push; never merge, enable
   auto-merge or touch `accepted`; stop as soon as the PR is open and ready, without waiting for

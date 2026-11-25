@@ -97,7 +97,7 @@ dispatcher_pr() {
     [ -n "$t" ] && body+=$'\n\n'"$t"
   fi
   body+=$'\n\n'"The dispatcher opened this PR: the worker pushed \`$br\` but did not open it${c:+ (its \`gh pr create\` was denied)}. $CANCCU_MARK"
-  mut gh pr create -R "$REPO" --base "$BASE_BRANCH" --head "$br" --title "$(title_of "$n")" --body "$body" $draft >/dev/null ||
+  mut gh pr create -R "$REPO" --base "$BASE_BRANCH" --head "$br" --title "$(title_of "$n")" --body "$(home_tilde "$body")" $draft >/dev/null ||
     { log "#$n the worker pushed $br without a PR; opening it failed"; return 1; }
   fetch_prs && p=$(pr_for "$n") && [ -n "$p" ] || return 1
   log "#$n the worker pushed $br ($ahead commit(s)) but opened no PR; the dispatcher opened PR #$p"

@@ -100,6 +100,12 @@ md=$(lib review_md 50)
 ok "REVIEW.md: the snippet's <!-- … --> lines reach no reviewer" eq "$(grep -c -e '<!--' -e 'block comment' -e '^-->' -e 'one per line' <<<"$md")" 1
 ok "… a rule line is kept" grep -qF 'my-rule' <<<"$md"
 
+env_new rvmd-comment-edge
+rvmain $'## Also check\n- before-rule\n<!--\n# a heading in a comment\n-->\n- after-comment-rule\n<!-- one line --> trailing text\n- after-trailing-rule\n'
+md=$(lib review_md 50)
+ok "REVIEW.md: a # line in a comment resets no section, and text after a closing --> ends the comment" \
+  eq "$(grep -oE '(before|after-comment|after-trailing)-rule' <<<"$md" | tr '\n' ' ')" "before-rule after-comment-rule after-trailing-rule "
+
 env_new rvmd-nofile
 rvmain -
 out=$(lib review_md 50 2>&1)

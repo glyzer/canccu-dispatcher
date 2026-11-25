@@ -81,6 +81,13 @@ ok "… acted on as a pass: auto-merge, no fix round" eq "$(grep -c '^pr merge 5
 ok "… reviews.log: one line, 11 tab-separated columns" eq "$(awk -F '\t' '{ print NF }' "$CANCCU_HOME/reviews.log")" 11
 ok "… in the format of §8" eq "$(cat "$CANCCU_HOME/reviews.log")" "$(printf '2030-11-05T12:00:00Z\t50\t%s\tfull\tpass\t0\t0\t0\t3\t-\t0' "$HA")"
 
+NOEV=$'1. [correctness] src/c.ts:5 — off by one, no evidence\n   Fix: use <='
+venv brake-line "$(review pass "1 0 0" "$NOEV")"
+touch "$CANCCU_HOME/brake"
+dispatch --once
+ok "the brake on: the dispatcher line does not ask for Evidence:" \
+  eq "$(tail -2 "$FAKE/posted-50" | head -1)" "Dispatcher: 1 blocking finding(s) left (a blocking class); verdict changes."
+
 venv valid "$(review changes "4 0 0" "$DEMOTED"$'\n'"$VALID")"
 dispatch --once
 ok "one valid blocking item: posted as the reviewer wrote it" eq "$(cat "$FAKE/posted-50")" "$(review changes "4 0 0" "$DEMOTED"$'\n'"$VALID")"
