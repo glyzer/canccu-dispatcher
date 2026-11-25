@@ -6,13 +6,20 @@
 # dispatcher files one issue per key for a person to decide on. The key is class + file only, never
 # the finding's text: reviewers word the same finding differently each time.
 
-# findings_keys <pr>: "<class> <file>" (tab-separated) once per key of the PR's acted-on verdicts
-# (the posted ones: reviews.log), every heading's items; an item without a class or a file has no key
-findings_keys() {
-  local sha
+# _pr_reviews <pr> <awk-mode>: the PR's acted-on review files (the posted ones: reviews.log), each
+# through review_parse or _review_awk items
+_pr_reviews() {
+  local sha f
   for sha in $(awk -F '\t' -v p="$1" '$2 == p { print $3 }' "$CANCCU_HOME/reviews.log" 2>/dev/null | sort -u); do
-    [ -s "$(review_file "$1" "$sha")" ] && review_parse "$(review_file "$1" "$sha")"
-  done | awk -F '\t' '$1 != "count" && $2 != "-" && $3 != "-" && !s[$2 "\t" $3]++ { print $2 "\t" $3 }'
+    f=$(review_file "$1" "$sha"); [ -s "$f" ] || continue
+    if [ "$2" = keys ]; then review_parse "$f"; else _review_awk items < "$f"; fi
+  done
+}
+
+# findings_keys <pr>: "<class> <file>" (tab-separated) once per key of the PR's acted-on verdicts,
+# every heading's items; an item without a class or a file has no key
+findings_keys() {
+  _pr_reviews "$1" keys | awk -F '\t' '$1 != "count" && $2 != "-" && $3 != "-" && !s[$2 "\t" $3]++ { print $2 "\t" $3 }'
 }
 
 # _recur_n: FINDINGS_RECUR as a number (a value that is none counts as its default)
@@ -20,16 +27,21 @@ _recur_n() { local r=${FINDINGS_RECUR:-3}; [[ $r =~ ^[0-9]+$ ]] || r=3; echo "$r
 _recur_days() { local d=${FINDINGS_RECUR_DAYS:-30}; [[ $d =~ ^[0-9]+$ ]] || d=30; echo "$d"; }
 
 # findings_record <pr>: on merge, the PR's keys go to findings.log (`<time> <pr> <class> <file>`),
-# then recur_check. Once per PR: a merge seen again (a retried pass) neither counts nor comments twice.
+# then recur_check, then the PR goes to findings.checked. Once per PR: a merge seen again neither
+# counts nor comments twice; a pass killed after the rows and before the issue is retried (the
+# rows are not written twice).
 findings_record() {
   local pr=$1 keys t
   (( $(_recur_n) > 0 )) && ! (( CANCCU_DRY )) || return 0
-  awk -F '\t' -v p="$pr" '$2 == p { f = 1 } END { exit !f }' "$CANCCU_HOME/findings.log" 2>/dev/null && return 0
+  grep -qxF "$pr" "$CANCCU_HOME/findings.checked" 2>/dev/null && return 0
   keys=$(findings_keys "$pr"); [ -n "$keys" ] || return 0
-  t=$(now)
-  awk -v t="$t" -v p="$pr" '{ print t "\t" p "\t" $0 }' <<<"$keys" >> "$CANCCU_HOME/findings.log" ||
-    { log "PR #$pr: cannot append to findings.log"; return 0; }
+  if ! awk -F '\t' -v p="$pr" '$2 == p { f = 1 } END { exit !f }' "$CANCCU_HOME/findings.log" 2>/dev/null; then
+    t=$(now)
+    awk -v t="$t" -v p="$pr" '{ print t "\t" p "\t" $0 }' <<<"$keys" >> "$CANCCU_HOME/findings.log" ||
+      { log "PR #$pr: cannot append to findings.log"; return 0; }
+  fi
   recur_check "$pr" "$keys"
+  echo "$pr" >> "$CANCCU_HOME/findings.checked"
 }
 
 # _recur_prs <class> <file>: the distinct PRs with the key in findings.log within the window, oldest first
@@ -38,13 +50,14 @@ _recur_prs() {
     '$3 == c && $4 == f && $1 >= from && !s[$2]++ { print $2 }' "$CANCCU_HOME/findings.log" 2>/dev/null
 }
 
-# _recur_lines <pr> <class> <file>: the PR's findings of the key, one "- PR #<pr>: <item's first line>" each
+# _recur_lines <pr> <class> <file>: the PR's findings of the key, one "- PR #<pr>: <item's first line>"
+# each; an @name is broken so that the issue pings nobody
 _recur_lines() {
-  local sha
-  for sha in $(awk -F '\t' -v p="$1" '$2 == p { print $3 }' "$CANCCU_HOME/reviews.log" 2>/dev/null | sort -u); do
-    [ -s "$(review_file "$1" "$sha")" ] && _review_awk items < "$(review_file "$1" "$sha")"
-  done | awk -F '\t' -v c="$2" -v f="$3" '$1 == c && $2 == f && !s[$3]++ { print $3 }' |
-    while IFS= read -r l; do echo "- PR #$1: $(oneline 200 "$(sed -E 's/^([0-9]+[.)]|[-*+])[[:space:]]+//' <<<"$l")")"; done
+  _pr_reviews "$1" items | awk -F '\t' -v c="$2" -v f="$3" '$1 == c && $2 == f && !s[$3]++ { print $3 }' |
+    while IFS= read -r l; do
+      l=$(oneline 200 "$(sed -E 's/^([0-9]+[.)]|[-*+])[[:space:]]+//' <<<"$l")")
+      echo "- PR #$1: ${l//@/@ }"
+    done
 }
 
 # recurring_issue <class> <file>: the issue recorded for the key (recurring: `<class> <file> <issue>`)
@@ -70,7 +83,7 @@ recur_check() {
     [ -n "$c" ] || continue
     prs=$(_recur_prs "$c" "$f")
     (( $(grep -c . <<<"$prs") >= $(_recur_n) )) || continue
-    what="recurring finding $c in $f"
+    what="recurring finding $(safe_title "$c") in $f"
     n=$(recurring_issue "$c" "$f")
     if [ -n "$n" ]; then s=$(_issue_state "$n") || { log "$what: gh error reading #$n; skipped"; continue; }; fi
     if [ -n "$n" ] && [ "$s" = OPEN ]; then
@@ -83,7 +96,7 @@ recur_check() {
     body="Findings of class \`$c\` in \`$f\` were raised on $(grep -c . <<<"$prs") merged PRs within $(_recur_days) days (\`FINDINGS_RECUR\`, \`FINDINGS_RECUR_DAYS\`):"$'\n\n'
     for p in $prs; do body+="$(_recur_lines "$p" "$c" "$f")"$'\n'; done
     body+=$'\n'"Proposal: fix it at the source, not once more in each PR: a rule in \`AGENTS.md\` or \`REVIEW.md\`, a line in the worker prompt, a lint or a test."$'\n\n'"Who decides: $who what is built of it. This issue is not \`ready\`."
-    mut_out gh issue create -R "$REPO" --title "Recurring finding: $c in $f" --body "$(home_tilde "$body")"$'\n\n'"$CANCCU_MARK" ||
+    mut_out gh issue create -R "$REPO" --title "Recurring finding: $(safe_title "$c") in $f" --body "$(home_tilde "$body")"$'\n\n'"$CANCCU_MARK" ||
       { log "$what: creating the issue failed (gh)"; continue; }
     n=$(grep -oE '/issues/[0-9]+' <<<"$MUT_OUT" | grep -oE '[0-9]+$' | tail -1)
     [ -n "$n" ] || { log "$what: created an issue but read no number from gh"; continue; }

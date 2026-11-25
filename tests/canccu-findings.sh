@@ -281,5 +281,18 @@ rmerged 51 2; rmerged 52 1; rmerged 53 0
 ok "a gh error is logged; the merge goes on" \
   eq "$(grep -c 'recurring finding correctness in lib/a.sh: creating the issue failed (gh)' "$CANCCU_HOME/dispatch.log") $(grep -c '53 merged' "$CANCCU_HOME/dispatch.log")" "1 1"
 
+env_new recur-retry
+json open900.json '{"state": "OPEN"}'; route 'issue view 900 *' open900.json
+rmerged 51 20; rmerged 52 10
+printf '%s\t53\tcorrectness\tlib/a.sh\n' "$((NOW - 1))" >> "$CANCCU_HOME/findings.log"
+rmerged 53 0
+ok "a kill between the findings.log rows and the issue: the next pass of the PR still files it" eq "$(creates)" 1
+ok "… without a second row for the PR" eq "$(awk -F '\t' '$2 == 53' "$CANCCU_HOME/findings.log" | wc -l | tr -d ' ')" 1
+
+env_new recur-mention
+json open900.json '{"state": "OPEN"}'; route 'issue view 900 *' open900.json
+for p in 51 52 53; do rmerged "$p" 0 "N- [correctness] lib/a.sh:$p — ping @octo about it"; done
+ok "an item's text cannot mention a user in the issue" not grep -q 'issue create.*@octo' "$FAKE/gh.log"
+
 echo "canccu-findings tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
