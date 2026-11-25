@@ -37,6 +37,16 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
   linted) within 20 minutes. The whole suite runs on Debian 12 in the new `Nightly` workflow (a
   red night opens or updates the issue "Nightly: the full check on Debian 12 failed") and before
   `release.yml` publishes.
+- Run tags keep a project's `_` (#317): before, `web_x` and `web--x` shared a tag and each
+  one's sweep removed the other's containers, networks and volumes, and `web`'s sweep could reach
+  `web_x`'s. A unit open since before the change still has objects under the old tag
+  (`canccu_web-x_<key>` for `web_x`): its end removes them too, unless a project `web-x` exists.
+  A run resumed after the change gets the new `COMPOSE_PROJECT_NAME`, so its Compose stack
+  starts again beside the old one, which goes at the unit's end.
+- Telegram and review fixes (#317): a refused Closed: edit or topic close no longer holds up the
+  lines behind it (only Telegram not reached ends the loop), and "message can't be edited" is
+  given up; an SVG whose fetch fails with a 404 in its path or error text is tried again (only
+  gh's `(HTTP 404)` skips it); a finding written `* Change: …` counts as a finding.
 - Runs clean up their containers (#238): a run's tag (`canccu_<project>_<key>`) reaches it as
   `CANCCU_RUN` and `COMPOSE_PROJECT_NAME`, and its rules say to label containers with it and to
   use `$TMPDIR`, not `/tmp`. The tagged containers, networks and volumes of a unit go when it

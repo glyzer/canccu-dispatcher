@@ -106,13 +106,13 @@ run_tmp_sweep() {
 # run_tag <key>: the tag of a run of this project, canccu_<project>_<key> (the project: the
 # folder name of CANCCU_HOME, which the worker gets too). Its containers carry it as the label
 # canccu.run or as their Compose project's name, which allows only [a-z0-9_-]: both parts are
-# lowercased with every other character a "-", so the first "_" after "canccu_" ends the project.
-# A project name's own "_" becomes "--", so web_x and web-x do not share the prefix canccu_web-x_
-# (each one's sweep would remove the other's containers).
+# lowercased with every other character a "-". The project keeps its "_" and the key has none, so
+# the last "_" ends the project and web, web_x and web-x never share a tag (each one's sweep
+# would remove the other's containers). The tags before #317 had the project's "_" a "-": run_tag_old.
 run_tag() {
   local p=${CANCCU_HOME##*/} k=$1
-  p=${p,,} k=${k,,} p=${p//_/--}
-  echo "canccu_${p//[^a-z0-9-]/-}_${k//[^a-z0-9-]/-}"
+  p=${p,,} k=${k,,}
+  echo "canccu_${p//[^a-z0-9_-]/-}_${k//[^a-z0-9-]/-}"
 }
 
 # Every repo under CODE_ROOT (a folder with .git, depth 1 or 2, symlinked folders included),

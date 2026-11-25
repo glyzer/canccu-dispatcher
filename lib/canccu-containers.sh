@@ -23,11 +23,26 @@ docker_objs() {
       if (t != "" || all != "") print $1, $2, $3, $4, t }'
 }
 
+# run_tag_old <key>: the tag the run had before #317 (the project's "_" a "-"), for objects a unit
+# open at the upgrade still has. Nothing when the project has no "_", or another project's name gives
+# the same old tag: those objects may be that project's.
+run_tag_old() {
+  local p=${CANCCU_HOME##*/} o
+  [[ $p == *_* ]] || return 0
+  for o in "${CANCCU_HOME%/*}"/*/; do
+    o=${o%/}; o=${o##*/}
+    [ "$o" != "$p" ] && [ "${o//_/-}" = "${p//_/-}" ] && return 0
+  done
+  CANCCU_HOME=${CANCCU_HOME%/*}/${p//_/-} run_tag "$1"
+}
+# run_tags <key>: the run's tag, and its old one when it has one
+run_tags() { run_tag "$1"; run_tag_old "$1"; }
+
 # unit_tags <K>: the tags of the unit's runs: its worker, its answerer, its PR's reviewer
 unit_tags() {
   local pr; pr=$(st_get "$1" pr)
-  run_tag "$1"; run_tag "answer-$1"
-  [ -n "$pr" ] && run_tag "review-$pr"
+  run_tags "$1"; run_tags "answer-$1"
+  [ -n "$pr" ] && run_tags "review-$pr"
   return 0
 }
 
@@ -62,7 +77,8 @@ unit_containers_rm() {
 
 # containers_sweep: the tags of this project that nothing holds any more go: no unit with a state
 # file names them, no live run has them, and no planner's worktree is there (a dropped unit, one
-# the dispatcher was down for). A tag of another project never matches the prefix.
+# the dispatcher was down for). A tag of this project is the prefix and a key with no "_": web's
+# prefix canccu_web_ starts web_x's tags too. The old tags (run_tag_old) are the unit's to remove.
 containers_sweep() {
   local pre l f k t id name st cr
   local -A keep=() seen=()
@@ -74,7 +90,7 @@ containers_sweep() {
   for f in "$WORKERS_DIR/worktrees/$REPO_NAME"/plan-*; do [ -d "$f" ] && keep[$(run_tag "${f##*/}")]=1; done
   for k in container network volume; do
     while IFS=$'\t' read -r id name st cr t; do
-      [[ $t == "$pre"* ]] && [ -z "${keep[$t]-}" ] && seen[$t]=1
+      [[ $t == "$pre"* && ${t#"$pre"} != *_* ]] && [ -z "${keep[$t]-}" ] && seen[$t]=1
     done < <(docker_objs "$k")
   done
   (( ${#seen[@]} )) || return 0

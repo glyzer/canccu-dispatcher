@@ -275,8 +275,10 @@ ok "tag: a run gets CANCCU_RUN and COMPOSE_PROJECT_NAME, canccu_<project>_<key>"
 ok "… its rules say \$TMPDIR, not /tmp" grep -qF 'under $TMPDIR, never /tmp' <(tail -1 "$FAKE/claude.args")
 ok "… and to label containers with it" grep -qF -- '--label canccu.run=$CANCCU_RUN' <(tail -1 "$FAKE/claude.args")
 ok "tag: a key's other characters become -" eq "$( . "$root/lib/canccu-engine.sh"; CANCCU_HOME=/x/projects/My.Proj run_tag pkg-3-Api_v2)" "canccu_my-proj_pkg-3-api-v2"
-ok "… a project's _ is not a - (web_x and web-x do not share a prefix)" \
-  eq "$( . "$root/lib/canccu-engine.sh"; CANCCU_HOME=/x/projects/web_x run_tag 1) $( . "$root/lib/canccu-engine.sh"; CANCCU_HOME=/x/projects/web-x run_tag 1)" "canccu_web--x_1 canccu_web-x_1"
+tagof() { ( . "$root/lib/canccu-engine.sh"; CANCCU_HOME=/x/projects/$1 run_tag "$2" ); }
+ok "… a project keeps its _ and -: web, web_x, web-x and web--x each have their own tag" \
+  eq "$(tagof web 1) $(tagof web_x 1) $(tagof web-x 1) $(tagof web--x 1) $(tagof web-_x 1) $(tagof web_-x 1)" \
+  "canccu_web_1 canccu_web_x_1 canccu_web-x_1 canccu_web--x_1 canccu_web-_x_1 canccu_web_-x_1"
 rm -f "$FAKE/claude.do"
 
 # ---------------------------------------------------------------- background work (#26)

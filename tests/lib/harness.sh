@@ -40,7 +40,7 @@ export LC_ALL=C
 cat > "$fb/gh" <<'EOF'
 #!/usr/bin/env bash
 # fake gh: reads "<glob><TAB><file>" routes (test routes first, then defaults); first match on
-# "$*" wins. A file named FAIL makes the call fail. Writes always succeed unless a route
+# "$*" wins. A file named FAIL makes the call fail, NOTFOUND with GitHub's 404. Writes always succeed unless a route
 # "fail:<cmd sub>" exists. Every call is appended to gh.log on one line, and the identity it ran
 # as (user: no GH_TOKEN; reviewer: the fake reviewer token; other) to gh.env, never the token.
 # A `pr edit --body-file <file>` is logged as the file's text, and kept in $FAKE/prbody-<pr>.
@@ -163,6 +163,7 @@ while IFS=$'\t' read -r pat file; do
   # shellcheck disable=SC2053
   [[ $a == $pat ]] || continue
   [ "$file" = FAIL ] && { echo "fake gh: failing $a" >&2; exit 1; }
+  [ "$file" = NOTFOUND ] && { echo "gh: Not Found (HTTP 404)" >&2; exit 1; }
   [ "$file" = RERUN_REFUSED ] && { x=${a#run rerun }; echo "run ${x%% *} cannot be rerun; This workflow is already running" >&2; exit 1; }
   if [ -n "$q" ]; then jq -r "$q" "$FAKE/$file"; else cat "$FAKE/$file"; fi
   exit
