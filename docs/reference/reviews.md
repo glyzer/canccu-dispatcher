@@ -2,7 +2,7 @@
 # Reviews, the fix-check, the answerer and the worker prompt
 
 Part of the reference; the index is [`README.md`](README.md). The prompts are in
-`lib/canccu-runs.sh` (`WORKER_PROMPT`, `review_prompt`, `fixcheck_prompt`),
+`lib/canccu-runs.sh` (`WORKER_PROMPT`, `review_prompt`), `lib/canccu-reviewrun.sh` (`fixcheck_prompt`),
 `lib/canccu-answer.sh` and `lib/canccu-packages.sh`; they rely on the repo contract in
 [`../repo-contract.md`](../repo-contract.md).
 
@@ -194,9 +194,10 @@ and the `<n>` / `execute` / `finish` flow in `CLAUDE.md`, with these overrides:
   subagent-driven-development, dispatching-parallel-agents or writing-skills: the dispatcher owns
   worktrees, branches, reviews and questions, and the issue is the agreed spec;
 - create the branch `<n>-<slug>` from `origin/main`; run only the tests of the changed files,
-  in the foreground, never the full suite locally (CI runs it); run nothing in the background
-  (a headless run ends with its turn); commit and push early (after the tests-first commit and
-  when the tests pass); do not review its own work;
+  in the foreground, and the repo checks (`tests/run repo`) before each push; the full suite
+  locally only when `TEST_TIER` is `full` ([`hosts.md`](hosts.md#the-test-tier); CI runs it
+  either way); run nothing in the background (a headless run ends with its turn); commit and
+  push early (after the tests-first commit and when the tests pass); do not review its own work;
 - add `Tier:` and `Decisions made:` to the PR body; stop with a `Question:` line when it must ask;
 - bring in main with `git merge origin/main`, never rebase or force-push; never merge, enable
   auto-merge or touch `accepted`; stop as soon as the PR is open and ready, without waiting for

@@ -20,8 +20,8 @@ docs and fixtures are exempt.
 ## Tests
 
 - Every behaviour change comes with a test that failed before it.
-- While working, run only the tests of the files you change; run the full suite once, just before
-  pushing. Never paste whole test logs into the conversation.
+- While working, run only the tests of the files you change; run the repo checks before each push
+  (the full suite locally only when the dispatcher's `TEST_TIER` is `full`; CI runs it). Never paste whole test logs into the conversation.
 
 ## Branches
 

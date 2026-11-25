@@ -26,7 +26,7 @@ Summary has the full 2-line header instead. The last line is the view bar:
 
 The current view is in brackets (and reverse), the needs-you count is the red badge on the
 Summary tab, the view's key hints and `rotate off` or `rotate 30s` sit on the right when they
-fit. Up to 80 columns the names are short (`Sum`, `Proj`, `Road`, `Act`).
+fit. Up to 80 columns the names are short (`Sum`, `Proj`, `Road`, `Act`, `Que`).
 
 - **1 Summary** (the default): the most important things, one line each. NEEDS YOU (one line per
   item with a `how:` line under it), NOW (a line per run with its stage, minutes and turns against

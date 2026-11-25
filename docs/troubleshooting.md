@@ -71,7 +71,7 @@ are in `workers/` ([`reference/engine.md`](reference/engine.md)).
 | You see | Why | Do |
 |---|---|---|
 | `stalled: no output for 10m, killed` | A hung command (a server, a watch mode, an unbounded wait) | Answer on the issue to resume it; teach the repo's `CLAUDE.md` to bound waits |
-| `stopped: turn budget …`, `cost budget`, `time budget` | The run reached its budget | Comment to resume (a resume has its own budget), or raise `BUDGET_*` |
+| `stopped: turn budget …`, `cost budget`, `time budget` | The run reached its budget | With progress on its PR it continues on its own (`CONTINUE_MAX`); otherwise comment to resume (a resume has its own budget), or raise `BUDGET_*` |
 | `blocked` | Claude Code's permission checks refused a command | Run it yourself or widen the allow list, then comment to resume |
 | `stale run lock … (no process or window of it)` | A run died without cleaning up | Harmless: the next start of that run clears it. Or remove the file `doctor` names |
 | `run temp dirs use … ; a run may leak` | Runs left over 5 GB in `workers/tmp` (killed before they removed their temp dir), or a running one fills its own | The dispatcher's next pass removes those of finished runs over an hour old; or remove the dirs of runs no longer running |

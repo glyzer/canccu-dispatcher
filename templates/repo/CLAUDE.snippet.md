@@ -48,7 +48,7 @@ Do the work.
 
 Open the PR.
 
-1. Run the full local check once: `<the full test command>`. It must pass.
+1. Run the repo checks, `<the repo-checks command>`, and the tests of the files you changed; they must pass. (Run the full suite once only when the dispatcher's `TEST_TIER` is `full`; CI runs it on every push.)
 2. Push the branch and open the PR (or mark the draft ready), with the body `AGENTS.md`
    prescribes.
 3. Watch CI. Red: fix, rerun the local check, push once. Red after two fix rounds: stop and say
