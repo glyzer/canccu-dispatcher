@@ -21,13 +21,15 @@ accept_label_held() {
   for m in $(members_of "$1"); do has_label "$m" accepted && return 0; done
   return 1
 }
-# accept_ways <lead>: how to accept, by the channels that count (the ask form's first line).
-# canccu-ship arms auto-merge: not offered in a repo without it.
+# ship_offered: canccu-ship is offered: the channel counts, and the repo allows auto-merge, which
+# it arms. Reads AUTO_MERGE_ALLOWED: the caller ran auto_merge_read outside any $(…), or the
+# cached value would be lost and every ask would cost a gh call.
+ship_offered() { accept_channel ship && [ "$AUTO_MERGE_ALLOWED" != false ]; }
+# accept_ways <lead>: how to accept, by the channels that count (the ask form's first line)
 accept_ways() {
   local w=""
   accept_channel label && w="label it \`accepted\`"
-  auto_merge_read
-  accept_channel ship && [ "$AUTO_MERGE_ALLOWED" != false ] && w="${w:+$w, or }\`canccu-ship $1\`"
+  ship_offered && w="${w:+$w, or }\`canccu-ship $1\`"
   echo "${w:-as ACCEPT_CHANNELS ($ACCEPT_CHANNELS) allows}"
 }
 
@@ -89,7 +91,7 @@ accept_held() {
 # (main_merge_only): auto-merge on head. Merges of main with conflicts resolved only inside the
 # PR's own files (resolved_outside) hold the accept for head's fix-check instead (carry_sha,
 # carry_by; carry_accept spends it on the pass), and the caller's requeue reviews head. 1: not
-# carried now, the caller's path. canccu-ship's own hold on head (carry_sha = head) is kept.
+# carried now, the caller's path; 2: the merge failed, tried again next pass. canccu-ship's own hold on head (carry_sha = head) is kept.
 keep_accept() {
   local n=$1 pr=$2 old=$3 head=$4 by out
   [ "$(st_get "$n" carry_sha)" = "$head" ] || st_set "$n" carry_sha= carry_by=
@@ -99,7 +101,13 @@ keep_accept() {
   if main_merge_only "$old" "$head"; then
     st_set "$n" accept_sha="$head" carried="$head" carried_by="$by"
     log "#$n PR #$pr: \`accepted\` carried over from ${old:0:7} to ${head:0:7}: a merge of main only (KEEP_ACCEPT_ON_MAIN_MERGE=1)"
-    merge_auto "$n" "$pr" accepted "$head"
+    # a merge left to retry (a transient gh error: no needs-you) puts the old head back, so the
+    # next pass carries the accept again instead of asking for a new one; one that raised the
+    # needs-you keeps head as the accept, so lifting it retries the merge (merge_unpark)
+    merge_auto "$n" "$pr" accepted "$head" || {
+      [ "$(st_get "$n" phase)" = needs-you ] || st_set "$n" accept_sha="$old" carried= carried_by=
+      return 2
+    }
     return 0
   fi
   out=$(resolved_outside "$old" "$head") || return 1

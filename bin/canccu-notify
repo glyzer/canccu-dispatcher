@@ -43,7 +43,11 @@ case $cmd in
   photos)
     [ $# -ge 2 ] && [[ $1 =~ ^[0-9]+$ ]] || die "usage: canccu-notify photos <unit> <png...>"
     k=$1; shift
-    for f in "$@"; do [ -f "$f" ] && [ -r "$f" ] || die "no image file $f"; done
+    # a PNG only: the leader's allow rule for `photos *` must not make any readable file uploadable
+    for f in "$@"; do
+      [ -f "$f" ] && [ -r "$f" ] || die "no image file $f"
+      [ "$(head -c 8 "$f" | od -An -tx1 | tr -d ' \n')" = 89504e470d0a1a0a ] || die "$f is not a PNG file"
+    done
     pr=$(st_get "$k" pr); cap="#$k"
     [ -z "$pr" ] || cap="#$k, PR #$pr"$'\n'"$(pr_url "$pr")"
     m=$(notify_photos "$k" "$cap" "$@") || die "sending the images failed: $m"

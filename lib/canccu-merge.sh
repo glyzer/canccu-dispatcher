@@ -131,12 +131,13 @@ accept_step() {
   pr_is_open "$pr" || { pr_gone "$n" "$pr"; return; }
   head=$(pr_get "$pr" .headRefOid)
   if [ "$head" != "$(st_get "$n" accept_sha)" ]; then
-    keep_accept "$n" "$pr" "$(st_get "$n" accept_sha)" "$head" || requeue "$n" "$pr" "new push since the classification"
+    keep_accept "$n" "$pr" "$(st_get "$n" accept_sha)" "$head"
+    case $? in 0|2) ;; *) requeue "$n" "$pr" "new push since the classification" ;; esac
     return 0
   fi
   conflict_merge "$n" "$pr" "$head" && return 0
   ship_armed "$n" "$pr" "$head" && return 0
-  [ "$(st_get "$n" ask_sha)" = "$head" ] || ask_block "$n" "$pr" "$(accept_lines "$n")"
+  if [ "$(st_get "$n" ask_sha)" != "$head" ]; then auto_merge_read; ask_block "$n" "$pr" "$(accept_lines "$n")"; fi
   # the label on an issue of the unit is tolerated too, under the same checks as on the PR; one
   # that does not count never hides a later one that does
   local held=() h
@@ -214,7 +215,10 @@ merging_step() {
   head=$(pr_get "$pr" .headRefOid)
   if [ "$head" != "$(st_get "$n" merge_sha)" ]; then
     armed "$n" "$pr" && mut gh pr merge "$pr" -R "$REPO" --disable-auto
-    [ "$(st_get "$n" how)" = accepted ] && keep_accept "$n" "$pr" "$(st_get "$n" merge_sha)" "$head" && return 0
+    if [ "$(st_get "$n" how)" = accepted ]; then
+      keep_accept "$n" "$pr" "$(st_get "$n" merge_sha)" "$head"
+      case $? in 0|2) return 0 ;; esac
+    fi
     if [ -z "$mode" ]; then requeue "$n" "$pr" "new push after auto-merge was enabled; auto-merge disabled"
     else requeue "$n" "$pr" "new push after the review passed; not merged"; fi
     return
@@ -297,8 +301,10 @@ postpass_step() {
   pr_fetch "$pr"
   if main_merge_only "$psha" "$head"; then
     log "#$n PR #$pr: the new head ${head:0:7} is a merge of main only since the pass at ${psha:0:7}; no new review"
-    # moved only once acted on: a classify retry or a failed merge sees this head again
-    after_pass "$n" "$pr" "$head" "merge of main" && st_set "$n" pass_sha="$head"
+    # the pass moves first, so the ask form after_pass writes shows this head as passed; put back
+    # when it fails: a classify retry or a failed merge sees this head again
+    st_set "$n" pass_sha="$head"
+    after_pass "$n" "$pr" "$head" "merge of main" || st_set "$n" pass_sha="$psha"
     return 0
   fi
   base=$(st_get "$n" full_sha); base=${base:-$psha}

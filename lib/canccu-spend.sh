@@ -73,6 +73,10 @@ findings_count() {
   awk 'BEGIN { b = 0; n = 0; pre = 0; part = 0; seen = 0; changes = 0 }
        # headings in any case, as the parser of a valid file (_REVIEW_AWK) reads them
        { l = tolower($0) }
+       # the "Change:" section (three summary lines) is no finding list: skip its "- " items; the
+       # first line that is none ends it (a blank line, or the next heading with no blank between)
+       l ~ /^[[:space:]*_#]*change:/ { inchg = 1; next }
+       inchg { if (l ~ /^[[:space:]]*[-*][[:space:]]/) next; inchg = 0; if (l ~ /^[[:space:]]*$/) next }
        l ~ /^[[:space:]*_#]*non-blocking/ { part = 2; next }
        l ~ /^[[:space:]*_#]*blocking/ { seen = 1; if (part == 0) part = 1; next }
        l ~ /^[[:space:]*_]*review verdict:[[:space:]*_]*changes/ { changes = 1; next }

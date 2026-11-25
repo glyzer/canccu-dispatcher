@@ -204,7 +204,7 @@ engine() {
   # the backstop of the pause (#215), for every caller and canccu-run or canccu-review by hand. Not
   # SLOT_REFUSED: a paused project waits for no slot. Its text names the first refusal only: once
   # per pause (canccu-resume removes the marker).
-  if paused && pause_holds; then
+  if pause_file_holds; then
     [ -e "$CANCCU_HOME/.warned-paused-start" ] || warn_once paused-start "could not start $1: the project is paused (canccu-resume to continue)"
     return 1
   fi

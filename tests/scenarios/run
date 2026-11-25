@@ -63,15 +63,23 @@ one() (
     (( $(date +%s) < end )) || { WHY="timed out after $TIMEOUT_SEC s: $WHY"; break; }
     sleep "$PASS_SEC"
   done
-  echo "$1: FAIL $WHY (last log: $(tail -1 "$CANCCU_HOME/dispatch.log" 2>/dev/null | cut -c1-200))"
+  echo "$1: FAIL ${MERGE_QUEUE_ERR:-}$WHY (last log: $(tail -1 "$CANCCU_HOME/dispatch.log" 2>/dev/null | cut -c1-200))"
   return 1
 )
 
-# merge_queue: main has a merge queue (a gh error counts as one: the scenario runs, and says why
-# it fails); a repo a user owns has none, so queue-removal is skipped there
-merge_queue() { [ "$(gh api "repos/$REPO/rules/branches/main" --jq '[.[] | select(.type == "merge_queue")] | length' 2>/dev/null)" != 0 ]; }
+# merge_queue: main has a merge queue (a gh error counts as one: the scenario runs, and its FAIL
+# line says the rules read failed, see MERGE_QUEUE_ERR); a repo a user owns has none, so queue-removal is skipped there
+merge_queue() {
+  local n
+  if n=$(gh api "repos/$REPO/rules/branches/main" --jq '[.[] | select(.type == "merge_queue")] | length' 2>/dev/null); then
+    [ "$n" != 0 ]
+  else
+    MERGE_QUEUE_ERR="the merge queue check (gh api rules/branches/main) failed, so a queue was assumed: "
+    return 0
+  fi
+}
 
-rc=0
+rc=0 MERGE_QUEUE_ERR=""
 for s in "${want[@]}"; do
   if [ "$s" = queue-removal ] && ! merge_queue; then echo "queue-removal: SKIP no merge queue"; continue; fi
   one "$s" || rc=1

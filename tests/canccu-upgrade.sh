@@ -80,5 +80,14 @@ ok "none: current is this release: no re-exec" not test -e "$E/reexec"
 ok "… work goes on, nothing logged" eq "$(started 5 && echo yes) $(dlog 'upgrade to')" "yes 0"
 ok "… the snapshot has none" eq "$(jq -r .pass.upgrade "$CANCCU_HOME/status.json")" null
 
+# a checkout has no release to leave: a file a killed loop left behind does not hold the project
+env_new upgrade-stale; install
+issue 5 ready | issues
+echo 0.9 > "$CANCCU_HOME/upgrade"
+mkdir -p "$E/sb"; printf '#!/bin/sh\n[ "$1" = 60 ] || exec %s "$@"\nkill -TERM "$PPID"\n' "$REAL_SLEEP" > "$E/sb/sleep"; chmod +x "$E/sb/sleep"
+( PATH="$E/sb:$fb:$PATH" CANCCU_WORKER="$fb/worker" timeout 60 "$root/bin/canccu-dispatch" > "$E/out" 2>&1 ) 2>/dev/null
+ok "stale: a checkout's loop removes a leftover upgrade file" not test -e "$CANCCU_HOME/upgrade"
+ok "… and the work goes on" started 5
+
 echo "canccu-upgrade tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

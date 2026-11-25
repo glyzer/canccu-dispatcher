@@ -9,7 +9,7 @@ WORKER_REPO_CAP="${WORKER_REPO_CAP:-3}"
 WORKER_EXCLUSIVE_RE="${WORKER_EXCLUSIVE_RE:-}"   # canccu-worker: issues matching it run one at a time per repo
 
 # cron and fresh tmux servers start with a bare PATH: the host names its own dirs (EXTRA_PATH),
-# put first in their order, each once
+# added in front of PATH in the order named (the first one ends up first), each once, if it exists
 _canccu_xp=()
 IFS=: read -ra _canccu_xp <<<"${EXTRA_PATH:-}"
 for (( _i=${#_canccu_xp[@]}-1; _i>=0; _i-- )); do
@@ -107,9 +107,11 @@ run_tmp_sweep() {
 # folder name of CANCCU_HOME, which the worker gets too). Its containers carry it as the label
 # canccu.run or as their Compose project's name, which allows only [a-z0-9_-]: both parts are
 # lowercased with every other character a "-", so the first "_" after "canccu_" ends the project.
+# A project name's own "_" becomes "--", so web_x and web-x do not share the prefix canccu_web-x_
+# (each one's sweep would remove the other's containers).
 run_tag() {
   local p=${CANCCU_HOME##*/} k=$1
-  p=${p,,} k=${k,,}
+  p=${p,,} k=${k,,} p=${p//_/--}
   echo "canccu_${p//[^a-z0-9-]/-}_${k//[^a-z0-9-]/-}"
 }
 

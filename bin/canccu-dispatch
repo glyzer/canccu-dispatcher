@@ -56,6 +56,7 @@ digest() {
   pace=$(pace_digest); [ -z "$pace" ] || pace+=$'\n\n'   # its own section, only with PACE on
   costs=$(costs_digest); [ -z "$costs" ] || costs+=$'\n\n'
   [ -n "$merges$answered$awaiting$ny$running$notes" ] || [[ $ci == red* ]] && active=1
+  grep -q '^- ' <<<"$costs" && active=1   # a cost alert (an issue over COST_ROUNDS_ALERT) is activity
   if (( CANCCU_DRY )); then
     echo "  would: write $f$( (( active )) && if [ -n "$DIGEST_ISSUE" ]; then echo " and comment on #$DIGEST_ISSUE"; else echo " (DIGEST_ISSUE is empty: not posted)"; fi)"
     return 0

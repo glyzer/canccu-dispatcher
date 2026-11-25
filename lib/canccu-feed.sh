@@ -121,7 +121,7 @@ feed_ack() {
 # the phase clears the owner. An item with no line id (state from before the feed) has nothing the
 # leader could have acked, so it stays. An idle line has no stored owner: its line names it.
 feed_handover() {
-  local k id ack at pr t o
+  local k id nid ack at pr t o
   ack=$(feed_ack)
   for k in $(managed); do
     pr=$(st_get "$k" pr)
@@ -131,20 +131,24 @@ feed_handover() {
       at=$(iso_epoch "${at:-}")
       if [ "${o:-}" = leader ] && [[ $at =~ ^[0-9]+$ ]] && (( $(now) - at >= 3600 )); then
         t="#$k (idle) passed to the product owner: the leader did not acknowledge it in 60 min"
-        feed_closed "$id" "passed to the product owner" "$k"
-        id=$(feed po ask handover "$k" "$pr" "$(feed_url "$k" "$pr")" "$t")
-        [ -z "$id" ] || _st_put "$k" idle_ev="$id"
-        log "$t"
+        # the ask first: when it returns no id the leader's line stays open and the next pass tries again
+        nid=$(feed po ask handover "$k" "$pr" "$(feed_url "$k" "$pr")" "$t")
+        if [ -n "$nid" ]; then
+          feed_closed "$id" "passed to the product owner" "$k"
+          _st_put "$k" idle_ev="$nid"
+          log "$t"
+        fi
       fi
     fi
     [ "$(st_get "$k" owner)" = leader ] || continue
     id=$(st_get "$k" ev_id); [[ $id =~ ^[0-9]+$ ]] && (( id > ack )) || continue
     at=$(st_get "$k" ev_at); [ -n "$at" ] || at=$(st_get "$k" phase_at); [[ $at =~ ^[0-9]+$ ]] && (( $(now) - at >= 3600 )) || continue
     t="#$k passed to the product owner: the leader did not acknowledge it in 60 min"
-    _st_put "$k" owner=po
-    feed_closed "$id" "passed to the product owner" "$k"   # the leader's line: no longer open for it
-    id=$(feed po ask handover "$k" "$pr" "$(feed_url "$k" "$pr")" "$t")
-    [ -z "$id" ] || _st_put "$k" ev_id="$id" ev_at="$(now)"
+    # the ask first, as above; the leader's line is closed once it is out: no longer open for it
+    nid=$(feed po ask handover "$k" "$pr" "$(feed_url "$k" "$pr")" "$t")
+    [ -n "$nid" ] || continue
+    feed_closed "$id" "passed to the product owner" "$k"
+    _st_put "$k" owner=po ev_id="$nid" ev_at="$(now)"
     log "$t"
   done
 }
@@ -196,8 +200,9 @@ feed_wait() {
     old=$(feed_ack)
     (( ack <= old )) || kv_set "$(feed_open_file)" feed "leader_ack=$ack"
   fi
-  # no --ack: the leader goes on from its stored ack (a restarted leader neither replays nor skips)
-  [ -z "$ack" ] && [ "$owner" = leader ] && { ack=$(feed_ack); (( ack > 0 )) || ack=""; }
+  # no --ack: the leader goes on from its stored ack (a restarted leader neither replays nor skips);
+  # one that never acked starts from 0, or the lines queued before its first start would be skipped
+  [ -z "$ack" ] && [ "$owner" = leader ] && ack=$(feed_ack)
   [ -n "$ack" ] || { ack=$(tail -n 1 "$f" 2>/dev/null | cut -f2); [[ $ack =~ ^[0-9]+$ ]] || ack=0; }
   while :; do
     l=$(awk -F '\t' -v a="$ack" -v o="$owner" '$2 + 0 > a + 0 && (o == "" || $3 == o) { print; exit }' "$f" 2>/dev/null)

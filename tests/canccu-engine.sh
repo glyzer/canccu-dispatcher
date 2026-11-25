@@ -263,6 +263,7 @@ ok "… and the dir goes after" eq "$(test -d "$td" && echo left)" ""
 printf 'echo "${TMPDIR:-<unset>}" > "$FAKE/tmp.seen"\n' > "$FAKE/claude.do"
 eng 53 "$E" "" WORKER_TMPDIR_MODE=system TMPDIR="$E/inherited" > /dev/null
 ok "tmp: RUN_TMPDIR=system leaves TMPDIR as inherited" eq "$(cat "$FAKE/tmp.seen")" "$E/inherited"
+ok "… and makes no dir" eq "$(ls "$WORKERS_DIR/tmp" 2>/dev/null)" ""
 
 # ---------------------------------------------------------------- the run's containers (#238)
 
@@ -274,7 +275,8 @@ ok "tag: a run gets CANCCU_RUN and COMPOSE_PROJECT_NAME, canccu_<project>_<key>"
 ok "… its rules say \$TMPDIR, not /tmp" grep -qF 'under $TMPDIR, never /tmp' <(tail -1 "$FAKE/claude.args")
 ok "… and to label containers with it" grep -qF -- '--label canccu.run=$CANCCU_RUN' <(tail -1 "$FAKE/claude.args")
 ok "tag: a key's other characters become -" eq "$( . "$root/lib/canccu-engine.sh"; CANCCU_HOME=/x/projects/My.Proj run_tag pkg-3-Api_v2)" "canccu_my-proj_pkg-3-api-v2"
-ok "… and makes no dir" eq "$(ls "$WORKERS_DIR/tmp" 2>/dev/null)" ""
+ok "… a project's _ is not a - (web_x and web-x do not share a prefix)" \
+  eq "$( . "$root/lib/canccu-engine.sh"; CANCCU_HOME=/x/projects/web_x run_tag 1) $( . "$root/lib/canccu-engine.sh"; CANCCU_HOME=/x/projects/web-x run_tag 1)" "canccu_web--x_1 canccu_web-x_1"
 rm -f "$FAKE/claude.do"
 
 # ---------------------------------------------------------------- background work (#26)
@@ -327,6 +329,11 @@ ok "canccu-resume clears the marker: the next pause logs again" eq "$(grep -c 'p
 echo finish > "$CANCCU_HOME/paused"
 lib engine "worker #9" 9 --key 9 web z
 ok "paused with --finish: the engine starts runs" eq "$(grep -c -- '--key 9' "$FAKE/worker.log")" 1
+echo 0.9 > "$CANCCU_HOME/upgrade"
+lib engine "worker #9" 9 --key 9 web z
+ok "paused with --finish and an upgrade pending: a start by hand still goes (the dispatcher holds its own)" eq "$(grep -c -- '--key 9' "$FAKE/worker.log")" 2
+ok "… pause_holds is true (an upgrade), the paused file alone does not hold (the status header's PAUSED line)" \
+  eq "$(lib eval 'pause_holds && echo holds; pause_file_holds && echo file; true')" "holds"
 
 echo "canccu-engine tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

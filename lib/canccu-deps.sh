@@ -37,14 +37,15 @@ _dep_gh_login() {
 # does as well; a minimal one (busybox) does not.
 _dep_coreutils() {
   [ "$(date -u -d @86400 +%F 2>/dev/null)" = 1970-01-02 ] && [ -n "$(stat -c %a / 2>/dev/null)" ] &&
-    [ "$(realpath -m /a/../b 2>/dev/null)" = /b ] && [ "$(printf '3.10\n3.9\n' | sort -V 2>/dev/null | head -n1)" = 3.9 ]
+    [ "$(realpath -m /a/../b 2>/dev/null)" = /b ] && [ "$(printf '3.10\n3.9\n' | sort -V 2>/dev/null | head -n1)" = 3.9 ] &&
+    [ "$(numfmt --to=iec 2048 2>/dev/null)" = 2.0K ]
 }
 
 # canccu_check_deps: one line per problem ("  <tool>: …; <how to get it>"); fails when any
 canccu_check_deps() {
   local out=() v f help miss=()
   [ "$(uname -s)" = Linux ] || out+=("Linux: this is $(uname -s); canccu-dispatcher runs on Linux only")
-  _dep_coreutils || out+=("GNU coreutils: not found (date -d, stat -c, realpath -m, sort -V); apt install coreutils")
+  _dep_coreutils || out+=("GNU coreutils: not found (date -d, stat -c, realpath -m, sort -V, numfmt); apt install coreutils")
   command -v flock >/dev/null 2>&1 || out+=("flock: not found; apt install util-linux")
   ps --version 2>&1 | grep -qi procps || out+=("procps (ps, pgrep): not found; apt install procps")
   v=$(_dep_ver '[0-9]+\.[0-9]+(\.[0-9]+)?' bash --version)

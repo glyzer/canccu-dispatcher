@@ -30,6 +30,9 @@ notify_quiet() {
 }
 # notify_digest_problem: the doctor's line when the digest's hour falls in the quiet hours
 notify_digest_problem() {
+  if [[ ${NOTIFY_DIGEST_HOUR:-} =~ ^[0-9]{1,2}$ ]] && (( 10#$NOTIFY_DIGEST_HOUR > 23 )); then
+    echo "NOTIFY_DIGEST_HOUR=$NOTIFY_DIGEST_HOUR is no hour (0-23)"; return 0
+  fi
   [[ ${NOTIFY_DIGEST_HOUR:-} =~ ^[0-9]{1,2}$ ]] && notify_quiet "$((10#$NOTIFY_DIGEST_HOUR))" || return 0
   echo "NOTIFY_DIGEST_HOUR=$NOTIFY_DIGEST_HOUR falls inside QUIET_HOURS=$QUIET_HOURS: the digest goes when they end"
 }

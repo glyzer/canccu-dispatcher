@@ -160,7 +160,7 @@ notify_reset_check() {
 }
 _nt_reset() {
   local f; f=$(notify_dir)
-  : > "$f/sent"; : > "$f/retry"; rm -rf "$f/text"
+  : > "$f/sent"; : > "$f/retry"; rm -rf "$f/text"; rm -f "$f/unsettled"
   [ ! -f "$f/topics" ] || { awk -F '\t' -v OFS='\t' '{ $2 = "-" } { print }' "$f/topics" > "$f/topics.tmp" && mv -f "$f/topics.tmp" "$f/topics"; }
 }
 
@@ -175,14 +175,20 @@ notify_send() {
   if [ -n "$p" ]; then notify_retry_add "$id"; warn_once notify "telegram: $p; the messages are sent once it works"; return 1; fi
   key=$(awk -F '\t' -v i="$id" '$2 == i { k = $1 } END { print k }' "$(notify_dir)/topics" 2>/dev/null)
   [[ $key == t* ]] && th=${key#t}
-  if [ -z "$key" ] && [[ $TELEGRAM_CHAT_ID == -* ]]; then
+  # a group without forum topics refused createForumTopic: not asked again for a day
+  if [ -z "$key" ] && [[ $TELEGRAM_CHAT_ID == -* ]] && [ -z "$(find "$(notify_dir)/noforum" -mmin -1440 2>/dev/null)" ]; then
     if [ "$unit" = - ] && [ "${NOTIFY_CONTENT:-full}" = full ]; then r="$kind: $text"; else r="#${unit#-} $kind"; [ "$unit" = - ] && r=$kind; fi
     r=$(tg_topic "$r"); rc=$?
     case $rc in
       0) th=$r key=t$r; nt_add topics "$key	$id	$unit	$pr	open	-" ;;
       # the topic may be there, but its id is lost: the message goes to the chat's main thread
       2) log "telegram: opening a topic for feed line $id timed out; the message goes without one" ;;
-      *) warn_once notify-forum "telegram: no forum topic in chat $TELEGRAM_CHAT_ID ($r): each message opens a reply chain instead" ;;
+      # only the refusal that says so means no topics here: a dropped connection, a 429 or a 5xx
+      # says nothing about the chat, and the next message tries a topic again
+      *) if [[ $r == *"not a forum"* ]]; then
+           warn_once notify-forum "telegram: no forum topic in chat $TELEGRAM_CHAT_ID ($r): each message opens a reply chain instead"
+           mkdir -p "$(notify_dir)" && : > "$(notify_dir)/noforum"
+         else log "telegram: opening a topic for feed line $id failed ($r); the message goes without one"; fi ;;
     esac
   fi
   r=$(tg_send "$text" "$th" - "$silent"); rc=$?
@@ -196,24 +202,51 @@ notify_send() {
     2)
       nt_add sent "$id	?	${key:--}"; notify_retry_del "$id"
       log "telegram: sending feed line $id timed out; it may have landed, so it is not sent again" ;;
-    *) notify_retry_add "$id"; warn_once notify "telegram: sending failed ($r); tried again next pass"; return 1 ;;
+    *)
+      # a refusal that no retry changes (the topic was deleted, the bot was blocked) would stay at
+      # the head of the retries for good and block every later one: the line is given up
+      if notify_permanent "$r"; then
+        nt_add sent "$id	-	${key:--}"; notify_retry_del "$id"
+        log "telegram: feed line $id refused for good ($r); it is not sent again"; return 0
+      fi
+      notify_retry_add "$id"; warn_once notify "telegram: sending failed ($r); tried again next pass"; return 1 ;;
   esac
+}
+# notify_permanent <telegram's error text>: a refusal a retry cannot change
+notify_permanent() {
+  case $1 in *"message thread not found"*|*"chat not found"*|Forbidden*|*"bot was blocked"*|*"TOPIC_DELETED"*|*"message is too long"*) return 0 ;; esac
+  return 1
+}
+
+# notify_done <telegram's error text>: a refusal that says the edit or the close has no work left
+# (the text is already Closed:, the message or topic is gone, the user closed the topic): it
+# counts as done, a retry would get the same answer for good
+notify_done() {
+  case $1 in *"message is not modified"*|*"message to edit not found"*|*"TOPIC_NOT_MODIFIED"*|*"TOPIC_ID_INVALID"*|*"TOPIC_DELETED"*|*"message thread not found"*) return 0 ;; esac
+  return 1
 }
 
 # notify_settle <feed id>: the item no longer waits: its message is edited to start with Closed:,
 # and with no leader its topic closes (with one, the leader closes it once the thread is settled).
 # An item that settled before its send worked, or while it waited in the queue, is never sent.
 notify_settle() {
-  local id=$1 m key
+  local id=$1 m key ok=0 r
   notify_retry_del "$id"; nt_del queue "$id"
   [ "${LEADER:-off}" = on ] || notify_batch_settle "$id"
   m=$(nt_get sent "$id" 2); key=$(nt_get sent "$id" 3)
   [ -n "$m" ] || return 0
   # m -: the item reached the product owner only in a digest
   if [ "$m" != "?" ] && [ "$m" != - ] && [ -f "$(notify_dir)/text/$id" ]; then
-    tg_edit "$m" "Closed: $(cat "$(notify_dir)/text/$id")" || log "telegram: marking the message of feed line $id closed failed"
+    if ! r=$(tg_edit "$m" "Closed: $(cat "$(notify_dir)/text/$id")") && ! notify_done "$r"; then
+      log "telegram: marking the message of feed line $id closed failed ($r); tried again next pass"; ok=1
+    fi
   fi
-  [ "${LEADER:-off}" = on ] || [ "$key" = - ] || notify_close "$key" || true
+  if [ "${LEADER:-off}" != on ] && [ "$key" != - ] && [ "$(nt_get topics "$key" 5)" = open ]; then
+    notify_close "$key" || ok=1
+  fi
+  # a failed edit or topic close is kept for notify_tick: the message would say "this waits" for good
+  if (( ok )); then [ -n "$(nt_get unsettled "$id" 1)" ] || nt_add unsettled "$id"; return 1; fi
+  nt_del unsettled "$id"
 }
 
 # notify_post <key> <text> [note]: a message in an open topic; in a reply chain, and for a note,
@@ -229,9 +262,12 @@ notify_post() {
 }
 # notify_close <key> [say]: closes an open topic (the forum topic too); with say, posts Closed. first
 notify_close() {
+  local r
   [ "$(nt_get topics "$1" 5)" = open ] || return 1
   [ -z "${2:-}" ] || notify_post "$1" "Closed." >/dev/null || true
-  [[ $1 == t* ]] && { tg_topic_close "${1#t}" || log "telegram: closing the forum topic ${1#t} failed"; }
+  if [[ $1 == t* ]] && ! r=$(tg_topic_close "${1#t}") && ! notify_done "$r"; then
+    log "telegram: closing the forum topic ${1#t} failed ($r)"; return 1   # stays open: notify_settle tries again
+  fi
   nt_put topics "$1" 5 closed
 }
 
@@ -260,7 +296,7 @@ notify_photos() {
 # rendered here. Never a link from the PR body: that is worker text, and fetching it would send
 # the host to any URL. 1 on a gh error (tried again next pass).
 notify_svgs() {
-  local files p d i=0 out=() svgs=()
+  local files p d i=0 out=() svgs=() err
   files=$(pr_files_raw "$2") || return 1
   mapfile -t svgs < <(cut -f1 <<<"$files" | grep -iE '^[A-Za-z0-9._/-]+\.svg$' | head -n 10)
   (( ${#svgs[@]} )) || return 0
@@ -268,8 +304,12 @@ notify_svgs() {
   d=$(mktemp -d) || return 1
   for p in "${svgs[@]}"; do
     i=$((i + 1))
-    # a file the PR deletes is not there at the head: nothing to show
-    ghj api "repos/$REPO/contents/$p?ref=$3" -H 'Accept: application/vnd.github.raw' > "$d/$i.svg" 2>/dev/null || continue
+    # a file the PR deletes is not there at the head (404): nothing to show; any other error is
+    # transient, so the head is not recorded as done and the next pass tries again
+    if ! err=$(ghj api "repos/$REPO/contents/$p?ref=$3" -H 'Accept: application/vnd.github.raw' 2>&1 > "$d/$i.svg"); then
+      [[ $err == *404* ]] && continue
+      rm -rf "$d"; return 1
+    fi
     timeout 30 rsvg-convert -o "$d/$i.png" "$d/$i.svg" >/dev/null 2>&1 && [ -s "$d/$i.png" ] && out+=("$d/$i.png")
   done
   local rc=0
@@ -303,7 +343,7 @@ notify_poll() {
 # chain) is kept, as one inbox line: <time> <topic> <unit> <pr> <text>. Every other is dropped.
 # 1 when the read failed. The caller holds the listener's lock: two readers would share the offset.
 notify_read() {
-  local f off r u c fr th re mid tx key max=-1 kept=0 dropped=0
+  local f off r u c fr th re mid tx key max=-1 kept=0 dropped=0 lines=
   f=$(notify_dir); mkdir -p "$f"
   off=$(cat "$f/offset" 2>/dev/null); [[ $off =~ ^[0-9]+$ ]] || off=0
   r=$(TG_MAX_TIME=$(( ${1:-0} + ${TG_MAX_TIME:-10} )) tg_updates "$off" "$1") ||
@@ -318,7 +358,7 @@ notify_read() {
       elif [ "$re" != - ]; then key=$(nt_get msgs "$re" 2); fi
     fi
     if [ -n "$key" ] && [ "$(nt_get topics "$key" 5)" = open ]; then
-      printf '%s\t%s\t%s\t%s\t%s\n' "$(iso "$(now)")" "$key" "$(nt_get topics "$key" 3)" "$(nt_get topics "$key" 4)" "${tx:0:2000}" >> "$CANCCU_HOME/inbox"
+      lines+=$(printf '%s\t%s\t%s\t%s\t%s' "$(iso "$(now)")" "$key" "$(nt_get topics "$key" 3)" "$(nt_get topics "$key" 4)" "${tx:0:2000}")$'\n'
       [ "$mid" = - ] || nt_add msgs "$mid	$key"
       kept=$((kept + 1))
     else dropped=$((dropped + 1)); fi
@@ -327,6 +367,9 @@ notify_read() {
       (.message.reply_to_message.message_id // "-"), (.message.message_id // "-"),
       ((.message.text // .message.caption // "(a message with no text)") | gsub("[\t\n\r]+"; " "))]
     | map(tostring) | join("\t")' <<<"$r" 2>/dev/null)
+  # one append, then the offset at once: a pass killed in between replays at most a read, not a
+  # loop's worth of half-appended lines
+  [ -z "$lines" ] || printf '%s' "$lines" >> "$CANCCU_HOME/inbox"
   (( max < 0 )) || echo $((max + 1)) > "$f/offset"
   (( kept + dropped == 0 )) || log "telegram: $kept replies kept, $dropped other messages dropped"
 }
@@ -338,6 +381,8 @@ notify_tick() {
   notify_on telegram || return 0
   local id
   for id in $(cat "$(notify_dir)/retry" 2>/dev/null); do notify_event "$id" || break; done
+  # the first transient failure ends the loop, as with the retries: Telegram down costs one call
+  for id in $(cut -f1 "$(notify_dir)/unsettled" 2>/dev/null); do notify_settle "$id" || break; done
   notify_flush
   notify_digest_tick
   notify_images

@@ -150,6 +150,10 @@ ok "findings: blocking before Non-blocking, non-blocking after, top-level items 
 # #94: a changes review with no Blocking heading (an older prompt, a fix-check): its unheaded items block
 printf '1. src/a.ts:3 off by one\n2. src/b.ts:9 leak\n\nNon-blocking:\n- naming\n\nReview verdict: changes %s\n' "$HA" > "$E/unheaded.md"
 ok "findings: a changes review without a Blocking heading → the items before Non-blocking block" eq "$(lib findings_count "$E/unheaded.md")" "2 1"
+printf 'Change:\n- adds a flag\n- fixes a typo\n- drops a file\n\n1. src/a.ts:3 off by one\n\nNon-blocking:\n- naming\n\nReview verdict: changes %s\n' "$HA" > "$E/chg.md"
+ok "findings: the Change: lines of a review with no Blocking heading are no findings" eq "$(lib findings_count "$E/chg.md")" "1 1"
+printf 'Change:\n- adds a flag\n- fixes a typo\n- drops a file\nBlocking:\n1. src/a.ts:3 off by one\n2. src/b.ts:9 leak\nNon-blocking:\n- naming\n\nReview verdict: changes %s\n' "$HA" > "$E/chgnb.md"
+ok "findings: no blank line between the Change: items and Blocking: → the blocking items count" eq "$(lib findings_count "$E/chgnb.md")" "2 1"
 printf 'Checked:\n- the tests\n\nBlocking:\n1. src/a.ts:3 off by one\n\nNon-blocking:\n- naming\n\nReview verdict: changes %s\n' "$HA" > "$E/headed.md"
 ok "findings: a changes review with a Blocking heading → only its items block" eq "$(lib findings_count "$E/headed.md")" "1 1"
 ok "findings: no file → none" eq "$(lib findings_count "$E/none.md")" "0 0"

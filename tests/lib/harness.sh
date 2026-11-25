@@ -100,8 +100,18 @@ fi
 if [ "$1" = api ] && [[ " $* " == *" -X PATCH "* ]]; then
   { routes=$(< "$FAKE/routes"); } 2>/dev/null
   grep -qxF "fail:api patch" <<<"$routes" && { echo "gh: Not Found (HTTP 404)" >&2; exit 1; }
+  grep -qxF "fail124:api patch" <<<"$routes" && exit 124
   for ((i = 0; i < $#; i++)); do [[ ${args[i]} == body=* ]] && printf '%s\n' "${args[i]#body=}" > "$FAKE/patched-${2##*/}"; done
   echo '{}'; exit 0
+fi
+# `gh pr view <n> --json body` (the fresh body ask_block reads): the body the last `pr edit` kept
+# in $FAKE/prbody-<n>, else the one in $FAKE/prs.json; "fail:pr body" in the routes makes it fail
+if [ "$1 $2" = "pr view" ] && [[ " $* " == *" --json body "* ]]; then
+  { routes=$(< "$FAKE/routes"); } 2>/dev/null
+  grep -qxF "fail:pr body" <<<"$routes" && { echo "fake gh: failing pr body" >&2; exit 1; }
+  if [ "$FAKE/prbody-$3" -nt "$FAKE/prs.json" ]; then cat "$FAKE/prbody-$3"
+  else jq -r --argjson p "$3" '.[] | select(.number == $p) | .body // ""' "$FAKE/prs.json" 2>/dev/null || exit 1; fi
+  exit 0
 fi
 q=""
 for ((i = 0; i < ${#args[@]}; i++)); do case ${args[i]} in -q|--jq) q=${args[i+1]} ;; esac; done
@@ -153,7 +163,7 @@ while IFS=$'\t' read -r pat file; do
   # shellcheck disable=SC2053
   [[ $a == $pat ]] || continue
   [ "$file" = FAIL ] && { echo "fake gh: failing $a" >&2; exit 1; }
-  [ "$file" = RERUN_REFUSED ] && { echo "run 700 cannot be rerun; This workflow is already running" >&2; exit 1; }
+  [ "$file" = RERUN_REFUSED ] && { x=${a#run rerun }; echo "run ${x%% *} cannot be rerun; This workflow is already running" >&2; exit 1; }
   if [ -n "$q" ]; then jq -r "$q" "$FAKE/$file"; else cat "$FAKE/$file"; fi
   exit
 done <<<"$routes"
@@ -178,7 +188,7 @@ done
 printf '%s %s\n' "$m" "${f[*]}" >> "$FAKE/tg.log"
 [ -e "$FAKE/tg-down" ] && { echo "curl: (7) Failed to connect to api.telegram.org port 443" >&2; exit 7; }
 [ -e "$FAKE/tg-slow" ] || [ -e "$FAKE/tg-slow-$m" ] && { echo "curl: (28) Operation timed out" >&2; exit 28; }
-[ -e "$FAKE/tg-refuse-$m" ] && { echo '{"ok":false,"error_code":400,"description":"Bad Request: refused"}'; exit 0; }
+[ -e "$FAKE/tg-refuse-$m" ] && { jq -nc --arg d "$(cat "$FAKE/tg-refuse-$m" 2>/dev/null)" '{ok: false, error_code: 400, description: ($d | if . == "" then "Bad Request: refused" else . end)}'; exit 0; }
 n=$(( $(cat "$FAKE/tg-n" 2>/dev/null || echo 100) + 1 )); echo "$n" > "$FAKE/tg-n"
 case $m in
   getMe) echo '{"ok":true,"result":{"id":1,"is_bot":true,"username":"web_bot"}}' ;;

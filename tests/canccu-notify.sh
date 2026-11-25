@@ -187,7 +187,7 @@ ok "… the next pass sends nothing" eq "$(calls sendMessage)" 1
 
 tg notify-photo-timeout
 accept5
-printf 'PNG' > "$E/a.png"
+printf '\x89PNG\r\n\x1a\n' > "$E/a.png"
 touch "$FAKE/tg-slow-sendPhoto"
 out=$(notifycmd --project web photos 5 "$E/a.png" 2>&1)
 lib notify_photos 5 cap "$E/a.png" >/dev/null; rc=$?
@@ -226,7 +226,7 @@ ok "a private chat: no forum topic, the message opens a reply chain" eq "$(calls
 ok "… not in a thread" not grep -q message_thread_id <<<"$(call sendMessage)"
 
 tg notify-noforum
-touch "$FAKE/tg-refuse-createForumTopic"
+echo "Bad Request: the chat is not a forum" > "$FAKE/tg-refuse-createForumTopic"
 lib feed po ask idle 8 - - "#8 idle" >/dev/null
 ok "a group without topics: falls back to a reply chain" eq "$(calls createForumTopic) $(calls sendMessage) $(cut -f1 "$(ND)/topics")" "1 1 m101"
 ok "… and says so once" eq "$(grep -c 'telegram: no forum topic' "$CANCCU_HOME/dispatch.log")" 1
@@ -301,7 +301,7 @@ ok "canccu-notify --help" grep -q 'canccu-notify' <<<"$(notifycmd --help)"
 
 tg notify-photos
 accept5
-printf 'PNG' > "$E/a.png"; printf 'PNG' > "$E/b.png"
+printf '\x89PNG\r\n\x1a\n' > "$E/a.png"; cp "$E/a.png" "$E/b.png"
 out=$(notifycmd --project web photos 5 "$E/a.png" 2>&1); rc=$?
 ok "photos: one file is one photo in the unit's topic" eq "$rc $(call sendPhoto | grep -c 'message_thread_id=101')" "0 1"
 ok "… captioned with the link" grep -qF 'pull/50' <<<"$(call sendPhoto)"
