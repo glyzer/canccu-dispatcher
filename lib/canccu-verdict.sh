@@ -268,11 +268,11 @@ preexisting_security() { local l; review_valid "$1" && l=$(_review_awk presec <<
 review_md() {
   local s e ef; ef=$(mktemp)
   s=$(git -C "$(review_wt "$1")" show origin/$BASE_BRANCH:REVIEW.md 2>"$ef" | tr -d '\r' |
-    awk '/^ ? ? ?(```|~~~)/ { fence = !fence }
+    awk 'cmt { if (index($0, "-->")) cmt = 0; next }
+         /^ ? ? ?(```|~~~)/ { fence = !fence }
+         !fence && /^[ \t]*<!--/ { if (!index($0, "-->")) cmt = 1; next }
          !fence && /^#+[ \t]/ { t = $0; sub(/^#+[ \t]+/, "", t); sub(/[ \t#]+$/, "", t)
                       keep = (t == "Also check" || t == "Never blocks" || t == "Known false positives") }
-         !fence && !cmt && /^[ \t]*<!--/ { cmt = 1 }
-         cmt { if ($0 ~ /-->[ \t]*$/) cmt = 0; next }
          keep')
   e=$(cat "$ef"); rm -f "$ef"
   case $e in ''|*"does not exist in"*) ;; *) log "PR #$1 REVIEW.md: git show origin/$BASE_BRANCH failed, read as none: $(oneline 200 "$e")" >&2 ;; esac
