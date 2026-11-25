@@ -179,9 +179,10 @@ collect_nonblocking() {
 
 # findings_report: the most common findings across the review records (reviews/<pr>/<sha>.md, the
 # files the reviewers wrote), so the leader can turn them into rules in AGENTS.md. Findings are
-# free text: each item line is cut to its gist (file:line refs, list marks and markdown dropped,
-# a leading [class] tag, then everything from its first separator on, lower case), and equal gists are counted. The files
-# cited most come after, each counted once per PR.
+# free text: each item line is cut to its gist (file:line refs, list marks and markdown dropped, a
+# leading [class] tag dropped, then everything from its first separator on cut, lower case), and
+# equal gists are counted. The Change: block is no finding. The files cited most come after, each
+# counted once per PR.
 findings_report() {
   local files recs
   files=$(find "$CANCCU_HOME/reviews" -mindepth 2 -maxdepth 2 -name '*.md' ! -name '*.findings.md' ! -name '*.open.md' 2>/dev/null | sort)
@@ -190,11 +191,15 @@ findings_report() {
   # matched as their bytes.
   # shellcheck disable=SC2086
   recs=$(LC_ALL=C awk '
-    FNR == 1 { pr = FILENAME; sub(/\/[^\/]*$/, "", pr); sub(/.*\//, "", pr) }
-    /^[[:space:]]*([-*+]|[0-9]+[.)])[[:space:]]/ || /^[[:space:]*_]*[^[:space:]]+\.[[:alnum:]]+:[0-9]+/ {
+    FNR == 1 { pr = FILENAME; sub(/\/[^\/]*$/, "", pr); sub(/.*\//, "", pr); chg = 0 }
+    # the Change: block (three plain sentences on what the PR changes) holds no findings
+    /^Change:[[:space:]]*$/ { chg = 1; next }
+    chg && /^[[:space:]]*[-*+][[:space:]]/ { next }
+    { chg = 0 }
+    /^[[:space:]]*([-*+]|[0-9]+[.)])[[:space:]]/ || /^[[:space:]*_]*[^[:space:]]+\.[[:alnum:]]+:[0-9]+/ || /^[[:space:]*_]*[^[:space:]]+\/[^[:space:]]+:[0-9]+/ {
       l = $0
-      while (match(l, /[[:alnum:]_.\/-]+\.[[:alnum:]]+:[0-9]+(-[0-9]+)?/)) {
-        f = substr(l, RSTART, RLENGTH); sub(/:[0-9-]+$/, "", f); print "F\t" pr "\t" f
+      while (match(l, /([[:alnum:]_.\/-]+\.[[:alnum:]]+|[[:alnum:]_.-]+(\/[[:alnum:]_.-]+)+):[0-9]+(,[0-9]+|-[0-9]+)*/)) {
+        f = substr(l, RSTART, RLENGTH); sub(/:[0-9,-]+$/, "", f); print "F\t" pr "\t" f
         l = substr(l, 1, RSTART - 1) " " substr(l, RSTART + RLENGTH)
       }
       gsub(/[*_`]/, "", l); sub(/^[[:space:]]*([-+]|[0-9]+[.)])?[[:space:]]*/, "", l)
