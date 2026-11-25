@@ -269,10 +269,10 @@ ci_run_busy() {
       | select(((.status // "COMPLETED") | ascii_upcase) != "COMPLETED")] | length' <<<"$PRS")" != 0 ]
 }
 
-# rerun_wait <K> <pr> <head> <run id> <why>: the rerun of that run waits (<why>, a log phrase), for at most 600 s
-# per head (ci_wait_at = <head>:<epoch of the first wait>): a run GitHub keeps refusing, or one
-# that never ends, goes to needs-you instead of holding the PR for ever (the waits of ci_red are
-# bounded the same way). Always 0: the caller has handled the pass.
+# rerun_wait <K> <pr> <head> <run id> <why>: the rerun of that run waits (<why>, a log phrase) because
+# GitHub refuses it as already running: for at most 600 s per head (ci_wait_at = <head>:<epoch of
+# the first wait>), then needs-you instead of holding the PR for ever. Always 0: the caller has
+# handled the pass. needs_you clears ci_wait_at, so a lifted needs-you starts a new wait.
 rerun_wait() {
   local k=$1 pr=$2 head=$3 id=$4 w at
   w=$(st_get "$k" ci_wait_at)
@@ -284,10 +284,20 @@ rerun_wait() {
   return 0
 }
 
+# busy_wait <K> <pr> <run id>: a job of the failed run still runs (a healthy run: the rest of its jobs
+# finish first): the rerun waits for them, bounded like a pending CI by CI_WAIT_MIN from check_at.
+busy_wait() {
+  local k=$1 pr=$2 id=$3 at; at=$(st_get "$k" check_at); at=${at:-$(now)}
+  if (( $(now) - at > CI_WAIT_MIN * 60 )); then
+    needs_you "$k" "CI is red on PR #$pr; run $id still has jobs running after $CI_WAIT_MIN min ($(ci_names "$pr"))" "" "" ci
+  else warn_once "rerun-wait-$pr" "#$k PR #$pr: CI red; run $id still has jobs running: the rerun waits for them"; fi
+  return 0
+}
+
 # ci_rerun <K> <pr> <head>: the failed GitHub Actions runs of a red head rerun (--failed), once per
 # head, before any fix run: a flaky check costs no AI run. 0 also while a job of such a run still
-# runs, or GitHub refuses the rerun as already running (it waits, spending nothing, for at most
-# 600 s: rerun_wait). 1: none rerun (none to rerun, done for this head, or every rerun call
+# runs, or GitHub refuses the rerun as already running (it waits, spending nothing: busy_wait, bounded by
+# CI_WAIT_MIN; a refused rerun at most 600 s: rerun_wait). 1: none rerun (none to rerun, done for this head, or every rerun call
 # failed), the fix run goes on in this pass.
 ci_rerun() {
   local k=$1 pr=$2 head=$3 id ids done=0
@@ -297,7 +307,7 @@ ci_rerun() {
   # GitHub refuses `rerun --failed` while a job of the run still runs: waiting spends no rerun
   for id in $ids; do
     ci_run_busy "$pr" "$id" || continue
-    rerun_wait "$k" "$pr" "$head" "$id" "run $id still has jobs running: the rerun waits for them"; return 0
+    busy_wait "$k" "$pr" "$id"; return 0
   done
   st_set "$k" ci_rerun="$head" ci_rerun_at= check_at="$(now)"
   for id in $ids; do

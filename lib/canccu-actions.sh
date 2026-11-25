@@ -58,7 +58,7 @@ needs_you() {
   [ -n "$msg" ] && body+=$'\n\n'"$(quote 1500 "$msg")"
   edit_issue "$n" --add-label needs-you
   comment_issue "$n" "$body"
-  st_set "$n" phase=needs-you ny_at="$(now)" reason="$(oneline 200 "$reason")" ny_kind="${4:-}" ny_stage="$stg" ny_wait=
+  st_set "$n" phase=needs-you ny_at="$(now)" reason="$(oneline 200 "$reason")" ny_kind="${4:-}" ny_stage="$stg" ny_wait= ci_wait_at=
   log "#$n needs-you: $reason$(its_url "$(issue_url "$n")")"
 }
 

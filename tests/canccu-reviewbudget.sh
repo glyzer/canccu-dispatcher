@@ -34,5 +34,10 @@ dispatch --once
 ok "a full review stopped at its turn budget is retried once too" eq "$(full_reviews) $(st 5 review_retry)" "1 $HA"
 ok "… logged as the reviewer" grep -qF "#5 PR #50: the reviewer stopped at its budget with no verdict" "$CANCCU_HOME/dispatch.log"
 
+budgetenv budget-cost review
+last review-50 'stopped: cost budget $15' "ran out"
+dispatch --once
+ok "a review stopped at its cost budget → needs-you, no run" eq "$(full_reviews) [$(st 5 review_retry)] $(st 5 phase)" "0 [] needs-you"
+
 echo "canccu-reviewbudget tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

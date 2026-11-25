@@ -27,16 +27,29 @@ dispatch --once
 ok "refused for more than 10 minutes → needs-you naming the check, no fix run" \
   eq "$(grep -c 'CI is red on PR #50; its failed jobs could not be rerun for 10 minutes: run 700 (test)' "$FAKE/gh.log") $(wc -l < "$FAKE/worker.log")" "1 0"
 
-# a job of the run that never ends holds the rerun the same way
+# a job of the same run still running: the wait is bounded by CI_WAIT_MIN from check_at, not by 10 minutes
 rrenv busy-bounded
 pr 50 5 $HA red | jq '.statusCheckRollup[0].detailsUrl = "https://github.com/example-org/web/actions/runs/700/job/77"
   | .statusCheckRollup += [{name: "lint", status: "IN_PROGRESS", conclusion: "", detailsUrl: "https://github.com/example-org/web/actions/runs/700/job/78"}]' | prs
+state 5 phase=check pr=50 "check_at=$((NOW - 660))"
 dispatch --once
-ok "a run with a job still running → waits, the start of the wait is kept" eq "$(grep -c needs-you "$FAKE/gh.log") [$(st 5 ci_wait_at | cut -d: -f1)]" "0 [$HA]"
+ok "a job still running after 11 minutes keeps waiting: no needs-you, no fix run, no rerun" \
+  eq "$(grep -c needs-you "$FAKE/gh.log") $(wc -l < "$FAKE/worker.log") $(grep -c '^run rerun' "$FAKE/gh.log")" "0 0 0"
+state 5 phase=check pr=50 "check_at=$((NOW - 91 * 60))"
+dispatch --once
+ok "… still running after 90 minutes → needs-you, no fix run" \
+  eq "$(grep -c "still has jobs running after 90 min" "$FAKE/gh.log") $(wc -l < "$FAKE/worker.log")" "1 0"
+ok "… needs-you clears ci_wait_at" eq "[$(st 5 ci_wait_at)]" "[]"
+
+# a refused rerun parks after 600 s; the needs-you lifted on the same head does not park again at once
+rrenv refused-lifted; : > "$FAKE/routes"; route 'run rerun *' RERUN_REFUSED
 echo "ci_wait_at=$HA:$((NOW - 700))" >> "$CANCCU_HOME/state/5"
 dispatch --once
-ok "… still running after 10 minutes → needs-you, no fix run" \
-  eq "$(grep -c 'could not be rerun for 10 minutes: run 700' "$FAKE/gh.log") $(wc -l < "$FAKE/worker.log")" "1 0"
+ok "a refused rerun → needs-you after 600 s" eq "$(grep -c 'could not be rerun for 10 minutes' "$FAKE/gh.log")" 1
+state 5 phase=check pr=50 "check_at=$NOW"
+dispatch --once
+ok "… lifted on the same head: it waits again, no second needs-you" \
+  eq "$(grep -c 'could not be rerun for 10 minutes' "$FAKE/gh.log") $(st 5 phase)" "1 check"
 
 # only /actions/runs/<id>/job/<id> is a job id: another CI's URL with /job/<n> is no Actions job
 ok "ci_failed: a check URL that only contains /job/<n> has no run and no job id" \

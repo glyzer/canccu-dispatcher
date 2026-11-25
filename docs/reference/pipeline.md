@@ -65,7 +65,9 @@ Every `INTERVAL` seconds, under the project's lock:
      - CI green, no verdict, body lacking `Testing:`/`Revert:` (no contract, no `Tier: plan`)
        → worker resumed once (`body_lines`; no fix round; no back-off), then review;
      - CI green and no verdict for this head → the review (or, after a fix round, the
-       fix-check) starts; it checks both lines against the diff.
+       fix-check) starts; it checks both lines against the diff: a `Testing:` naming a test the diff
+       does not touch or run is a `[test]` finding, a `Revert:` that says plain over a migration or
+       a state-format bump a `[correctness]` one.
    - A reviewer that finished: its review file, if valid for the reviewed head, is posted as
      `REVIEWER_LOGIN`; then the verdict on the current head decides:
      - `pass` → classify: **auto** arms the merge (phase `merging`); **manual** labels

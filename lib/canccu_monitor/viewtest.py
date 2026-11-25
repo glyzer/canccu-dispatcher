@@ -264,11 +264,12 @@ def queue_checks(fx, check):
 
 
 def bar_checks(check):
-    """The view bar keeps its last hint whole at every width a long-name bar nearly fills (81, 82)."""
-    for w in range(60, 131):
-        bar = view_bar(State(view=0), 2, w).plain
-        check(len(bar) <= w and bar.rstrip().endswith("q quit") or "rotate" in bar,
-              "bar at %d: the last hint is cut: %r" % (w, bar))
+    """The view bar keeps its last hint whole at every width a long-name bar nearly fills (81 to 84), also with 12 needs-you items."""
+    for needs in (2, 12):
+        for w in range(60, 131):
+            bar = view_bar(State(view=0), needs, w).plain
+            check(len(bar) <= w and bar.rstrip().endswith("q quit") or "rotate" in bar,
+                  "bar at %d, %d needs-you: the last hint is cut: %r" % (w, needs, bar))
 
 
 def view_checks(mock, fx, check):

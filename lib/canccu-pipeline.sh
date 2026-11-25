@@ -129,7 +129,8 @@ reap_review() {
       fi
       # a run cut off by its turn or time budget left nothing to resume from: one full review per
       # head (also after a fix-check, whose narrow diff has no verdict to build on)
-      if [ "$kind" = budget ] && [ "$(st_get "$n" review_retry)" != "$sha" ]; then
+      case ${status:-} in "stopped: turn"*|"stopped: time budget"*) kind_tt=1 ;; *) kind_tt= ;; esac
+      if [ "$kind" = budget ] && [ -n "$kind_tt" ] && [ "$(st_get "$n" review_retry)" != "$sha" ]; then
         may_start "$n" || return 0
         if is_fixcheck_mode "$(st_get "$n" review_mode)"; then what="fix-check"; else what=reviewer; fi
         start_review "$pr" "$n" "$sha" || return 0

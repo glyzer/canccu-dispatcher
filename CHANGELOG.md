@@ -23,7 +23,7 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 - Pipeline and monitor fixes (#296, #298): a review budget stop retries instead of parking; a
   `ci_rerun` that never starts is given up after a bound; a recurring finding is recorded once per
   PR and its `@` is defanged; `merge_method` answers are validated; the merge waits for the PR's
-  head not to move; the monitor keeps its last view-bar hint at 81 and 82 columns, `a` closes the
+  head not to move; the monitor keeps its last view-bar hint at 81 to 84 columns, `a` closes the
   help overlay, and `--rotate 0` is refused with a reason. `TEST_TIER` is named in the repo
   snippets and the reviews reference.
 - `canccu-run` starts and resumes a worker by hand again (#309): `lib/canccu-continue.sh` is now
