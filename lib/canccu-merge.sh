@@ -192,8 +192,8 @@ conflict_merge() {
        # 3 in a row (fixed, not a setting) reach the user. Skipped (uncommitted changes, another branch): at once
        if [ "$MERGED" = error ]; then
          local k; k=$(st_get "$n" mm_err); k=$(( ${k:-0} + 1 ))
-         log "#$n PR #$pr: conflicts with main; the merge by script did not run ($MERGE_WHY; error $k of ${MERGE_TRIES:-3})"
-         if (( k < ${MERGE_TRIES:-3} )); then st_set "$n" conflict_merge= mm_err="$k"; return 0; fi
+         log "#$n PR #$pr: conflicts with main; the merge by script did not run ($MERGE_WHY; error $k of 3)"
+         if (( k < 3 )); then st_set "$n" conflict_merge= mm_err="$k"; return 0; fi
        fi
        st_set "$n" mm_err=
        needs_you "$n" "PR #$pr conflicts with main; the merge by script did not run ($MERGE_WHY)" ;;
@@ -208,7 +208,7 @@ conflict_merge() {
 # checks after NO_CHECKS_MIN, or the PR still open after the direct merge) → needs-you, so no PR
 # waits here forever.
 merging_step() {
-  local n=$1 pr head at mode j
+  local n=$1 pr head at mode j jh
   pr=$(st_get "$n" pr)
   pr_is_open "$pr" || { pr_gone "$n" "$pr"; return; }
   mode=$(st_get "$n" merge_mode)
@@ -255,7 +255,8 @@ merging_step() {
     # still says UNKNOWN: the fresh read decides. UNKNOWN there too: the next pass looks again
     # (MERGE_WAIT_MIN still bounds it).
     # a push landed since the pass's list: this pass's head is stale, the next pass decides
-    [ "$(jqr '.headRefOid // ""' <<<"$j" 2>/dev/null)" = "$head" ] || [ -z "$(jqr '.headRefOid // ""' <<<"$j" 2>/dev/null)" ] || return 0
+    jh=$(jqr '.headRefOid // ""' <<<"$j" 2>/dev/null)
+    [ -z "$jh" ] || [ "$jh" = "$head" ] || return 0
     case $(jqr '"\(.mergeable // "")/\(.mergeStateStatus // "")"' <<<"$j" 2>/dev/null) in
       CONFLICTING/*|*/DIRTY) conflict_merge "$n" "$pr" "$head" "" dirty; return 0 ;;
       UNKNOWN/*) return 0 ;;

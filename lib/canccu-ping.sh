@@ -159,8 +159,7 @@ ping_tick() {
     rk='' rid=''; [ -f "$d/$n" ] && read -r rk rid < "$d/$n"
     [ "$rk" = "$kind" ] && continue
     if (( CANCCU_DRY )); then
-      if [ "$kind" = checkpoint ]; then form=$(ask_form "$(unit_of_issue "$n")" checkpoint - "$pr")
-      else form=$(ask_form "$(unit_of_issue "$n")" "$kind" "$pr"); fi
+      form=$(ping_form "$n" "$kind" "$pr")
       echo "  would: ping #$n as $REVIEWER_LOGIN: @$USER_LOGIN ${form%%$'\n'*}"; continue
     fi
     # before the form: it costs gh calls (CI, auto-merge), pointless when nothing can be posted
@@ -168,8 +167,7 @@ ping_tick() {
     [ -n "$checked" ] || { prob=$(reviewer_token_problem); checked=1; }
     if [ -n "$prob" ]; then warn_once ping "ping: $prob; @$USER_LOGIN is pinged once the token works"; continue; fi
     auto_merge_read
-    if [ "$kind" = checkpoint ]; then form=$(ask_form "$(unit_of_issue "$n")" checkpoint - "$pr")
-    else form=$(ask_form "$(unit_of_issue "$n")" "$kind" "$pr"); fi
+    form=$(ping_form "$n" "$kind" "$pr")
     text="@$USER_LOGIN"$'\n'"$(home_tilde "$form")"$'\n\n'"$CANCCU_MARK"
     rc=1 id=$rid
     if [ -n "$rid" ]; then
@@ -212,6 +210,13 @@ ping_tick() {
     rm -f "$f"
   done
   return 0
+}
+
+# ping_form <issue> <kind> <third field>: the ask form the ping carries; a checkpoint's third
+# field is its step, not a PR
+ping_form() {
+  if [ "$2" = checkpoint ]; then ask_form "$(unit_of_issue "$1")" checkpoint - "$3"
+  else ask_form "$(unit_of_issue "$1")" "$2" "$3"; fi
 }
 
 # ping_find <issue> <epoch>: the id of the newest comment of the reviewer's mark on the issue

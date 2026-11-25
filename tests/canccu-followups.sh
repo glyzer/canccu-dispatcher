@@ -107,7 +107,7 @@ lib eval ". '$root/lib/canccu-merge.sh'; "'main_merge() { MERGED=error MERGE_WHY
 ok "a scripted merge of main that fails (conflict) → no needs-you on the first error" \
   eq "$(st 5 phase) $(st 5 mm_err) [$(st 5 conflict_merge)]" "accept 1 []"
 lib eval ". '$root/lib/canccu-merge.sh'; "'main_merge() { MERGED=error MERGE_WHY="git push: HTTP 502"; }; fetch; conflict_merge 5 50 '"$HA"'; conflict_merge 5 50 '"$HA"
-ok "… needs-you once MERGE_TRIES errors came in a row" eq "$(st 5 phase) [$(st 5 mm_err)]" "needs-you []"
+ok "… needs-you once 3 errors came in a row" eq "$(st 5 phase) [$(st 5 mm_err)]" "needs-you []"
 
 # ---------------------------------------------------------------- gating
 
