@@ -80,7 +80,8 @@ until then no leader accept is added or widened.
    channel an AI session can write does not count for gated and high-risk PRs.
 2. **Two setup levels:** simple (one Unix user, limits stated honestly, every automatic-accept
    setting off until the product owner sets it) and hardened (separate users and identities).
-3. **Steps:** the milestones `3 Release 0.2`, `4 Release 0.3`, `5 Release 1.0`, one checkpoint each.
+3. **Steps:** the milestones `3 Release 0.2`, `4 Release 0.3`, `5 Fixes after 0.3` and
+   `6 Release 1.0`, one checkpoint each, except `5 Fixes after 0.3`, which has none.
 4. **No deadline.** Packages run one after the other at full speed.
 5. **Supported set:** Linux or WSL with tmux, Claude Code, GitHub.
 6. **`NOTIFY_CONTENT`** is `full` or `link`, for users who want only a link to leave the host.
