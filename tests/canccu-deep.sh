@@ -526,5 +526,18 @@ ok "#307: --dry-run applies the migrations in memory: the step would end" \
   eq "$(grep -c 'finished before the upgrade' "$E/out") $(grep -c 'is done' "$E/out") $(grep -c 'reached STEP_BUDGET' "$E/out")" "1 1 0"
 ok "… and writes nothing" eq "$(cat "$CANCCU_HOME/state.format") $([ "$(cat "$CANCCU_HOME/steps/12")" = "$before" ] && echo same)" "3 same"
 
+# #307: at format 5, a step at its checkpoint or past a merged or closed health pass, no open
+# work, its spend over STEP_BUDGET: no budget hold either
+for st in "phase=checkpoint" "phase=health health=merged" "phase=health health=closed"; do
+  oldenv "ended-${st//[ =]/-}"
+  echo 5 > "$CANCCU_HOME/state.format"
+  cpi 95 OPEN "4 Search" | jq -s . > "$FAKE/cps.json"
+  printf '%s\ncheckpoint=95\ncheckpoint_at=%s\n' "${st// /$'\n'}" "$NOW" >> "$CANCCU_HOME/steps/12"
+  sed -i '/^phase=idle$/d' "$CANCCU_HOME/steps/12"
+  dpass
+  ok "#307: $st, no open work, over STEP_BUDGET: no budget hold" \
+    eq "[$(sf budget_ny)] $(grep -cE 'issue edit 90 .*needs-you' "$FAKE/gh.log") $(cat "$CANCCU_HOME/feed.open" 2>/dev/null | grep -c hold-budget-12)" "[] 0 0"
+done
+
 echo "canccu-deep tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
