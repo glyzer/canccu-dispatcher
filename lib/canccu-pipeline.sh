@@ -7,7 +7,7 @@
 # reap_worker, reap_review, reap_answer: the pass read the phase before the run ended; canccu-stop
 # sets phase=stopped before it kills the run, so a run whose phase moved on meanwhile is not reaped
 reap_worker() {
-  local n=$1 started last kind status q r b="" p ph c
+  local n=$1 started last kind status q r b="" p ph c fresh=""
   run_alive "$n" && return 0
   # starting: run_worker set it before the engine call, so a dispatcher killed in between leaves
   # a unit the reap still finds
@@ -15,7 +15,7 @@ reap_worker() {
   case $ph in work|starting) ;; *) return 0 ;; esac
   started=$(st_get "$n" started); last="$WORKERS_DIR/$REPO_NAME-$n.last"
   if [ -e "$last" ] && (( $(stat -c %Y "$last") >= ${started:-0} )); then
-    IFS='|' read -r kind status <<<"$(run_exit "$last")"
+    IFS='|' read -r kind status <<<"$(run_exit "$last")"; fresh=1
   elif [ "$ph" = starting ]; then
     (( $(now) - ${started:-0} < STARTING_GRACE )) && return 0
     kind=crashed status="killed while starting"
@@ -26,7 +26,9 @@ reap_worker() {
   # around them: an open PR is the proof of the work, so check_pr judges it like any done run
   [ "$kind" = blocked ] && [ -n "$(pr_for "$n")" ] && kind="done"
   # a continuation's line says which it is (#127); what the run used counts against the work budget
-  c=$(st_get "$n" cont); is_deep "$n" || used_add "$n"
+  c=$(st_get "$n" cont)
+  # a report older than the run is the run before's: not counted again
+  is_deep "$n" || [ -z "$fresh" ] || used_add "$n"
   p=$(pr_for "$n"); spend_note "$n" "${started:-0}" "pr=${p:-none}" "rounds=$(fix_rounds "$n")" ${c:+"cont=$c"}
   if [ "$kind" = "done" ] && run_msg "$n" | grep -qxF 'Permission denials (information):'; then
     denied_ok "$n" "$p" || return 0

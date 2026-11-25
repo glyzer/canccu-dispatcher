@@ -58,6 +58,12 @@ ok "… the body file is not work the PR lacks: the review follows, no needs-you
   eq "$(dlog '#5 worker done') $(grep -c 'needs-you' "$FAKE/gh.log")" "1 0"
 ok "… and the review of PR #50 follows" eq "$(st 5 phase) $(st 5 pr)" "review 50"
 
+oenv openpr-home "$DEN"
+printf '%s\n' 'Closes #5' "Testing: ran $HOME/tools/check" > "$wt/pr-body.md"; echo '?? pr-body.md' > "$FAKE/dirty"
+opass
+ok "a body file that names a path under HOME is posted as ~/…" \
+  eq "$(grep -c 'Testing: ran ~/tools/check' "$FAKE/pr-body") $(grep -cF "$HOME" "$FAKE/pr-body")" "1 0"
+
 # a body file outside the worktree is never read: the body is built from the issue
 oenv openpr-outside "$(printf '%s\n' 'Status: done' '- Testing: tests/web.sh failed before, passes now' 'Revert: plain revert' '' "${DEN/pr-body.md/../../secret.md}")"
 printf 'secret\n' > "$WORKERS_DIR/worktrees/secret.md"

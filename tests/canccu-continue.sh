@@ -101,6 +101,11 @@ echo 'a header of another shape' > "$WORKERS_DIR/web-5.last"
 lib used_add 5
 ok "a report header of another shape: what the unit used so far is kept" eq "$(st 5 used)" "12 1.00 180"
 
+cenv used-stale "used=12 1.00 180"
+last 5 'done' 'an older run'; touch -d "@$((NOW - 3600))" "$WORKERS_DIR/web-5.last"
+dispatch --once
+ok "a run that left no report of its own (an older .last): its turns and USD are not counted again" eq "$(st 5 used)" "12 1.00 180"
+
 # ---------------------------------------------------------------- the usage-limit resume
 
 cenv limited-left "used=30 10 600"
