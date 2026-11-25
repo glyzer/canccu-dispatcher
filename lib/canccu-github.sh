@@ -118,12 +118,18 @@ auto_merge_read() {
 # --merge, --rebase (with a warning); unknown on a gh error (auto-merge then passes none, a direct
 # merge --squash, as before). Read once per pass.
 merge_method_read() {
-  local r
+  local r rc=
   [ -n "$MERGE_FLAG" ] && return 0
   r=$(ghj api graphql -F o="${REPO%%/*}" -F r="${REPO#*/}" \
     -f query='query($o: String!, $r: String!) { repository(owner: $o, name: $r) { mergeQueue { id } squashMergeAllowed mergeCommitAllowed rebaseMergeAllowed } }' \
     -q '.data.repository | if .mergeQueue != null then "queue" else [ (if .squashMergeAllowed == true then "squash" else empty end),
-          (if .mergeCommitAllowed == true then "merge" else empty end), (if .rebaseMergeAllowed == true then "rebase" else empty end) ] | join(" ") end' 2>/dev/null)
+          (if .mergeCommitAllowed == true then "merge" else empty end), (if .rebaseMergeAllowed == true then "rebase" else empty end) ] | join(" ") end' 2>/dev/null) || rc=1
+  # only the words this function builds are an answer: a gh error body (even with exit 0) must never
+  # reach a `--$word` flag
+  if [ -n "${rc:-}" ] || ! [[ $r =~ ^(queue|(squash|merge|rebase)( (squash|merge|rebase))*)?$ ]]; then
+    [ -n "$r" ] && warn_once merge-method-answer "merge method answer not taken (unexpected text): $(tr '\n' ' ' <<<"$r" | cut -c1-200)"
+    r=""
+  fi
   case " $r " in
     " queue ") MERGE_FLAG=queue ;;
     "  ") MERGE_FLAG=unknown ;;
