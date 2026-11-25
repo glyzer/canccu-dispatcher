@@ -199,7 +199,7 @@ ok "… a limit that is no duration: a usage error" eq "$rc $(grep -c 'CANCCU_TE
 
 # #250: the default test tier, targeted: the touched areas' test files and the repo checks only
 RULE='Tests (test tier targeted): while working and before marking the PR ready, run only the test files of the areas you touched (the affected-tests command CLAUDE.md names, when it has one), in the foreground; do not run the full suite locally: CI runs it on every push.'
-FULL='Tests (test tier full): while working, run only the tests of the files you change, in the foreground; before marking the PR ready, run the full suite once, in the foreground, bounded with timeout (CI runs it on every push too).'
+FULL='Tests (test tier full): while working, run only the tests of the files you change, in the foreground; before marking the PR ready, run the full suite once, in the foreground, bounded with timeout 9m (a foreground command may run 10 minutes at most; CI runs it on every push too).'
 ok "TEST_TIER defaults to targeted" eq "$(lib eval 'echo "$TEST_TIER"')" targeted
 ok "an unknown tier is the targeted one" eq "$(lib eval 'TEST_TIER=nosuch; test_rule')" "$RULE"
 env_new test-rule
@@ -231,7 +231,7 @@ ok "… the package and health prompts too" grep -qF "$FULL" <<<"$(lib common_ru
 ok "… the repo checks still before every push" grep -qF 'Before every push run the repo checks' "$FAKE/worker.log"
 # the fix-check runs at the same tier as the worker; CI always runs the full suite
 ok "the fix-check, targeted: no suite of its own" grep -qF 'Tests (test tier targeted): run at most the test files of the files the fix diff touches, in the foreground; never the full suite: CI runs it.' <<<"$(lib eval 'TEST_TIER=targeted; fixcheck_prompt 50 5 a b f low ""')"
-ok "… full: the full suite once" grep -qF 'Tests (test tier full): you may run the full suite once, in the foreground, bounded with timeout; CI runs it too.' <<<"$(lib eval 'TEST_TIER=full; fixcheck_prompt 50 5 a b f low ""')"
+ok "… full: the full suite once" grep -qF 'Tests (test tier full): you may run the full suite once, in the foreground, bounded with timeout 9m; CI runs it too.' <<<"$(lib eval 'TEST_TIER=full; fixcheck_prompt 50 5 a b f low ""')"
 
 # ---------------------------------------------------------------- planner guidance
 

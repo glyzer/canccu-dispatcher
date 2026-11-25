@@ -104,11 +104,11 @@ test_rule() {
   local t=targeted; [ "${TEST_TIER:-}" = full ] && t=full
   case ${1:-worker}-$t in
     worker-targeted) echo 'Tests (test tier targeted): while working and before marking the PR ready, run only the test files of the areas you touched (the affected-tests command CLAUDE.md names, when it has one), in the foreground; do not run the full suite locally: CI runs it on every push.' ;;
-    worker-full) echo 'Tests (test tier full): while working, run only the tests of the files you change, in the foreground; before marking the PR ready, run the full suite once, in the foreground, bounded with timeout (CI runs it on every push too).' ;;
+    worker-full) echo 'Tests (test tier full): while working, run only the tests of the files you change, in the foreground; before marking the PR ready, run the full suite once, in the foreground, bounded with timeout 9m (a foreground command may run 10 minutes at most; CI runs it on every push too).' ;;
     handoff-targeted) echo 'Tests (test tier targeted): run only the test files of the areas you touched and the repo checks, in the foreground; CI runs the full suite on every push. Never paste whole test logs; never run a command in the background.' ;;
-    handoff-full) echo 'Tests (test tier full): run the tests of the files you change, and the full suite once before you push, in the foreground, bounded with timeout; CI runs it on every push too. Never paste whole test logs; never run a command in the background.' ;;
+    handoff-full) echo 'Tests (test tier full): run the tests of the files you change, and the full suite once before marking the PR ready, in the foreground, bounded with timeout 9m; CI runs it on every push too. Never paste whole test logs; never run a command in the background.' ;;
     fixcheck-targeted) echo 'Tests (test tier targeted): run at most the test files of the files the fix diff touches, in the foreground; never the full suite: CI runs it.' ;;
-    fixcheck-full) echo 'Tests (test tier full): you may run the full suite once, in the foreground, bounded with timeout; CI runs it too.' ;;
+    fixcheck-full) echo 'Tests (test tier full): you may run the full suite once, in the foreground, bounded with timeout 9m; CI runs it too.' ;;
   esac
 }
 

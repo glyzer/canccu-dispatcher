@@ -42,5 +42,26 @@ ok "… still running after 10 minutes → needs-you, no fix run" \
 ok "ci_failed: a check URL that only contains /job/<n> has no run and no job id" \
   eq "$(lib eval 'PRS=$(jq -n "[{number: 50, statusCheckRollup: [{name: \"ext\", status: \"COMPLETED\", conclusion: \"FAILURE\", detailsUrl: \"https://ci.example.com/job/99\"}]}]"); ci_failed 50')" "$(printf '\text\tFAILURE\t')"
 
+# a cancelled check whose cancel was not its time limit (a hand cancel, or an annotation lookup that
+# fails) stays "CI (cancelled)" and is rerun like a failed one; a failed lookup is not cached
+cancelled() {   # cancelled <name> [lookup fail]
+  rrenv "$1"
+  pr 50 5 $HA red | jq '.statusCheckRollup = [{name: "CI", status: "COMPLETED", conclusion: "CANCELLED", completedAt: "2030-11-05T10:12:00Z",
+    detailsUrl: "https://github.com/example-org/web/actions/runs/700/job/77"}]' | prs
+  if [ "${2:-}" = fail ]; then route 'fail:api repos/example-org/web/check-runs/77/annotations' x
+  else json ann.json '[{"message": "The run was canceled by octo."}]'; route 'api repos/example-org/web/check-runs/77/annotations*' ann.json; fi
+}
+cancelled cancel-lookup-fails fail
+dispatch --once
+ok "a cancelled check, its annotation lookup failing → rerun, named as cancelled" \
+  eq "$(grep -c '^run rerun 700 --failed' "$FAKE/gh.log") $(grep -c 'CI red on .* (CI (cancelled)); failed jobs rerun' "$CANCCU_HOME/dispatch.log")" "1 1"
+ok "… the fix run says nothing of a time limit" not grep -q 'time limit' "$FAKE/worker.log"
+cancelled cancel-by-hand
+dispatch --once
+ok "a hand cancel (an annotation without the time limit) → rerun, named as cancelled" \
+  eq "$(grep -c '^run rerun 700 --failed' "$FAKE/gh.log") $(grep -c 'CI red on .* (CI (cancelled)); failed jobs rerun' "$CANCCU_HOME/dispatch.log")" "1 1"
+ok "… the result is false, kept for the job" \
+  eq "$(lib eval 'PRS='"'"'[{"number": 50, "statusCheckRollup": [{"name": "CI", "status": "COMPLETED", "conclusion": "CANCELLED", "detailsUrl": "https://github.com/example-org/web/actions/runs/700/job/77"}]}]'"'"'; ci_timeouts_load 50; echo "${CI_TIMEDOUT[77]:-unset}"')" false
+
 echo "canccu-cirerun tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

@@ -38,7 +38,8 @@ review's log line).
 `TEST_TIER` decides what a run tests locally, and the worker's prompt says so: `targeted` (both
 profiles, and the default) runs only the test files of the areas the run touched plus the repo
 checks (`tests/run repo`), never the full suite; `full` runs the full suite once before the PR is
-marked ready. A review fix round, a red-CI fix and the fix-check follow the same tier. CI runs the
+marked ready, bounded with `timeout 9m` (a foreground command may run 10 minutes at most); it
+overrides the "do not run the full suite locally" line of a repo's `AGENTS.md` for that run. A review fix round, a red-CI fix and the fix-check follow the same tier. CI runs the
 full suite on every push either way, and it is required before merge. `canccu-dispatcher doctor`
 prints the host's tier, and a project's own when its `config` sets another.
 
