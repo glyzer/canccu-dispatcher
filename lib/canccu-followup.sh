@@ -228,7 +228,7 @@ ci_job_timed_out() {
 ci_timeouts_load() {
   local j
   for j in $(jqr --argjson p "$1" --arg ign "${REVIEW_CHECKS:-}" "$CI_CHECKS"' ci_checks | .[]
-      | select(.s == "COMPLETED" and .c == "CANCELLED") | .u | capture("/job/(?<j>[0-9]+)").j // empty' <<<"$PRS"); do
+      | select(.s == "COMPLETED" and .c == "CANCELLED") | .u | capture("/actions/runs/[0-9]+/job/(?<j>[0-9]+)").j // empty' <<<"$PRS"); do
     ci_job_timed_out "$j" || true
   done
 }
@@ -241,7 +241,7 @@ ci_failed() {
   local run name c jid
   jqr --argjson p "$1" --arg ign "${REVIEW_CHECKS:-}" "$CI_CHECKS"' ci_checks | .[]
       | select(.s == "COMPLETED" and (.c | ci_bad))
-      | [(.u | capture("/actions/runs/(?<id>[0-9]+)/").id // ""), .n, .c, (.u | capture("/job/(?<j>[0-9]+)").j // "")] | join("\u001f")' <<<"$PRS" |
+      | [(.u | capture("/actions/runs/(?<id>[0-9]+)/").id // ""), .n, .c, (.u | capture("/actions/runs/[0-9]+/job/(?<j>[0-9]+)").j // "")] | join("\u001f")' <<<"$PRS" |
     # a tab would do as the separator, but read folds a run of tabs: an empty run id would vanish
     while IFS=$'\x1f' read -r run name c jid; do
       [ "$c" = CANCELLED ] && [ -n "$jid" ] && ci_job_timed_out "$jid" && c=TIMED_OUT
@@ -269,10 +269,26 @@ ci_run_busy() {
       | select(((.status // "COMPLETED") | ascii_upcase) != "COMPLETED")] | length' <<<"$PRS")" != 0 ]
 }
 
+# rerun_wait <K> <pr> <head> <run id> <why>: the rerun of that run waits (<why>, a log phrase), for at most 600 s
+# per head (ci_wait_at = <head>:<epoch of the first wait>): a run GitHub keeps refusing, or one
+# that never ends, goes to needs-you instead of holding the PR for ever (the waits of ci_red are
+# bounded the same way). Always 0: the caller has handled the pass.
+rerun_wait() {
+  local k=$1 pr=$2 head=$3 id=$4 w at
+  w=$(st_get "$k" ci_wait_at)
+  if [ "${w%%:*}" = "$head" ] && [[ ${w#*:} =~ ^[0-9]+$ ]]; then at=${w#*:}
+  else at=$(now); st_set "$k" ci_wait_at="$head:$at"; fi
+  if (( $(now) - at >= 600 )); then
+    needs_you "$k" "CI is red on PR #$pr; its failed jobs could not be rerun for 10 minutes: run $id ($(ci_names "$pr")); last: $5" "$(run_msg "$k")" "" ci
+  else warn_once "rerun-wait-$pr" "#$k PR #$pr: CI red; $5"; fi
+  return 0
+}
+
 # ci_rerun <K> <pr> <head>: the failed GitHub Actions runs of a red head rerun (--failed), once per
 # head, before any fix run: a flaky check costs no AI run. 0 also while a job of such a run still
-# runs, or GitHub refuses the rerun as already running (it waits, spending nothing). 1: none rerun (none to rerun, done for
-# this head, or every rerun call failed), the fix run goes on in this pass.
+# runs, or GitHub refuses the rerun as already running (it waits, spending nothing, for at most
+# 600 s: rerun_wait). 1: none rerun (none to rerun, done for this head, or every rerun call
+# failed), the fix run goes on in this pass.
 ci_rerun() {
   local k=$1 pr=$2 head=$3 id ids done=0
   [ "$(st_get "$k" ci_rerun)" != "$head" ] || return 1
@@ -281,7 +297,7 @@ ci_rerun() {
   # GitHub refuses `rerun --failed` while a job of the run still runs: waiting spends no rerun
   for id in $ids; do
     ci_run_busy "$pr" "$id" || continue
-    warn_once "rerun-wait-$pr" "#$k PR #$pr: CI red; run $id still has jobs running: the rerun waits for them"; return 0
+    rerun_wait "$k" "$pr" "$head" "$id" "run $id still has jobs running: the rerun waits for them"; return 0
   done
   st_set "$k" ci_rerun="$head" ci_rerun_at= check_at="$(now)"
   for id in $ids; do
@@ -290,7 +306,7 @@ ci_rerun() {
       # a job the rollup did not list yet still runs: judge the run once it ends, spend nothing
       # (a run already rerun in this pass keeps the once-per-head mark: ci_red waits for its result)
       if (( done )); then st_set "$k" ci_rerun_at="$(now)"; else st_set "$k" ci_rerun= ci_rerun_at=; fi
-      log "#$k PR #$pr: CI red; rerun of run $id refused (still running): it waits"; return 0
+      rerun_wait "$k" "$pr" "$head" "$id" "rerun of run $id refused (still running): it waits"; return 0
     else log "#$k PR #$pr: rerun of run $id failed ($(oneline 200 "$MUT_OUT"))"; fi
   done
   (( done )) || return 1
