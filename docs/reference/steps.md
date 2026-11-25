@@ -36,7 +36,7 @@ and the line `Health: nothing to do`. Once per step. It runs on `HEALTH_MODEL` a
 With `STEP_DEEP_REVIEW=1` (the default), a step whose work issues are all closed gets a deep review before its
 health pass: one worker run (`pkg-<m>-deep`, window `deep#<m>`, a fresh session on
 `DEEP_REVIEW_MODEL`, else `REVIEW_MODEL`, else `MODEL`, at `DEEP_REVIEW_EFFORT` (`medium`, capped by `REVIEW_EFFORT_MAX`), budget
-`BUDGET_DEEP_REVIEW`), charged to the step. The step's phase is `deep`: it stays current. The log
+`BUDGET_DEEP_REVIEW`), charged to the step. The step's phase is `deep`: it stays current. The step field `deep` is `running`, `read`, `merged`, `closed` or `skipped` (a step finished before the upgrade that owes no deep review; `state.md`). The log
 says `#pkg-<m>-deep started: the deep review of step <title>`. Its prompt names the base (the
 tag matching `STEP_TAG` exactly, `{n}` as digits only, so no round tag, with the highest `{n}`
 below the step's own number, since with parallel tracks a later step's tag can be newer; with none
