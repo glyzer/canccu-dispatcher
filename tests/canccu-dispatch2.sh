@@ -67,6 +67,7 @@ rm -f "$CANCCU_HOME/state.format"
 PATH="$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-dispatch" --dry-run > "$E/dry" 2>&1
 ok "--dry-run on an old project says it would migrate, and writes nothing" \
   eq "$(grep -c 'would: migrate the state format 0 → 1' "$E/dry") $([ -e "$CANCCU_HOME/state.format" ] && echo written || echo none)" "1 none"
+ok "… all five migrations, each said once (#307)" eq "$(grep -c 'would: migrate the state format' "$E/dry")" 5
 
 # ---------------------------------------------------------------- holds: low disk, GitHub rate limit
 

@@ -499,5 +499,32 @@ sed -i 's/^phase=.*/phase=idle/' "$CANCCU_HOME/steps/12"
 dpass
 ok "#277: … its work closed later, the deep review starts" eq "$(sf phase) $(runs)" "deep 1 0 0"
 
+# #307: a step finished before 0.3, at format 3, its spend over STEP_BUDGET, no checkpoint issue:
+# the upgrade ends it without a budget ask on its epic
+oldenv() {
+  denv "$1" STEP_BUDGET=10
+  echo '[]' > "$FAKE/cps.json"
+  printf 'phase=idle\nstarted_at=1\nwave=1\ntitle=4 Search\nepic=90\n' > "$CANCCU_HOME/steps/12"
+  echo run-12-a > "$CANCCU_HOME/steps/12.keys"
+  mkdir -p "$WORKERS_DIR"; printf '%s\tweb\trun-12-a\t25.00\tbuild\n' "$((NOW - 600))" > "$WORKERS_DIR/spend.log"
+  echo 3 > "$CANCCU_HOME/state.format"
+}
+oldenv old-over
+dpass
+ok "#307: an ended step over STEP_BUDGET: done, no budget hold" eq "$(sf phase) [$(sf budget_ny)]" "done []"
+ok "… no needs-you and no comment on its epic" eq "$(grep -cE 'issue (edit 90 .*needs-you|comment 90)' "$FAKE/gh.log")" 0
+ok "… no hold-budget-12 feed item" eq "$(grep -c hold-budget-12 "$CANCCU_HOME/feed.open" 2>/dev/null)" 0
+oldenv old-over-open
+{ issue 90 epic "" "4 Search"; issue 44 ready "" "4 Search"; issue 41 ready "" "5 Later"; } | issues
+dpass
+ok "#307: the same step with open work: the budget hold opens" \
+  eq "$(sf budget_ny) $(grep -cE 'issue edit 90 .*needs-you' "$FAKE/gh.log") $(grep -c hold-budget-12 "$CANCCU_HOME/feed.open")" "1 1 1"
+oldenv old-over-dry
+before=$(cat "$CANCCU_HOME/steps/12")
+PATH="$E/sbin:$fb:$PATH" CANCCU_WORKER="$fb/worker" "$root/bin/canccu-dispatch" --dry-run > "$E/out" 2>&1
+ok "#307: --dry-run applies the migrations in memory: the step would end" \
+  eq "$(grep -c 'finished before the upgrade' "$E/out") $(grep -c 'is done' "$E/out") $(grep -c 'reached STEP_BUDGET' "$E/out")" "1 1 0"
+ok "… and writes nothing" eq "$(cat "$CANCCU_HOME/state.format") $([ "$(cat "$CANCCU_HOME/steps/12")" = "$before" ] && echo same)" "3 same"
+
 echo "canccu-deep tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
