@@ -6,8 +6,22 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 
 ## Unreleased
 
+## [0.4.0] — 2026-11-26
+
+Release 0.4: step 5's fixes after 0.3 and step 6's token cost work (the review fix loop).
+
 **Upgrade:**
 
+- Review fixes have their own budget, and a full review runs once per PR cycle (#325, #326):
+  - the new `REVIEW_FIX_ATTEMPTS` (default `1`, `0`–`10`, project setting) counts the automatic
+    review fix runs per PR (state key `rfixes`, the extra round of `FIX_EXTRA_IF_FEWER` too);
+  - review fix rounds no longer use `FIX_ATTEMPTS`: it now counts only red-CI fixes, so red CI
+    before the review never takes the review's fix round;
+  - a full review's `changes` with no review fix run left now keeps its round open for your
+    comment (`fix_owed`, a `needs-you`) instead of ending it. Set `REVIEW_FIX_ATTEMPTS` in the
+    project's `config` to give a PR more automatic review fix runs;
+  - the extra round of `FIX_EXTRA_IF_FEWER` runs past both caps, even with `FIX_ATTEMPTS=0` and
+    `REVIEW_FIX_ATTEMPTS=0`; `FIX_EXTRA_IF_FEWER=0` is its only off switch (#340).
 - The state format is now `5` (#277). The upgrade marks each step that may be finished (idle or
   health-due, no deep review or health pass yet, no cadence round, no unit of its own) with
   `pre5=1`. On its next pass, a marked step that is current with its work done is not owed a deep
@@ -16,48 +30,41 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
   passes, so a step between waves is not cut short. The weekly drain holds a deep
   review like a health pass, but a usage reading older than the dispatcher's start counts as
   unknown, so right after an upgrade restart nothing is draining until a run reports usage
-  again. Going back to 0.3.0: write `4` to `state.format`.
+  again.
 - An ended step is never asked about its budget (#307): a step with no open work that is at its
   checkpoint, done, or past its health pass opens no `hold-budget-<m>` and gets no `needs-you`,
   so a step finished before the upgrade with its spend over `STEP_BUDGET` just ends. A hold
   already open stays. `canccu-dispatch --dry-run` now applies the migrations in memory (it still
   writes nothing), so it shows what the first real pass after an upgrade would do.
-
-**Changes:**
-
-- One full review per PR cycle (#325): a full review's `changes` with no review fix run left is
-  a `needs-you` that keeps the round open (`fix_owed`). Your comment, or `needs-work`, resumes
-  the worker as that fix run (`FIX_MODEL`) on the saved findings plus your comment's items, and
-  its push gets a fix-check of `<reviewed head>..<new head>`. A new full review only with a
-  `full review` line, on a refused accept, or when the PR's own files changed more than
-  `FIXCHECK_FULL_LINES` (lines merged from main never count). That run counts in no fix budget.
-- Review fixes have their own budget (#326): `REVIEW_FIX_ATTEMPTS` (default 1, `0`–`10`, project
-  setting) counts the automatic review fix runs per PR (state key `rfixes`, the extra round of
-  `FIX_EXTRA_IF_FEWER` too); `FIX_ATTEMPTS` now counts only red-CI fixes, so red CI before the
-  review never takes the review's fix round. `canccu-status` lists `fix runs:`
-  (`#5 · PR #50 · fixes: ci 2/2 · review 0/1`); the snapshot's `running[]` items get `fixes`.
-- Pipeline and monitor fixes (#296, #298): a review budget stop retries instead of parking; a
-  `ci_rerun` that never starts is given up after a bound; a recurring finding is recorded once per
-  PR and its `@` is defanged; `merge_method` answers are validated; the merge waits for the PR's
-  head not to move; the monitor keeps its last view-bar hint at 81 to 84 columns, `a` closes the
-  help overlay, and `--rotate 0` is refused with a reason. `TEST_TIER` is named in the repo
-  snippets and the reviews reference.
-- `canccu-run` starts and resumes a worker by hand again (#309): `lib/canccu-continue.sh` is now
-  sourced by `lib/canccu-runs.sh`, so the budget and the progress mark exist outside the dispatcher.
-- CI (#301): `CI (oldstable)` runs `tests/run --short` (a fixed set of 29 parts, every shell file
-  linted) within 20 minutes. The whole suite runs on Debian 12 in the new `Nightly` workflow (a
-  red night opens or updates the issue "Nightly: the full check on Debian 12 failed") and before
-  `release.yml` publishes.
 - Run tags keep a project's `_` (#317): before, `web_x` and `web--x` shared a tag and each
   one's sweep removed the other's containers, networks and volumes, and `web`'s sweep could reach
   `web_x`'s. A unit open since before the change still has objects under the old tag
   (`canccu_web-x_<key>` for `web_x`): its end removes them too, unless a project `web-x` exists.
   A run resumed after the change gets the new `COMPOSE_PROJECT_NAME`, so its Compose stack
   starts again beside the old one, which goes at the unit's end.
-- Telegram and review fixes (#317): a refused Closed: edit or topic close no longer holds up the
-  lines behind it (only Telegram not reached ends the loop), and "message can't be edited" is
-  given up; an SVG whose fetch fails with a 404 in its path or error text is tried again (only
-  gh's `(HTTP 404)` skips it); a finding written `* Change: …` counts as a finding.
+- `MERGE_TRIES` is no longer read (#313, #323): the scripted merge of main gives up after 3
+  errors in a row, fixed.
+- Going back to 0.3.0: stop the dispatcher, write `4` to the project's `state.format`, then roll
+  back ([`docs/upgrading.md`](docs/upgrading.md#going-back)). 0.3.0 does not read
+  `REVIEW_FIX_ATTEMPTS`: its review fixes count in `FIX_ATTEMPTS` again.
+
+**New:**
+
+- One full review per PR cycle (#325): your comment on a kept round, or `needs-work`, resumes
+  the worker as that fix run (`FIX_MODEL`) on the saved findings plus your comment's items, and
+  its push gets a fix-check of `<reviewed head>..<new head>`. A new full review only with a
+  `full review` line, on a refused accept, or when the PR's own files changed more than
+  `FIXCHECK_FULL_LINES` (lines merged from main never count). That run counts in no fix budget.
+  `canccu-status` lists `fix runs:` (`#5 · PR #50 · fixes: ci 2/2 · review 0/1`); the
+  snapshot's `running[]` items get `fixes` (#326).
+- Cost report (#270): `canccu-status --costs [--since DATE] [--top N]` shows the cost by run
+  type, the most expensive issues with their fix rounds, and the cost by kind. The daily digest
+  gets a `Cost today` line and a line for each issue with more fix runs than
+  `COST_ROUNDS_ALERT` (rules, default `5`, `0` off). The rules key `COST_KINDS`
+  (`<name>=<regex>;…`) groups costs into kinds by the merged PR's title; the rest is `other`.
+- The monitor's Queue view (#293): key `5` or `--view queue` lists a project's open issues once
+  each in take order under Running, Needs you, Queue. The snapshot gets `unscheduled[]` (issues
+  waiting for the ready label), and `step_overview[].issues[]` is filled for later steps too.
 - Runs clean up their containers (#238): a run's tag (`canccu_<project>_<key>`) reaches it as
   `CANCCU_RUN` and `COMPOSE_PROJECT_NAME`, and its rules say to label containers with it and to
   use `$TMPDIR`, not `/tmp`. The tagged containers, networks and volumes of a unit go when it
@@ -65,6 +72,37 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
   run temp dirs (before: only at the dispatcher's start). `doctor` warns when `/tmp` or memory
   has under 10% free, and names untagged containers running for over 2 days
   ([`engine.md`](docs/reference/engine.md)).
+- CI (#301): `CI (oldstable)` runs `tests/run --short` (a fixed set of 29 parts, every shell file
+  linted) within 20 minutes. The whole suite runs on Debian 12 in the new `Nightly` workflow (a
+  red night opens or updates the issue "Nightly: the full check on Debian 12 failed") and before
+  `release.yml` publishes.
+
+**Fixed:**
+
+- Pipeline and monitor fixes (#296, #298): a review budget stop retries instead of parking; a
+  `ci_rerun` that never starts is given up after a bound; a recurring finding is recorded once per
+  PR and its `@` is defanged; `merge_method` answers are validated; the merge waits for the PR's
+  head not to move; the monitor keeps its last view-bar hint at 81 to 84 columns, `a` closes the
+  help overlay, and `--rotate 0` is refused with a reason. `TEST_TIER` is named in the repo
+  snippets and the reviews reference.
+- Messages and engine fixes (#295, #297): an accept is kept after a refused merge; a timed-out
+  ping adopts only its own comment; a permanent Telegram refusal is given up, not retried; the
+  ask form shows the summary of the last verdict that passed; Telegram replies read by a killed
+  pass do not reach the inbox twice; a failed claim issue create makes its label and retries.
+- Telegram and review fixes (#317): a refused Closed: edit or topic close no longer holds up the
+  lines behind it (only Telegram not reached ends the loop), and "message can't be edited" is
+  given up; an SVG whose fetch fails with a 404 in its path or error text is tried again (only
+  gh's `(HTTP 404)` skips it); a finding written `* Change: …` counts as a finding.
+- Review effort (#269, #280): a docs-only diff (`^docs/` or `.md`) is reviewed at `medium` even
+  when a path matches `RISKY_PATHS`, and `EFFORT_DOCS_PATHS` filters on the path, so a
+  `$`-anchored pattern works.
+- A refused CI rerun (the workflow is still running) waits for a later pass instead of spending a
+  fix run (#246).
+- A step without a checkpoint issue gets its deep review and health pass (#278); before, the
+  next step was planned.
+- `canccu-status --findings` counts a finding, not its leading `[class]` tag (#284).
+- `canccu-run` starts and resumes a worker by hand again (#309): `lib/canccu-continue.sh` is now
+  sourced by `lib/canccu-runs.sh`, so the budget and the progress mark exist outside the dispatcher.
 
 ## [0.3.0] — 2026-11-22
 
