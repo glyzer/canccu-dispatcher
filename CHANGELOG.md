@@ -19,7 +19,9 @@ Release 0.4: step 5's fixes after 0.3 and step 6's token cost work (the review f
     before the review never takes the review's fix round;
   - a full review's `changes` with no review fix run left now keeps its round open for your
     comment (`fix_owed`, a `needs-you`) instead of ending it. Set `REVIEW_FIX_ATTEMPTS` in the
-    project's `config` to give a PR more automatic review fix runs.
+    project's `config` to give a PR more automatic review fix runs;
+  - the extra round of `FIX_EXTRA_IF_FEWER` runs past both caps, even with `FIX_ATTEMPTS=0` and
+    `REVIEW_FIX_ATTEMPTS=0`; `FIX_EXTRA_IF_FEWER=0` is its only off switch (#340).
 - The state format is now `5` (#277). The upgrade marks each step that may be finished (idle or
   health-due, no deep review or health pass yet, no cadence round, no unit of its own) with
   `pre5=1`. On its next pass, a marked step that is current with its work done is not owed a deep
