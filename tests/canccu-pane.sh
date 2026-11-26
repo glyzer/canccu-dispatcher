@@ -178,7 +178,7 @@ ok "snapshot: the started worker" eq "$(sj '.running[] | select(.key == "3") | [
 ok "snapshot: the reviewer: its issue, step, progress against caps, last line" \
   eq "$(sj '.running[] | select(.key == "review-60") | [.issue, .pr, .kind, .pipeline, .minutes, .turns, .turn_cap, .min_cap, .color, .last_line] | map(tostring) | join(" ")')" \
   "10 60 review review 0 4 60 40 135 [t4] → Read src/a.ts"
-ok "snapshot: every running item has every field" eq "$(sj '[.running[] | keys | length] | unique | map(tostring) | join(" ")')" 20
+ok "snapshot: every running item has every field" eq "$(sj '[.running[] | keys | length] | unique | map(tostring) | join(" ")')" 21
 ok "snapshot: needs you: accept (with the reason), plan, labelled (a checkpoint is the steps' now, tests/canccu-snapshot2.sh)" \
   eq "$(sj '[.needs_you[] | "\(.kind):\(.issue)"] | sort | join(" ")')" "accept:5 needs-you:8 plan:6"
 ok "snapshot: … the accept's reason and PR link" eq "$(sj '.needs_you[] | select(.kind == "accept") | "\(.reason) \(.url)"')" "manual: touches migrations https://github.com/example-org/web/pull/50"
