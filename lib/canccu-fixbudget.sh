@@ -44,8 +44,9 @@ blocking_note() {
 # fewer blocking findings than the one before but at least one (none left is a parse miss, not progress)
 extra_fix_due() {
   local p l
-  # FIX_ATTEMPTS=0 means no automatic fix run at all, this one included
-  [ "${FIX_EXTRA_IF_FEWER:-1}" = 1 ] && [ -z "$(st_get "$1" extra_fix)" ] && (( $(fix_max) > 0 )) || return 1
+  # no cap gates it: the round runs past both FIX_ATTEMPTS and REVIEW_FIX_ATTEMPTS by design, and
+  # FIX_EXTRA_IF_FEWER=0 is its only off switch
+  [ "${FIX_EXTRA_IF_FEWER:-1}" = 1 ] && [ -z "$(st_get "$1" extra_fix)" ] || return 1
   p=$(st_get "$1" blocking_prev) l=$(st_get "$1" blocking_last)
   [[ $p =~ ^[0-9]+$ && $l =~ ^[0-9]+$ ]] && (( l >= 1 && l < p ))
 }
