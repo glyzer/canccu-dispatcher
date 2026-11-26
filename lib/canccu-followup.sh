@@ -151,19 +151,6 @@ conflict_task() {
   printf "${f//@BASE@/"$BASE_BRANCH"}" "$1" "$2"
 }
 
-# ci_log_tail <pr>: the newest log lines of the first failing job of a red CI (its check links to
-# a GitHub Actions job); else how to read them
-ci_log_tail() {
-  local pr=$1 run jid url="" t=""
-  IFS=$'\t' read -r run _ _ jid < <(ci_failed "$pr" | awk -F'\t' '$4 != ""' | head -n1)
-  if [ -n "${jid:-}" ]; then
-    url="https://github.com/$REPO/actions/runs/$run/job/$jid"
-    t=$(ghj run view --job "$jid" -R "$REPO" --log-failed 2>/dev/null | tail -n "${CI_LOG_LINES:-60}")
-  fi
-  if [ -n "$t" ]; then printf 'The failing job (%s), the tail of its log: %s' "$url" "$(oneline 2500 "$t")"
-  else printf 'Read the failing checks with gh pr checks %s -R %s and their logs with gh run view --log-failed.' "$pr" "$REPO"; fi
-}
-
 # CI_TIMEDOUT: per Actions job id, whether its cancel was its own time limit (true/false). A job's
 # result never changes, so it is asked once per process; ci_timeouts_load fills it outside the
 # $(...) subshells that read it.
@@ -281,7 +268,7 @@ ci_rerun() {
 
 # ci_red <K> <pr>: CI is red on the PR. Main is merged in first (by script: another merged PR may
 # have caused the failure) and CI runs again; still red with main in, its failed jobs are rerun once
-# (ci_rerun); still red, a fresh fix session gets the failing job's log tail. At most FIX_ATTEMPTS
+# (ci_rerun); still red, a fresh fix session gets the failing jobs' digest (ci_digest). At most FIX_ATTEMPTS
 # automatic fix runs per PR, one conflict run and one rerun per head and 3 failed merges in a row
 # (a fixed bound, not a setting), then needs-you (naming the failed checks): nothing repeats unbounded.
 ci_red() {
@@ -326,7 +313,7 @@ ci_red() {
     [[ $to == *,* ]] && to="$to were cancelled at their own time limit (timed out)" || to="$to was cancelled at its own time limit (timed out)"
     task="$task knowing that $to, so look for what runs too long or hangs,"
   fi
-  resume "$k" "$task rerun the checks, push once and stop: the dispatcher watches CI. $(ci_log_tail "$pr")" ci || return 0
+  resume "$k" "$task rerun the checks, push once and stop: the dispatcher watches CI. $(ci_digest "$pr")" ci || return 0
   fix_count "$k" "$pr"
   log "#$k PR #$pr: CI red; fix run $(fixes_used "$k" "$pr") of $(fix_max)$f"
 }
@@ -350,3 +337,5 @@ finish_once() {
 
 # shellcheck source=canccu-fixbudget.sh
 . "$_canccu_lib/canccu-fixbudget.sh"
+# shellcheck source=canccu-cidigest.sh
+. "$_canccu_lib/canccu-cidigest.sh"

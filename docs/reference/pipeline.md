@@ -57,7 +57,9 @@ Every `INTERVAL` seconds, under the project's lock:
        branch by script (`git merge origin/main`, a normal push, no AI run), CI runs again,
        since another merged PR may have caused it; a merge that conflicts is aborted and a fresh
        session resolves it; still red with main in → failed or cancelled Actions jobs rerun once
-       per head; still red → a fresh fix session with the failing job's log tail, at most
+       per head; still red → a fresh fix session with the failure digest of every
+       failing job (`CI_DIGEST_PATTERN`, at most `CI_DIGEST_LINES` lines, each job under its
+       name; a log with no failure line gives its tail), at most
        `FIX_ATTEMPTS` red-CI fix runs per PR, then `needs-you`. A job its
        time limit ended reads "timed out"; `REVIEW_CHECKS` are ignored. A `needs-you`
        that only waited on CI returns to `check` once CI is green or red;

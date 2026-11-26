@@ -6,6 +6,12 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 
 ## Unreleased
 
+- A red-CI fix run gets a failure digest of every failing job, built by script, instead of the
+  last 60 lines of the first one's log (#327): the lines `CI_DIGEST_PATTERN` matches with their
+  next 8 lines, and the test and lint summaries, each job under its name; no ANSI codes,
+  timestamps, compose output or teardown; at most `CI_DIGEST_LINES` (default `120`) lines. A log
+  with no match still gives its tail (`CI_LOG_LINES`).
+
 ## [0.4.0] — 2026-11-26
 
 Release 0.4: step 5's fixes after 0.3 and step 6's token cost work (the review fix loop).

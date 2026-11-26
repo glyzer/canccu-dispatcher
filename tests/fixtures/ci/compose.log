@@ -1,0 +1,77 @@
+e2e	Run e2e	2030-11-05T10:00:00.1234567Z ##[group]Run npm ci
+e2e	Run e2e	2030-11-05T10:00:01.1234567Z npm ci
+e2e	Run e2e	2030-11-05T10:00:02.1234567Z ##[endgroup]
+e2e	Run e2e	2030-11-05T10:00:03.1234567Z added 812 packages in 14s
+e2e	Run e2e	2030-11-05T10:00:04.1234567Z setup line 0
+e2e	Run e2e	2030-11-05T10:00:05.1234567Z setup line 1
+e2e	Run e2e	2030-11-05T10:00:06.1234567Z setup line 2
+e2e	Run e2e	2030-11-05T10:00:07.1234567Z setup line 3
+e2e	Run e2e	2030-11-05T10:00:08.1234567Z setup line 4
+e2e	Run e2e	2030-11-05T10:00:09.1234567Z setup line 5
+e2e	Run e2e	2030-11-05T10:00:10.1234567Z setup line 6
+e2e	Run e2e	2030-11-05T10:00:11.1234567Z setup line 7
+e2e	Run e2e	2030-11-05T10:00:12.1234567Z setup line 8
+e2e	Run e2e	2030-11-05T10:00:13.1234567Z setup line 9
+e2e	Run e2e	2030-11-05T10:00:14.1234567Z setup line 10
+e2e	Run e2e	2030-11-05T10:00:15.1234567Z setup line 11
+e2e	Run e2e	2030-11-05T10:00:16.1234567Z setup line 12
+e2e	Run e2e	2030-11-05T10:00:17.1234567Z setup line 13
+e2e	Run e2e	2030-11-05T10:00:18.1234567Z setup line 14
+e2e	Run e2e	2030-11-05T10:00:19.1234567Z setup line 15
+e2e	Run e2e	2030-11-05T10:00:20.1234567Z setup line 16
+e2e	Run e2e	2030-11-05T10:00:21.1234567Z setup line 17
+e2e	Run e2e	2030-11-05T10:00:22.1234567Z setup line 18
+e2e	Run e2e	2030-11-05T10:00:23.1234567Z setup line 19
+e2e	Run e2e	2030-11-05T10:00:24.1234567Z setup line 20
+e2e	Run e2e	2030-11-05T10:00:25.1234567Z setup line 21
+e2e	Run e2e	2030-11-05T10:00:26.1234567Z setup line 22
+e2e	Run e2e	2030-11-05T10:00:27.1234567Z setup line 23
+e2e	Run e2e	2030-11-05T10:00:28.1234567Z setup line 24
+e2e	Run e2e	2030-11-05T10:00:29.1234567Z setup line 25
+e2e	Run e2e	2030-11-05T10:00:30.1234567Z setup line 26
+e2e	Run e2e	2030-11-05T10:00:31.1234567Z setup line 27
+e2e	Run e2e	2030-11-05T10:00:32.1234567Z setup line 28
+e2e	Run e2e	2030-11-05T10:00:33.1234567Z setup line 29
+e2e	Run e2e	2030-11-05T10:00:34.1234567Z setup line 30
+e2e	Run e2e	2030-11-05T10:00:35.1234567Z setup line 31
+e2e	Run e2e	2030-11-05T10:00:36.1234567Z setup line 32
+e2e	Run e2e	2030-11-05T10:00:37.1234567Z setup line 33
+e2e	Run e2e	2030-11-05T10:00:38.1234567Z setup line 34
+e2e	Run e2e	2030-11-05T10:00:39.1234567Z setup line 35
+e2e	Run e2e	2030-11-05T10:00:40.1234567Z setup line 36
+e2e	Run e2e	2030-11-05T10:00:41.1234567Z setup line 37
+e2e	Run e2e	2030-11-05T10:00:42.1234567Z setup line 38
+e2e	Run e2e	2030-11-05T10:00:43.1234567Z setup line 39
+e2e	Run e2e	2030-11-05T10:00:44.1234567Z web-1  | Error: connect ECONNREFUSED 127.0.0.1:5432
+e2e	Run e2e	2030-11-05T10:00:45.1234567Z db-1   | 2030-11-05 10:00:00 UTC [1] LOG:  database system is shut down
+e2e	Run e2e	2030-11-05T10:00:46.1234567Z web-1  | FAIL to reach the cache, retrying
+e2e	Run e2e	2030-11-05T10:00:47.1234567Z  FAIL  e2e/checkout.spec.ts > checkout > pays by card
+e2e	Run e2e	2030-11-05T10:00:48.1234567Z Error: expected status 200, got 500
+e2e	Run e2e	2030-11-05T10:00:49.1234567Z  ❯ e2e/checkout.spec.ts:41:7
+e2e	Run e2e	2030-11-05T10:00:50.1234567Z web-1  | Error: connect ECONNREFUSED 127.0.0.1:5432
+e2e	Run e2e	2030-11-05T10:00:51.1234567Z db-1   | 2030-11-05 10:00:00 UTC [1] LOG:  database system is shut down
+e2e	Run e2e	2030-11-05T10:00:52.1234567Z web-1  | FAIL to reach the cache, retrying
+e2e	Run e2e	2030-11-05T10:00:53.1234567Z  Container web-db-1  Stopping
+e2e	Run e2e	2030-11-05T10:00:54.1234567Z  Container web-db-1  Stopped
+e2e	Run e2e	2030-11-05T10:00:55.1234567Z  Container web-web-1  Removing
+e2e	Run e2e	2030-11-05T10:00:56.1234567Z  Container web-web-1  Removed
+e2e	Run e2e	2030-11-05T10:00:57.1234567Z  Network web_default  Removing
+e2e	Run e2e	2030-11-05T10:00:58.1234567Z  Network web_default  Removed
+e2e	Run e2e	2030-11-05T10:00:59.1234567Z ##[group]Run docker compose down
+e2e	Run e2e	2030-11-05T10:01:00.1234567Z docker compose down -v
+e2e	Run e2e	2030-11-05T10:01:01.1234567Z ##[endgroup]
+e2e	Run e2e	2030-11-05T10:01:02.1234567Z web-1  | Error: connect ECONNREFUSED 127.0.0.1:5432
+e2e	Run e2e	2030-11-05T10:01:03.1234567Z db-1   | 2030-11-05 10:00:00 UTC [1] LOG:  database system is shut down
+e2e	Run e2e	2030-11-05T10:01:04.1234567Z web-1  | FAIL to reach the cache, retrying
+e2e	Run e2e	2030-11-05T10:01:05.1234567Z web-1  | Error: connect ECONNREFUSED 127.0.0.1:5432
+e2e	Run e2e	2030-11-05T10:01:06.1234567Z db-1   | 2030-11-05 10:00:00 UTC [1] LOG:  database system is shut down
+e2e	Run e2e	2030-11-05T10:01:07.1234567Z web-1  | FAIL to reach the cache, retrying
+e2e	Run e2e	2030-11-05T10:01:08.1234567Z web-1  | Error: connect ECONNREFUSED 127.0.0.1:5432
+e2e	Run e2e	2030-11-05T10:01:09.1234567Z db-1   | 2030-11-05 10:00:00 UTC [1] LOG:  database system is shut down
+e2e	Run e2e	2030-11-05T10:01:10.1234567Z web-1  | FAIL to reach the cache, retrying
+e2e	Run e2e	2030-11-05T10:01:11.1234567Z web-1  | Error: connect ECONNREFUSED 127.0.0.1:5432
+e2e	Run e2e	2030-11-05T10:01:12.1234567Z db-1   | 2030-11-05 10:00:00 UTC [1] LOG:  database system is shut down
+e2e	Run e2e	2030-11-05T10:01:13.1234567Z web-1  | FAIL to reach the cache, retrying
+e2e	Run e2e	2030-11-05T10:01:14.1234567Z web-1  | Error: connect ECONNREFUSED 127.0.0.1:5432
+e2e	Run e2e	2030-11-05T10:01:15.1234567Z db-1   | 2030-11-05 10:00:00 UTC [1] LOG:  database system is shut down
+e2e	Run e2e	2030-11-05T10:01:16.1234567Z web-1  | FAIL to reach the cache, retrying

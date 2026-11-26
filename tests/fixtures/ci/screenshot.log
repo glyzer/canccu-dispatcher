@@ -1,0 +1,51 @@
+shots	Check screenshots	2030-11-05T10:00:00.1234567Z ##[group]Run npm ci
+shots	Check screenshots	2030-11-05T10:00:01.1234567Z npm ci
+shots	Check screenshots	2030-11-05T10:00:02.1234567Z ##[endgroup]
+shots	Check screenshots	2030-11-05T10:00:03.1234567Z added 812 packages in 14s
+shots	Check screenshots	2030-11-05T10:00:04.1234567Z setup line 0
+shots	Check screenshots	2030-11-05T10:00:05.1234567Z setup line 1
+shots	Check screenshots	2030-11-05T10:00:06.1234567Z setup line 2
+shots	Check screenshots	2030-11-05T10:00:07.1234567Z setup line 3
+shots	Check screenshots	2030-11-05T10:00:08.1234567Z setup line 4
+shots	Check screenshots	2030-11-05T10:00:09.1234567Z setup line 5
+shots	Check screenshots	2030-11-05T10:00:10.1234567Z setup line 6
+shots	Check screenshots	2030-11-05T10:00:11.1234567Z setup line 7
+shots	Check screenshots	2030-11-05T10:00:12.1234567Z setup line 8
+shots	Check screenshots	2030-11-05T10:00:13.1234567Z setup line 9
+shots	Check screenshots	2030-11-05T10:00:14.1234567Z setup line 10
+shots	Check screenshots	2030-11-05T10:00:15.1234567Z setup line 11
+shots	Check screenshots	2030-11-05T10:00:16.1234567Z setup line 12
+shots	Check screenshots	2030-11-05T10:00:17.1234567Z setup line 13
+shots	Check screenshots	2030-11-05T10:00:18.1234567Z setup line 14
+shots	Check screenshots	2030-11-05T10:00:19.1234567Z setup line 15
+shots	Check screenshots	2030-11-05T10:00:20.1234567Z setup line 16
+shots	Check screenshots	2030-11-05T10:00:21.1234567Z setup line 17
+shots	Check screenshots	2030-11-05T10:00:22.1234567Z setup line 18
+shots	Check screenshots	2030-11-05T10:00:23.1234567Z setup line 19
+shots	Check screenshots	2030-11-05T10:00:24.1234567Z setup line 20
+shots	Check screenshots	2030-11-05T10:00:25.1234567Z setup line 21
+shots	Check screenshots	2030-11-05T10:00:26.1234567Z setup line 22
+shots	Check screenshots	2030-11-05T10:00:27.1234567Z setup line 23
+shots	Check screenshots	2030-11-05T10:00:28.1234567Z setup line 24
+shots	Check screenshots	2030-11-05T10:00:29.1234567Z setup line 25
+shots	Check screenshots	2030-11-05T10:00:30.1234567Z setup line 26
+shots	Check screenshots	2030-11-05T10:00:31.1234567Z setup line 27
+shots	Check screenshots	2030-11-05T10:00:32.1234567Z setup line 28
+shots	Check screenshots	2030-11-05T10:00:33.1234567Z setup line 29
+shots	Check screenshots	2030-11-05T10:00:34.1234567Z setup line 30
+shots	Check screenshots	2030-11-05T10:00:35.1234567Z setup line 31
+shots	Check screenshots	2030-11-05T10:00:36.1234567Z setup line 32
+shots	Check screenshots	2030-11-05T10:00:37.1234567Z setup line 33
+shots	Check screenshots	2030-11-05T10:00:38.1234567Z setup line 34
+shots	Check screenshots	2030-11-05T10:00:39.1234567Z setup line 35
+shots	Check screenshots	2030-11-05T10:00:40.1234567Z setup line 36
+shots	Check screenshots	2030-11-05T10:00:41.1234567Z setup line 37
+shots	Check screenshots	2030-11-05T10:00:42.1234567Z setup line 38
+shots	Check screenshots	2030-11-05T10:00:43.1234567Z setup line 39
+shots	Check screenshots	2030-11-05T10:00:44.1234567Z comparing 24 screenshots against the baseline
+shots	Check screenshots	2030-11-05T10:00:45.1234567Z ok   home.png
+shots	Check screenshots	2030-11-05T10:00:46.1234567Z FAIL cart.png: 3.4% of pixels differ (limit 0.1%)
+shots	Check screenshots	2030-11-05T10:00:47.1234567Z ok   checkout.png
+shots	Check screenshots	2030-11-05T10:00:48.1234567Z FAIL login.png: missing baseline
+shots	Check screenshots	2030-11-05T10:00:49.1234567Z 22 passed, 2 failed
+shots	Check screenshots	2030-11-05T10:00:50.1234567Z ##[error]Process completed with exit code 1.

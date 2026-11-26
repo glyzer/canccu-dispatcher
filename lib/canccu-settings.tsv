@@ -48,6 +48,8 @@ DIGEST_ISSUE	intopt:1:9999999	project	open
 PING	enum:on|off	project	locked
 INTERVAL	int:10:3600	project	open
 CI_WAIT_MIN	int:1:1440	project	open
+CI_DIGEST_PATTERN	regex	project	open
+CI_DIGEST_LINES	int:10:2000	project	open
 NO_CHECKS_MIN	int:1:1440	project	open
 IDLE_ALARM_MIN	int:1:10080	project	open
 MERGE_WAIT_MIN	int:1:10080	project	open

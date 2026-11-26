@@ -54,6 +54,10 @@ DIGEST_ISSUE=               # the pinned "Daily digest" issue; empty: the digest
 PING=on                     # on|off: @mention USER_LOGIN in a comment as REVIEWER_LOGIN when something needs them
 INTERVAL=60                 # seconds between passes
 CI_WAIT_MIN=90              # a finished worker's PR with CI still pending this long → needs-you
+# a red CI's fix run gets a digest of its failing jobs' logs: each line this matches (grep -E) with
+# its next 8 lines, and the test and lint summaries; a log with no match gives its tail. Empty: the tail only
+CI_DIGEST_PATTERN='FAIL|✗|×|AssertionError|Error:|error TS[0-9]+|##\[error\]|^[[:space:]]+[0-9]+:[0-9]+[[:space:]]+error'
+CI_DIGEST_LINES=120         # at most this many lines in that digest, over all its failing jobs
 NO_CHECKS_MIN=10            # a finished worker's PR with no CI check reported this long → needs-you
 IDLE_ALARM_MIN=60           # a unit no rule moved this long, with nothing running → one idle line in the feed
 MERGE_WAIT_MIN=240          # auto-merge armed this long without a merge → disarmed, needs-you

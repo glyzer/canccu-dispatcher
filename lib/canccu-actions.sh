@@ -83,8 +83,9 @@ resume() {
     mut rm -f "$WORKERS_DIR/$REPO_NAME-$n.id"; msg="$(unit_prompt "$n")${q:+ Your earlier run stopped with this question: $(oneline 2000 "$q")} $msg"
     how=fresh fl=(--fresh)
   elif ! resume_on "$kind"; then
-    # the rules first, then the task: only the end of the handoff may be cut
-    msg="$SAFETY_BLOCK $(oneline 5000 "$msg") $(handoff "$n" "$kind")" how=fresh fl=(--fresh)
+    # the rules first, then the task: only the end of the handoff may be cut. A red CI's task
+    # carries its failure digest (up to 12000 characters)
+    msg="$SAFETY_BLOCK $(oneline 14000 "$msg") $(handoff "$n" "$kind")" how=fresh fl=(--fresh)
   fi
   # the run type spend.log names: a fix kind is a fix, a merge a merge, the rest build
   type=build; [ "$kind" = merge ] && type=merge
