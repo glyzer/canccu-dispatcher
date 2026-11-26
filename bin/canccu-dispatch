@@ -115,6 +115,8 @@ pass() {
   ping_tick
   # an issue whose blockers all closed (by any means) is ready before anything starts or plans
   unblock_tick
+  # a release-red is rerun, and judged once its rerun ended, before the queue is read
+  release_red_tick
   for n in $(managed); do if is_open "$n"; then open+=("$n"); else closed+=("$n"); fi; done
   # 2. reap finished workers and reviewers; PRs waiting for CI or a slot get their review
   for n in "${open[@]}"; do

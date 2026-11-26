@@ -11,6 +11,7 @@ The guides (getting started, install, upgrading, security, …) are in [`../READ
 | [`config.md`](config.md) | Every config key with its default, changing a setting, the settings table |
 | [`config-steps.md`](config-steps.md) | The keys of steps, packages, reviews, usage and pacing |
 | [`config-runs.md`](config-runs.md) | The keys of CI and its fix runs, release-reds and the narrow runs' models |
+| [`release-reds.md`](release-reds.md) | A red CI on the base branch: the one rerun, flaky checks and their issues, infrastructure errors |
 | [`config-files.md`](config-files.md) | Where the values come from, when a change applies |
 | [`hosts.md`](hosts.md) | Host profiles, environment variables |
 | [`rules.md`](rules.md) | A project's rules: risky and gated paths, extra prompt text, the freeze, the one-at-a-time lock, pings |

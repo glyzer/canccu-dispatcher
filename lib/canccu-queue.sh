@@ -72,7 +72,9 @@ MILESTONE_KEY_JQ='def milestone_key: if . == null then 1e9
 # candidates: the fast lane: ready issues with no milestone or labelled fast, not taken yet and in
 # no package (the issues of a step run as its packages), in order: the milestone's leading number ("Parallel
 # tracks" between 2 and 3; a title without a number after the numbered ones; no milestone last),
-# the epic's Order: line, the issue number
+# the epic's Order: line, the issue number; a "flaky: <check>" issue after all of them (it is ready only
+# from FLAKY_FILE_AFTER failures, and a real fix waits for nothing), a release-red not before its rerun
+# decided (lib/canccu-releasered.sh)
 candidates() {
   local m; m=" $(managed | tr '\n' ' ') "
   jqr "$MILESTONE_KEY_JQ"'( [ .[] | select(any(.labels[]; .name == "epic")) | .body // "" | split("\n")[]
@@ -81,10 +83,10 @@ candidates() {
     | [ .[] | select([.labels[].name] as $l | ($l | index("ready")) and
                      ([$l[] | select(IN("epic", "checkpoint", "blocked", "in-progress", "needs-you", "awaiting-accept", "dispatcher-claim"))] | length == 0)
                      and (.milestone == null or ($l | index("fast"))))
-        | { n: .number, o: ($ord[.number | tostring] // 99999),
+        | { n: .number, f: (.title | startswith("flaky: ")), o: ($ord[.number | tostring] // 99999),
             m: (.milestone.title // null | milestone_key) } ]
-    | sort_by(.m, .o, .n)[] | .n' <<<"$ISSUES" |
-    while read -r n; do [[ $m == *" $n "* ]] || [ "$(unit_of_issue "$n")" != "$n" ] || echo "$n"; done
+    | sort_by(.f, .m, .o, .n)[] | .n' <<<"$ISSUES" |
+    while read -r n; do [[ $m == *" $n "* ]] || [ "$(unit_of_issue "$n")" != "$n" ] || release_red_held "$n" || echo "$n"; done
 }
 
 # waiting_for_po: open issues the user has not released yet: not an epic, neither ready nor

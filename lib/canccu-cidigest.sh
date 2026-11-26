@@ -60,17 +60,20 @@ ci_log_digest() {
 # "== <name> (<url>) ==", the job's failure lines or, where none matched, the tail of its log
 # (CI_LOG_LINES, the tail a fix run was given before the digest). At most CI_DIGEST_LINES lines in
 # all, shared out among the jobs, so a second job's failures are not cut by the first's. DIGEST is
-# empty when no log could be read; DIGEST_MATCHED=1 when a job's lines matched.
+# empty when no log could be read; DIGEST_MATCHED=1 when a job's lines matched. DIGEST_INFRA is the
+# first log line CI_INFRA_PATTERN matches (a registry pull, a lost runner, a network timeout): a
+# release-red that turns green on a rerun then files no flaky check.
 ci_digest_jobs() {
   local jobs name jid url log d n cap per out=""
   jobs=$(awk -F'\t' '$2 != ""')
-  DIGEST="" DIGEST_MATCHED=0
+  DIGEST="" DIGEST_MATCHED=0 DIGEST_INFRA=""
   [ -n "$jobs" ] || return 0
   cap=${CI_DIGEST_LINES:-120}; [[ $cap =~ ^[0-9]+$ ]] && (( cap >= 4 )) || cap=120
   n=$(wc -l <<<"$jobs"); per=$(( cap / n )); (( per >= 2 )) || per=2
   while IFS=$'\t' read -r name jid url; do
     log=$(ghj run view --job "$jid" -R "$REPO" --log-failed 2>/dev/null | ci_log_clean)
     [ -n "$log" ] || continue
+    [ -z "$DIGEST_INFRA" ] && [ -n "${CI_INFRA_PATTERN:-}" ] && DIGEST_INFRA=$(grep -m1 -iE -- "$CI_INFRA_PATTERN" <<<"$log")
     d=$(ci_log_digest $(( per - 1 )) <<<"$log")
     if [ -n "$d" ]; then DIGEST_MATCHED=1
     else d=$(grep -vx '##\[group\]' <<<"$log" | tail -n "${CI_LOG_LINES:-60}" | tail -n $(( per - 1 ))); fi

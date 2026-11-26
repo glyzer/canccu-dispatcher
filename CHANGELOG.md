@@ -11,6 +11,11 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
   next 8 lines, and the test and lint summaries, each job under its name; no ANSI codes,
   timestamps, compose output or teardown; at most `CI_DIGEST_LINES` (default `120`) lines. A log
   with no match still gives its tail (`CI_LOG_LINES`).
+- A release-red issue (`RELEASE_RED_LABEL`, default `release-red`) is not work until the
+  dispatcher reran the failed jobs at its commit once (#332). Green closes it: each failed check
+  gets one `flaky: <check>` issue that counts its failures and is `ready`, last in the queue, from
+  `FLAKY_FILE_AFTER` (default `2`); an infrastructure error (`CI_INFRA_PATTERN`) files nothing. Red
+  leaves it as work, with the failure digest. `RELEASE_RED_LABEL=` turns it off.
 
 ## [0.4.0] — 2026-11-26
 

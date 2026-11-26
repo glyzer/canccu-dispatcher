@@ -339,3 +339,5 @@ finish_once() {
 . "$_canccu_lib/canccu-fixbudget.sh"
 # shellcheck source=canccu-cidigest.sh
 . "$_canccu_lib/canccu-cidigest.sh"
+# shellcheck source=canccu-releasered.sh
+. "$_canccu_lib/canccu-releasered.sh"
