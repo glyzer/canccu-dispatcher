@@ -181,9 +181,9 @@ pr 50 5 $HA green needs-work | prs
 lib eval 'lead_of() { :; }; fetch; needs_work_from_pr 5 50; echo "rc=$?"' > "$E/out" 2>&1
 ok "needs_work_from_pr with no lead issue → no gh call" eq "$(grep -c '^issue edit' "$FAKE/gh.log") $(grep -c 'rc=0' "$E/out")" "0 1"
 
-env_new fix-zero FIX_ATTEMPTS=0
+env_new fix-zero FIX_ATTEMPTS=0 REVIEW_FIX_ATTEMPTS=0
 state 5 phase=review pr=50 blocking_prev=4 blocking_last=2
-ok "FIX_ATTEMPTS=0: no extra fix round" eq "$(lib eval 'extra_fix_due 5 && echo due || echo none')" none
+ok "FIX_ATTEMPTS=0, REVIEW_FIX_ATTEMPTS=0: the extra review round still runs (past both caps)" eq "$(lib eval 'extra_fix_due 5 && echo due || echo none')" due
 
 # canccu-stop --forget: the blocked marker stays while the label could not be removed
 env_new stop-label-fails
