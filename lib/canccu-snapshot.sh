@@ -27,7 +27,7 @@ snap_unit() {
     [ -n "$(st_get "$k" pkg)" ] && p=$k r=$(risk_max "$(st_get "$k" risk)" "$(st_get "$k" review_risk)")
     is=$(members_of "$k" | tr '\n' ' ')
     pr=$(st_get "$k" pr)
-    [ -n "$pr" ] && fx="$(fixes_used "$k" "$pr") $(fix_max) $(rfixes_used "$k" "$pr") $(rfix_max)"
+    [ -n "$pr" ] && fx=$(fix_numbers "$k" "$pr")
   fi
   jq -c --arg p "$p" --arg r "$r" --arg is "$is" --arg l "$l" --arg k "$k" --arg fx "$fx" \
     '. + {package: (if $p == "" then null else $p end), issues: ($is | split(" ") | map(select(. != "") | tonumber)),

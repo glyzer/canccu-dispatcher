@@ -14,8 +14,9 @@ rfix_max() { [[ ${REVIEW_FIX_ATTEMPTS:-} =~ ^[0-9]+$ ]] && echo "$REVIEW_FIX_ATT
 
 # fixes_used <K> <pr>: the red-CI fix runs on that PR so far; rfixes_used: its review fix runs. A
 # count kept for another PR (the unit opened a new one) is not this PR's
-fixes_used() { [ "$(st_get "$1" fixes_pr)" = "$2" ] && echo "$(( $(st_get "$1" fixes) + 0 ))" || echo 0; }
-rfixes_used() { [ "$(st_get "$1" fixes_pr)" = "$2" ] && echo "$(( $(st_get "$1" rfixes) + 0 ))" || echo 0; }
+fixes_used() { _fixes_of fixes "$@"; }
+rfixes_used() { _fixes_of rfixes "$@"; }
+_fixes_of() { [ "$(st_get "$2" fixes_pr)" = "$3" ] && echo "$(( $(st_get "$2" "$1") + 0 ))" || echo 0; }
 fix_left() { (( $(fixes_used "$1" "$2") < $(fix_max) )); }
 rfix_left() { (( $(rfixes_used "$1" "$2") < $(rfix_max) )); }
 # fix_count <K> <pr>, rfix_count <K> <pr>: one more automatic run of that kind (a round the user
@@ -27,8 +28,10 @@ _fix_bump() {
   if [ "$(st_get "$3" fixes_pr)" = "$4" ]; then st_set "$3" "$1=$(( $(st_get "$3" "$1") + 1 ))"
   else st_set "$3" "$1=1" "$2=" fixes_pr="$4"; fi
 }
-# fix_counts <K> <pr>: the status line's "ci 2/2 · review 0/1"
-fix_counts() { printf 'ci %s/%s · review %s/%s' "$(fixes_used "$1" "$2")" "$(fix_max)" "$(rfixes_used "$1" "$2")" "$(rfix_max)"; }
+# fix_numbers <K> <pr>: "<ci used> <ci max> <review used> <review max>", as the snapshot reads them;
+# fix_counts: the status line's "ci 2/2 · review 0/1"
+fix_numbers() { echo "$(fixes_used "$1" "$2") $(fix_max) $(rfixes_used "$1" "$2") $(rfix_max)"; }
+fix_counts() { local a; read -ra a <<<"$(fix_numbers "$1" "$2")"; printf 'ci %s/%s · review %s/%s' "${a[@]}"; }
 
 # blocking_note <K> <verdict body> <verdict at> <head>: the verdict's blocking count (findings_count:
 # the blocking findings left, as spend.log has them) becomes blocking_last, the one before it blocking_prev. Once per verdict
