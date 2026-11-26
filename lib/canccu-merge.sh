@@ -271,17 +271,33 @@ merging_step() {
 # shellcheck source=canccu-mqueue.sh
 . "$_canccu_lib/canccu-mqueue.sh"
 
-# postpass_full <base> <head>: why the change base..head needs a full review, not a fix-check; nothing
-# when it does not. Only the files of the PR's own diff at head count (all, when that list cannot be
-# read; a rename's two paths). The count starts at count_from.
-postpass_full() {
-  local base=$1 head=$2 mb stats total p re max=${FIXCHECK_FULL_LINES:-100} files=()
+# own_change <base> <head>: git diff --numstat of the change base..head over the PR's own diff at
+# head (all files, when that list cannot be read; a rename's two paths), counted from count_from,
+# so lines merged in from main drop out. 1: the change cannot be read.
+own_change() {
+  local mb files=()
+  mb=$(guard 20 git -C "$CLONE" merge-base origin/$BASE_BRANCH "$2" 2>/dev/null)
+  [ -n "$mb" ] && mapfile -t files < <(guard 20 git -C "$CLONE" -c core.quotePath=off diff --name-only --no-renames "$mb" "$2" 2>/dev/null)
+  change_stats "$(count_from "$1" "$2")" "$2" "${files[@]}"
+}
+# lines_over <numstat>: why that change is too big for a fix-check, over FIXCHECK_FULL_LINES; nothing when it is not
+lines_over() {
+  local total max=${FIXCHECK_FULL_LINES:-100}
   [[ $max =~ ^[0-9]+$ ]] || max=100
-  mb=$(guard 20 git -C "$CLONE" merge-base origin/$BASE_BRANCH "$head" 2>/dev/null)
-  [ -n "$mb" ] && mapfile -t files < <(guard 20 git -C "$CLONE" -c core.quotePath=off diff --name-only --no-renames "$mb" "$head" 2>/dev/null)
-  stats=$(change_stats "$(count_from "$base" "$head")" "$head" "${files[@]}") || { echo "the change cannot be read"; return; }
-  total=$(awk -F '\t' '{ for (i = 1; i <= 2; i++) if ($i ~ /^[0-9]+$/) t += $i } END { print t + 0 }' <<<"$stats")
-  (( total > max )) && { echo "$total changed lines, over FIXCHECK_FULL_LINES=$max"; return; }
+  total=$(awk -F '\t' '{ for (i = 1; i <= 2; i++) if ($i ~ /^[0-9]+$/) t += $i } END { print t + 0 }' <<<"$1")
+  (( total > max )) && echo "$total changed lines, over FIXCHECK_FULL_LINES=$max"
+  return 0
+}
+# own_lines_over <base> <head>: lines_over of own_change; a change that cannot be read is said too
+# (the cost of that is a full review, never a missed one)
+own_lines_over() { local s; s=$(own_change "$1" "$2") || { echo "the change cannot be read"; return; }; lines_over "$s"; }
+
+# postpass_full <base> <head>: why the change base..head needs a full review, not a fix-check;
+# nothing when it does not: too many lines of the PR's own (own_change), or a gated or risky path
+postpass_full() {
+  local stats p re
+  stats=$(own_change "$1" "$2") || { echo "the change cannot be read"; return; }
+  p=$(lines_over "$stats"); [ -n "$p" ] && { echo "$p"; return; }
   p=$(cut -f3- <<<"$stats" | grep -m1 -E "$(gated_re)") && { echo "gated path $p"; return; }
   for re in "$RISKY_PATHS" "$FIXCHECK_RISKY"; do [ -n "$re" ] && p=$(cut -f3- <<<"$stats" | grep -m1 -iE "$re") && { echo "risky path $p"; return; }; done
   return 0

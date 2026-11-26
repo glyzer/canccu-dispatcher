@@ -10,6 +10,8 @@ awaiting accept (label the PR `accepted`, or canccu-ship <n>):
   #7 · PR #70 · manual: changes setup/ (setup/x.sh)
 needs you:
   none
+fix runs:
+  #7 · PR #70 · fixes: ci 0/2 · review 0/1
 not ours (never reviewed, merged or commented on):
   none
 queue (fast lane, next 5 runnable): #3 

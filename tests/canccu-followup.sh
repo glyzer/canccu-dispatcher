@@ -25,7 +25,7 @@ ok "… short findings inline, with their file" grep -qF "$HA (also in $CANCCU_H
 ok "… the unit, its branch and where the rules are" grep -qF "This run is on issue #5, branch " <<<"$l"
 ok "… not the first prompt again" not grep -q 'propose a tier' <<<"$l"
 ok "… a fresh run is said in the log" grep -q '#5 resumed (fresh session, fix)' "$CANCCU_HOME/dispatch.log"
-ok "… and counts as a fix attempt" eq "$(st 5 fixes) $(st 5 fixes_pr)" "1 50"
+ok "… and counts as a review fix, not a CI one (#326)" eq "$(st 5 rfixes) [$(st 5 fixes)] $(st 5 fixes_pr)" "1 [] 50"
 
 review_env resume-fix 'Review verdict: changes' review RESUME_ON=answer,plan,fix
 dispatch --once
@@ -201,7 +201,7 @@ ok "a changes verdict while backing off → no engine call, no 'could not start'
 rm -f "$CANCCU_ROOT/backoff"
 dispatch --once
 ok "… after the back-off the fix run starts once" \
-  eq "$(grep -c 'The independent reviewer asked for changes on PR #50' "$FAKE/worker.log") $(st 5 fixes)" "1 1"
+  eq "$(grep -c 'The independent reviewer asked for changes on PR #50' "$FAKE/worker.log") $(st 5 rfixes)" "1 1"
 env_new contract-backoff
 { issue 5 in-progress; } | issues
 pr 50 5 "$HA" green "" true | prs
@@ -221,21 +221,21 @@ redenv cap-ci
 echo 0 > "$FAKE/behind"
 state 5 phase=check pr=50 "check_at=$NOW" fixes=1 fixes_pr=50
 dispatch --once
-ok "one fix attempt used (the review's): a CI fix run is the second" eq "$(grep -c 'CI is red on PR #50' "$FAKE/worker.log") $(st 5 fixes)" "1 2"
+ok "one CI fix attempt used: a CI fix run is the second" eq "$(grep -c 'CI is red on PR #50' "$FAKE/worker.log") $(st 5 fixes)" "1 2"
 rm -f "$WORKERS_DIR/web-5.lock"; last 5 done "done"; dispatch --once
 ok "red again after FIX_ATTEMPTS (2) fix runs → needs-you" has gh.log "CI is red on PR #50 after 2 automatic fix runs"
 ok "… no third run" eq "$(grep -c 'CI is red on PR #50' "$FAKE/worker.log")" 1
 
 review_env cap-review 'Review verdict: changes' review
-state 5 phase=review pr=50 review_sha=$HA stage=review fixes=2 fixes_pr=50
+state 5 phase=review pr=50 review_sha=$HA stage=review rfixes=1 fixes_pr=50
 dispatch --once
-ok "the cap holds for a review fix round too" eq "$(grep -c 'asked for changes' "$FAKE/worker.log")" 0
-ok "… needs-you instead" has gh.log "no automatic fix run is left"
+ok "the review fix cap (REVIEW_FIX_ATTEMPTS) holds for a review fix round" eq "$(grep -c 'asked for changes' "$FAKE/worker.log")" 0
+ok "… needs-you instead" has gh.log "no automatic review fix run is left"
 
 review_env cap-other-pr 'Review verdict: changes' review
 state 5 phase=review pr=50 review_sha=$HA stage=review fixes=2 fixes_pr=49
 dispatch --once
-ok "the count is per PR: another PR's fix runs don't count" eq "$(grep -c 'asked for changes' "$FAKE/worker.log") $(st 5 fixes) $(st 5 fixes_pr)" "1 1 50"
+ok "the count is per PR: another PR's fix runs don't count" eq "$(grep -c 'asked for changes' "$FAKE/worker.log") $(st 5 rfixes) [$(st 5 fixes)] $(st 5 fixes_pr)" "1 1 [] 50"
 
 redenv cap-zero FIX_ATTEMPTS=0
 echo 0 > "$FAKE/behind"
@@ -294,9 +294,9 @@ fewenv fewer-off "$F4" FIX_EXTRA_IF_FEWER=0
 fixcheck "$HB" "$F1"; dispatch --once
 ok "FIX_EXTRA_IF_FEWER=0: review 4, fix-check 1 → needs-you as today" eq "$(xfix) $(grep -c 'still finds open items' "$FAKE/gh.log")" "0 1"
 
-fewenv fewer-cap "$F4" FIX_ATTEMPTS=1
+fewenv fewer-cap "$F4" REVIEW_FIX_ATTEMPTS=1
 fixcheck "$HB" "$F1"; dispatch --once
-ok "fewer, with no fix run left by FIX_ATTEMPTS: still the one extra round" eq "$(xfix) $(st 5 fixes)" "1 2"
+ok "fewer, with no review fix run left: still the one extra round, a review fix" eq "$(xfix) $(st 5 rfixes) [$(st 5 fixes)]" "1 2 []"
 
 fewenv fewer-twice "$F4"
 fixcheck "$HB" "$F1"; dispatch --once; dispatch --once

@@ -58,7 +58,7 @@ Every `INTERVAL` seconds, under the project's lock:
        since another merged PR may have caused it; a merge that conflicts is aborted and a fresh
        session resolves it; still red with main in → failed or cancelled Actions jobs rerun once
        per head; still red → a fresh fix session with the failing job's log tail, at most
-       `FIX_ATTEMPTS` fix runs per PR (review fixes included), then `needs-you`. A job its
+       `FIX_ATTEMPTS` red-CI fix runs per PR, then `needs-you`. A job its
        time limit ended reads "timed out"; `REVIEW_CHECKS` are ignored. A `needs-you`
        that only waited on CI returns to `check` once CI is green or red;
      - CI green, no verdict, body lacking `Testing:`/`Revert:` (no contract, no `Tier: plan`)
@@ -71,7 +71,7 @@ Every `INTERVAL` seconds, under the project's lock:
      - `pass` → classify: **auto** arms the merge (phase `merging`); **manual** labels
        `awaiting-accept`, comments a short summary with the reason, phase `accept`;
      - `changes` from the full review → the worker resumes once with the review (stage
-       `fixing`). When it is done and CI is green, the fix-check runs on the fix diff. A worker
+       `fixing`; none left of `REVIEW_FIX_ATTEMPTS`: [`review-depth.md`](review-depth.md#one-full-review-per-pr-cycle)). When it is done and CI is green, the fix-check runs on the fix diff. A worker
        that pushed nothing → `needs-you`; if no fix was needed (a finding was wrong),
        `canccu-review <pr>` reviews the unchanged head again: its pass merges, its `changes`
        returns to `needs-you`. Otherwise a comment from you resumes the worker;

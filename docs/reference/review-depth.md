@@ -78,6 +78,24 @@ is a full review, never a missed one. The count after a pass, and the fix-check'
 `FIXCHECK_COUNT_RESOLVED=1`, diff with `--no-renames`: a file moved out of a gated or risky path
 counts by its old path too.
 
+## One full review per PR cycle
+
+Two fix budgets per PR, so red CI never uses up the review's fix round: `FIX_ATTEMPTS` counts the
+automatic red-CI fix runs (`fixes`), `REVIEW_FIX_ATTEMPTS` (default 1) the automatic review fix
+runs (`rfixes`: a full review's `changes`, and the extra round of `FIX_EXTRA_IF_FEWER`). A
+round you asked for (a comment, `needs-work`) counts in neither. `canccu-status` lists each
+open PR's `fixes: ci 2/2 · review 0/1`.
+
+A full review's `changes` with no review fix run left (and no extra round) is a `needs-you` that
+keeps the round open: the blocking findings are saved as `reviews/<pr>/<head>.findings.md`,
+stage `fixing` on the reviewed head, `fix_owed=1`. Your comment, or `needs-work`, resumes the
+worker as that fix run (a fix kind: `FIX_MODEL`, `FIX_EFFORT`) with the findings and your
+comment's items, which join the findings file; its push gets a fix-check of `<reviewed
+head>..<new head>` against both, not a second full review. A full review runs only on a line
+`full review` in your comment, on a refused accept, or when the PR's own files changed more than
+`FIXCHECK_FULL_LINES` since the review, counted as above: lines merged from main never count, and
+after a conflicting merge only the resolved ones do (with `FIXCHECK_COUNT_RESOLVED=1`).
+
 ## The review brake
 
 Q1 relaxed the reviews (demotions, no repeats, light reviews). The brake takes that back by

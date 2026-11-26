@@ -18,17 +18,21 @@ issue_of_pr() {
 }
 
 # snap_unit <K>: adds a running item's unit fields (schema 2): package (its key, or null), issues,
-# risk; the issue is the lead issue (null for the planner and the health pass)
+# risk, fixes (the PR's automatic fix runs and caps, {ci, ci_max, review, review_max}; null without
+# a PR); the issue is the lead issue (null for the planner and the health pass)
 snap_unit() {
-  local k=${1:-} p="" r="" is="" l=""
+  local k=${1:-} p="" r="" is="" l="" pr="" fx=""
   if [ -n "$k" ]; then
     l=$(lead_of "$k"); is_step_run "$k" && l=""
     [ -n "$(st_get "$k" pkg)" ] && p=$k r=$(risk_max "$(st_get "$k" risk)" "$(st_get "$k" review_risk)")
     is=$(members_of "$k" | tr '\n' ' ')
+    pr=$(st_get "$k" pr)
+    [ -n "$pr" ] && fx="$(fixes_used "$k" "$pr") $(fix_max) $(rfixes_used "$k" "$pr") $(rfix_max)"
   fi
-  jq -c --arg p "$p" --arg r "$r" --arg is "$is" --arg l "$l" --arg k "$k" \
+  jq -c --arg p "$p" --arg r "$r" --arg is "$is" --arg l "$l" --arg k "$k" --arg fx "$fx" \
     '. + {package: (if $p == "" then null else $p end), issues: ($is | split(" ") | map(select(. != "") | tonumber)),
-          risk: (if $r == "" then null else $r end)}
+          risk: (if $r == "" then null else $r end),
+          fixes: (if $fx == "" then null else ($fx | split(" ") | map(tonumber) | {ci: .[0], ci_max: .[1], review: .[2], review_max: .[3]}) end)}
      | if $k != "" then .issue = ($l | tonumber? // null) else . end'
 }
 # snap_item <json args for jq -n...>: one running item, every field of the schema. ci (the

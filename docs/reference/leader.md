@@ -101,6 +101,7 @@ The monitor's NEEDS YOU box and `canccu-status` list it; pings tell your phone
 | An escalated question | Answer it in a comment on the issue: the worker resumes with it |
 | An accept | Label the PR `accepted`, or `canccu-ship <n>` (only where the repo allows auto-merge) |
 | A checkpoint | Read the summary; label `checkpoint-ok`, or close it |
+| A full review's `changes` with no review fix run left (`REVIEW_FIX_ATTEMPTS`) | Comment the way on (or `needs-work`): the worker fixes the review's blocking findings and your comment's items, then a fix-check of that fix, not a second full review; a line `full review` in the comment asks for one |
 | The fix-check's open items | `needs-work` with your comments: one more fix round and a fix-check of it; a line `full review` in the comment asks for a new full review |
 | `needs-you` (CI red, no PR, a failed run) | Read the latest comments; comment to resume the worker, `needs-work` with your comments, or fix it yourself |
 | An invalid plan, the step budget | Comment on the epic and remove `needs-you` to plan again; raise `STEP_BUDGET` |

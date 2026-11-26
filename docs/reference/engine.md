@@ -103,8 +103,11 @@ of the handoff.
   GitHub refuses as already running, at most 10 minutes; then `needs-you`); still red after that, a fresh
   fix session gets the failing job's log tail (`gh run view --job <id> --log-failed`). Every
   `needs-you` of a red CI ends with `; failed: <the failed checks>`.
-- **Cap**: at most `FIX_ATTEMPTS` (default 2) automatic fix runs per PR, review fix rounds and
-  red-CI fixes together, then `needs-you`. `needs-work` rounds are yours and never count.
+- **Caps**: two budgets per PR, so red CI never uses up the review's fix round: at most
+  `FIX_ATTEMPTS` (default 2) automatic red-CI fix runs, and at most `REVIEW_FIX_ATTEMPTS`
+  (default 1) automatic review fix runs (a full review's `changes`, and the extra round of
+  `FIX_EXTRA_IF_FEWER`); past either, `needs-you`. `needs-work` rounds and the fix round your
+  comment continues are yours and never count.
 - **Per machine**: a fix run (review fix, red CI, `needs-work`) runs on `FIX_MODEL` and
   `FIX_EFFORT`. Their defaults are empty, as before (`MODEL`, no `--effort`); each machine sets
   its own in `~/.canccu/config`, so a release never changes another machine's models.

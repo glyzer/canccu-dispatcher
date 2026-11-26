@@ -656,14 +656,20 @@ ok "canccu-status: the product owner's items first, the leader's under 'leader h
 needs you:
   #8 · the worker finished without an open PR · $a
   leader has it:
-    #7 · the worker stopped: crashed · $a"
+    #7 · the worker stopped: crashed · $a
+fix runs:
+  #5 · PR #50 · fixes: ci 0/2 · review 0/1
+  #6 · PR #60 · fixes: ci 0/2 · review 0/1"
 owner_env status-owner-off
 ok "canccu-status: LEADER=off: the lists of today, whatever owner a state holds" eq "$(waits)" "awaiting accept (label the PR \`accepted\`, or canccu-ship <n>):
   #5 · PR #50 · manual: plan tier
   #6 · PR #60 · manual: users see it: web/a.tsx
 needs you:
   #7 · the worker stopped: crashed · $a
-  #8 · the worker finished without an open PR · $a"
+  #8 · the worker finished without an open PR · $a
+fix runs:
+  #5 · PR #50 · fixes: ci 0/2 · review 0/1
+  #6 · PR #60 · fixes: ci 0/2 · review 0/1"
 
 direct_env direct-wait-push $HB green $((NOW - 600))
 dispatch --once

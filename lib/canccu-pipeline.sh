@@ -189,7 +189,7 @@ reap_answer() {
 
 # check_pr <n>: the worker is done; the PR and its CI decide what happens next
 check_pr() {
-  local n=$1 pr j head at rsha fix c
+  local n=$1 pr j head at rsha fix c why
   pr=$(pr_for "$n")
   if [ -z "$pr" ]; then
     # the health pass's or deep review's PR left the open list (closed or merged): health_pr_closed,
@@ -265,7 +265,12 @@ check_pr() {
   { backing_off || pause_holds; } && return
   # with reviews refused the review cannot start: it waits for no shared slot
   if [ -n "$(reviewer_token_problem)" ]; then room || return; else room "$n" || return; fi
-  if (( fix )) && [ -n "$rsha" ]; then start_fixcheck "$pr" "$n" "$rsha" "$head"
+  # the round the lead's comment continued (fix_cont) is a fix-check too, unless the PR's own
+  # files changed more than FIXCHECK_FULL_LINES since the review (main's merged lines never count)
+  if (( fix )) && [ -n "$rsha" ] && [ -n "$(st_get "$n" fix_cont)" ] && why=$(own_lines_over "$rsha" "$head") && [ -n "$why" ]; then
+    log "#$n PR #$pr: the fix after the review changed $why; full review"
+    st_set "$n" stage=review reviewed_sha= fix_cont= review_asked=1; start_review "$pr" "$n" "$head"
+  elif (( fix )) && [ -n "$rsha" ]; then start_fixcheck "$pr" "$n" "$rsha" "$head"
   else start_review "$pr" "$n" "$head"; fi
 }
 
