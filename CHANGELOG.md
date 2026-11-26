@@ -25,6 +25,17 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 
 **Changes:**
 
+- One full review per PR cycle (#325): a full review's `changes` with no review fix run left is
+  a `needs-you` that keeps the round open (`fix_owed`). Your comment, or `needs-work`, resumes
+  the worker as that fix run (`FIX_MODEL`) on the saved findings plus your comment's items, and
+  its push gets a fix-check of `<reviewed head>..<new head>`. A new full review only with a
+  `full review` line, on a refused accept, or when the PR's own files changed more than
+  `FIXCHECK_FULL_LINES` (lines merged from main never count). That run counts in no fix budget.
+- Review fixes have their own budget (#326): `REVIEW_FIX_ATTEMPTS` (default 1, `0`–`10`, project
+  setting) counts the automatic review fix runs per PR (state key `rfixes`, the extra round of
+  `FIX_EXTRA_IF_FEWER` too); `FIX_ATTEMPTS` now counts only red-CI fixes, so red CI before the
+  review never takes the review's fix round. `canccu-status` lists `fix runs:`
+  (`#5 · PR #50 · fixes: ci 2/2 · review 0/1`); the snapshot's `running[]` items get `fixes`.
 - Pipeline and monitor fixes (#296, #298): a review budget stop retries instead of parking; a
   `ci_rerun` that never starts is given up after a bound; a recurring finding is recorded once per
   PR and its `@` is defanged; `merge_method` answers are validated; the merge waits for the PR's
