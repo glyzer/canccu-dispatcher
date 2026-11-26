@@ -66,7 +66,9 @@ issues #325 and #326). Findings the follow-up #335 already lists are not reporte
   changed behaviour: the old `fixes` checks became `rfixes` checks, and none was dropped.
 - tests/canccu-dispatch.sh adds the `fix runs:` section to the two owner-list expectations
   exactly, and does not loosen them.
-- No test combines `FIX_ATTEMPTS=0` with `FIX_EXTRA_IF_FEWER`, so blocking 1 passes the suite.
+- tests/canccu-followups.sh:183-185 (`fix-zero`) locks in the old meaning: with `FIX_ATTEMPTS=0`
+  and the default `FIX_EXTRA_IF_FEWER=1` it asserts "FIX_ATTEMPTS=0: no extra fix round", so
+  blocking 1 passes the suite.
 - The snapshot's `fixes` field is checked only by the key count (tests/canccu-pane.sh:181). Its
   values and its null without a PR are not checked (non-blocking).
 - No skipped test was found.
@@ -74,7 +76,7 @@ issues #325 and #326). Findings the follow-up #335 already lists are not reporte
 Blocking:
 1. [correctness] lib/canccu-fixbudget.sh:48 — `extra_fix_due` still requires `FIX_ATTEMPTS > 0`, so with no red-CI fixes allowed the extra review round of `FIX_EXTRA_IF_FEWER` never runs, although it now counts as a review fix
    Evidence: with `blocking_prev=3`, `blocking_last=1` and `FIX_EXTRA_IF_FEWER=1`, `extra_fix_due` gives "not due" for `FIX_ATTEMPTS=0 REVIEW_FIX_ATTEMPTS=1` and "due" for `FIX_ATTEMPTS=2 REVIEW_FIX_ATTEMPTS=0`. So a fix-check's `changes` with fewer findings goes to needs-you when CI fixes are off. #326 makes `FIX_ATTEMPTS` "automatic red-CI fix runs per PR" (config.md:61), and config.md:63 and review-depth.md:85 make this round a review fix past the cap. The comment kept above the line ("FIX_ATTEMPTS=0 means no automatic fix run at all") is the old meaning.
-   Fix: drop the `(( $(fix_max) > 0 ))` term, since the round runs past `REVIEW_FIX_ATTEMPTS` by design. If `REVIEW_FIX_ATTEMPTS=0` is meant to turn it off, gate it on `(( $(rfix_max) > 0 ))` instead and say so in config.md. Then add a test in tests/canccu-followup.sh (`fewenv` with `FIX_ATTEMPTS=0`: the extra round runs).
+   Fix: drop the `(( $(fix_max) > 0 ))` term, since the round runs past `REVIEW_FIX_ATTEMPTS` by design. If `REVIEW_FIX_ATTEMPTS=0` is meant to turn it off, gate it on `(( $(rfix_max) > 0 ))` instead and say so in config.md. Then change the `fix-zero` test in tests/canccu-followups.sh:183-185 to match, rather than adding a second test that contradicts it: flip its assertion to `due` (and its name to "FIX_ATTEMPTS=0: the extra review round still runs"), or, with the `rfix_max` gate, set `REVIEW_FIX_ATTEMPTS=0` in its `env_new` and keep `none`.
 Non-blocking:
 - [correctness] lib/canccu-containers.sh:93 — `run_tag_old` (line 34) gives up the pre-#317 tag of `web_x` when a project `web-x` exists, but `web-x`'s sweep still matches `canccu_web-x_<key>` and removes the old-tag objects of `web_x`'s open unit. This is the rest of the old collision, limited to objects made before the upgrade.
 - [correctness] lib/canccu-notify.sh:346 — an edit or close that Telegram refuses for a reason `notify_done` does not list stays in `unsettled` and is tried again, with a log line, on every pass with no bound.
