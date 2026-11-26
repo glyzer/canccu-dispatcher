@@ -246,8 +246,9 @@ act_verdict() {
   # a push after a pass is checked against these (postpass_step); a full review's verdict is the
   # one a `full review` ask or a light upgrade waited for (light_upgrade may ask again below)
   case $v in pass|changes) is_fixcheck_mode "$mode" || st_set "$n" full_sha="$head" review_asked= ;; esac
-  # the continued round (fix_cont: its size may call for a full review, check_pr) ends with any verdict
-  case $v in pass|changes) st_set "$n" fix_cont= ;; esac
+  # the continued round (fix_cont: its size may call for a full review, check_pr) and an owed one
+  # (fix_owed, set again below when a review fix is still owed) end with any verdict
+  case $v in pass|changes) st_set "$n" fix_cont= fix_owed= ;; esac
   # non-blocking findings never reach the worker: they go to the wave's follow-up issue
   # the head of the last verdict that passed: its review file holds the Change: lines the ask form
   # shows after a merge of main (full_sha may be an older review that asked for changes)

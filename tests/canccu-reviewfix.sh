@@ -73,6 +73,20 @@ json issue5.json "$(comment 2030-11-05T12:10:00Z 'Use the shared helper.' | jq -
 ok "needs-work on the owed round → the same fix run, needs-work removed" \
   eq "$(grep -c "review's fix round.*Use the shared helper" "$FAKE/worker.log") $(grep -c 'issue edit 5 -R example-org/web --remove-label needs-work' "$FAKE/gh.log") $(st 5 stage)" "1 1 fixing"
 
+owed owed-hand
+# the lead runs canccu-review by hand on HA instead of commenting: its pass is acted on
+json pr50.json "$(detail "$(pr 50 5 $HA)" 2030-11-05T10:00:00Z \
+  "$(vcomment 2030-11-05T11:00:00Z $'1. src/a.ts:3 off by one; fix: use <=\n\nReview verdict: changes '"$HA")" \
+  "$(vcomment 2030-11-05T11:30:00Z "Review verdict: pass $HA")")"
+{ issue 5 in-progress; } | issues
+printf 'phase=review\n' >> "$CANCCU_HOME/state/5"
+CANCCU_NOW=$((NOW + 600)) dispatch --once
+ok "a hand review's verdict after the owed round → no longer owed" eq "[$(st 5 fix_owed)]" "[]"
+printf 'phase=needs-you\n' >> "$CANCCU_HOME/state/5"
+lead_says 'Go ahead.'
+ok "… a later needs-you's comment → the plain answer resume, no review fix round" \
+  eq "$(grep -c "review's fix round" "$FAKE/worker.log") $(grep -c 'The user answered' "$FAKE/worker.log")" "0 1"
+
 # ---------------------------------------------------------------- #325: merges of main never count
 
 env_new merge-lines
