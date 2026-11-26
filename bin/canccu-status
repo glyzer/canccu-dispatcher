@@ -5,8 +5,8 @@
 # ("waiting for a slot held by <project>"), running workers and reviewers
 # (issue, stage: review / fixing / fix-check or the phase, minutes, last log line), the runs it did
 # not start (a worker started by hand: key, kind, age), PRs awaiting
-# accept, issues needing you (a review that could not be posted too), a Telegram listener that is
-# down, open PRs that are not ours
+# accept, issues needing you (a review that could not be posted too), the fix runs per open PR
+# (red-CI and review fixes, against their caps), a Telegram listener that is down, open PRs that are not ours
 # (never reviewed, merged or commented on), the next 5 runnable issues and the latest digest.
 # canccu-status [--project <name>] --spend — the cost of every merged PR, every run of it (lost
 # runs and fix rounds too), grouped by model and run type (lib/canccu-spend.sh, spend_report).
@@ -106,6 +106,14 @@ printf 'awaiting accept (label the PR `accepted`, or canccu-ship <n>):\n%s' "${a
 printf 'needs you:\n%s' "${waiting:-  none
 }"
 [ -n "$lwaiting" ] && printf '  leader has it:\n%s' "$lwaiting"
+# the automatic fix runs each open PR had, red-CI and review fixes apart (lib/canccu-fixbudget.sh)
+fx=""
+for n in $(managed); do
+  pr=$(st_get "$n" pr); [ -n "$pr" ] || continue
+  case $(st_get "$n" phase) in merging|done) continue ;; esac
+  fx+="  #$n · PR #$pr · fixes: $(fix_counts "$n" "$pr")"$'\n'
+done
+[ -n "$fx" ] && printf 'fix runs:\n%s' "$fx"
 
 if fetch; then
   other=$(jqr '.[] | select(any(.labels[]; .name == "needs-you")) | .number' <<<"$ISSUES" |
