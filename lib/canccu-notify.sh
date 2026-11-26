@@ -231,23 +231,33 @@ notify_done() {
 # tg_call reports it), as against a refusal by Telegram
 notify_unreached() { (( $1 == 2 )) || [[ $2 == curl:* ]]; }
 
+# notify_try <what> <log tail> <tg call...>: the edit or close of something already sent. 0 when
+# it worked or had no work left (notify_done); else logged, 1 when Telegram refused, 2 when it
+# was not reached
+notify_try() {
+  local what=$1 tail=$2 r rc
+  shift 2
+  r=$("$@"); rc=$?
+  { (( rc )) && ! notify_done "$r"; } || return 0
+  log "telegram: $what failed ($r)$tail"
+  notify_unreached "$rc" "$r" && return 2
+  return 1
+}
+
 # notify_settle <feed id>: the item no longer waits: its message is edited to start with Closed:,
 # and with no leader its topic closes (with one, the leader closes it once the thread is settled).
 # An item that settled before its send worked, or while it waited in the queue, is never sent.
 # 1: Telegram refused, 2: it was not reached (curl failed, timed out); both keep it in unsettled.
 notify_settle() {
-  local id=$1 m key ok=0 r rc
+  local id=$1 m key ok=0 rc
   notify_retry_del "$id"; nt_del queue "$id"
   [ "${LEADER:-off}" = on ] || notify_batch_settle "$id"
   m=$(nt_get sent "$id" 2); key=$(nt_get sent "$id" 3)
   [ -n "$m" ] || return 0
   # m -: the item reached the product owner only in a digest
   if [ "$m" != "?" ] && [ "$m" != - ] && [ -f "$(notify_dir)/text/$id" ]; then
-    r=$(tg_edit "$m" "Closed: $(cat "$(notify_dir)/text/$id")"); rc=$?
-    if (( rc )) && ! notify_done "$r"; then
-      log "telegram: marking the message of feed line $id closed failed ($r); tried again next pass"
-      ok=1; notify_unreached "$rc" "$r" && ok=2
-    fi
+    notify_try "marking the message of feed line $id closed" "; tried again next pass" \
+      tg_edit "$m" "Closed: $(cat "$(notify_dir)/text/$id")" || ok=$?
   fi
   # Telegram not reached: the close would cost a second call that fails the same way
   if (( ok < 2 )) && [ "${LEADER:-off}" != on ] && [ "$key" != - ] && [ "$(nt_get topics "$key" 5)" = open ]; then
@@ -273,17 +283,10 @@ notify_post() {
 # notify_close <key> [say]: closes an open topic (the forum topic too); with say, posts Closed. first.
 # 1 when it is no open topic or Telegram refused the close, 2 when Telegram was not reached.
 notify_close() {
-  local r rc
   [ "$(nt_get topics "$1" 5)" = open ] || return 1
   [ -z "${2:-}" ] || notify_post "$1" "Closed." >/dev/null || true
-  if [[ $1 == t* ]]; then
-    r=$(tg_topic_close "${1#t}"); rc=$?
-    if (( rc )) && ! notify_done "$r"; then
-      log "telegram: closing the forum topic ${1#t} failed ($r)"   # stays open: notify_settle tries again
-      notify_unreached "$rc" "$r" && return 2
-      return 1
-    fi
-  fi
+  # a failed close leaves the topic open: notify_settle tries again
+  if [[ $1 == t* ]]; then notify_try "closing the forum topic ${1#t}" "" tg_topic_close "${1#t}" || return; fi
   nt_put topics "$1" 5 closed
 }
 

@@ -361,7 +361,7 @@ ci_red() {
       st_set "$k" conflict_sha="$head"; return 0 ;;
     error)
       err=$(( $(st_get "$k" mm_err) + 1 ))
-      (( err >= ${MERGE_TRIES:-3} )) && { st_set "$k" mm_err=; needs_you "$k" "CI is red on PR #$pr and merging main into it by script failed $err times: $MERGE_WHY$f" "" "" ci; return; }
+      (( err >= 3 )) && { st_set "$k" mm_err=; needs_you "$k" "CI is red on PR #$pr and merging main into it by script failed $err times: $MERGE_WHY$f" "" "" ci; return; }
       st_set "$k" mm_err="$err"; log "#$k PR #$pr: CI red; merging main failed ($MERGE_WHY), again next pass"; return 0 ;;
   esac
   ci_rerun "$k" "$pr" "$head" && return 0
