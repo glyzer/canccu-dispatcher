@@ -18,10 +18,15 @@ fixes_used() { [ "$(st_get "$1" fixes_pr)" = "$2" ] && echo "$(( $(st_get "$1" f
 rfixes_used() { [ "$(st_get "$1" fixes_pr)" = "$2" ] && echo "$(( $(st_get "$1" rfixes) + 0 ))" || echo 0; }
 fix_left() { (( $(fixes_used "$1" "$2") < $(fix_max) )); }
 rfix_left() { (( $(rfixes_used "$1" "$2") < $(rfix_max) )); }
-# fix_count <K> <pr>, rfix_count <K> <pr>: one more of that kind. Both counters are written: a
-# first count on a new PR must zero the other kind's count of the old one
-fix_count() { st_set "$1" fixes=$(( $(fixes_used "$1" "$2") + 1 )) rfixes="$(rfixes_used "$1" "$2")" fixes_pr="$2"; }
-rfix_count() { st_set "$1" rfixes=$(( $(rfixes_used "$1" "$2") + 1 )) fixes="$(fixes_used "$1" "$2")" fixes_pr="$2"; }
+# fix_count <K> <pr>, rfix_count <K> <pr>: one more automatic run of that kind (a round the user
+# asked for, needs-work or a comment, counts in neither). The first count on a new PR clears the
+# other kind's count of the old one
+fix_count() { _fix_bump fixes rfixes "$@"; }
+rfix_count() { _fix_bump rfixes fixes "$@"; }
+_fix_bump() {
+  if [ "$(st_get "$3" fixes_pr)" = "$4" ]; then st_set "$3" "$1=$(( $(st_get "$3" "$1") + 1 ))"
+  else st_set "$3" "$1=1" "$2=" fixes_pr="$4"; fi
+}
 # fix_counts <K> <pr>: the status line's "ci 2/2 · review 0/1"
 fix_counts() { printf 'ci %s/%s · review %s/%s' "$(fixes_used "$1" "$2")" "$(fix_max)" "$(rfixes_used "$1" "$2")" "$(rfix_max)"; }
 
@@ -63,7 +68,7 @@ extra_fix_round() {
   b=$(blocking_numbered "$4") ff=$(findings_file "$pr" "$head")
   save_findings "$k" "$pr" "$ff" "$b"
   resume "$k" "The $5 of PR #$pr still finds blocking items, fewer than the verdict before it: this is one more automatic fix round, the last one. Fix every blocking finding below, rerun the checks, push once and stop: the dispatcher watches CI. Leave its non-blocking findings alone: they went to a follow-up issue. A narrow fix-check of this fix diff follows, then the merge or the product owner. The blocking findings: $(findings_inline "$b" "$ff")" fix || return 2
-  fix_count "$k" "$pr"
+  rfix_count "$k" "$pr"
   st_set "$k" extra_fix=1 stage=fixing reviewed_sha="$head"
   log "#$k PR #$pr: blocking findings fell from $(st_get "$k" blocking_prev) to $(st_get "$k" blocking_last); one more automatic fix round"
 }

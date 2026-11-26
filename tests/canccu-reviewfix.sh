@@ -45,8 +45,8 @@ ok "the lead's comment → a fix run on FIX_MODEL (run type fix)" \
   eq "$(grep -c -- '^--quiet --model claude-sonnet-5-5 .*this is the review'"'"'s fix round' "$FAKE/worker.log") $(grep -c '^WORKER_RUN_TYPE=fix$' "$FAKE/worker.envdump")" "1 1"
 ok "… with the saved findings and the comment" grep -q 'The blocking findings: 1. src/a.ts:3 off by one.*The user'"'"'s comments: Keep the old name for the flag.' "$FAKE/worker.log"
 ok "… not the plain answer resume" not grep -q 'The user answered' "$FAKE/worker.log"
-ok "… still the fix round of HA, no longer owed, counted as a review fix" \
-  eq "$(st 5 stage) $(st 5 reviewed_sha) [$(st 5 fix_owed)] $(st 5 fix_cont) $(st 5 rfixes) [$(st 5 fixes)]" "fixing $HA [] 1 1 [0]"
+ok "… still the fix round of HA, no longer owed, in neither budget (the user asked for it)" \
+  eq "$(st 5 stage) $(st 5 reviewed_sha) [$(st 5 fix_owed)] $(st 5 fix_cont) [$(st 5 rfixes)] [$(st 5 fixes)]" "fixing $HA [] 1 [] []"
 ok "… the comment joins the items the fix-check checks" grep -qF 'Keep the old name for the flag.' "$CANCCU_HOME/reviews/50/$HA.findings.md"
 pushed "$HC" $'3\t1\tsrc/a.ts'
 ok "its push → a fix-check of HA..HC, no full review" eq "$(fixcheck) $(fullreview) $(grep -c "git diff $HA..$HC" "$FAKE/worker.log")" "1 0 1"
@@ -124,7 +124,7 @@ ok "… naming the setting" has gh.log "no automatic review fix run is left (0 p
 review_env review-other-pr 'Review verdict: changes' review
 state 5 phase=review pr=50 review_sha=$HA stage=review fixes=2 rfixes=1 fixes_pr=49
 dispatch --once
-ok "the counts are per PR: another PR's runs don't count, both reset" eq "$(fixround) $(st 5 rfixes) $(st 5 fixes) $(st 5 fixes_pr)" "1 1 0 50"
+ok "the counts are per PR: another PR's runs don't count, both reset" eq "$(fixround) $(st 5 rfixes) [$(st 5 fixes)] $(st 5 fixes_pr)" "1 1 [] 50"
 
 env_new status-counts
 { issue 5 in-progress; } | issues

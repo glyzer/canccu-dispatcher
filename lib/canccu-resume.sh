@@ -28,7 +28,6 @@ extra_round() {
   # rebuilt from the saved items each time, so a second needs-work in the round never appends
   save_findings "$n" "$pr" "$(findings_file "$pr" "$osha")" "$items$cm"
   edit_issue "$n" --remove-label needs-work
-  rfix_count "$n" "$pr"
   st_set "$n" stage=fixing reviewed_sha="$osha"
   log "#$n PR #$pr: needs-work on the fix-check's open items; one more fix round, then a fix-check of ${osha:0:7}..head"
 }
@@ -38,6 +37,7 @@ extra_round() {
 # goes on as a fix run (FIX_MODEL) on the saved findings, with the comments as more items, then a
 # fix-check of reviewed_sha..head against both (check_pr), never a new full review: that one comes
 # only with a `full review` line, or when the fix is over FIXCHECK_FULL_LINES (fix_cont). With
+# the user asked for it, so it counts in neither fix budget. With
 # such a line the owed round is dropped and 1 returned: the caller takes its full-review way. 1
 # also when this needs-you is not one; 0 once handled or deferred.
 owed_round() {
@@ -54,7 +54,6 @@ owed_round() {
   [ -n "$c" ] && cm=$'\n\n'"The user's comments on the review (also to be fixed): $c"
   save_findings "$n" "$pr" "$ff" "$items$cm"
   [ "$4" = needs-work ] && edit_issue "$n" --remove-label needs-work
-  rfix_count "$n" "$pr"
   st_set "$n" fix_owed= fix_cont=1 stage=fixing
   log "#$n PR #$pr: the user's $4 on the review's changes; the worker fixes the findings of ${rsha:0:7}, then a fix-check"
 }
@@ -90,8 +89,6 @@ resume_step() {
     # a full review asked for re-reviews the open items: nobody fixed or answered them yet
     full_review_asked "$c" || history_answer "$pr"
     edit_issue "$n" --remove-label needs-work
-    # a needs-work after a review is a review fix (REVIEW_FIX_ATTEMPTS), never a CI one
-    [ -n "$pr" ] && rfix_count "$n" "$pr"
     has_label "$n" awaiting-accept && edit_issue "$n" --remove-label awaiting-accept
     new_cycle "$n"
     # kept until the full review's verdict is acted on: it holds for the next head, even the same
