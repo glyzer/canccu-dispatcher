@@ -28,7 +28,8 @@ Each change, and each refusal of a locked key, adds a line to `config.history` b
 
 Budgets are three numbers: turns, USD and minutes for one run. A run that reaches any of them
 is stopped and its issue goes to `needs-you`. The keys of steps, packages, reviews, usage and
-pacing are in [`config-steps.md`](config-steps.md).
+pacing are in [`config-steps.md`](config-steps.md); those of CI, release-reds and the narrow
+runs' models in [`config-runs.md`](config-runs.md).
 
 | Key | Default | Meaning |
 |---|---|---|
@@ -86,10 +87,6 @@ pacing are in [`config-steps.md`](config-steps.md).
 | `BRAKE_WINDOW` | `20` | The merged PRs the brake's trigger, its baseline and `canccu-status --kpi-review` count. Locked |
 | `INTERVAL` | `60` | Seconds between passes |
 | `IDLE_ALARM_MIN` | `60` | A managed unit with no run, not waiting for a person, whose phase has not changed for this many minutes writes one `idle` line in the feed ([`leader.md`](leader.md#the-feed)) |
-| `CI_WAIT_MIN` | `90` | A finished worker's PR whose CI is still pending after this many minutes goes to `needs-you` |
-| `CI_DIGEST_PATTERN` | `FAIL\|✗\|×\|AssertionError\|Error:\|error TS[0-9]+\|##\[error\]\|^[[:space:]]+[0-9]+:[0-9]+[[:space:]]+error` | A red CI's fix run gets a digest of every failing job's log, built by script: each line this pattern (`grep -E`) matches with its next 8 lines (up to the next step), and the test and lint summary lines (`Tests … failed`, `✖ N problems`), each job under its name. ANSI codes, timestamps, compose output, teardown and Actions' `##[error]Process completed with exit code` line are left out. A job whose log has no match gives its last `CI_LOG_LINES` (default `60`) lines, as before; empty: the tail only ([`pipeline.md`](pipeline.md)) |
-| `CI_DIGEST_LINES` | `120` | At most this many lines in that digest, over all its failing jobs (shared out among them, the summaries and first failures first) |
-| `NO_CHECKS_MIN` | `10` | A finished worker's PR with no CI check reported at all after this many minutes goes to `needs-you` ("is CI set up for this repo, or did a path filter skip it?"; for a PR that conflicts with main, which GitHub runs no checks on: "it conflicts with main, so GitHub runs no checks; merge main into it or say how") |
 | `MERGE_WAIT_MIN` | `240` | Auto-merge armed this long without a merge is disarmed, and the PR goes to `needs-you` |
 | `MERGE_CLOSE_MIN` | `2` | An issue a merged PR names as closing that GitHub left open this many minutes is closed by the dispatcher |
 | `MERGE_RETRY` | `3` | A merge that fails on an error that looks transient (a GitHub 5xx, a timeout, a dropped connection) is tried again on this many later passes before it goes to `needs-you`; `0`: never ([`merging.md`](merging.md#a-github-error-on-the-merge)) |

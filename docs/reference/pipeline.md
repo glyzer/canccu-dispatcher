@@ -24,8 +24,7 @@ Every `INTERVAL` seconds, under the project's lock:
    A GitHub rate limit (a failed `gh` call that says so) writes `gh_limit` with the reset (the
    primary limit's from `gh api rate_limit`, else 15 minutes): until then every pass returns at
    once, with no `gh` call, logged once when it starts and once when it ends. Free space below `DISK_MIN_MB` on the
-   worktrees' file system: nothing new starts (step 3), logged once when it starts and once when
-   it ends; reaping, running reviews, resumes of started work and merges go on.
+   worktrees' file system: nothing new starts (step 3), logged likewise; reaping, running reviews, resumes of started work and merges go on.
 2. **Reap.** For each managed issue whose run has finished:
    - A worker that finished with no PR (the PR list read again to be sure) and a status line
      starting `blocked` or `not started` → phase `waiting`, quietly: no `needs-you`, no answerer
@@ -57,9 +56,8 @@ Every `INTERVAL` seconds, under the project's lock:
        branch by script (`git merge origin/main`, a normal push, no AI run), CI runs again,
        since another merged PR may have caused it; a merge that conflicts is aborted and a fresh
        session resolves it; still red with main in → failed or cancelled Actions jobs rerun once
-       per head; still red → a fresh fix session with the failure digest of every
-       failing job (`CI_DIGEST_PATTERN`, at most `CI_DIGEST_LINES` lines, each job under its
-       name; a log with no failure line gives its tail), at most
+       per head; still red → a fresh fix session with the failing jobs' digest
+       ([`config-runs.md`](config-runs.md)), at most
        `FIX_ATTEMPTS` red-CI fix runs per PR, then `needs-you`. A job its
        time limit ended reads "timed out"; `REVIEW_CHECKS` are ignored. A `needs-you`
        that only waited on CI returns to `check` once CI is green or red;
