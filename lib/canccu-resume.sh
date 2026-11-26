@@ -36,10 +36,10 @@ extra_round() {
 # needs-you of a full review's `changes` that had no review fix run left (fix_owed): that round
 # goes on as a fix run (FIX_MODEL) on the saved findings, with the comments as more items, then a
 # fix-check of reviewed_sha..head against both (check_pr), never a new full review: that one comes
-# only with a `full review` line, or when the fix is over FIXCHECK_FULL_LINES (fix_cont). With
-# the user asked for it, so it counts in neither fix budget. With
-# such a line the owed round is dropped and 1 returned: the caller takes its full-review way. 1
-# also when this needs-you is not one; 0 once handled or deferred.
+# only with a `full review` line, or when the fix is over FIXCHECK_FULL_LINES (fix_cont). The user
+# asked for it, so it counts in neither fix budget. With a `full review` line the owed round is
+# dropped and 1 returned: the caller takes its full-review way. 1 also when this needs-you is not
+# one; 0 once handled or deferred.
 owed_round() {
   local n=$1 pr=$2 c=$3 rsha ff items cm=""
   [ "$(st_get "$n" fix_owed)" = 1 ] && [ "$(st_get "$n" phase)" = needs-you ] || return 1
