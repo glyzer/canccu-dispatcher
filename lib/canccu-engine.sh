@@ -55,19 +55,38 @@ worker_settings() {
 # prepush_setup <dir> <libexec>: a worker worktree's pre-push hook (#328), written at every run so a
 # changed PRE_PUSH_CMD holds at once, and removed when it is unset. Set through the worktree's own
 # config (extensions.worktreeConfig): the project clone and the leader's pushes keep their hooks.
+# The project's own hooks (its hooks dir, .git/hooks or a core.hooksPath like .husky) keep running:
+# each gets a forward in the new dir, and its own pre-push runs after the check.
 prepush_setup() {
-  local dir=$1 gd cd hd
+  local dir=$1 gd cd hd od h
   gd=$(git -C "$dir" rev-parse --absolute-git-dir 2>/dev/null) || return 0
   cd=$(git -C "$dir" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || return 0
   [ "$gd" != "$cd" ] || return 0   # the clone itself
   hd=$gd/canccu-hooks
-  if [ -z "${WORKER_PRE_PUSH_CMD:-}" ]; then
-    [ -d "$hd" ] || return 0
-    git -C "$dir" config --worktree --unset core.hooksPath 2>/dev/null; rm -rf "$hd"; return 0
-  fi
-  mkdir -p "$hd" && printf '#!/usr/bin/env bash\n# written by canccu-worker at each run (PRE_PUSH_CMD, #328)\nexport PRE_PUSH_CMD=%q PRE_PUSH_MAX_SEC=%q PRE_PUSH_BASE=%q\nexec %q "$@"\n' \
-    "$WORKER_PRE_PUSH_CMD" "${WORKER_PRE_PUSH_MAX_SEC:-600}" "${WORKER_BASE_BRANCH:-main}" "$2/canccu-pre-push" > "$hd/pre-push" &&
-    chmod +x "$hd/pre-push" && git -C "$dir" config extensions.worktreeConfig true &&
+  # only our own setting goes, so the project's hooks dir is read below (and never the clone's)
+  [ "$(git -C "$dir" config --get extensions.worktreeConfig 2>/dev/null)" = true ] &&
+    [ "$(git -C "$dir" config --worktree --get core.hooksPath 2>/dev/null)" = "$hd" ] &&
+    git -C "$dir" config --worktree --unset core.hooksPath
+  rm -rf "$hd"
+  [ -n "${WORKER_PRE_PUSH_CMD:-}" ] || return 0
+  od=$(git -C "$dir" rev-parse --path-format=absolute --git-path hooks 2>/dev/null) || od=""
+  mkdir -p "$hd" || return 0
+  for h in "$od"/*; do
+    [ -n "$od" ] && [ -f "$h" ] && [ -x "$h" ] && [[ ${h##*/} != *.* && ${h##*/} != pre-push ]] || continue
+    printf '#!/bin/sh\n# written by canccu-worker: the project'"'"'s own hook\nexec %q "$@"\n' "$h" > "$hd/${h##*/}" && chmod +x "$hd/${h##*/}"
+  done
+  h=""; [ -n "$od" ] && [ -f "$od/pre-push" ] && [ -x "$od/pre-push" ] && h=$od/pre-push
+  { printf '#!/usr/bin/env bash\n# written by canccu-worker at each run (PRE_PUSH_CMD, #328)\n'
+    printf 'export PRE_PUSH_CMD=%q PRE_PUSH_MAX_SEC=%q PRE_PUSH_BASE=%q\n' "$WORKER_PRE_PUSH_CMD" "${WORKER_PRE_PUSH_MAX_SEC:-600}" "${WORKER_BASE_BRANCH:-main}"
+    printf 'check=%q own=%q\n' "$2/canccu-pre-push" "$h"
+    # the refs git sends on stdin go to the check and to the project's own pre-push, which runs after it
+    cat <<'HOOK'
+refs=$(cat)
+feed() { [ -z "$refs" ] || printf '%s\n' "$refs"; }
+feed | "$check" "$@" || exit 1
+[ -z "$own" ] || feed | "$own" "$@"
+HOOK
+  } > "$hd/pre-push" && chmod +x "$hd/pre-push" && git -C "$dir" config extensions.worktreeConfig true &&
     git -C "$dir" config --worktree core.hooksPath "$hd"
 }
 

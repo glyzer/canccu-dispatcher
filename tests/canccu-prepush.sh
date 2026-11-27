@@ -53,6 +53,21 @@ printf 'fixed\n' > "$wt/b c.txt"; G -C "$wt" commit -qam fix
 push "$wt"
 ok "after the fix the push passes" eq "$?/$(G -C "$cl" ls-remote origin pkg-3-pages | grep -c .)" "0/1"
 
+# the project's own hooks keep running: a pre-commit and a pre-push in the clone's hooks dir
+printf '#!/bin/sh\necho ran >> "%s/own-pre-commit"\n' "$E" > "$cl/.git/hooks/pre-commit"
+printf '#!/bin/sh\ncat > "%s/own-pre-push.in"; echo "$1" > "%s/own-pre-push.args"\n' "$E" "$E" > "$cl/.git/hooks/pre-push"
+chmod +x "$cl/.git/hooks/pre-commit" "$cl/.git/hooks/pre-push"
+wrun pkg-3-pages "$wt" "WORKER_PRE_PUSH_CMD=lint-it --strict"
+echo own >> "$wt/a.txt"; G -C "$wt" commit -qam own
+ok "the project's pre-commit still runs" eq "$(cat "$E/own-pre-commit" 2>/dev/null)" ran
+push "$wt"
+ok "… and its pre-push, after the check, with git's refs and arguments" \
+  eq "$?/$(cut -d' ' -f3 "$E/own-pre-push.in" 2>/dev/null)/$(cat "$E/own-pre-push.args" 2>/dev/null)" "0/refs/heads/pkg-3-pages/origin"
+rm -f "$E/own-pre-push.in"; printf 'LINTERROR\n' >> "$wt/a.txt"; G -C "$wt" commit -qam bad
+push "$wt"
+ok "… but not when the check refuses the push" eq "$?/$(test -e "$E/own-pre-push.in" && echo ran)" "1/"
+G -C "$wt" reset -q --hard HEAD~1; rm -f "$cl/.git/hooks/pre-commit" "$cl/.git/hooks/pre-push"
+
 wrun pkg-3-pages "$wt" WORKER_PRE_PUSH_CMD=slow-it WORKER_PRE_PUSH_MAX_SEC=1
 echo more >> "$wt/a.txt"; G -C "$wt" commit -qam more
 push "$wt"
