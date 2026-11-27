@@ -16,6 +16,11 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
   gets one `flaky: <check>` issue that counts its failures and is `ready`, last in the queue, from
   `FLAKY_FILE_AFTER` (default `2`); an infrastructure error (`CI_INFRA_PATTERN`) files nothing. Red
   leaves it as work, with the failure digest. `RELEASE_RED_LABEL=` turns it off.
+- Narrow runs use the cheaper model (#329): your comment on a `needs-you` from CI, a review or a
+  fix-check resumes on `FIX_MODEL` and `FIX_EFFORT` (a plan, a question or a refused accept stay on
+  `MODEL`); a line `opus` or `model: <id>` in the comment picks the model. New `MERGE_MODEL`
+  (default `FIX_MODEL`, then `MODEL`) for merge runs, `ANSWER_MODEL` (default `MODEL`) for the
+  answerer.
 
 ## [0.4.0] — 2026-11-26
 

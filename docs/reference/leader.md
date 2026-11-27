@@ -104,6 +104,7 @@ The monitor's NEEDS YOU box and `canccu-status` list it; pings tell your phone
 | A full review's `changes` with no review fix run left (`REVIEW_FIX_ATTEMPTS`) | Comment the way on (or `needs-work`): the worker fixes the review's blocking findings and your comment's items, then a fix-check of that fix, not a second full review; a line `full review` in the comment asks for one |
 | The fix-check's open items | `needs-work` with your comments: one more fix round and a fix-check of it; a line `full review` in the comment asks for a new full review |
 | `needs-you` (CI red, no PR, a failed run) | Read the latest comments; comment to resume the worker, `needs-work` with your comments, or fix it yourself |
+| A follow-up that needs the big model | Add a line `opus` (or `model: <id>`) to your comment: that run uses it. A follow-up after CI, a review or a fix-check otherwise runs on `FIX_MODEL` ([`config-runs.md`](config-runs.md#the-narrow-runs-models)) |
 | An invalid plan, the step budget | Comment on the epic and remove `needs-you` to plan again; raise `STEP_BUDGET` |
 
 ## The owner of a waiting item

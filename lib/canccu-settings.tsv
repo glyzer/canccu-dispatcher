@@ -36,6 +36,8 @@ CRASH_RETRY	int:0:10	project	open
 CONTINUE_MAX	int:0:10	project	open
 FIX_MODEL	name	project	open
 FIX_EFFORT	enum:low|medium|high|xhigh|max|	project	open
+MERGE_MODEL	name	project	open
+ANSWER_MODEL	name	project	open
 TEST_TIER	enum:targeted|full	project	open
 BUDGET_REVIEW	budget	project	open
 BUDGET_FIXCHECK	budget	project	open

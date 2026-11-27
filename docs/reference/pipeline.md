@@ -16,14 +16,13 @@ Every `INTERVAL` seconds, under the project's lock:
 
 1. **Credential and pings.** The project's token is checked ([`projects.md`](projects.md)); a
    problem stops the pass. Pings ([`pings.md`](pings.md)) go out next, paused or not. Paused
-   (`canccu-pause`): no new run starts at all, no issue, package, planner, health pass, review,
+   (`canccu-pause`): no new run starts, no issue, package, planner, health pass, review,
    fix-check, answer or resume; running runs finish, their reaps work, and a passed review still
    merges (a merge costs no tokens). Paused with `--finish` (for a host move): no new issue,
    package, planner or health pass starts (step 3); work in flight still gets its reviews,
    answers and resumes. Backing off from a usage limit: nothing starts and nothing resumes.
-   A GitHub rate limit (a failed `gh` call that says so) writes `gh_limit` with the reset (the
-   primary limit's from `gh api rate_limit`, else 15 minutes): until then every pass returns at
-   once, with no `gh` call, logged once when it starts and once when it ends. Free space below `DISK_MIN_MB` on the
+   A GitHub rate limit (a failed `gh` call that says so) writes `gh_limit` with the reset (from
+   `gh api rate_limit`, else 15 minutes): until then every pass returns at once, with no `gh` call, logged once when it starts and once when it ends. Free space below `DISK_MIN_MB` on the
    worktrees' file system: nothing new starts (step 3), logged likewise; reaping, running reviews, resumes of started work and merges go on.
 2. **Reap.** For each managed issue whose run has finished:
    - A worker that finished with no PR (the PR list read again to be sure) and a status line
@@ -125,9 +124,9 @@ Every `INTERVAL` seconds, under the project's lock:
    round with a fix-check after it, unless a line of your comment is just `full review`; every
    other `needs-work` (a refused accept, a stopped merge) starts a new cycle: the next review is
    a full one. A `gh` error reading the comments decides nothing: `needs-work` stays for the
-   next pass. `needs-work` may be put on the unit's PR too: the pass first moves it to the lead
-   issue (added there, then removed from the PR; logged), then handles it as above in the same pass; a `gh` error on the move leaves it on the PR till next pass. A `needs-you` whose issue or PR got a new comment
-   from `USER_LOGIN` → that comment. `limited` after the back-off, and `continue`, → a fresh session from the handoff ([`usage.md`](usage.md)). `waiting` whose
+   next pass. `needs-work` may be put on the unit's PR too: the pass moves it to the lead
+   issue first (logged) and handles it as above in the same pass; a `gh` error on the move leaves it on the PR till next pass. A `needs-you` whose issue or PR got a new comment
+   from `USER_LOGIN` → that comment (after CI or a review on `FIX_MODEL`, [`config-runs.md`](config-runs.md)). `limited` after the back-off, and `continue`, → a fresh session from the handoff ([`usage.md`](usage.md)). `waiting` whose
    `blocked` is gone → "check its blockers again, then do the work". An issue labelled `blocked`
    is never started or resumed, and gets no answerer. A run that finished with no PR is not
    `--resume`d: a fresh session gets the whole task (with `plan_ok`, the order to execute the

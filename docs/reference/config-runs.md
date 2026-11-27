@@ -16,3 +16,20 @@ change a setting and the settings table are in [`config.md`](config.md); the rul
 | `RELEASE_RED_LABEL` | `release-red` | An open issue with this label ("release red at <sha7>", filed by the project's release workflow) is not work until the dispatcher reran the failed jobs at that commit once ([`release-reds.md`](release-reds.md)). Empty: no rerun, such an issue is ordinary work |
 | `CI_INFRA_PATTERN` | `toomanyrequests\|pull rate limit\|error pulling image\|failed to pull\|manifest unknown\|TLS handshake timeout\|i/o timeout\|connection reset by peer\|ETIMEDOUT\|ECONNRESET\|EAI_AGAIN\|Could not resolve host\|The runner has received a shutdown signal\|lost communication with the server` | A failed job's log line (`grep -iE`) that names an infrastructure error (a registry pull, a lost runner, a network timeout), not the code: a release-red green on its rerun is closed and nothing is filed |
 | `FLAKY_FILE_AFTER` | `2` | A `flaky: <check>` issue gets `ready`, at the end of the queue, from this many failures of that check |
+| `MERGE_MODEL` | empty | A merge run's model (the worker merges main into its PR, or goes on after a contract PR merged); empty: `FIX_MODEL`, then `MODEL` |
+| `ANSWER_MODEL` | empty | The answerer's model ([`reviews.md`](reviews.md)); empty: `MODEL` |
+
+## The narrow runs' models
+
+A run that only follows up on a narrow task is cheaper on the fix model:
+
+| Run | Model |
+|---|---|
+| A fix run (a review's fix round, a red CI, `needs-work`) | `FIX_MODEL`, `FIX_EFFORT` |
+| Your comment on a `needs-you` that came from CI, a review, its fix round or a fix-check | `FIX_MODEL`, `FIX_EFFORT` (spend.log still says `build`) |
+| Your comment on a plan, a question, a refused accept, a stopped worker | `MODEL` |
+| A merge run | `MERGE_MODEL` |
+| The answerer | `ANSWER_MODEL` |
+
+A line `opus` or `model: <id>` alone in your comment (or `needs-work` comment) runs that follow-up
+on that model instead ([`leader.md`](leader.md)). The spend log's model column shows the model used.

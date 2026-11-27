@@ -64,7 +64,7 @@ runs' models in [`config-runs.md`](config-runs.md).
 | `FIX_EXTRA_IF_FEWER` | `1` | `1`: when a review's or fix-check's `changes` would stop for you with fewer blocking findings than the verdict before it (at least one left), one more automatic fix round and fix-check run first, once per cycle, past both caps, even at `0` ([`reviews.md`](reviews.md), "Fix-check"). `0`: off |
 | `CRASH_RETRY` | `1` | Fresh runs with the handoff (kind `crash`) after a worker crashed, stalled or was killed while starting; then `needs-you`. `0`: needs-you at once ([`pipeline.md`](pipeline.md)) |
 | `CONTINUE_MAX` | `3` | Fresh runs with the handoff (kind `continue`) after a worker stopped at its turn or time budget while its PR moved on (a new head, or out of draft), each with a run's turns and minutes and the USD left of `BUDGET_WORK`; then `needs-you`. `0`: needs-you at once ([`pipeline.md`](pipeline.md)) |
-| `FIX_MODEL` | empty | The fix run's model (a review fix round, a red-CI fix, `needs-work`); empty: `MODEL`. Set it per machine in `~/.canccu/config` |
+| `FIX_MODEL` | empty | The fix run's model (a review fix round, a red-CI fix, `needs-work`, your follow-up after CI or a review: [`config-runs.md`](config-runs.md)); empty: `MODEL`. Set it per machine in `~/.canccu/config` |
 | `FIX_EFFORT` | empty | The fix run's `--effort` (`low`, `medium`, `high`, `xhigh`, `max`); empty (or none of those, which is logged): no `--effort`, the account's. Set it per machine in `~/.canccu/config` |
 | `BUDGET_REVIEW` | `60 15 40` | The independent reviewer |
 | `BUDGET_FIXCHECK` | `30 6 20` | The fix-check after the worker fixed the review's findings |
