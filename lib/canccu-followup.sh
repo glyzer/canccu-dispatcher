@@ -123,17 +123,35 @@ main_merge() {
 }
 
 # contract_resume <n> <pr> <c>: the draft waited for its contract PR #c, which is on main now. With
-# MERGE_MAIN_ANY_PHASE=1 main is merged in by script first, so the run only finishes the work; a
-# merge that could not run (a conflict among them) leaves it to the run. 1: no run started.
+# MERGE_MAIN_ANY_PHASE=1 main is merged in by script first; when its last run (the one that stopped
+# for the contract) reported its own work done (contract_done), the PR is marked ready by script
+# and no run starts. A merge that could not run (a conflict among them) or unfinished work goes to
+# a merge run (MERGE_MODEL). 1: nothing done (no run could start, or marking it ready failed).
 contract_resume() {
   local n=$1 pr=$2 c=$3 t
   may_start "$n" || return 1
   t="The contract PR #$c merged into $BASE_BRANCH. Run git merge origin/$BASE_BRANCH in your branch, finish the package's work in PR #$pr and mark it ready."
   if [ "${MERGE_MAIN_ANY_PHASE:-1}" = 1 ]; then
     main_merge "$n" "$pr"
-    case $MERGED in merged|current) t="The contract PR #$c merged into $BASE_BRANCH, and $BASE_BRANCH is merged into your branch already. Finish the package's work in PR #$pr and mark it ready." ;; esac
+    case $MERGED in
+      merged|current)
+        if contract_done "$n"; then
+          mut gh pr ready "$pr" -R "$REPO" || { log "#$n PR #$pr: marking it ready failed (gh); again next pass"; return 1; }
+          log "#$n PR #$pr: contract PR #$c merged, main merged in, the package's work done: marked ready, no run"
+          return 0
+        fi
+        log "#$n PR #$pr: contract PR #$c merged, main merged in; the package's work is unfinished: the worker finishes it"
+        t="The contract PR #$c merged into $BASE_BRANCH, and $BASE_BRANCH is merged into your branch already. Finish the package's work in PR #$pr and mark it ready." ;;
+      *) log "#$n PR #$pr: contract PR #$c merged; main could not be merged in ($MERGED${MERGE_WHY:+: $MERGE_WHY}): the worker merges it" ;;
+    esac
   fi
   resume "$n" "$t" merge
+}
+# contract_done <n>: the run that stopped for the contract PR ended its report with "Package work:
+# done" (contract_rule asks for the line). No line, or any other value, is unfinished work.
+contract_done() {
+  [ "$(grep -iE '^[[:space:]*_]*Package work:' <<<"$(run_msg "$1")" | tail -1 |
+       sed -E 's/^[[:space:]*_]*Package work:[[:space:]*_]*//I; s/[[:space:]*_.]*$//' | tr 'A-Z' 'a-z')" = "done" ]
 }
 
 # no_checks_why <pr>: the no-checks needs-you's question. GitHub runs no pull_request checks on a

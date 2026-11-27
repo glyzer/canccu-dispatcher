@@ -73,7 +73,7 @@ A package whose dependencies are all merged starts while a slot is free, in plan
 the fast lane (`CAP` counts packages, one run each). Every issue is checked again right before
 the start: a package with an issue that is no longer eligible is `refused`. Branch
 `pkg-<m>-<name>` (a package of one keeps `<n>-<slug>`). A contract-first PR is on the branch
-plus `-contract`, for a package and a single issue alike ([`merging.md`](merging.md)). Its budget is the issue's times its issue
+plus `-contract`, for a package and a single issue alike; once it merged, a draft whose report said `Package work: done` is marked ready by script, with no run ([`merging.md`](merging.md#contract-prs)). Its budget is the issue's times its issue
 count, capped by `BUDGET_PACKAGE_MAX`; with `BUDGET_LINES=<N>` above 0, times its planned `lines`
 over N (rounded up; kept as `plan_lines` in its state) when that is more: the work, resume and
 review budgets alike. A missing or invalid `lines` means the issue count. The worker may use subagents for the package's issues, but

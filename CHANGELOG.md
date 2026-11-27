@@ -21,6 +21,9 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
   `MODEL`); a line `opus` or `model: <id>` in the comment picks the model. New `MERGE_MODEL`
   (default `FIX_MODEL`, then `MODEL`) for merge runs, `ANSWER_MODEL` (default `MODEL`) for the
   answerer.
+- After a contract PR merges, a draft whose worker reported `Package work: done` gets main merged
+  in by script and is marked ready, with no run (#331). Unfinished work, no such line or a merge
+  conflict resumes the worker on `MERGE_MODEL`. The contract rule asks for the line.
 
 ## [0.4.0] — 2026-11-26
 

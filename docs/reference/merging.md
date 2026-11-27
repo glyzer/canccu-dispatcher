@@ -37,10 +37,17 @@ A queue entry still waiting for checks `NO_CHECKS_MIN` after it was queued, with
 `merge_group` run for its merge group (GitHub sometimes starts none), is dequeued and enqueued
 again once per head, which starts them; the log says so. Still stuck, `MERGE_WAIT_MIN` applies.
 A PR whose enqueue fails is out of the queue: `needs-you`.
+### Contract PRs
+
 A contract-first PR (on the unit's branch plus `-contract`) closes none of the unit's issues
 and is classified like the unit's own PR otherwise ([`pipeline.md`](pipeline.md)). The rule
 holds for a single issue as for a package: the issue's branch is `<n>-<slug>`, kept in its
 state, so its contract PR is on `<n>-<slug>-contract`.
+Its worker keeps the unit's PR a draft and ends its report with `Package work: done` (the unit's
+own work is all in its PR) or `Package work: unfinished`. Once the contract PR merged, main is
+merged into the draft by script (`MERGE_MAIN_ANY_PHASE=1`): `done` marks the draft ready with no
+run; `unfinished`, no line or a merge that could not run (a conflict) resumes the worker on
+`MERGE_MODEL` ([`config-runs.md`](config-runs.md)). Each outcome is one log line.
 A contract change in the unit's own PR needs no contract PR (the repo's rules say which applies):
 that PR flows like any other, and only a `Maintainer accept:` line in its review waits for you.
 
@@ -174,8 +181,7 @@ passes and is `needs-you` after 3 in a row (a fixed bound, as for a red CI; not 
 GitHub runs no `pull_request` checks on a conflicting PR: one still without checks after
 `NO_CHECKS_MIN` gets the `needs-you` `no CI checks on PR #<pr>: it conflicts with main, so GitHub
 runs no checks; merge main into it or say how`. A draft whose contract PR merged gets main merged
-in by script before the worker is resumed (`MERGE_MAIN_ANY_PHASE=1`); the resume then says main is
-in already, and only a merge that could not run leaves the merge to the worker.
+in by script ([contract PRs](#contract-prs)).
 
 ## Guards
 

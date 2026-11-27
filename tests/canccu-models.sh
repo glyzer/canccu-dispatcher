@@ -70,5 +70,38 @@ ok "the answerer → ANSWER_MODEL" grep -qE -- '--model claude-haiku-5-5 .*--nam
 arun answer-plain MODEL=claude-opus-5-5
 ok "… ANSWER_MODEL empty → MODEL" grep -qE -- '--model claude-opus-5-5 .*--name answer#5 ' "$FAKE/worker.log"
 
+# a draft whose contract PR merged (#331): main merged in by script; its last run's report says
+# whether the package's own work is done. done → the PR marked ready, no run; otherwise a merge run
+# cenv <name> <report> [config...]: issue 5 in check, draft PR 50, its contract PR 51 merged
+cenv() {
+  env_new "$1" "${@:3}"
+  { issue 5 in-progress; } | issues
+  pr 50 5 "$HA" green "" true | prs
+  state 5 phase=check pr=50 contract_merged=51 "check_at=$NOW"
+  mkdir -p "$WORKERS_DIR/worktrees/web/issue-5" && touch "$WORKERS_DIR/worktrees/web/issue-5/.git"
+  echo 5-thing > "$FAKE/branch"; echo 2 > "$FAKE/behind"
+  last 5 done "$2"
+  json ok.json '{}'; route 'pr ready *' ok.json
+}
+cenv done $'Opened the contract PR #51.\nPackage work: done' MERGE_MODEL=claude-haiku-5-5 "${cfg[@]}"
+dispatch --once
+ok "contract merged, work done → main merged by script, the PR marked ready, no run" \
+  eq "$(grep -c 'merge --no-edit origin/main' "$FAKE/git.log") $(grep -c '^pr ready 50 ' "$FAKE/gh.log") $(wc -l < "$FAKE/worker.log") [$(st 5 contract_merged)]" "1 1 0 []"
+ok "… logged" grep -q '#5 PR #50: contract PR #51 merged, main merged in, the package.s work done: marked ready' "$CANCCU_HOME/dispatch.log"
+cenv unfinished $'Opened the contract PR #51.\nPackage work: unfinished' MERGE_MODEL=claude-haiku-5-5 "${cfg[@]}"
+dispatch --once
+ok "… work unfinished → a merge run on MERGE_MODEL to finish it, not marked ready" \
+  eq "$(model) $(rtype) $(grep -c 'Finish the package.s work in PR #50' "$FAKE/worker.log") $(grep -c '^pr ready' "$FAKE/gh.log")" "claude-haiku-5-5 merge 1 0"
+ok "… logged" grep -q '#5 PR #50: contract PR #51 merged, main merged in; the package.s work is unfinished: the worker finishes it' "$CANCCU_HOME/dispatch.log"
+cenv noline 'Opened the contract PR #51.' MERGE_MODEL=claude-haiku-5-5 "${cfg[@]}"
+dispatch --once
+ok "… no Package work: line → unfinished: a merge run" eq "$(model) $(grep -c '^pr ready' "$FAKE/gh.log")" "claude-haiku-5-5 0"
+cenv conflict $'Package work: done' MERGE_MODEL=claude-haiku-5-5 "${cfg[@]}"
+echo src/a.ts > "$FAKE/merge-conflict"
+dispatch --once
+ok "… a conflict, though the work is done → a merge run on MERGE_MODEL that merges main" \
+  eq "$(model) $(grep -c 'Run git merge origin/main in your branch' "$FAKE/worker.log") $(grep -c '^pr ready' "$FAKE/gh.log")" "claude-haiku-5-5 1 0"
+ok "… logged" grep -q '#5 PR #50: contract PR #51 merged; main could not be merged in (conflict' "$CANCCU_HOME/dispatch.log"
+
 echo "canccu-models tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
