@@ -42,6 +42,8 @@ CRASH_RETRY=1               # fresh runs with the handoff after a worker crashed
 CONTINUE_MAX=3              # fresh runs with the handoff after a worker stopped at its turn or time budget with its PR moved on, within the USD of BUDGET_WORK; 0: needs-you at once
 FIX_MODEL=                  # the fix run's model (review fixes, red CI, needs-work); empty: MODEL
 FIX_EFFORT=                 # the fix run's --effort (low, medium, high, xhigh, max); empty: none, the account's
+MERGE_MODEL=                 # a merge run's model (main merged into a PR, a contract merged); empty: FIX_MODEL, then MODEL
+ANSWER_MODEL=                # the answerer's model; empty: MODEL
 TEST_TIER=targeted          # what a run tests locally: targeted (the touched areas' test files and the repo checks) or full (the full suite once before ready); CI runs the full suite either way
 BUDGET_REVIEW="60 15 40"    # the independent reviewer
 BUDGET_FIXCHECK="30 6 20"   # the fix-check after the worker fixed the review's findings
@@ -54,6 +56,17 @@ DIGEST_ISSUE=               # the pinned "Daily digest" issue; empty: the digest
 PING=on                     # on|off: @mention USER_LOGIN in a comment as REVIEWER_LOGIN when something needs them
 INTERVAL=60                 # seconds between passes
 CI_WAIT_MIN=90              # a finished worker's PR with CI still pending this long → needs-you
+# a red CI's fix run gets a digest of its failing jobs' logs: each line this matches (grep -E) with
+# its next 8 lines, and the test and lint summaries; a log with no match gives its tail. Empty: the tail only
+CI_DIGEST_PATTERN='FAIL|✗|×|AssertionError|Error:|error TS[0-9]+|##\[error\]|^[[:space:]]+[0-9]+:[0-9]+[[:space:]]+error'
+CI_DIGEST_LINES=120         # at most this many lines in that digest, over all its failing jobs
+# an open issue with this label (filed by the project's release workflow: "release red at <sha7>")
+# is not work until the dispatcher reran the failed jobs at that commit once: green closes it
+# (a flaky check gets a "flaky: <check>" issue), red leaves it as work. Empty: no rerun
+RELEASE_RED_LABEL=release-red
+# a log line naming no code fault: a release-red green on its rerun then files no flaky issue
+CI_INFRA_PATTERN='toomanyrequests|pull rate limit|error pulling image|failed to pull|manifest unknown|TLS handshake timeout|i/o timeout|connection reset by peer|ETIMEDOUT|ECONNRESET|EAI_AGAIN|Could not resolve host|The runner has received a shutdown signal|lost communication with the server'
+FLAKY_FILE_AFTER=2          # a "flaky: <check>" issue gets ready (at the end of the queue) from this many failures
 NO_CHECKS_MIN=10            # a finished worker's PR with no CI check reported this long → needs-you
 IDLE_ALARM_MIN=60           # a unit no rule moved this long, with nothing running → one idle line in the feed
 MERGE_WAIT_MIN=240          # auto-merge armed this long without a merge → disarmed, needs-you

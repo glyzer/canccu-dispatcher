@@ -85,7 +85,7 @@ resume_step() {
     # new_cycle clears them) asks for a full review: a reused pass would merge without the accept
     { has_label "$n" awaiting-accept || [ "$phase" = accept ] || [ -n "$(st_get "$n" review_maccept)" ] ||
       [ "$(st_get "$n" review_risk)" = high ]; } && refused=1
-    resume "$n" "The user rejected PR #$pr (needs-work). Address their comments, rerun the checks, push once and stop: the dispatcher watches CI. Their comments: ${c:-none found; read the latest comments on the PR and the issue}" needs-work || return 0
+    LEAD_MODEL=$(model_line "$c") resume "$n" "The user rejected PR #$pr (needs-work). Address their comments, rerun the checks, push once and stop: the dispatcher watches CI. Their comments: ${c:-none found; read the latest comments on the PR and the issue}" needs-work || return 0
     # a full review asked for re-reviews the open items: nobody fixed or answered them yet
     full_review_asked "$c" || history_answer "$pr"
     edit_issue "$n" --remove-label needs-work
@@ -96,9 +96,9 @@ resume_step() {
     { [ -n "$refused" ] || full_review_asked "$c"; } && st_set "$n" review_asked=1
   elif [ "$phase" = needs-you ]; then
     c=$(user_comments "$n" "$pr" "$(st_get "$n" ny_at)")
-    [ -n "$c" ] && room "$n" && owed_round "$n" "$pr" "$c" comment && return 0
+    [ -n "$c" ] && room "$n" && LEAD_MODEL=$(model_line "$c") owed_round "$n" "$pr" "$c" comment && return 0
     # the answer to a worker's Question: is the one follow-up whose conversation matters
-    [ -n "$c" ] && room "$n" && resume "$n" "The user answered: $c" "$([ "$(st_get "$n" ny_kind)" = question ] && echo answer || echo user)"
+    [ -n "$c" ] && room "$n" && LEAD_MODEL=$(model_line "$c") resume "$n" "The user answered: $c" "$([ "$(st_get "$n" ny_kind)" = question ] && echo answer || echo user)"
   elif [ "$phase" = limited ]; then
     room "$n" && resume "$n" "$(limited_task "$n")" limited && handoff_keep "$n" ""
   elif [ "$phase" = continue ]; then

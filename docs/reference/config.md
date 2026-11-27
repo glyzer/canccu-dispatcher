@@ -28,7 +28,8 @@ Each change, and each refusal of a locked key, adds a line to `config.history` b
 
 Budgets are three numbers: turns, USD and minutes for one run. A run that reaches any of them
 is stopped and its issue goes to `needs-you`. The keys of steps, packages, reviews, usage and
-pacing are in [`config-steps.md`](config-steps.md).
+pacing are in [`config-steps.md`](config-steps.md); those of CI, release-reds and the narrow
+runs' models in [`config-runs.md`](config-runs.md).
 
 | Key | Default | Meaning |
 |---|---|---|
@@ -63,7 +64,7 @@ pacing are in [`config-steps.md`](config-steps.md).
 | `FIX_EXTRA_IF_FEWER` | `1` | `1`: when a review's or fix-check's `changes` would stop for you with fewer blocking findings than the verdict before it (at least one left), one more automatic fix round and fix-check run first, once per cycle, past both caps, even at `0` ([`reviews.md`](reviews.md), "Fix-check"). `0`: off |
 | `CRASH_RETRY` | `1` | Fresh runs with the handoff (kind `crash`) after a worker crashed, stalled or was killed while starting; then `needs-you`. `0`: needs-you at once ([`pipeline.md`](pipeline.md)) |
 | `CONTINUE_MAX` | `3` | Fresh runs with the handoff (kind `continue`) after a worker stopped at its turn or time budget while its PR moved on (a new head, or out of draft), each with a run's turns and minutes and the USD left of `BUDGET_WORK`; then `needs-you`. `0`: needs-you at once ([`pipeline.md`](pipeline.md)) |
-| `FIX_MODEL` | empty | The fix run's model (a review fix round, a red-CI fix, `needs-work`); empty: `MODEL`. Set it per machine in `~/.canccu/config` |
+| `FIX_MODEL` | empty | The fix run's model (a review fix round, a red-CI fix, `needs-work`, your follow-up after CI or a review: [`config-runs.md`](config-runs.md)); empty: `MODEL`. Set it per machine in `~/.canccu/config` |
 | `FIX_EFFORT` | empty | The fix run's `--effort` (`low`, `medium`, `high`, `xhigh`, `max`); empty (or none of those, which is logged): no `--effort`, the account's. Set it per machine in `~/.canccu/config` |
 | `BUDGET_REVIEW` | `60 15 40` | The independent reviewer |
 | `BUDGET_FIXCHECK` | `30 6 20` | The fix-check after the worker fixed the review's findings |
@@ -86,8 +87,6 @@ pacing are in [`config-steps.md`](config-steps.md).
 | `BRAKE_WINDOW` | `20` | The merged PRs the brake's trigger, its baseline and `canccu-status --kpi-review` count. Locked |
 | `INTERVAL` | `60` | Seconds between passes |
 | `IDLE_ALARM_MIN` | `60` | A managed unit with no run, not waiting for a person, whose phase has not changed for this many minutes writes one `idle` line in the feed ([`leader.md`](leader.md#the-feed)) |
-| `CI_WAIT_MIN` | `90` | A finished worker's PR whose CI is still pending after this many minutes goes to `needs-you` |
-| `NO_CHECKS_MIN` | `10` | A finished worker's PR with no CI check reported at all after this many minutes goes to `needs-you` ("is CI set up for this repo, or did a path filter skip it?"; for a PR that conflicts with main, which GitHub runs no checks on: "it conflicts with main, so GitHub runs no checks; merge main into it or say how") |
 | `MERGE_WAIT_MIN` | `240` | Auto-merge armed this long without a merge is disarmed, and the PR goes to `needs-you` |
 | `MERGE_CLOSE_MIN` | `2` | An issue a merged PR names as closing that GitHub left open this many minutes is closed by the dispatcher |
 | `MERGE_RETRY` | `3` | A merge that fails on an error that looks transient (a GitHub 5xx, a timeout, a dropped connection) is tried again on this many later passes before it goes to `needs-you`; `0`: never ([`merging.md`](merging.md#a-github-error-on-the-merge)) |

@@ -36,6 +36,8 @@ CRASH_RETRY	int:0:10	project	open
 CONTINUE_MAX	int:0:10	project	open
 FIX_MODEL	name	project	open
 FIX_EFFORT	enum:low|medium|high|xhigh|max|	project	open
+MERGE_MODEL	name	project	open
+ANSWER_MODEL	name	project	open
 TEST_TIER	enum:targeted|full	project	open
 BUDGET_REVIEW	budget	project	open
 BUDGET_FIXCHECK	budget	project	open
@@ -48,6 +50,11 @@ DIGEST_ISSUE	intopt:1:9999999	project	open
 PING	enum:on|off	project	locked
 INTERVAL	int:10:3600	project	open
 CI_WAIT_MIN	int:1:1440	project	open
+CI_DIGEST_PATTERN	regex	project	open
+CI_DIGEST_LINES	int:10:2000	project	open
+RELEASE_RED_LABEL	name	project	open
+CI_INFRA_PATTERN	regex	project	open
+FLAKY_FILE_AFTER	int:1:100	project	open
 NO_CHECKS_MIN	int:1:1440	project	open
 IDLE_ALARM_MIN	int:1:10080	project	open
 MERGE_WAIT_MIN	int:1:10080	project	open

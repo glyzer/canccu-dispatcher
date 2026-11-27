@@ -101,7 +101,8 @@ of the handoff.
   still red with main in, its failed GitHub Actions jobs are rerun once per head
   (`gh run rerun <id> --failed`), so a flaky check costs no AI run (a run with jobs still running is waited for at most `CI_WAIT_MIN` minutes from the check start; a rerun
   GitHub refuses as already running, at most 10 minutes; then `needs-you`); still red after that, a fresh
-  fix session gets the failing job's log tail (`gh run view --job <id> --log-failed`). Every
+  fix session gets the failing jobs' digest (`gh run view --job <id> --log-failed`, read once
+  per job; [`config-runs.md`](config-runs.md)). Every
   `needs-you` of a red CI ends with `; failed: <the failed checks>`.
 - **Caps**: two budgets per PR, so red CI never uses up the review's fix round: at most
   `FIX_ATTEMPTS` (default 2) automatic red-CI fix runs, and at most `REVIEW_FIX_ATTEMPTS`

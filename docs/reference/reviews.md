@@ -187,18 +187,19 @@ and the `<n>` / `execute` / `finish` flow in `CLAUDE.md`, with these overrides:
 - use the superpowers skills test-driven-development, systematic-debugging and
   verification-before-completion (writing-plans and executing-plans on the plan tier), never
   brainstorming, using-git-worktrees, finishing-a-development-branch, requesting-code-review,
-  subagent-driven-development, dispatching-parallel-agents or writing-skills: the dispatcher owns
-  worktrees, branches, reviews and questions, and the issue is the agreed spec;
+  subagent-driven-development, dispatching-parallel-agents or writing-skills (the dispatcher owns
+  those; the issue is the spec);
 - create the branch `<n>-<slug>` from `origin/main`; run only the tests of the changed files,
   in the foreground, `tests/run repo` before each push, the full suite only if `TEST_TIER` is `full`
-  ([`hosts.md`](hosts.md#the-test-tier)); nothing in the background; commit and
-  push early (tests-first, then passing); do not review its own work;
+  ([`hosts.md`](hosts.md#the-test-tier)); nothing in the background; push early (tests-first, then passing); do not review its own work;
 - add `Tier:` and `Decisions made:` to the PR body; stop with a `Question:` line when it must ask;
 - bring in main with `git merge origin/main`, never rebase or force-push; never merge, enable
-  auto-merge or touch `accepted`; stop as soon as the PR is open and ready, without waiting for
-  CI: the dispatcher watches it and starts the fix session on red (`FIX_ATTEMPTS`);
+  auto-merge or touch `accepted`; stop once the PR is open and ready, not waiting for
+  CI: the dispatcher watches it (`FIX_ATTEMPTS`);
 - the rules' `WORKER_EXTRA`; stop and say why on a question, a destructive migration, a breaking
-  contract change or a blocked command; end with a 5-line report.
+  contract change or a blocked command; end with a 5-line report;
+- with a contract PR: end the report `Package work: done` or `unfinished`
+  ([`merging.md`](merging.md#contract-prs)).
 
 A package's prompt is the same for all its issues on one branch `pkg-<m>-<name>`, with one PR,
 `Package:` and `Risk:` lines, and `Follow-up:` and `Roadmap note:` lines for work outside it

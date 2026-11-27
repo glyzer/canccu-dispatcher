@@ -1,0 +1,89 @@
+test	Run tests	2030-11-05T10:00:00.1234567Z ##[group]Run npm ci
+test	Run tests	2030-11-05T10:00:01.1234567Z npm ci
+test	Run tests	2030-11-05T10:00:02.1234567Z ##[endgroup]
+test	Run tests	2030-11-05T10:00:03.1234567Z added 812 packages in 14s
+test	Run tests	2030-11-05T10:00:04.1234567Z setup line 0
+test	Run tests	2030-11-05T10:00:05.1234567Z setup line 1
+test	Run tests	2030-11-05T10:00:06.1234567Z setup line 2
+test	Run tests	2030-11-05T10:00:07.1234567Z setup line 3
+test	Run tests	2030-11-05T10:00:08.1234567Z setup line 4
+test	Run tests	2030-11-05T10:00:09.1234567Z setup line 5
+test	Run tests	2030-11-05T10:00:10.1234567Z setup line 6
+test	Run tests	2030-11-05T10:00:11.1234567Z setup line 7
+test	Run tests	2030-11-05T10:00:12.1234567Z setup line 8
+test	Run tests	2030-11-05T10:00:13.1234567Z setup line 9
+test	Run tests	2030-11-05T10:00:14.1234567Z setup line 10
+test	Run tests	2030-11-05T10:00:15.1234567Z setup line 11
+test	Run tests	2030-11-05T10:00:16.1234567Z setup line 12
+test	Run tests	2030-11-05T10:00:17.1234567Z setup line 13
+test	Run tests	2030-11-05T10:00:18.1234567Z setup line 14
+test	Run tests	2030-11-05T10:00:19.1234567Z setup line 15
+test	Run tests	2030-11-05T10:00:20.1234567Z setup line 16
+test	Run tests	2030-11-05T10:00:21.1234567Z setup line 17
+test	Run tests	2030-11-05T10:00:22.1234567Z setup line 18
+test	Run tests	2030-11-05T10:00:23.1234567Z setup line 19
+test	Run tests	2030-11-05T10:00:24.1234567Z setup line 20
+test	Run tests	2030-11-05T10:00:25.1234567Z setup line 21
+test	Run tests	2030-11-05T10:00:26.1234567Z setup line 22
+test	Run tests	2030-11-05T10:00:27.1234567Z setup line 23
+test	Run tests	2030-11-05T10:00:28.1234567Z setup line 24
+test	Run tests	2030-11-05T10:00:29.1234567Z setup line 25
+test	Run tests	2030-11-05T10:00:30.1234567Z setup line 26
+test	Run tests	2030-11-05T10:00:31.1234567Z setup line 27
+test	Run tests	2030-11-05T10:00:32.1234567Z setup line 28
+test	Run tests	2030-11-05T10:00:33.1234567Z setup line 29
+test	Run tests	2030-11-05T10:00:34.1234567Z setup line 30
+test	Run tests	2030-11-05T10:00:35.1234567Z setup line 31
+test	Run tests	2030-11-05T10:00:36.1234567Z setup line 32
+test	Run tests	2030-11-05T10:00:37.1234567Z setup line 33
+test	Run tests	2030-11-05T10:00:38.1234567Z setup line 34
+test	Run tests	2030-11-05T10:00:39.1234567Z setup line 35
+test	Run tests	2030-11-05T10:00:40.1234567Z setup line 36
+test	Run tests	2030-11-05T10:00:41.1234567Z setup line 37
+test	Run tests	2030-11-05T10:00:42.1234567Z setup line 38
+test	Run tests	2030-11-05T10:00:43.1234567Z setup line 39
+test	Run tests	2030-11-05T10:00:44.1234567Z [31m FAIL [39m src/cart.test.ts > cart > adds a line
+test	Run tests	2030-11-05T10:00:45.1234567Z AssertionError: expected 2 to be 3 // Object.is equality
+test	Run tests	2030-11-05T10:00:46.1234567Z - Expected
+test	Run tests	2030-11-05T10:00:47.1234567Z + Received
+test	Run tests	2030-11-05T10:00:48.1234567Z - 3
+test	Run tests	2030-11-05T10:00:49.1234567Z + 2
+test	Run tests	2030-11-05T10:00:50.1234567Z  ❯ src/cart.test.ts:14:22
+test	Run tests	2030-11-05T10:00:51.1234567Z 
+test	Run tests	2030-11-05T10:00:52.1234567Z  FAIL  src/price.test.ts > price > rounds half up
+test	Run tests	2030-11-05T10:00:53.1234567Z AssertionError: expected '1.24' to be '1.25'
+test	Run tests	2030-11-05T10:00:54.1234567Z  ❯ src/price.test.ts:9:30
+test	Run tests	2030-11-05T10:00:55.1234567Z 
+test	Run tests	2030-11-05T10:00:56.1234567Z passing output 0
+test	Run tests	2030-11-05T10:00:57.1234567Z passing output 1
+test	Run tests	2030-11-05T10:00:58.1234567Z passing output 2
+test	Run tests	2030-11-05T10:00:59.1234567Z passing output 3
+test	Run tests	2030-11-05T10:01:00.1234567Z passing output 4
+test	Run tests	2030-11-05T10:01:01.1234567Z passing output 5
+test	Run tests	2030-11-05T10:01:02.1234567Z passing output 6
+test	Run tests	2030-11-05T10:01:03.1234567Z passing output 7
+test	Run tests	2030-11-05T10:01:04.1234567Z passing output 8
+test	Run tests	2030-11-05T10:01:05.1234567Z passing output 9
+test	Run tests	2030-11-05T10:01:06.1234567Z passing output 10
+test	Run tests	2030-11-05T10:01:07.1234567Z passing output 11
+test	Run tests	2030-11-05T10:01:08.1234567Z passing output 12
+test	Run tests	2030-11-05T10:01:09.1234567Z passing output 13
+test	Run tests	2030-11-05T10:01:10.1234567Z passing output 14
+test	Run tests	2030-11-05T10:01:11.1234567Z passing output 15
+test	Run tests	2030-11-05T10:01:12.1234567Z passing output 16
+test	Run tests	2030-11-05T10:01:13.1234567Z passing output 17
+test	Run tests	2030-11-05T10:01:14.1234567Z passing output 18
+test	Run tests	2030-11-05T10:01:15.1234567Z passing output 19
+test	Run tests	2030-11-05T10:01:16.1234567Z passing output 20
+test	Run tests	2030-11-05T10:01:17.1234567Z passing output 21
+test	Run tests	2030-11-05T10:01:18.1234567Z passing output 22
+test	Run tests	2030-11-05T10:01:19.1234567Z passing output 23
+test	Run tests	2030-11-05T10:01:20.1234567Z passing output 24
+test	Run tests	2030-11-05T10:01:21.1234567Z passing output 25
+test	Run tests	2030-11-05T10:01:22.1234567Z passing output 26
+test	Run tests	2030-11-05T10:01:23.1234567Z passing output 27
+test	Run tests	2030-11-05T10:01:24.1234567Z passing output 28
+test	Run tests	2030-11-05T10:01:25.1234567Z passing output 29
+test	Run tests	2030-11-05T10:01:26.1234567Z  Test Files  2 failed | 40 passed (42)
+test	Run tests	2030-11-05T10:01:27.1234567Z       Tests  2 failed | 311 passed (313)
+test	Run tests	2030-11-05T10:01:28.1234567Z ##[error]Process completed with exit code 1.

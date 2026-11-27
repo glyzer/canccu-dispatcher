@@ -1,0 +1,54 @@
+lint	Run lint	2030-11-05T10:00:00.1234567Z ##[group]Run npm ci
+lint	Run lint	2030-11-05T10:00:01.1234567Z npm ci
+lint	Run lint	2030-11-05T10:00:02.1234567Z ##[endgroup]
+lint	Run lint	2030-11-05T10:00:03.1234567Z added 812 packages in 14s
+lint	Run lint	2030-11-05T10:00:04.1234567Z setup line 0
+lint	Run lint	2030-11-05T10:00:05.1234567Z setup line 1
+lint	Run lint	2030-11-05T10:00:06.1234567Z setup line 2
+lint	Run lint	2030-11-05T10:00:07.1234567Z setup line 3
+lint	Run lint	2030-11-05T10:00:08.1234567Z setup line 4
+lint	Run lint	2030-11-05T10:00:09.1234567Z setup line 5
+lint	Run lint	2030-11-05T10:00:10.1234567Z setup line 6
+lint	Run lint	2030-11-05T10:00:11.1234567Z setup line 7
+lint	Run lint	2030-11-05T10:00:12.1234567Z setup line 8
+lint	Run lint	2030-11-05T10:00:13.1234567Z setup line 9
+lint	Run lint	2030-11-05T10:00:14.1234567Z setup line 10
+lint	Run lint	2030-11-05T10:00:15.1234567Z setup line 11
+lint	Run lint	2030-11-05T10:00:16.1234567Z setup line 12
+lint	Run lint	2030-11-05T10:00:17.1234567Z setup line 13
+lint	Run lint	2030-11-05T10:00:18.1234567Z setup line 14
+lint	Run lint	2030-11-05T10:00:19.1234567Z setup line 15
+lint	Run lint	2030-11-05T10:00:20.1234567Z setup line 16
+lint	Run lint	2030-11-05T10:00:21.1234567Z setup line 17
+lint	Run lint	2030-11-05T10:00:22.1234567Z setup line 18
+lint	Run lint	2030-11-05T10:00:23.1234567Z setup line 19
+lint	Run lint	2030-11-05T10:00:24.1234567Z setup line 20
+lint	Run lint	2030-11-05T10:00:25.1234567Z setup line 21
+lint	Run lint	2030-11-05T10:00:26.1234567Z setup line 22
+lint	Run lint	2030-11-05T10:00:27.1234567Z setup line 23
+lint	Run lint	2030-11-05T10:00:28.1234567Z setup line 24
+lint	Run lint	2030-11-05T10:00:29.1234567Z setup line 25
+lint	Run lint	2030-11-05T10:00:30.1234567Z setup line 26
+lint	Run lint	2030-11-05T10:00:31.1234567Z setup line 27
+lint	Run lint	2030-11-05T10:00:32.1234567Z setup line 28
+lint	Run lint	2030-11-05T10:00:33.1234567Z setup line 29
+lint	Run lint	2030-11-05T10:00:34.1234567Z setup line 30
+lint	Run lint	2030-11-05T10:00:35.1234567Z setup line 31
+lint	Run lint	2030-11-05T10:00:36.1234567Z setup line 32
+lint	Run lint	2030-11-05T10:00:37.1234567Z setup line 33
+lint	Run lint	2030-11-05T10:00:38.1234567Z setup line 34
+lint	Run lint	2030-11-05T10:00:39.1234567Z setup line 35
+lint	Run lint	2030-11-05T10:00:40.1234567Z setup line 36
+lint	Run lint	2030-11-05T10:00:41.1234567Z setup line 37
+lint	Run lint	2030-11-05T10:00:42.1234567Z setup line 38
+lint	Run lint	2030-11-05T10:00:43.1234567Z setup line 39
+lint	Run lint	2030-11-05T10:00:44.1234567Z > web@1.0.0 lint
+lint	Run lint	2030-11-05T10:00:45.1234567Z > eslint .
+lint	Run lint	2030-11-05T10:00:46.1234567Z 
+lint	Run lint	2030-11-05T10:00:47.1234567Z /home/someone/work/web/web/src/cart.ts
+lint	Run lint	2030-11-05T10:00:48.1234567Z   12:5  error  'total' is assigned a value but never used  no-unused-vars
+lint	Run lint	2030-11-05T10:00:49.1234567Z   30:1  error  Unexpected console statement  no-console
+lint	Run lint	2030-11-05T10:00:50.1234567Z 
+lint	Run lint	2030-11-05T10:00:51.1234567Z ✖ 2 problems (2 errors, 0 warnings)
+lint	Run lint	2030-11-05T10:00:52.1234567Z 
+lint	Run lint	2030-11-05T10:00:53.1234567Z ##[error]Process completed with exit code 1.

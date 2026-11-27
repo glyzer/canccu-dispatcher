@@ -123,17 +123,35 @@ main_merge() {
 }
 
 # contract_resume <n> <pr> <c>: the draft waited for its contract PR #c, which is on main now. With
-# MERGE_MAIN_ANY_PHASE=1 main is merged in by script first, so the run only finishes the work; a
-# merge that could not run (a conflict among them) leaves it to the run. 1: no run started.
+# MERGE_MAIN_ANY_PHASE=1 main is merged in by script first; when its last run (the one that stopped
+# for the contract) reported its own work done (contract_done), the PR is marked ready by script
+# and no run starts. A merge that could not run (a conflict among them) or unfinished work goes to
+# a merge run (MERGE_MODEL). 1: nothing done (no run could start, or marking it ready failed).
 contract_resume() {
   local n=$1 pr=$2 c=$3 t
   may_start "$n" || return 1
   t="The contract PR #$c merged into $BASE_BRANCH. Run git merge origin/$BASE_BRANCH in your branch, finish the package's work in PR #$pr and mark it ready."
   if [ "${MERGE_MAIN_ANY_PHASE:-1}" = 1 ]; then
     main_merge "$n" "$pr"
-    case $MERGED in merged|current) t="The contract PR #$c merged into $BASE_BRANCH, and $BASE_BRANCH is merged into your branch already. Finish the package's work in PR #$pr and mark it ready." ;; esac
+    case $MERGED in
+      merged|current)
+        if contract_done "$n"; then
+          mut gh pr ready "$pr" -R "$REPO" || { log "#$n PR #$pr: marking it ready failed (gh); again next pass"; return 1; }
+          log "#$n PR #$pr: contract PR #$c merged, main merged in, the package's work done: marked ready, no run"
+          return 0
+        fi
+        log "#$n PR #$pr: contract PR #$c merged, main merged in; the package's work is unfinished: the worker finishes it"
+        t="The contract PR #$c merged into $BASE_BRANCH, and $BASE_BRANCH is merged into your branch already. Finish the package's work in PR #$pr and mark it ready." ;;
+      *) log "#$n PR #$pr: contract PR #$c merged; main could not be merged in ($MERGED${MERGE_WHY:+: $MERGE_WHY}): the worker merges it" ;;
+    esac
   fi
   resume "$n" "$t" merge
+}
+# contract_done <n>: the run that stopped for the contract PR ended its report with "Package work:
+# done" (contract_rule asks for the line). No line, or any other value, is unfinished work.
+contract_done() {
+  [ "$(grep -iE '^[[:space:]*_]*Package work:' <<<"$(run_msg "$1")" | tail -1 |
+       sed -E 's/^[[:space:]*_]*Package work:[[:space:]*_]*//I; s/[[:space:]*_.]*$//' | tr 'A-Z' 'a-z')" = "done" ]
 }
 
 # no_checks_why <pr>: the no-checks needs-you's question. GitHub runs no pull_request checks on a
@@ -149,19 +167,6 @@ conflict_task() {
   local f='Merging origin/@BASE@ into the branch of PR #%s conflicts in: %s. Run git merge origin/@BASE@, resolve the conflicts keeping what both sides meant, commit the merge and push it at once (a normal push, never a rebase or force-push), then run only the tests of the files that conflicted and push a fix if one fails, and stop: the dispatcher watches CI.'
   # shellcheck disable=SC2059  # the format is ours; only the branch name goes in
   printf "${f//@BASE@/"$BASE_BRANCH"}" "$1" "$2"
-}
-
-# ci_log_tail <pr>: the newest log lines of the first failing job of a red CI (its check links to
-# a GitHub Actions job); else how to read them
-ci_log_tail() {
-  local pr=$1 run jid url="" t=""
-  IFS=$'\t' read -r run _ _ jid < <(ci_failed "$pr" | awk -F'\t' '$4 != ""' | head -n1)
-  if [ -n "${jid:-}" ]; then
-    url="https://github.com/$REPO/actions/runs/$run/job/$jid"
-    t=$(ghj run view --job "$jid" -R "$REPO" --log-failed 2>/dev/null | tail -n "${CI_LOG_LINES:-60}")
-  fi
-  if [ -n "$t" ]; then printf 'The failing job (%s), the tail of its log: %s' "$url" "$(oneline 2500 "$t")"
-  else printf 'Read the failing checks with gh pr checks %s -R %s and their logs with gh run view --log-failed.' "$pr" "$REPO"; fi
 }
 
 # CI_TIMEDOUT: per Actions job id, whether its cancel was its own time limit (true/false). A job's
@@ -281,7 +286,7 @@ ci_rerun() {
 
 # ci_red <K> <pr>: CI is red on the PR. Main is merged in first (by script: another merged PR may
 # have caused the failure) and CI runs again; still red with main in, its failed jobs are rerun once
-# (ci_rerun); still red, a fresh fix session gets the failing job's log tail. At most FIX_ATTEMPTS
+# (ci_rerun); still red, a fresh fix session gets the failing jobs' digest (ci_digest). At most FIX_ATTEMPTS
 # automatic fix runs per PR, one conflict run and one rerun per head and 3 failed merges in a row
 # (a fixed bound, not a setting), then needs-you (naming the failed checks): nothing repeats unbounded.
 ci_red() {
@@ -326,7 +331,7 @@ ci_red() {
     [[ $to == *,* ]] && to="$to were cancelled at their own time limit (timed out)" || to="$to was cancelled at its own time limit (timed out)"
     task="$task knowing that $to, so look for what runs too long or hangs,"
   fi
-  resume "$k" "$task rerun the checks, push once and stop: the dispatcher watches CI. $(ci_log_tail "$pr")" ci || return 0
+  resume "$k" "$task rerun the checks, push once and stop: the dispatcher watches CI. $(ci_digest "$pr")" ci || return 0
   fix_count "$k" "$pr"
   log "#$k PR #$pr: CI red; fix run $(fixes_used "$k" "$pr") of $(fix_max)$f"
 }
@@ -350,3 +355,7 @@ finish_once() {
 
 # shellcheck source=canccu-fixbudget.sh
 . "$_canccu_lib/canccu-fixbudget.sh"
+# shellcheck source=canccu-cidigest.sh
+. "$_canccu_lib/canccu-cidigest.sh"
+# shellcheck source=canccu-releasered.sh
+. "$_canccu_lib/canccu-releasered.sh"

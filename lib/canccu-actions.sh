@@ -65,7 +65,9 @@ needs_you() {
 # resume <n> <message> [kind]: the issue's worker follows up with the message. The kind (answer,
 # plan, fix, ci, needs-work, merge, limited, blocked; default user: a comment, canccu-run) picks a
 # resumed session where RESUME_ON names it, else a fresh one with the handoff (lib/canccu-followup.sh);
-# a fix kind runs on FIX_MODEL and FIX_EFFORT. A PR armed for auto-merge is disarmed first
+# a fix kind runs on FIX_MODEL and FIX_EFFORT, as does the user's follow-up on a needs-you that
+# came from CI, a review or a fix-check (lead_fix_followup); a merge on MERGE_MODEL; LEAD_MODEL (the
+# user's own model line, model_line) over all of them. A PR armed for auto-merge is disarmed first
 # (armed), and `accepted` dropped: the worker is about to change it.
 resume() {
   local n=$1 pr msg=$2 kind=${3:-user} q how=resume fl=() model=$MODEL effort="" type budget; pr=$(st_get "$n" pr)
@@ -83,12 +85,17 @@ resume() {
     mut rm -f "$WORKERS_DIR/$REPO_NAME-$n.id"; msg="$(unit_prompt "$n")${q:+ Your earlier run stopped with this question: $(oneline 2000 "$q")} $msg"
     how=fresh fl=(--fresh)
   elif ! resume_on "$kind"; then
-    # the rules first, then the task: only the end of the handoff may be cut
-    msg="$SAFETY_BLOCK $(oneline 5000 "$msg") $(handoff "$n" "$kind")" how=fresh fl=(--fresh)
+    # the rules first, then the task: only the end of the handoff may be cut. A red CI's task
+    # carries its failure digest (up to 12000 characters)
+    msg="$SAFETY_BLOCK $(oneline 14000 "$msg") $(handoff "$n" "$kind")" how=fresh fl=(--fresh)
   fi
   # the run type spend.log names: a fix kind is a fix, a merge a merge, the rest build
-  type=build; [ "$kind" = merge ] && type=merge
-  if fix_kind "$kind"; then model=${FIX_MODEL:-$MODEL} effort=$(run_effort FIX_EFFORT) type=fix; fi
+  type=build
+  if fix_kind "$kind"; then model=${FIX_MODEL:-$MODEL} effort=$(run_effort FIX_EFFORT) type=fix
+  elif [ "$kind" = merge ]; then model=${MERGE_MODEL:-${FIX_MODEL:-$MODEL}} type=merge
+  # spend.log keeps it a build: the user asked for it, no fix round of the dispatcher's
+  elif [ "$kind" = user ] && lead_fix_followup "$n"; then model=${FIX_MODEL:-$MODEL} effort=$(run_effort FIX_EFFORT); fi
+  [ -n "${LEAD_MODEL:-}" ] && model=$LEAD_MODEL
   # a resumed fix round has its first prompt's rule, but TEST_TIER may have changed since (a fresh
   # one gets it in the handoff)
   fix_kind "$kind" && [ "$how" = resume ] && msg+=" $(test_rule handoff)"
@@ -104,6 +111,21 @@ resume() {
   has_label "$n" needs-you && edit_issue "$n" --remove-label needs-you
   if [ "$how" = fresh ]; then log "#$n resumed (fresh session, $kind): $(oneline 100 "$2")"
   else log "#$n resumed: $(oneline 100 "$2")"; fi
+}
+
+# lead_fix_followup <n>: the unit waits on a needs-you from CI, a review, its fix round or a
+# fix-check (ny_stage): the user's follow-up there is narrow, a fix run's work. A plan, a question, a
+# refused accept (ny_stage merge) or a stopped worker is not.
+lead_fix_followup() {
+  [ "$(st_get "$1" phase)" = needs-you ] && [ -z "$(st_get "$1" ny_kind)" ] || return 1
+  case $(st_get "$1" ny_stage) in ci|review|fix|fix-check) return 0 ;; esac
+  return 1
+}
+# model_line <comments>: the model the user's comment asks for: a line "opus" or "model: <id>"
+# (the id as a config name: letters, digits and . _ : / [ ] -); the last such line wins
+model_line() {
+  sed -nE 's/^[[:space:]*_>]*(opus|[Mm]odel:[[:space:]]*([][A-Za-z0-9._:/-]+))[[:space:]*_]*$/\1 \2/p' <<<"$1" | tail -1 |
+    awk '{ print ($1 == "opus" ? "opus" : $2) }'
 }
 
 # blocked_held <K> <what>: the unit is labelled `blocked`, so nothing of it runs (said once)

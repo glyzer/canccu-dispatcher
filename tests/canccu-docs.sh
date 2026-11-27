@@ -9,9 +9,10 @@ cd "$root" || exit 1
 tname=docs
 
 R=docs/reference
-# the configuration reference is four topics: config (the defaults and the host profiles), its
-# part config-steps (steps, packages, reviews, usage), rules, and notify's table of when Telegram sends
-cfgref="$R/config.md $R/config-steps.md $R/rules.md $R/notify.md"
+# the configuration reference is five topics: config (the defaults and the host profiles), its
+# parts config-steps (steps, packages, reviews, usage) and config-runs (CI, release-reds, the
+# narrow runs' models), rules, and notify's table of when Telegram sends
+cfgref="$R/config.md $R/config-steps.md $R/config-runs.md $R/rules.md $R/notify.md"
 # keys <file...>: the KEY of each KEY=value line, commented out (the templates) or not
 keys() { sed -nE 's/^(# )?([A-Z][A-Z0-9_]*)=.*/\2/p' "$@" 2>/dev/null | sort -u; }
 # documented: the key of each table row "| `KEY` | …" of the configuration reference
