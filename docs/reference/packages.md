@@ -82,6 +82,19 @@ lines, and must close exactly the package's issues (else manual). The reviewer r
 linked issue and writes `Risk:` before its verdict. A package is finished when all its issues
 are closed: one line goes to `steps/<m>.packages`.
 
+### The context pack
+
+An experiment, off by default (#333). With `CONTEXT_PACK_MODEL` set, a package's first build
+starts with a short run on that model (budget `BUDGET_PACK`, `30 1 15`) in the same window and
+slot: it reads the issues, the package's plan, `AGENTS.md`, `CLAUDE.md` and the code they touch,
+and writes `.canccu/context.md` in the worktree: the files to touch and their key functions, the
+helpers and tests to reuse, the contract excerpts, the checks to run. `.canccu/` is in the
+clone's `info/exclude`, so the build never commits it. The build prompt says ``Read
+`.canccu/context.md` before exploring``. The pack has its own session and its own spend.log line,
+type `pack`. It runs once per package: a resume, a fix or a merge run never reruns it. A pack that
+fails, stops at its budget or writes no file is logged (`dispatch.log` and the run's log) and the
+build starts without it.
+
 ### Risk classes
 
 `low`, `normal` or `high`: the highest of the plan's, the PR's `Risk:` line and the reviewer's

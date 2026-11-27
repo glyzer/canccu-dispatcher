@@ -41,6 +41,8 @@ canccu_doctor_host() {
   for p in $(canccu_profiles); do
     [ -z "$1" ] || [ "$p" = "$1" ] || continue
     v=$(_doc_tier "$p"); [ "$v" = "$tier" ] || echo "host: project $p: test tier $v"
+    v=$(cfg_values "$p" 2>/dev/null | awk -F '\t' '$1 == "PRE_PUSH_CMD" || $1 == "PRE_PUSH_MAX_SEC" { print $2 }' | paste -sd '\t')
+    [ -z "${v%%$'\t'*}" ] || echo "host: project $p: pre-push check \`${v%%$'\t'*}\` (at most ${v#*$'\t'} s)"
   done
   since=$(( ${CANCCU_NOW:-$(date +%s)} - 86400 ))
   for p in $(canccu_profiles); do

@@ -75,6 +75,19 @@ canccu-worker --kill <repo> <key>
   inherited), and unset again before `claude` starts. Runs use the project's `gh` config dir
   ([`projects.md`](projects.md)).
 
+### The pre-push check
+
+With `PRE_PUSH_CMD` set (#328; off by default), every worker run installs a `pre-push` hook in its
+own linked worktree (a per-worktree `core.hooksPath` under its git dir, through
+`extensions.worktreeConfig`; the clone and other worktrees keep theirs). The hook runs the command
+under `PRE_PUSH_MAX_SEC` with the files changed against `origin/<base>` (deleted ones left out) as
+its arguments and in `CANCCU_CHANGED_FILES`, one per line; a failure or a timeout refuses the push
+with the last 80 lines of its output. A run without the setting removes the hook. The run's Claude
+session also gets a `PreToolUse` guard on Bash that refuses `git push`/`git commit` with
+`--no-verify` (or `commit -n`) and logs `#<n>: warning: the worker tried git --no-verify; refused`
+to `dispatch.log`; the worker prompt says a refused push means fix first, then push again. The
+doctor shows the command per project and flags one that is not on `PATH` nor in the clone.
+
 ## Follow-up runs
 
 A resumed session reloads the whole earlier conversation and re-reads it on every turn: measured,

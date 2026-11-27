@@ -43,6 +43,53 @@ timed_exec() {
 
 new_uuid() { cat /proc/sys/kernel/random/uuid; }
 
+# worker_settings <libexec>: a worker run's --settings: the nudge hook after each tool call, and,
+# while the pre-push check is on, the guard that refuses --no-verify before a Bash call
+worker_settings() {
+  local pre=""
+  [ -z "${WORKER_PRE_PUSH_CMD:-}" ] ||
+    pre=",\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"type\":\"command\",\"command\":\"$1/canccu-guard-hook\"}]}]"
+  echo "{\"hooks\":{\"PostToolUse\":[{\"matcher\":\"*\",\"hooks\":[{\"type\":\"command\",\"command\":\"$1/canccu-nudge-hook\"}]}]$pre}}"
+}
+
+# prepush_setup <dir> <libexec>: a worker worktree's pre-push hook (#328), written at every run so a
+# changed PRE_PUSH_CMD holds at once, and removed when it is unset. Set through the worktree's own
+# config (extensions.worktreeConfig): the project clone and the leader's pushes keep their hooks.
+# The project's own hooks (its hooks dir, .git/hooks or a core.hooksPath like .husky) keep running:
+# each gets a forward in the new dir, and its own pre-push runs after the check.
+prepush_setup() {
+  local dir=$1 gd cd hd od h
+  gd=$(git -C "$dir" rev-parse --absolute-git-dir 2>/dev/null) || return 0
+  cd=$(git -C "$dir" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || return 0
+  [ "$gd" != "$cd" ] || return 0   # the clone itself
+  hd=$gd/canccu-hooks
+  # only our own setting goes, so the project's hooks dir is read below (and never the clone's)
+  [ "$(git -C "$dir" config --get extensions.worktreeConfig 2>/dev/null)" = true ] &&
+    [ "$(git -C "$dir" config --worktree --get core.hooksPath 2>/dev/null)" = "$hd" ] &&
+    git -C "$dir" config --worktree --unset core.hooksPath
+  rm -rf "$hd"
+  [ -n "${WORKER_PRE_PUSH_CMD:-}" ] || return 0
+  od=$(git -C "$dir" rev-parse --path-format=absolute --git-path hooks 2>/dev/null) || od=""
+  mkdir -p "$hd" || return 0
+  for h in "$od"/*; do
+    [ -n "$od" ] && [ -f "$h" ] && [ -x "$h" ] && [[ ${h##*/} != *.* && ${h##*/} != pre-push ]] || continue
+    printf '#!/bin/sh\n# written by canccu-worker: the project'"'"'s own hook\nexec %q "$@"\n' "$h" > "$hd/${h##*/}" && chmod +x "$hd/${h##*/}"
+  done
+  h=""; [ -n "$od" ] && [ -f "$od/pre-push" ] && [ -x "$od/pre-push" ] && h=$od/pre-push
+  { printf '#!/usr/bin/env bash\n# written by canccu-worker at each run (PRE_PUSH_CMD, #328)\n'
+    printf 'export PRE_PUSH_CMD=%q PRE_PUSH_MAX_SEC=%q PRE_PUSH_BASE=%q\n' "$WORKER_PRE_PUSH_CMD" "${WORKER_PRE_PUSH_MAX_SEC:-600}" "${WORKER_BASE_BRANCH:-main}"
+    printf 'check=%q own=%q\n' "$2/canccu-pre-push" "$h"
+    # the refs git sends on stdin go to the check and to the project's own pre-push, which runs after it
+    cat <<'HOOK'
+refs=$(cat)
+feed() { [ -z "$refs" ] || printf '%s\n' "$refs"; }
+feed | "$check" "$@" || exit 1
+[ -z "$own" ] || feed | "$own" "$@"
+HOOK
+  } > "$hd/pre-push" && chmod +x "$hd/pre-push" && git -C "$dir" config extensions.worktreeConfig true &&
+    git -C "$dir" config --worktree core.hooksPath "$hd"
+}
+
 # tree_pids <pid>: the pid and all its descendants. `timeout` puts claude in its own process
 # group, so a tmux hangup or a plain `kill <wrapper>` never reaches it; walk the tree instead.
 tree_pids() { local k; echo "$1"; for k in $(pgrep -P "$1" 2>/dev/null); do tree_pids "$k"; done; }

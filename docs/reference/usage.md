@@ -19,7 +19,8 @@ back-off below stays the fallback. No AI runs to probe the usage.
   tells it to stop at a safe point with a handoff (below). A nudged worker that ends is `limited`
   and continues after the 5-hour reset in a fresh session from its handoff
   ([After the reset](#after-the-reset)). Reviewers, fix-checks, answerers and planners are short:
-  they finish.
+  they finish. A context pack ([`packages.md`](packages.md#the-context-pack)) runs in its build's
+  slot and counts as that build.
 - **Weekly share ≥ `USAGE_WEEKLY_DRAIN`** (90 %): **drain mode**. No new package, planner wave,
   health pass or fast-lane issue starts; work already started finishes its whole pipeline (the
   worker, the review, the fix, the fix-check, the merge) under the 5-hour caps. It ends when the

@@ -271,14 +271,16 @@ merging_step() {
 # shellcheck source=canccu-mqueue.sh
 . "$_canccu_lib/canccu-mqueue.sh"
 
-# own_change <base> <head>: git diff --numstat of the change base..head over the PR's own diff at
-# head (all files, when that list cannot be read; a rename's two paths), counted from count_from,
-# so lines merged in from main drop out. 1: the change cannot be read.
+# own_change <base> <head>: the numstat of the change base..head over the PR's own diff at head (all
+# files, when that list cannot be read; a rename's two paths). With main merged in since base
+# (main_merged_since), only the PR's own commits count (own_commit_stats), so neither main's lines
+# nor a resolved conflict's do; else git diff base..head. 1: the change cannot be read.
 own_change() {
   local mb files=()
   mb=$(guard 20 git -C "$CLONE" merge-base origin/$BASE_BRANCH "$2" 2>/dev/null)
   [ -n "$mb" ] && mapfile -t files < <(guard 20 git -C "$CLONE" -c core.quotePath=off diff --name-only --no-renames "$mb" "$2" 2>/dev/null)
-  change_stats "$(count_from "$1" "$2")" "$2" "${files[@]}"
+  if main_merged_since "$1" "$2" >/dev/null; then own_commit_stats "$1" "$2" "${files[@]}"
+  else change_stats "$1" "$2" "${files[@]}"; fi
 }
 # lines_over <numstat>: why that change is too big for a fix-check, over FIXCHECK_FULL_LINES; nothing when it is not
 lines_over() {
@@ -294,12 +296,16 @@ own_lines_over() { local s; s=$(own_change "$1" "$2") || { echo "the change cann
 
 # postpass_full <base> <head>: why the change base..head needs a full review, not a fix-check;
 # nothing when it does not: too many lines of the PR's own (own_change), or a gated or risky path
+# among its files or those a merge in it edits (merge_edit_files: a merge counts no line, #336, but
+# a resolution in such a path still gets a full review). Merges that cannot be read: a full review.
 postpass_full() {
-  local stats p re
+  local stats paths p re
   stats=$(own_change "$1" "$2") || { echo "the change cannot be read"; return; }
   p=$(lines_over "$stats"); [ -n "$p" ] && { echo "$p"; return; }
-  p=$(cut -f3- <<<"$stats" | grep -m1 -E "$(gated_re)") && { echo "gated path $p"; return; }
-  for re in "$RISKY_PATHS" "$FIXCHECK_RISKY"; do [ -n "$re" ] && p=$(cut -f3- <<<"$stats" | grep -m1 -iE "$re") && { echo "risky path $p"; return; }; done
+  p=$(merge_edit_files "$1" "$2") || { echo "the merges since the review cannot be read"; return; }
+  paths=$(cut -f3- <<<"$stats"; [ -z "$p" ] || printf '%s\n' "$p")
+  p=$(grep -m1 -E "$(gated_re)" <<<"$paths") && { echo "gated path $p"; return; }
+  for re in "$RISKY_PATHS" "$FIXCHECK_RISKY"; do [ -n "$re" ] && p=$(grep -m1 -iE "$re" <<<"$paths") && { echo "risky path $p"; return; }; done
   return 0
 }
 

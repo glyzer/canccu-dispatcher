@@ -27,6 +27,9 @@ breaks a contract or holds a destructive migration; for a package, `Risk: <low|n
 <why>` (it confirms or raises the plan's class); and last, exactly `Review verdict: pass <sha>` or
 `Review verdict: changes <sha>`. The dispatcher checks the file and posts it as `REVIEWER_LOGIN`.
 
+A full review also answers a script-built acceptance checklist in a `Criteria:` block
+([`findings.md`](findings.md#the-acceptance-checklist)).
+
 ### The finding block
 
 Every review and fix-check file ends with the finding block of `docs/plan/contracts.md` §8; its
@@ -131,12 +134,11 @@ full review>..<head>` runs (window `fixcheck#<pr>`), told to read only the hand-
 hunks of what came from main and to catch a correctness or security bug in the rest. A full
 review runs instead when the PR's own files changed more than `FIXCHECK_FULL_LINES` lines (100)
 since that review, when they touch a gated or `RISKY_PATHS`/`FIXCHECK_RISKY` path, or when the
-diff cannot be read. The count leaves out what a merge of main brought in: it starts from the
-merge git itself makes of that review's head with main, so only the PR's own lines are left
-(`FIXCHECK_COUNT_MAIN=1`: main's lines in the PR's files count too). When that merge conflicts,
-the worker resolved it by hand and the whole change since that review counts
-(`FIXCHECK_COUNT_RESOLVED=1`: only the resolved hunks, [`review-depth.md`](review-depth.md#the-count-after-a-merge-of-main)). A pass of that
-fix-check counts like a review's pass.
+diff cannot be read. With main merged in since that review, only the PR's own commits count: a
+merge of main counts no line, its conflicts resolved by hand or not
+([`review-depth.md`](review-depth.md#the-count-after-a-merge-of-main); `FIXCHECK_COUNT_MAIN=1`:
+the whole diff counts, main's lines in the PR's files too). A pass of that fix-check counts like
+a review's pass.
 
 ## The verdict line
 

@@ -63,20 +63,20 @@ verdict is then acted on as usual.
 ## The count after a merge of main
 
 A push after a pass gets a fix-check, or a full review when it is big or touches a gated or
-risky path ([`reviews.md`](reviews.md#fix-check)). The count starts at `count_from`
-(`lib/canccu-depth.sh`): with main merged in since the pass, from git's own merge of the passed
-head with main, so main's lines drop out. When that merge conflicts, the count starts at the
-passed head today: main's lines in the PR's files count, and a big main change or a risky path
-only main touched makes it a full review.
+risky path ([`reviews.md`](reviews.md#fix-check)). With main merged in since the pass (or the
+review), the size, gated and risky checks see only the PR's own commits since it
+(`own_commit_stats`, `lib/canccu-depth.sh`): the numstat of each non-merge commit not on main, in
+the PR's files, summed. A merge of main counts no line, clean or with its conflicts resolved by
+hand, however big (#336); a line two commits change counts twice. Without a merge of main, or
+with `FIXCHECK_COUNT_MAIN=1`, the whole diff since the pass counts. A git error is said too: the
+cost is a full review, never a missed one.
 
-With `FIXCHECK_COUNT_RESOLVED=1` (project config, locked, the default) the count starts instead from the tree
-`git merge-tree --write-tree` writes for that merge with its conflict markers (git ≥ 2.38). The
-diff from it to the head holds the hand-resolved hunks and the PR's later commits; the size, gated
-and risky checks see only those. The fix-check's effort (`FIXCHECK_BIG`, `FIXCHECK_RISKY`) counts
-the same way with it, and as before without it. Any other git result counts as before: the cost
-is a full review, never a missed one. The count after a pass, and the fix-check's with
-`FIXCHECK_COUNT_RESOLVED=1`, diff with `--no-renames`: a file moved out of a gated or risky path
-counts by its old path too.
+The fix-check's effort (`FIXCHECK_BIG`, `FIXCHECK_RISKY`) counts from `count_from`: git's own
+merge of the passed head with main, so main's lines drop out; when that merge conflicts, from the
+passed head, unless `FIXCHECK_COUNT_RESOLVED=1` (project config, locked, the default): then from
+the tree `git merge-tree --write-tree` writes with the conflict markers (git ≥ 2.38), so only the
+hand-resolved hunks and later commits count. Both counts use `--no-renames`: a file moved out of
+a gated or risky path counts by its old path too.
 
 ## One full review per PR cycle
 
@@ -93,8 +93,8 @@ worker as that fix run (a fix kind: `FIX_MODEL`, `FIX_EFFORT`) with the findings
 comment's items, which join the findings file; its push gets a fix-check of `<reviewed
 head>..<new head>` against both, not a second full review. A full review runs only on a line
 `full review` in your comment, on a refused accept, or when the PR's own files changed more than
-`FIXCHECK_FULL_LINES` since the review, counted as above: lines merged from main never count, and
-after a conflicting merge only the resolved ones do (with `FIXCHECK_COUNT_RESOLVED=1`).
+`FIXCHECK_FULL_LINES` since the review, counted as above: lines merged from main never count, a
+resolved conflict's neither.
 
 ## The review brake
 

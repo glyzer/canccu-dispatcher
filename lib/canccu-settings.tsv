@@ -72,10 +72,14 @@ PACKAGE_LINES	int:100:100000	project	open
 BUDGET_LINES	int:0:100000	project	open
 PACKAGE_MIN_ISSUES	int:1:20	rules	open
 PACKAGE_HOLD_SMALL	enum:0|1	rules	open
+CONTEXT_PACK_MODEL	name	project	open
+BUDGET_PACK	budget	project	open
 PLAN_MODEL	name	project	open
 WAVE_ROLLING	enum:0|1	project	locked
 REVIEW_MODEL	name	project	open
 REVIEW_MODEL_LIGHT	name	project	open
+PRE_PUSH_CMD	text	project	open
+PRE_PUSH_MAX_SEC	int:10:3600	project	open
 FIXCHECK_MODEL	name	project	open
 FIXCHECK_FULL_LINES	int:0:100000	project	locked
 FIXCHECK_COUNT_MAIN	enum:0|1	project	locked

@@ -28,6 +28,10 @@ Review verdict: <pass|changes> <sha>
   `contract` (a fixed name, default, text or format not used as written), `data-loss`, `test` (a
   behaviour change without a test that failed before it). Never blocking: `style`, `docs`,
   `simplify`, `test-gap`, `other`; a class not in either list counts as no class.
+- **A `Criteria:` block** (a full review with an acceptance checklist, #330) comes before
+  `Blocking:` and is never read as findings; a `pass` that leaves an item not met or unanswered
+  gets a `[criterion]` blocking item per such item from the dispatcher and becomes `changes`
+  ([below](#the-acceptance-checklist)).
 - **An item** starts at column 0 with a list mark (`1.`, `-`, `*`); its indented lines
   (`Evidence:`, `Fix:`) are its own. A heading with no finding says `none`: on its line, as a
   list item (`- none`) or in brackets (`(none)`); `none`, `n/a` and `nothing` are no item.
@@ -58,6 +62,21 @@ verdict, so the state and the PR agree. The fix round gets only the blocking ite
 demoted, non-blocking and pre-existing items go to the follow-up ticket. Each posted verdict adds a
 line to `reviews.log` ([`state.md`](state.md)). A verdict comment posted by hand, without a valid
 block, is read as before: its whole text without the `Non-blocking:` section blocks.
+
+## The acceptance checklist
+
+For a full review (#330) the dispatcher builds a numbered list from the issue text: the list
+items under a heading that names Acceptance, and every `- [ ]` line (fenced code skipped); for a
+package, each issue's items prefixed `#<n>: `, then the `- [ ]` tasks of its plan,
+`docs/plans/<branch>.md` (from `origin/main`, else the head), prefixed `plan: `; at most 60 items.
+The prompt gives it as data and asks for a `Criteria:` block just before `Blocking:`, one line per
+item: `<i>. met — <evidence>`, `<i>. not met — <what is missing>` or `<i>. not this part — <why>`;
+a criterion about every X needs a search over the whole PR, and all findings come in this one
+pass. A `pass` with an item not met, or with no answer, is refused like a fix-check's (#229): the
+dispatcher adds a blocking `[criterion]` finding per item, raises the count line, writes
+`Dispatcher: a pass with acceptance criteria not met or not answered is no pass; verdict changes.`
+and the verdict becomes `changes`. An issue with no criteria, a light review and a fix-check get no
+checklist: their prompts and checks are as before.
 
 ## No repeats
 

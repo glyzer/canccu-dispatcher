@@ -85,14 +85,18 @@ PACKAGE_LINES=1500          # the planner's size guide: changed lines per packag
 BUDGET_LINES=300            # above 0: a package's budgets scale with its planned changed lines over this, when more than its issue count
 PACKAGE_MIN_ISSUES=3        # above 1: the planner aims for at least this many issues per package (where they fit together)
 PACKAGE_HOLD_SMALL=0        # 1: the planner may leave a lone small leftover out for a later wave's package of its area
+CONTEXT_PACK_MODEL=         # a model (e.g. a cheaper one): before a package's first build it writes .canccu/context.md for the build; empty: off
+BUDGET_PACK="30 1 15"       # the context pack run
 PLAN_MODEL=                 # the planner's model; empty: MODEL
 WAVE_ROLLING=0              # 1: plan the next wave while this one runs, once nothing waits to start and a slot is free; 0: wait for the wave to be over
 REVIEW_MODEL=               # the full reviewer's model; empty: MODEL
 REVIEW_MODEL_LIGHT=         # the full reviewer's model for a light PR (docs, tests, LIGHT_REVIEW_PATHS only); empty: REVIEW_MODEL
+PRE_PUSH_CMD=               # a quick check (lint, unit tests) a worker worktree's pre-push hook runs on the changed files; a failure refuses the push; empty: off
+PRE_PUSH_MAX_SEC=600        # seconds PRE_PUSH_CMD may take before the push is refused
 FIXCHECK_MODEL=             # the fix-check's model (e.g. a cheaper one); empty: MODEL
 FIXCHECK_FULL_LINES=100     # a push after a passed review changing more lines than this gets a full review, not a fix-check
 FIXCHECK_COUNT_MAIN=0       # 0: a fix's size counts only the PR's own change; 1: main's lines merged into the PR's files count too
-FIXCHECK_COUNT_RESOLVED=1   # 1 (with FIXCHECK_COUNT_MAIN=0): after a conflicting merge of main, count only the resolved lines
+FIXCHECK_COUNT_RESOLVED=1   # 1 (with FIXCHECK_COUNT_MAIN=0): the fix-check's effort counts only the resolved lines of a conflicting merge of main
 FINDINGS_RECUR=3            # merged PRs with findings of the same key (class + file) before the dispatcher files one recurring-finding issue; 0: never
 FINDINGS_RECUR_DAYS=30      # the window, in days, FINDINGS_RECUR counts over
 HEALTH_MODEL=               # the health pass's model (e.g. a cheaper one); empty: MODEL

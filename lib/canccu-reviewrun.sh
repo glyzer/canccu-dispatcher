@@ -187,7 +187,7 @@ start_reviewer() {
   else mut git -C "$CLONE" worktree add -q --detach "$wt" "$sha"; fi || { log "PR #$pr: review worktree failed"; return 1; }
   # a file left from before this review never counts; the sha the reviewer works on is recorded
   if is_fixcheck_mode "$mode"; then read -r effort capped <<<"$(fixcheck_effort "$rsha" "$sha")"
-    prompt=$(fixcheck_prompt "$pr" "$n" "$rsha" "$sha" "$f" "$effort" "$(cat "$(findings_file "$pr" "$rsha")" 2>/dev/null)" "$mode")
+    prompt=$(fixcheck_prompt "$pr" "$n" "$rsha" "$sha" "$f" "$effort" "$(cat "$(findings_file "$pr" "$rsha")" 2>/dev/null)" "$mode"); criteria_drop "$pr" "$sha"
   else
     # the PR's paths, read once for both light checks; a gh error makes neither light
     paths=""
@@ -195,13 +195,13 @@ start_reviewer() {
     review_light "$pr" "$mode" "$paths" && light=1
     # review_effort reads the PR's files and comments again: only a full review that is not light needs it
     if lrisk=$(review_light_class "$pr" "$n" "$paths"); then
-      read -r effort capped <<<"$(effort_cap low)"; prompt=$(light_review_prompt "$pr" "$n" "$sha" "$f")
+      read -r effort capped <<<"$(effort_cap low)"; prompt=$(light_review_prompt "$pr" "$n" "$sha" "$f"); criteria_drop "$pr" "$sha"
     else
       # the light model's review is a medium one, whatever the size: its paths are light by choice
       if (( light )); then read -r effort capped <<<"$(brake_effort medium)"
       else read -r effort capped <<<"$(review_effort "$pr" "$n")"
         [ -z "$capped" ] && brake_on && read -r effort capped <<<"$(brake_effort "$effort")"; fi
-      prompt=$(review_prompt "$pr" "$n" "$sha" "$f" "$effort")
+      criteria_save "$pr" "$n" "$sha"; prompt=$(review_prompt "$pr" "$n" "$sha" "$f" "$effort")
     fi
   fi
   (( CANCCU_DRY )) || { mkdir -p "${f%/*}" && rm -f "$f"; } || { log "PR #$pr: cannot prepare $f"; return 1; }

@@ -502,7 +502,7 @@ ppf() { lib eval ". '$root/lib/canccu-merge.sh'; FIXCHECK_COUNT_MAIN=$1; postpas
 ok "postpass_full: main's 150 lines merged in, plus a 10-line fix → no full review" eq "$(ppf 0 "$FC_B" "$FC_F")" ""
 ok "… with FIXCHECK_COUNT_MAIN=1: full review, as before" eq "$(ppf 1 "$FC_B" "$FC_F")" "160 changed lines, over FIXCHECK_FULL_LINES=100"
 ok "… 150 own lines: full review" eq "$(ppf 0 "$FC_B" "$FC_O")" "150 changed lines, over FIXCHECK_FULL_LINES=100"
-ok "… a merge of main resolved by hand: counted from base, as before" eq "$(ppf 0 "$FC_C0" "$FC_C")" "150 changed lines, over FIXCHECK_FULL_LINES=100"
+ok "… a merge of main resolved by hand: no line counts (#336)" eq "$(ppf 0 "$FC_C0" "$FC_C")" ""
 
 # FIXCHECK_COUNT_RESOLVED (#216 D9). rsrepo <main lines>: a PR (RS_B, the passed head) changes the
 # 10 lines of a.txt, adds a line to b.txt and to auth.ts; main changes the same 10 lines of a.txt,
@@ -528,20 +528,32 @@ rsrepo() {
 pr2() { lib eval ". '$root/lib/canccu-merge.sh'; FIXCHECK_COUNT_RESOLVED=$1; postpass_full $2 $3"; }
 fce() { lib eval "FIXCHECK_COUNT_RESOLVED=$1; fixcheck_effort $2 $3"; }
 env_new count-resolved; rsrepo 500
-ok "a conflicting merge of main (500 main lines, 10 resolved), FIXCHECK_COUNT_RESOLVED=0: today's count" \
-  eq "$(pr2 0 "$RS_B" "$RS_H")" "502 changed lines, over FIXCHECK_FULL_LINES=100"
-ok "… with 1: only the resolved lines count, a fix-check" eq "$(pr2 1 "$RS_B" "$RS_H")" ""
+ok "a conflicting merge of main (500 main lines, 10 resolved), FIXCHECK_COUNT_RESOLVED=0: a fix-check (#336)" \
+  eq "$(pr2 0 "$RS_B" "$RS_H")" ""
+ok "… with 1 the same" eq "$(pr2 1 "$RS_B" "$RS_H")" ""
 ok "… fixcheck_effort with 0: today's count (medium)" eq "$(fce 0 "$RS_B" "$RS_H")" medium
 ok "… with 1: low" eq "$(fce 1 "$RS_B" "$RS_H")" low
 env_new count-resolved-risky; rsrepo 0
-ok "a risky path changed only by main: a full review with 0" eq "$(pr2 0 "$RS_B" "$RS_H")" "risky path auth.ts"
+ok "a risky path changed only by main: no full review with 0 (#336)" eq "$(pr2 0 "$RS_B" "$RS_H")" ""
 ok "… none with 1" eq "$(pr2 1 "$RS_B" "$RS_H")" ""
 ok "a file moved out of a gated path counts by its old path" eq "$(pr2 0 "$RS_B" "$RS_M")" "gated path .github/w.yml"
-# a git that fails merge-tree: today's count, never a smaller one
+# a conflict in a gated path, resolved in the merge of main: no line counts, the path still does
+d=$E/code/web
+_rg checkout -b gw fix; echo pr-w > "$d/.github/w.yml"; _rg commit -am "the PR edits the workflow"
+GW_B=$("$FAKE_REAL_GIT" -C "$d" rev-parse HEAD)
+_rg checkout -b main2 main; echo main-w > "$d/.github/w.yml"; _rg commit -am "main edits it too"
+_rg update-ref refs/remotes/origin/main main2
+_rg checkout gw; _rg merge --no-edit main2; echo resolved-w > "$d/.github/w.yml"; _rg add .github/w.yml; _rg commit --no-edit -m "merge main, resolved"
+GW_H=$("$FAKE_REAL_GIT" -C "$d" rev-parse HEAD)
+_rg checkout main
+ok "a conflict in a gated path resolved in a merge of main: still a full review" eq "$(pr2 0 "$GW_B" "$GW_H")" "gated path .github/w.yml"
+_rg update-ref refs/remotes/origin/main main
+# a git that fails merge-tree: the effort's full count, never a smaller one
 mkdir -p "$E/sbin"; printf '#!/usr/bin/env bash\ncase " $* " in *" merge-tree "*) exit 128 ;; esac\nexec "%s/git" "$@"\n' "$fb" > "$E/sbin/git"; chmod +x "$E/sbin/git"
 env_new count-resolved-gitfail; rsrepo 500
-ok "merge-tree failing → today's count" eq "$( ( PATH="$E/../count-resolved-risky/sbin:$fb:$PATH"; . "$root/lib/canccu-common.sh"; . "$root/lib/canccu-merge.sh"; FIXCHECK_COUNT_RESOLVED=1; postpass_full "$RS_B" "$RS_H" ) 2>/dev/null)" \
-  "502 changed lines, over FIXCHECK_FULL_LINES=100"
+ok "merge-tree failing → a full review: the merge cannot be read" eq "$( ( PATH="$E/../count-resolved-risky/sbin:$fb:$PATH"; . "$root/lib/canccu-common.sh"; . "$root/lib/canccu-merge.sh"; postpass_full "$RS_B" "$RS_H" ) 2>/dev/null)" \
+  "the merges since the review cannot be read"
+ok "merge-tree failing → fixcheck_effort's full count (medium)" eq "$( ( PATH="$E/../count-resolved-risky/sbin:$fb:$PATH"; . "$root/lib/canccu-common.sh"; FIXCHECK_COUNT_RESOLVED=1; fixcheck_effort "$RS_B" "$RS_H" ) 2>/dev/null)" medium
 
 # ---------------------------------------------------------------- the accept kept on a merge of main (#92)
 

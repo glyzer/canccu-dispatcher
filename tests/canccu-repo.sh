@@ -66,7 +66,7 @@ ok "… and lists nothing else" eq "${stale# }" ""
 
 ok "bin/: the 14 commands" eq "$(cd bin && ls | tr '\n' ' ')" \
   "canccu-classify canccu-dispatch canccu-dispatcher canccu-init canccu-monitor canccu-notify canccu-pause canccu-resume canccu-review canccu-run canccu-ship canccu-status canccu-stop canccu-up "
-ok "libexec/: the run engine, its nudge hook and the leader brief" eq "$(cd libexec && ls | tr '\n' ' ')" "canccu-brief canccu-nudge-hook canccu-worker "
+ok "libexec/: the run engine, its nudge and guard hooks, the pre-push hook and the leader brief" eq "$(cd libexec && ls | tr '\n' ' ')" "canccu-brief canccu-guard-hook canccu-nudge-hook canccu-pre-push canccu-worker "
 ok "every command and the engine find their libs from their real path" \
   eq "$(grep -L 'realpath' bin/* libexec/canccu-worker | tr '\n' ' ')" ""
 mkdir -p "$T/links"; ln -s "$root/bin/canccu-status" "$T/links/canccu-status"

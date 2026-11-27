@@ -50,6 +50,25 @@ resolved_merge_files() {
   return 1
 }
 
+# merge_edit_files <base> <head>: the files each merge commit in base..head changes against git's
+# own merge of its parents (merge-tree, conflict markers and all): a resolution, or any other edit
+# made inside a merge. The gated and risky path checks read them (postpass_full), as own_change
+# leaves merges out (#336). 1: a merge of more than two parents, or any git error.
+merge_edit_files() {
+  local c p1 p2 more t rc d ms files=()
+  ms=$(guard 20 git -C "$CLONE" rev-list --merges "$1..$2" 2>/dev/null) || return 1
+  for c in $ms; do
+    read -r _ p1 p2 more <<<"$(guard 20 git -C "$CLONE" rev-list --parents -n 1 "$c" 2>/dev/null)"
+    [ -n "$p2" ] && [ -z "$more" ] || return 1
+    t=$(guard 60 git -C "$CLONE" merge-tree --write-tree "$p1" "$p2" 2>/dev/null); rc=$? t=${t%%$'\n'*}
+    [[ $t =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]] && (( rc <= 1 )) || return 1
+    d=$(guard 30 git -C "$CLONE" -c core.quotePath=off diff --name-only --no-renames "$t" "$c" 2>/dev/null) || return 1
+    [ -z "$d" ] || mapfile -t -O "${#files[@]}" files <<<"$d"
+  done
+  (( ${#files[@]} )) && printf '%s\n' "${files[@]}" | sort -u
+  return 0
+}
+
 # resolved_outside <base> <head>: the files a resolution of head (resolved_merge_files) touched that
 # are not in the PR's own diff at base (from its merge-base with main); nothing printed: every
 # resolved line is the PR's own. 1: not such a head, or the PR's diff cannot be read.

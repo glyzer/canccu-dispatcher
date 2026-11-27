@@ -33,6 +33,7 @@
 # WORKER_ADD_DIRS  space-separated dirs passed as --add-dir
 # WORKER_EFFORT    passed as --effort; empty: none, the account default
 # WORKER_TMPDIR_MODE  disk (default): TMPDIR, TMP and TEMP are the run's own workers/tmp/<repo>-<key>.<pid>, removed when it ends; system: inherited
+# WORKER_PRE_PUSH_CMD/_MAX_SEC, WORKER_BASE_BRANCH: the pre-push hook and --no-verify guard; WORKER_PACK_*: a context pack first
 # WORKER_RUN_TYPE  the run's type for its spend.log line (build, fix, review, …); empty: -
 # WORKER_TEST_CMD  the project's test command (TEST_CMD): its calls' count and seconds go in the
 #          spend.log line's outcome (tests=, test_secs=); unset: tests/run; empty: not measured
@@ -53,6 +54,8 @@ if [ -z "${CANCCU_HOME:-}" ] || [ "${WORKERS_DIR:-}" != "$CANCCU_HOME/workers" ]
 fi
 # shellcheck source=../lib/canccu-engine.sh
 . "$LIB/canccu-engine.sh"
+# shellcheck source=../lib/canccu-pack.sh
+. "$LIB/canccu-pack.sh"
 
 usage() { sed -n '7,10s/^# \{0,1\}//p' "$self" >&2; exit 2; }
 
@@ -134,6 +137,8 @@ run() {
     if mkdir -p "$WORKERS_DIR/tmp" && mkdir -m 700 "$run_tmp"; then export TMPDIR=$run_tmp TMP=$run_tmp TEMP=$run_tmp
     else echo "could not make the run's temp dir $run_tmp; the run uses the inherited TMPDIR" >> "$base.log"; run_tmp=""; fi
   fi
+  prepush_setup "$dir" "$(dirname "$self")"; export CANCCU_RUN_KEY=$key   # the guard hook's log line names it
+  pack_run "$repo" "$key" "$dir" "$base.log"; run_t0=$(date +%s)   # the build's seconds start after it
   [[ ($key =~ ^[0-9]+$ || $keep == 1) && $fresh != 1 ]] || rm -f "$base.id"
 
   # watchdog <pid>: when the log stops growing for WORKER_STALL_MIN minutes, flag it and kill the
@@ -163,7 +168,7 @@ run() {
     [ -n "${WORKER_EFFORT:-}" ] && args+=(--effort "$WORKER_EFFORT")
     if [ "$sources" = user ]; then args+=(--setting-sources user --strict-mcp-config)
     # a worker hears the dispatcher's nudge (usage near the limit) after each tool call
-    else args+=(--settings "{\"hooks\":{\"PostToolUse\":[{\"matcher\":\"*\",\"hooks\":[{\"type\":\"command\",\"command\":\"$(dirname "$self")/canccu-nudge-hook\"}]}]}}"); fi
+    else args+=(--settings "$(worker_settings "$(dirname "$self")")"); fi
     for d in ${WORKER_ADD_DIRS:-}; do args+=(--add-dir "$d"); done
     printf '\n=== %s %s#%s "%s" %s %s · budget %st/$%s/%sm%s\n' "$(date -u '+%FT%TZ')" "$repo" "$key" \
       "$prompt" "${sargs[0]#--}" "$sid" "$turns" "$cost" "$mins" "${model:+ · $model}" >> "$base.log"

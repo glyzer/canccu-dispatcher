@@ -117,6 +117,29 @@ ok "the PR's own 150 lines since the review → a full review" eq "$(mm own_line
 ok "… after a pass too, as before" eq "$(mm postpass_full "$C2" "$C3")" "150 changed lines, over FIXCHECK_FULL_LINES=100"
 : "$M1"
 
+# ---------------------------------------------------------------- #336: a resolved merge of main counts no line
+
+env_new merge-resolved
+d=$E/code/web
+rm -rf "$d"; mkdir -p "$d"; _g init
+seq -f 'r%g' 200 > "$d/a.txt"; echo b > "$d/b.txt"; _g add .; _g commit -m root
+_g checkout -b pr; seq -f 'p%g' 200 > "$d/a.txt"; _g commit -am "the PR"; R=$(rev HEAD)
+# main changes the same 200 lines: the merge conflicts on all of them, resolved to the PR's side
+_g checkout main; seq -f 'm%g' 200 > "$d/a.txt"; _g commit -am "main"; _g update-ref refs/remotes/origin/main main
+_g checkout pr; _g merge --no-edit main; _g checkout --ours a.txt; _g add a.txt; _g commit --no-edit -m "merge main, resolved"
+echo fix >> "$d/b.txt"; _g commit -am "the fix"; F1=$(rev HEAD)
+# then, reviewed again on F1: a clean merge of main (200 new lines in c.txt) and a small fix
+_g checkout main; seq 1 200 > "$d/c.txt"; _g add c.txt; _g commit -m "main again"; _g update-ref refs/remotes/origin/main main
+_g checkout -b clean "$F1"; _g merge --no-edit main; echo fix2 >> "$d/b.txt"; _g commit -am "the fix"; F2=$(rev HEAD)
+# or the PR's own 150 lines
+_g checkout -b big "$F1"; seq 1 150 > "$d/o.txt"; _g add o.txt; _g commit -m "a big fix"; F3=$(rev HEAD)
+_g checkout main; touch "$FAKE/realgit"
+ok "a 200-line resolved conflict with main after a review's changes, then the fix → a fix-check" eq "[$(mm own_lines_over "$R" "$F1")]" "[]"
+ok "… FIXCHECK_COUNT_RESOLVED=0 the same" eq "[$(lib eval ". '$root/lib/canccu-merge.sh'; FIXCHECK_COUNT_RESOLVED=0; own_lines_over $R $F1")]" "[]"
+ok "… after a pass too" eq "[$(mm postpass_full "$R" "$F1")]" "[]"
+ok "a clean merge of main, then the fix → a fix-check, as before" eq "[$(mm own_lines_over "$F1" "$F2")]" "[]"
+ok "the PR's own 150 lines → a full review, as before" eq "$(mm own_lines_over "$F1" "$F3")" "150 changed lines, over FIXCHECK_FULL_LINES=100"
+
 # ---------------------------------------------------------------- #326: the review fix budget
 
 review_env ci-spent 'Review verdict: changes' review FIX_MODEL=claude-sonnet-5-5 MODEL=claude-opus-5-5

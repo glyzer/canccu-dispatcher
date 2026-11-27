@@ -48,7 +48,9 @@ printf '%s\n' "REPO=example-user/tools" "CLONE=$W/clone" "USER_LOGIN=octo" "REVI
 cat > "$W/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 case "$1 $2" in
-  "issue view") tail -n +2 "$REVIEW_SET_CASE/issue.md" ;;
+  # --json body: the dispatcher's own read, for the review's acceptance checklist (criteria_save)
+  "issue view") if [[ " $* " == *" --json body "* ]]; then jq -n --arg b "$(tail -n +2 "$REVIEW_SET_CASE/issue.md")" '{body: $b}'
+                else tail -n +2 "$REVIEW_SET_CASE/issue.md"; fi ;;
   "pr view") tail -n +2 "$REVIEW_SET_CASE/pr.md" ;;
   "pr diff") git diff origin/main HEAD ;;
   *) echo "gh: only issue view, pr view and pr diff answer in the review set" >&2; exit 1 ;;
@@ -87,12 +89,13 @@ one() (
   PRS=$(jq -n --arg b "$(tail -n +2 "$d/pr.md")" --arg h "$n-change" '[{number: 8, headRefName: $h, body: $b}]')
   f=$(review_file "$pr" "$sha"); mkdir -p "${f%/*}"
   if (( light )); then prompt=$(light_review_prompt "$pr" "$n" "$sha" "$f")
-  else prompt=$(review_prompt "$pr" "$n" "$sha" "$f" "${effort:-high}"); fi
+  else REVIEW_SET_CASE=$d PATH="$W/bin:$PATH" criteria_save "$pr" "$n" "$sha"; prompt=$(review_prompt "$pr" "$n" "$sha" "$f" "${effort:-high}"); fi
   # a failed engine (not logged in, a timeout) reviewed nothing: never a missed case
   reviewer "$wt" "$f" "$sha" "$d" "$prompt" || { echo "error (the engine exited $?)"; exit 0; }
   # judged as the dispatcher judges a verdict: the no-repeat context, then its demotions
   local REVIEW_SETTLED REVIEW_PASSRULE REVIEW_CHANGED
   review_ctx "$n" "$pr" "$sha"
+  criteria_settle "$n" "$pr" "$f" "$sha" >/dev/null
   e=$(review_effective "$f" "$sha")
   want=$(sed -n 's/^defect [^ ]* //p' "$d/expect")
   if [ -z "$want" ]; then [ "${e%% *}" = pass ] && echo clean || echo blocked; exit 0; fi
