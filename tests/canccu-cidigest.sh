@@ -25,6 +25,9 @@ check() {   # check <name> <run> <job>: a failed Actions check
     '{name: $n, status: "COMPLETED", conclusion: "FAILURE", completedAt: "2030-11-05T10:00:00Z", detailsUrl: $u}'
 }
 
+# the digest's own tests run in an invented environment too: lib reads the project's rules, and
+# a real home's would decide the result (an empty one on CI fails every digest)
+env_new digest
 d=$(digest vitest)
 ok "vitest: both failing tests, their assertion and the summary" eq "$(grep -cE 'FAIL +src/(cart|price).test.ts|AssertionError: expected|Tests  2 failed|Test Files  2 failed' <<<"$d")" 6
 ok "… the lines after a failure (the diff, the source line)" grep -qF '❯ src/cart.test.ts:14:22' <<<"$d"
