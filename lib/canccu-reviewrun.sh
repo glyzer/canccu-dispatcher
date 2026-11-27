@@ -115,7 +115,7 @@ fixcheck_effort_pure() {
   local stats=$1 total
   grep -q . <<<"$stats" || { effort_cap medium; return; }
   [ -n "$FIXCHECK_RISKY" ] && cut -f3- <<<"$stats" | grep -qiE "$FIXCHECK_RISKY" && { effort_cap medium; return; }
-  total=$(awk -F '\t' '{ for (i = 1; i <= 2; i++) if ($i ~ /^[0-9]+$/) t += $i } END { print t + 0 }' <<<"$stats")
+  total=$(numstat_total "$stats")
   if (( total > FIXCHECK_BIG )); then effort_cap medium; else effort_cap low; fi
 }
 # fixcheck_effort <reviewed sha> <head>: the same from the main clone (the PR head is fetched)
