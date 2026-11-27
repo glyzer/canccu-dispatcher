@@ -14,16 +14,19 @@ CI_DIGEST_NOISE='^[A-Za-z0-9_.-]+-[0-9]+ +\| |^ *(Container|Network|Volume) [^ ]
 # never cuts it (it comes last in the log)
 CI_DIGEST_SUMMARY='^ *(Test Files|Tests|Suites) +.*[0-9]+ failed|✖ [0-9]+ problems?|^ *[0-9]+ (failing|failed)([^a-z]|$)'
 
-# ci_log_clean: a job log (stdin) as gh run view --log-failed prints it, without the "<job>\t<step>\t"
-# columns, the timestamp, ANSI colour codes, carriage returns and the noise; each line cut to 300
-# characters (a minified bundle's line would fill the digest alone). Where the step changes, a
-# "##[group]" line (as Actions starts each step's command) marks the boundary for ci_log_digest.
-ci_log_clean() {
+# ci_log_strip: a job log (stdin) as gh run view --log-failed prints it, without the "<job>\t<step>\t"
+# columns, the timestamp, ANSI colour codes and carriage returns; each line cut to 300 characters (a
+# minified bundle's line would fill the digest alone). Where the step changes, a "##[group]" line
+# (as Actions starts each step's command) marks the boundary for ci_log_digest.
+ci_log_strip() {
   awk -F'\t' '{ l = $0; if (NF >= 3) { st = $2; sub(/^[^\t]*\t[^\t]*\t/, "", l) }
                 if (NR > 1 && st != prev) print "##[group]"; prev = st; print l }' |
     sed -E $'s/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z ?//; s/\x1b\\[[0-9;?]*[A-Za-z]//g; s/\r//g' |
-    grep -vE -- "$CI_DIGEST_NOISE" | cut -c1-300
+    cut -c1-300
 }
+
+# ci_log_clean: a stripped log without the noise, what ci_log_digest reads
+ci_log_clean() { ci_log_strip | grep -vE -- "$CI_DIGEST_NOISE"; }
 
 # ci_log_digest <max lines>: the failure lines of a cleaned log (stdin): its summary lines, then
 # each line CI_DIGEST_PATTERN matches with its next 8 lines, in the log's order, no line twice and
@@ -58,25 +61,28 @@ ci_log_digest() {
 # ci_digest_jobs: the digest of the failing jobs named on stdin ("<name>\t<job id>\t<url>" per
 # line), each job's log read once, into DIGEST (not run in $(…)): one block per job under
 # "== <name> (<url>) ==", the job's failure lines or, where none matched, the tail of its log
-# (CI_LOG_LINES, the tail a fix run was given before the digest). At most CI_DIGEST_LINES lines in
-# all, shared out among the jobs, so a second job's failures are not cut by the first's. DIGEST is
-# empty when no log could be read; DIGEST_MATCHED=1 when a job's lines matched. DIGEST_INFRA is the
-# first log line CI_INFRA_PATTERN matches (a registry pull, a lost runner, a network timeout): a
-# release-red that turns green on a rerun then files no flaky check.
+# (CI_LOG_LINES, the tail a fix run was given before the digest). The tail comes from the log
+# before the noise filter: a runner run under compose prints its failure behind a "<service>-1 |"
+# prefix, which the filter drops whole. At most CI_DIGEST_LINES lines in all, shared out among the
+# jobs, so a second job's failures are not cut by the first's. DIGEST is empty when no log could be
+# read; DIGEST_MATCHED=1 when a job's lines matched. DIGEST_INFRA is the first log line
+# CI_INFRA_PATTERN matches (a registry pull, a lost runner, a network timeout): a release-red that
+# turns green on a rerun then files no flaky check.
 ci_digest_jobs() {
-  local jobs name jid url log d n cap per out=""
+  local jobs name jid url raw log d n cap per out=""
   jobs=$(awk -F'\t' '$2 != ""')
   DIGEST="" DIGEST_MATCHED=0 DIGEST_INFRA=""
   [ -n "$jobs" ] || return 0
   cap=${CI_DIGEST_LINES:-120}; [[ $cap =~ ^[0-9]+$ ]] && (( cap >= 4 )) || cap=120
   n=$(wc -l <<<"$jobs"); per=$(( cap / n )); (( per >= 2 )) || per=2
   while IFS=$'\t' read -r name jid url; do
-    log=$(ghj run view --job "$jid" -R "$REPO" --log-failed 2>/dev/null | ci_log_clean)
-    [ -n "$log" ] || continue
+    raw=$(ghj run view --job "$jid" -R "$REPO" --log-failed 2>/dev/null | ci_log_strip)
+    [ -n "$raw" ] || continue
+    log=$(grep -vE -- "$CI_DIGEST_NOISE" <<<"$raw")
     [ -z "$DIGEST_INFRA" ] && [ -n "${CI_INFRA_PATTERN:-}" ] && DIGEST_INFRA=$(grep -m1 -iE -- "$CI_INFRA_PATTERN" <<<"$log")
     d=$(ci_log_digest $(( per - 1 )) <<<"$log")
     if [ -n "$d" ]; then DIGEST_MATCHED=1
-    else d=$(grep -vx '##\[group\]' <<<"$log" | tail -n "${CI_LOG_LINES:-60}" | tail -n $(( per - 1 ))); fi
+    else d=$(grep -vx '##\[group\]' <<<"$raw" | tail -n "${CI_LOG_LINES:-60}" | tail -n $(( per - 1 ))); fi
     out+="== $name${url:+ ($url)} =="$'\n'"$d"$'\n'
   done <<<"$jobs"
   [ -n "$out" ] && DIGEST=$(head -n "$cap" <<<"${out%$'\n'}")

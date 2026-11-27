@@ -48,6 +48,14 @@ ok "a line \"model: <id>\" → that model" eq "$(model)" claude-haiku-5-5
 lead model-text "" review 'Do not use the opus model here.' "${cfg[@]}"
 dispatch --once
 ok "… a sentence that names a model is no model line" eq "$(model)" claude-sonnet-5-5
+# a full review's changes with no review fix run left (owed), then needs-work with a model line
+review_env owed-opus 'Review verdict: changes' review REVIEW_FIX_ATTEMPTS=0 "${cfg[@]}"
+dispatch --once
+{ issue 5 in-progress,needs-you,needs-work; } | issues
+json issue5.json "$(comment 2030-11-05T12:10:00Z $'Keep the old name.\nopus' | jq -s '{labels: [{name: "in-progress"}, {name: "needs-you"}, {name: "needs-work"}], comments: .}')"
+: > "$FAKE/worker.log"; CANCCU_NOW=$((NOW + 1200)) dispatch --once
+ok "a needs-work comment's \"opus\" line on an owed review round → its fix run on opus" \
+  eq "$(grep -c "review's fix round" "$FAKE/worker.log") $(model)" "1 opus"
 
 # merge runs: MERGE_MODEL, else FIX_MODEL, else MODEL
 mrun() { lead "$1" "" review x "${@:2}"; lib eval 'resume 5 "Merge main." merge' >/dev/null; }

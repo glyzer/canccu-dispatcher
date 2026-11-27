@@ -1,0 +1,5 @@
+e2e	Run e2e	2030-11-05T10:00:00.1234567Z ##[group]Run docker compose run e2e
+e2e	Run e2e	2030-11-05T10:00:01.1234567Z e2e-1  |  FAIL  e2e/checkout.spec.ts > pays
+e2e	Run e2e	2030-11-05T10:00:02.1234567Z e2e-1  | AssertionError: expected 200, got 500
+e2e	Run e2e	2030-11-05T10:00:03.1234567Z e2e-1  | Tests  1 failed (1)
+e2e	Run e2e	2030-11-05T10:00:04.1234567Z ##[error]Process completed with exit code 1.
