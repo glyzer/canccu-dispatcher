@@ -187,5 +187,15 @@ ok "… a project's own tier" eq "$(hline '^host: project web: test tier full$')
 echo 'if then' >> "$C/projects/web/config"; doctor
 ok "… a project whose config does not load: unknown, never a guessed tier" eq "$(hline '^host: project web: test tier unknown$')" 1
 
+# the pre-push check (#328): the host report shows it, and a command not found is a problem
+clean_host prepush; doctor
+ok "pre-push: unset, no line" eq "$(hline 'pre-push')" 0
+echo 'PRE_PUSH_CMD="no-such-lint --quiet"' >> "$C/projects/web/config"; doctor
+ok "… set: the host report shows it with its limit" eq "$(hline '^host: project web: pre-push check `no-such-lint --quiet` (at most 600 s)$')" 1
+ok "… a command not on PATH nor in the clone is a problem" eq "$(line '^project web: PRE_PUSH_CMD: no-such-lint is not on PATH nor in the clone: every worker push would be refused$')" 1
+mkdir -p "$H/code/web/bin"; printf '#!/bin/sh\n' > "$H/code/web/bin/lint"; chmod +x "$H/code/web/bin/lint"
+echo 'PRE_PUSH_CMD=bin/lint' >> "$C/projects/web/config"; doctor
+ok "… a script of the repo is found in the clone" eq "$(line 'PRE_PUSH_CMD')" 0
+
 echo "canccu-doctor tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

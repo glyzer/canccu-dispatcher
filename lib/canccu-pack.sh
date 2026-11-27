@@ -31,13 +31,13 @@ pack_run() {
   (( prc == 3 )) && kill "$cpid" 2>/dev/null
   wait "$cpid"; rc=$?; cpid=""
   st=$(pack_status "$sum" "$prc" "$rc" "$turns" "$mins")
-  [ "$st" = done ] && [ ! -s "$dir/.canccu/context.md" ] && st="error: no .canccu/context.md written"
+  [ "$st" = "done" ] && [ ! -s "$dir/.canccu/context.md" ] && st="error: no .canccu/context.md written"
   printf '=== context pack: %s\n' "$st" >> "$log"
   spend_line "$repo" "$key" "$(pack_get "$sum" cost)" \
     "$(pack_get "$sum" tokens_in) $(pack_get "$sum" tokens_out) $(pack_get "$sum" cache_read) $(pack_get "$sum" cache_write)" \
-    "pack=$([ "$st" = done ] && echo ok || echo failed)"
+    "pack=$([ "$st" = "done" ] && echo ok || echo failed)"
   rm -f "$sum"
-  [ "$st" = done ] || printf '%s #%s: the context pack failed (%s); the build starts without it\n' \
+  [ "$st" = "done" ] || printf '%s #%s: the context pack failed (%s); the build starts without it\n' \
     "$(date -u '+%FT%TZ')" "$key" "$st" >> "$CANCCU_HOME/dispatch.log"
 }
 
@@ -52,7 +52,7 @@ pack_get() {
 pack_status() {
   if [ "$(guard 10 jq -r '.have_result // false' "$1" 2>/dev/null)" = true ]; then
     case $(guard 10 jq -r '"\(.subtype // "")|\(.is_error // false)"' "$1" 2>/dev/null) in
-      success\|false) echo done ;; *budget*) echo "stopped: cost budget" ;; *max_turns*) echo "stopped: turn limit" ;;
+      success\|false) echo "done" ;; *budget*) echo "stopped: cost budget" ;; *max_turns*) echo "stopped: turn limit" ;;
       *) echo "error: $(guard 10 jq -r '.subtype // "unknown"' "$1" 2>/dev/null)" ;;
     esac
   elif (( $2 == 3 )); then echo "stopped: turn budget $4"
