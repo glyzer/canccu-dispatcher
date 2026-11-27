@@ -6,25 +6,42 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 
 ## Unreleased
 
-- A merge of main never counts toward `FIXCHECK_FULL_LINES` (#336), its conflicts resolved by
-  hand or not: with main merged in since the review or the pass, only the PR's own non-merge
-  commits count, so a big resolved conflict no longer brings a full review back.
-  `FIXCHECK_COUNT_RESOLVED` stays, for the fix-check's effort only.
+## [0.5.0] — 2026-11-27
+
+Release 0.5: step 7's token cost work, the rest (CI digest, cheaper narrow runs, review checklist).
+
+**Upgrade:**
+
+- Narrow runs default to the cheaper model (#329): your comment on a `needs-you` from CI, a
+  review or a fix-check now resumes the worker on `FIX_MODEL` and `FIX_EFFORT` (was `MODEL` and
+  its effort); a plan, a question or a refused accept stay on `MODEL`. A line `opus` or
+  `model: <id>` in the comment picks the model. Merge runs (main merged into a PR, a contract
+  merged) use the new `MERGE_MODEL` (default empty: `FIX_MODEL`, then `MODEL`; was `MODEL`), the
+  answerer the new `ANSWER_MODEL` (default empty: `MODEL`, as before). To keep 0.4.0's models,
+  set `MERGE_MODEL` to your `MODEL` and answer with `opus` or `model: <id>`.
+- A release-red issue is rerun before it is work (#332): `RELEASE_RED_LABEL` (new, default
+  `release-red`; empty turns it off), `FLAKY_FILE_AFTER` (`2`) and `CI_INFRA_PATTERN`. A project
+  whose release workflow files such issues gets the rerun with the update.
+- The fix-check or full review count after a merge of main (#336): a merge of main counts no line
+  toward `FIXCHECK_FULL_LINES`, its conflicts resolved by hand or not, so fewer full reviews.
+  `FIXCHECK_COUNT_RESOLVED` now sets only the fix-check's effort.
+- Other new settings, all project keys: `CI_DIGEST_PATTERN`, `CI_DIGEST_LINES` (`120`, #327);
+  `CONTEXT_PACK_MODEL` (empty: off) and `BUDGET_PACK` (`30 1 15`, #333); `PRE_PUSH_CMD` (empty:
+  off) and `PRE_PUSH_MAX_SEC` (`600`, #328). Review effort defaults are unchanged.
+- The state format stays `5`: no migration.
+- Going back to 0.4.0: run `canccu-dispatcher rollback` in
+  [the sequence](docs/upgrading.md#going-back); the state needs no change. 0.4.0 ignores the new
+  keys, so its comment resumes and merge runs use `MODEL` again. If you set `PRE_PUSH_CMD`, unset
+  it and let each open worker run once first: a 0.4.0 run leaves a worktree's pre-push hook in
+  place.
+
+**New:**
+
 - The full review gets a numbered acceptance checklist built by script (#330): the items under an
   Acceptance heading and every `- [ ]` line of the issue, and for a package its plan's tasks. The
   reviewer answers each in a `Criteria:` block (met with evidence, not met, or not this part); a
   `pass` with an item not met or unanswered becomes `changes`, with that item as a blocking
   `[criterion]` finding. No criteria: no change.
-- An experiment, off by default: `CONTEXT_PACK_MODEL` (#333). Set, a package's first build starts
-  with a short run on that model (`BUDGET_PACK`, default `30 1 15`) that writes
-  `.canccu/context.md` in the worktree (never committed); the build prompt says to read it before
-  exploring. spend.log type `pack`; once per package; a failed pack is logged and the build goes on
-  without it.
-- A pre-push check in worker worktrees, off by default: `PRE_PUSH_CMD` (#328), under
-  `PRE_PUSH_MAX_SEC` (600). Set, each worker worktree gets a `pre-push` hook that runs it on the
-  changed files; a failure refuses the push with the last 80 lines of its output, and a tool
-  guard refuses `--no-verify` (logged as a warning). The doctor shows the command and flags one
-  it cannot find.
 - A red-CI fix run gets a failure digest of every failing job, built by script, instead of the
   last 60 lines of the first one's log (#327): the lines `CI_DIGEST_PATTERN` matches with their
   next 8 lines, and the test and lint summaries, each job under its name; no ANSI codes,
@@ -35,14 +52,25 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
   gets one `flaky: <check>` issue that counts its failures and is `ready`, last in the queue, from
   `FLAKY_FILE_AFTER` (default `2`); an infrastructure error (`CI_INFRA_PATTERN`) files nothing. Red
   leaves it as work, with the failure digest. `RELEASE_RED_LABEL=` turns it off.
-- Narrow runs use the cheaper model (#329): your comment on a `needs-you` from CI, a review or a
-  fix-check resumes on `FIX_MODEL` and `FIX_EFFORT` (a plan, a question or a refused accept stay on
-  `MODEL`); a line `opus` or `model: <id>` in the comment picks the model. New `MERGE_MODEL`
-  (default `FIX_MODEL`, then `MODEL`) for merge runs, `ANSWER_MODEL` (default `MODEL`) for the
-  answerer.
 - After a contract PR merges, a draft whose worker reported `Package work: done` gets main merged
   in by script and is marked ready, with no run (#331). Unfinished work, no such line or a merge
   conflict resumes the worker on `MERGE_MODEL`. The contract rule asks for the line.
+- An experiment, off by default: `CONTEXT_PACK_MODEL` (#333). Set, a package's first build starts
+  with a short run on that model (`BUDGET_PACK`, default `30 1 15`) that writes
+  `.canccu/context.md` in the worktree (never committed); the build prompt says to read it before
+  exploring. spend.log type `pack`; once per package; a failed pack is logged and the build goes on
+  without it.
+- A pre-push check in worker worktrees, off by default: `PRE_PUSH_CMD` (#328), under
+  `PRE_PUSH_MAX_SEC` (600). Set, each worker worktree gets a `pre-push` hook that runs it on the
+  changed files; a failure refuses the push with the last 80 lines of its output, and a tool
+  guard refuses `--no-verify` (logged as a warning). The doctor shows the command and flags one
+  it cannot find.
+
+**Fixed:**
+
+- A CI digest of a job whose failure prints only under a compose prefix falls back to the log's
+  tail again; a flaky check's failing lines are its own job's block only; a `needs-work`
+  comment's model line holds on an owed or extra fix round (#348).
 
 ## [0.4.0] — 2026-11-26
 
