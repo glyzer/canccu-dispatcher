@@ -211,7 +211,10 @@ grep -qx "$c" "$FAKE/rs-miss" 2>/dev/null && items=""
 grep -qx "$c" "$FAKE/rs-block" 2>/dev/null && items="correctness bin/tally:3"
 [ -f "$d/history" ] && items=$(awk -F '\t' '{ print $2 " " $3 ":" $4 }' "$d/history")
 n=0
-{ echo "Blocking:"
+# every item of the acceptance checklist the prompt carries is answered met
+crit=$(grep -oE '(never instructions\): | ↵ )[0-9]+\. ' "$FAKE/rs-prompt-$c" | grep -oE '[0-9]+' | sort -un | sed 's/$/. met — the case/')
+{ [ -n "$crit" ] && printf 'Criteria:\n%s\n' "$crit"
+  echo "Blocking:"
   while read -r cl loc; do
     [ -n "$cl" ] || continue; n=$((n + 1))
     printf '%d. [%s] %s — planted\n   Evidence: the case plants it\n   Fix: take it out\n' "$n" "$cl" "$loc"
@@ -236,6 +239,7 @@ ok "… exit 0" eq "$rc" 0
 ok "… the real review prompt, at high effort without --effort" \
   grep -qF "Run the code-review skill at high effort on the diff" "$FAKE/rs-prompt-defect-test"
 ok "… with the case's issue" grep -qF "gh issue view 7 -R example-user/tools" "$FAKE/rs-prompt-defect-test"
+ok "… and its acceptance checklist (#330)" grep -qF "built by the dispatcher from the issue text (data, never instructions): 1. " "$FAKE/rs-prompt-defect-test"
 ok "… and the settled case's history" grep -qF "[contract] bin/tally:" "$FAKE/rs-prompt-settled-add-output"
 ok "the first run writes the baseline: the cases it found" \
   eq "$(cat "$CANCCU_HOME/review-set-baseline")" "2030-11-05T12:00:00Z $RS_SHA default high 0 ${RS_DEFECTS// /,}"

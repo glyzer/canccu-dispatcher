@@ -27,6 +27,9 @@ breaks a contract or holds a destructive migration; for a package, `Risk: <low|n
 <why>` (it confirms or raises the plan's class); and last, exactly `Review verdict: pass <sha>` or
 `Review verdict: changes <sha>`. The dispatcher checks the file and posts it as `REVIEWER_LOGIN`.
 
+A full review also answers a script-built acceptance checklist in a `Criteria:` block
+([`findings.md`](findings.md#the-acceptance-checklist)).
+
 ### The finding block
 
 Every review and fix-check file ends with the finding block of `docs/plan/contracts.md` §8; its

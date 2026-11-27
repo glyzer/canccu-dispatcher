@@ -113,7 +113,7 @@ _REVIEW_AWK='
       if (rest != "" && !isnone(rest)) start(rest, rest)
       next
     }
-    if (t ~ /^[[:space:]*_>]*(maintainer accept|risk|review verdict|dispatcher)[*_]*:/ || t ~ /^#+[[:space:]]/) { flush(); cur = ""; next }
+    if (t ~ /^[[:space:]*_>]*(maintainer accept|risk|review verdict|dispatcher|criteria)[*_]*:/ || t ~ /^#+[[:space:]]/) { flush(); cur = ""; next }
     if (cur == "") next
     if ($0 ~ /^([0-9]+[.)]|[-*+])[[:space:]]/) { if (isnone($0)) flush(); else start($0, $0); next }
     if (!open) next
@@ -231,11 +231,12 @@ demoted_why() {
   echo "$out"
 }
 
-# review_post <n> <pr> <file> <sha>: posts the dispatcher's verdict, not the reviewer's (§8), and
+# review_post <n> <pr> <file> <sha>: posts the dispatcher's verdict, not the reviewer's (§8; a pass
+# that leaves an acceptance criterion out is changes: criteria_settle), and
 # on a post that landed appends its line to reviews.log; returns post_review's status
 review_post() {
   local rc
-  review_settle "$3" "$4"
+  criteria_settle "$1" "$2" "$3" "$4"; review_settle "$3" "$4"
   post_review "$1" "$2" "$3" "$4"; rc=$?
   (( rc == 0 )) && reviews_log "$1" "$2" "$4" "$3"
   return "$rc"

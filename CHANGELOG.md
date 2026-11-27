@@ -10,6 +10,11 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
   hand or not: with main merged in since the review or the pass, only the PR's own non-merge
   commits count, so a big resolved conflict no longer brings a full review back.
   `FIXCHECK_COUNT_RESOLVED` stays, for the fix-check's effort only.
+- The full review gets a numbered acceptance checklist built by script (#330): the items under an
+  Acceptance heading and every `- [ ]` line of the issue, and for a package its plan's tasks. The
+  reviewer answers each in a `Criteria:` block (met with evidence, not met, or not this part); a
+  `pass` with an item not met or unanswered becomes `changes`, with that item as a blocking
+  `[criterion]` finding. No criteria: no change.
 - A red-CI fix run gets a failure digest of every failing job, built by script, instead of the
   last 60 lines of the first one's log (#327): the lines `CI_DIGEST_PATTERN` matches with their
   next 8 lines, and the test and lint summaries, each job under its name; no ANSI codes,
