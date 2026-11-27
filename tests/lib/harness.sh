@@ -236,7 +236,7 @@ printf '%s\t%s\t%s\n' "${GH_CONFIG_DIR:-<default>}" "${GIT_CONFIG_COUNT:-<unset>
 # still answers diff --numstat
 if [ -e "$FAKE/realgit" ]; then
   case " $a " in
-    *" merge-tree "*|*" merge-base "*|*" rev-list --parents "*|*" diff --name-only "*|*" diff -U0 "*) exec "$FAKE_REAL_GIT" "$@" ;;
+    *" merge-tree "*|*" merge-base "*|*" rev-list --parents "*|*" diff --name-only "*|*" diff -U0 "*|*" log --no-merges "*) exec "$FAKE_REAL_GIT" "$@" ;;
     *" rev-parse HEAD "*) ;;
     *" rev-parse "*) exec "$FAKE_REAL_GIT" "$@" ;;
     *" show origin/main:"*) exec "$FAKE_REAL_GIT" "$@" ;;

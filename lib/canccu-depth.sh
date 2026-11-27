@@ -4,8 +4,8 @@
 # (REVIEW_LIGHT): a package of class low or normal gets a short checklist at low effort instead of
 # the code-review skill; the class decides the depth, so a light review that rates the PR high is
 # followed by one full review of the same head. REVIEW_LIGHT is a rules key and locked: it weakens
-# a check. And the count of a change after a pass (count_from), which decides fix-check or full
-# review (postpass_full) and the fix-check's effort (fixcheck_effort).
+# a check. And the counts of a change after a review: the PR's own commits (own_commit_stats), which
+# decide fix-check or full review (own_change), and the fix-check's effort (count_from).
 
 # the checklist of a light review, word for word (issue #216); HIGH_RISK_TEXT goes in at use, as a
 # quoted replacement: under bash 5.2's patsub_replacement an unquoted one turns its & into the pattern
@@ -59,20 +59,34 @@ light_upgrade() {
   log "#$n PR #$pr: the light review rated it high risk; full review of ${head:0:7}"
 }
 
-# count_from <base> <head>: where the count of the change base..head starts. With
-# FIXCHECK_COUNT_MAIN=0 and main merged in since base: git's own merge of base with main, so
-# main's edits drop out. A conflicting merge counts from base (the worker's resolution is the PR's
-# own change), unless FIXCHECK_COUNT_RESOLVED=1: then from the tree merge-tree writes with the
-# conflict markers (its first line, also on exit 1; git >= 2.38), so only the hand-resolved hunks
-# and later commits count. Any other git result: base (the cost is a full review, never a missed one).
+# main_merged_since <base> <head>: prints the merge-base of head with main when FIXCHECK_COUNT_MAIN=0
+# and main was merged into head since base; 1 otherwise, a git error too (the full count then)
+main_merged_since() {
+  local mb
+  [ "${FIXCHECK_COUNT_MAIN:-0}" != 1 ] && mb=$(guard 20 git -C "$CLONE" merge-base origin/$BASE_BRANCH "$2" 2>/dev/null) && [ -n "$mb" ] &&
+    ! guard 20 git -C "$CLONE" merge-base --is-ancestor "$mb" "$1" 2>/dev/null && echo "$mb"
+}
+# count_from <base> <head>: where the fix-check's effort (fixcheck_effort) counts the change
+# base..head from. With main merged in since base: git's own merge of base with main, so main's
+# edits drop out. A conflicting merge counts from base, unless FIXCHECK_COUNT_RESOLVED=1: then
+# from the tree merge-tree writes with the conflict markers (its first line, also on exit 1; git
+# >= 2.38), so only the hand-resolved hunks and later commits count. Any other git result: base.
 count_from() {
   local base=$1 head=$2 mb t rc
-  [ "${FIXCHECK_COUNT_MAIN:-0}" != 1 ] && mb=$(guard 20 git -C "$CLONE" merge-base origin/$BASE_BRANCH "$head" 2>/dev/null) && [ -n "$mb" ] &&
-    ! guard 20 git -C "$CLONE" merge-base --is-ancestor "$mb" "$base" 2>/dev/null || { echo "$base"; return; }
+  mb=$(main_merged_since "$base" "$head") || { echo "$base"; return; }
   t=$(guard 60 git -C "$CLONE" merge-tree --write-tree "$base" "$mb" 2>/dev/null); rc=$? t=${t%%$'\n'*}
   if [[ $t =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]] && { (( rc == 0 )) || { (( rc == 1 )) && [ "${FIXCHECK_COUNT_RESOLVED:-0}" = 1 ]; }; }; then
     echo "$t"
   else echo "$base"; fi
+}
+# own_commit_stats <base> <head> [paths...]: git log --numstat of the PR's own commits in base..head:
+# no merge commit and nothing from main, so a merge of main counts no line, resolved conflict or
+# not (#336). Summed per commit: a line two commits change counts twice (a full review too many,
+# never one missed).
+own_commit_stats() {
+  local s
+  s=$(guard 30 git -C "$CLONE" -c core.quotePath=off log --no-merges --numstat --no-renames --format= "$1..$2" "^origin/$BASE_BRANCH" -- "${@:3}" 2>/dev/null) || return 1
+  awk NF <<<"$s"
 }
 # change_stats <from> <head> [paths...]: git diff --numstat of the change. --no-renames: a file moved
 # out of a gated or risky path counts by its old path too

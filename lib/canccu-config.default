@@ -92,7 +92,7 @@ REVIEW_MODEL_LIGHT=         # the full reviewer's model for a light PR (docs, te
 FIXCHECK_MODEL=             # the fix-check's model (e.g. a cheaper one); empty: MODEL
 FIXCHECK_FULL_LINES=100     # a push after a passed review changing more lines than this gets a full review, not a fix-check
 FIXCHECK_COUNT_MAIN=0       # 0: a fix's size counts only the PR's own change; 1: main's lines merged into the PR's files count too
-FIXCHECK_COUNT_RESOLVED=1   # 1 (with FIXCHECK_COUNT_MAIN=0): after a conflicting merge of main, count only the resolved lines
+FIXCHECK_COUNT_RESOLVED=1   # 1 (with FIXCHECK_COUNT_MAIN=0): the fix-check's effort counts only the resolved lines of a conflicting merge of main
 FINDINGS_RECUR=3            # merged PRs with findings of the same key (class + file) before the dispatcher files one recurring-finding issue; 0: never
 FINDINGS_RECUR_DAYS=30      # the window, in days, FINDINGS_RECUR counts over
 HEALTH_MODEL=               # the health pass's model (e.g. a cheaper one); empty: MODEL

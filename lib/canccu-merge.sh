@@ -271,14 +271,16 @@ merging_step() {
 # shellcheck source=canccu-mqueue.sh
 . "$_canccu_lib/canccu-mqueue.sh"
 
-# own_change <base> <head>: git diff --numstat of the change base..head over the PR's own diff at
-# head (all files, when that list cannot be read; a rename's two paths), counted from count_from,
-# so lines merged in from main drop out. 1: the change cannot be read.
+# own_change <base> <head>: the numstat of the change base..head over the PR's own diff at head (all
+# files, when that list cannot be read; a rename's two paths). With main merged in since base
+# (main_merged_since), only the PR's own commits count (own_commit_stats), so neither main's lines
+# nor a resolved conflict's do; else git diff base..head. 1: the change cannot be read.
 own_change() {
   local mb files=()
   mb=$(guard 20 git -C "$CLONE" merge-base origin/$BASE_BRANCH "$2" 2>/dev/null)
   [ -n "$mb" ] && mapfile -t files < <(guard 20 git -C "$CLONE" -c core.quotePath=off diff --name-only --no-renames "$mb" "$2" 2>/dev/null)
-  change_stats "$(count_from "$1" "$2")" "$2" "${files[@]}"
+  if main_merged_since "$1" "$2" >/dev/null; then own_commit_stats "$1" "$2" "${files[@]}"
+  else change_stats "$1" "$2" "${files[@]}"; fi
 }
 # lines_over <numstat>: why that change is too big for a fix-check, over FIXCHECK_FULL_LINES; nothing when it is not
 lines_over() {
