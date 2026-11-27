@@ -286,7 +286,7 @@ own_change() {
 lines_over() {
   local total max=${FIXCHECK_FULL_LINES:-100}
   [[ $max =~ ^[0-9]+$ ]] || max=100
-  total=$(awk -F '\t' '{ for (i = 1; i <= 2; i++) if ($i ~ /^[0-9]+$/) t += $i } END { print t + 0 }' <<<"$1")
+  total=$(numstat_total "$1")
   (( total > max )) && echo "$total changed lines, over FIXCHECK_FULL_LINES=$max"
   return 0
 }
