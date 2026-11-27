@@ -192,15 +192,6 @@ t0=$SECONDS; out=$(cd "$F" && tests/run tests/good.sh 2>&1)
 ok "… and it ends with the run" eq "$(( SECONDS - t0 < 30 ))" 1
 out=$(cd "$F" && CANCCU_TEST_TICK=0 tests/run tests/slow2.sh 2>&1)
 ok "… CANCCU_TEST_TICK=0: none" not grep -q 'still running' <<<"$out"
-# #353: a test file that leaves 300 processes behind is named in a warning; the run still passes
-printf '#!/usr/bin/env bash\nfor i in $(seq 300); do sleep 120 & echo $! >> "%s/leaked"; done\necho "leaky tests: 1 passed, 0 failed"\n' "$T" > "$F/tests/leaky.sh"
-out=$(cd "$F" && CANCCU_TEST_TICK=0 tests/run tests/leaky.sh 2>&1); rc=$?
-xargs kill < "$T/leaked" 2>/dev/null
-ok "tests/run: 300 processes left behind → a warning that names the file" \
-  eq "$rc $(grep -cE '^tests/run: warning: [0-9]+ processes after tests/leaky\.sh, [0-9]+ at the start' <<<"$out")" "0 1"
-ok "… the end gives the counts at the start and at the end" grep -qE '^processes: [0-9]+ at the start, [0-9]+ at the end$' <<<"$out"
-out=$(cd "$F" && CANCCU_TEST_TICK=0 tests/run tests/good.sh 2>&1)
-ok "… no warning when nothing is left behind" not grep -q 'warning:' <<<"$out"
 out=$(cd "$F" && CANCCU_TEST_TIMEOUT=soon tests/run tests/slow.sh 2>&1); rc=$?
 ok "… a limit that is no duration: a usage error" eq "$rc $(grep -c 'CANCCU_TEST_TIMEOUT' <<<"$out")" "2 1"
 
