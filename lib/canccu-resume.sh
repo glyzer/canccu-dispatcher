@@ -79,8 +79,8 @@ resume_step() {
     # a gh error decides nothing (it could hide a `full review` line): needs-work stays for the next pass
     c=$(user_comments "$n" "$pr" "${since:-$(st_get "$n" started)}") ||
       { log "#$n PR #$pr: gh error reading the comments for needs-work; retrying next pass"; return 0; }
-    owed_round "$n" "$pr" "$c" needs-work && return 0
-    extra_round "$n" "$pr" "$c" && return 0
+    LEAD_MODEL=$(model_line "$c") owed_round "$n" "$pr" "$c" needs-work && return 0
+    LEAD_MODEL=$(model_line "$c") extra_round "$n" "$pr" "$c" && return 0
     # a refused accept (or a Maintainer accept or Risk: high kept only in the state, read before
     # new_cycle clears them) asks for a full review: a reused pass would merge without the accept
     { has_label "$n" awaiting-accept || [ "$phase" = accept ] || [ -n "$(st_get "$n" review_maccept)" ] ||
