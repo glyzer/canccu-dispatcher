@@ -140,7 +140,7 @@ release_red_flaky() {
   while IFS=$'\t' read -r name jid url; do
     [ -n "$name" ] || continue
     [[ $links == *"\`flaky: $name\`"* ]] && continue
-    flaky_file "$name" "$n" "$sha" "${url:-${runs# }}" "${runs# }" || { log "#$n release-red: filing flaky: $name failed (gh); again next pass"; return 0; }
+    flaky_file "$name" "$n" "$sha" "$url" "${runs# }" || { log "#$n release-red: filing flaky: $name failed (gh); again next pass"; return 0; }
     links+="${links:+, }#$FLAKY_NO (\`flaky: $name\`)"
     rr_set "$n" rr_filed="$links"
   done < "$(rr_file "$n").jobs"
@@ -153,13 +153,15 @@ release_red_flaky() {
 declare -gA FLAKY_SEEN=()
 # flaky_file <check> <release-red n> <sha> <job url> <run urls>: open or update the one issue
 # "flaky: <check>": its body's "Failures: <n>" line counts the failures, a comment per failure
-# has the job, the runs and the failing lines. It gets `ready` once the count reaches
+# has the job (the runs when its url is empty), the runs and the failing lines: the digest block
+# whose whole header is the job's, as ci_digest_jobs writes it ("build" must not take the block of
+# "build arm"). It gets `ready` once the count reaches
 # FLAKY_FILE_AFTER (candidates puts it at the end of the queue). Its number goes to FLAKY_NO (not run
 # in $(…): FLAKY_SEEN must outlive the call).
 flaky_file() {
   local check=$1 n=$2 sha=$3 job=$4 runs=$5 t="flaky: $1" i="" c=0 body d note
-  d=$(awk -v h="== $check " 'index($0, h) == 1 { on = 1; next } /^== / { on = 0 } on' "$(rr_file "$n").digest" 2>/dev/null)
-  note="Failed at \`${sha:0:7}\` on \`$BASE_BRANCH\` (release-red #$n), green on a rerun at the same commit. Job: $job. Runs: $runs."
+  d=$(awk -v h="== $check${job:+ ($job)} ==" '$0 == h { on = 1; next } /^== / { on = 0 } on' "$(rr_file "$n").digest" 2>/dev/null)
+  note="Failed at \`${sha:0:7}\` on \`$BASE_BRANCH\` (release-red #$n), green on a rerun at the same commit. Job: ${job:-$runs}. Runs: $runs."
   [ -n "$d" ] && note+=$'\n\nThe failing lines:\n\n```\n'"$d"$'\n```'
   if [ -n "${FLAKY_SEEN[$check]:-}" ]; then IFS=$'\t' read -r i c <<<"${FLAKY_SEEN[$check]}"
   else

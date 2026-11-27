@@ -47,6 +47,16 @@ ok "… the release-red gets a link to it and is closed" \
   eq "$(grep -c '#900 (`flaky: test`)' "$FAKE/comment-7") $(grep -c '^issue close 7' "$FAKE/gh.log") $(rr rr)" "1 1 closed"
 ok "… the rerun ran once in all" eq "$(grep -c '^run rerun' "$FAKE/gh.log")" 1
 
+# two failed jobs, one's name the start of the other's: each flaky: issue has its own job's lines
+relenv prefix
+json jobs.json '{"jobs": [{"name": "test", "databaseId": 77, "conclusion": "failure", "url": "https://github.com/example-org/web/actions/runs/700/job/77"},
+  {"name": "test arm", "databaseId": 79, "conclusion": "failure", "url": "https://github.com/example-org/web/actions/runs/700/job/79"}]}'
+cp "$fx/eslint.log" "$FAKE/log79"; route 'run view --job 79 *' log79
+printf '900\n901\n' > "$FAKE/new-issues"
+dispatch --once; ended success; dispatch --once
+ok "jobs test and test arm → flaky: test has only test's lines, flaky: test arm only its own" \
+  eq "$(grep -c 'AssertionError: expected' "$FAKE/comment-900") $(grep -cE '✖ 2 problems|30:1 +error' "$FAKE/comment-900") $(grep -c 'AssertionError: expected' "$FAKE/comment-901") $(grep -cE '✖ 2 problems|30:1 +error' "$FAKE/comment-901")" "2 0 0 2"
+
 # a second flaky failure of the same check: count 2, ready, after every other ready issue
 relenv second
 { issue 7 ready,release-red | jq '.title = "release red at abc1234"'
