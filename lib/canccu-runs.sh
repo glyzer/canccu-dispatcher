@@ -236,6 +236,7 @@ engine_start() {
           WORKER_STALL_MIN="$STALL_MIN" WORKER_TMPDIR_MODE="$RUN_TMPDIR" WORKER_CAP="$CAP" WORKER_REPO_CAP="$CAP" \
           WORKER_EFFORT="${RUN_EFFORT:-}" WORKER_RUN_TYPE="${RUN_TYPE:-}" WORKER_EFFORT_NOTE="${RUN_EFFORT_NOTE:-}" WORKER_TEST_CMD="${TEST_CMD-tests/run}" \
           WORKER_PACK_MODEL="${PACK_MODEL:-}" WORKER_PACK_PROMPT="${PACK_PROMPT:-}" WORKER_PACK_BUDGET="${PACK_MODEL:+$BUDGET_PACK}" \
+          WORKER_PRE_PUSH_CMD="${PRE_PUSH:-}" WORKER_PRE_PUSH_MAX_SEC="${PRE_PUSH:+$PRE_PUSH_MAX_SEC}" WORKER_BASE_BRANCH="$BASE_BRANCH" \
           WORKER_WINDOW_DELTA="${USAGE_WINDOW_DELTA:-0}" WORKER_WINDOW_BEFORE="$(window_before)" \
           "$CANCCU_WORKER" --quiet ${MODEL:+--model "$MODEL"} "${@:3}" 2>&1 3>&- 7>&- 8>&-); rc=$?   # fd 3: the pane (quiet), 7: the engine lock, 8: the dispatcher's
   if (( rc == 0 )); then date +%s%N > "$CANCCU_HOME/last_start"   # the fair share's tie rule
@@ -339,7 +340,7 @@ run_worker() {
   local prev="" prev_started="" was=0 rc
   if is_managed "$n"; then was=1 prev=$(st_get "$n" phase) prev_started=$(st_get "$n" started); fi
   st_set "$n" prev_phase="$prev" phase=starting started="$(now)"; run_mark "$n"
-  MODEL=$model RUN_EFFORT=$effort RUN_TYPE=$type engine "worker $w" "$n" "${args[@]}" "$REPO_NAME" "$n $(oneline 8000 "$2")" \
+  PRE_PUSH=$PRE_PUSH_CMD MODEL=$model RUN_EFFORT=$effort RUN_TYPE=$type engine "worker $w" "$n" "${args[@]}" "$REPO_NAME" "$n $(oneline 8000 "$2")" \
     "turns=$turns" "cost=$cost" "min=$mins" || {
     rc=$?   # the engine's exit: SLOT_REFUSED is a wait
     if (( was )); then st_set "$n" phase="$prev" prev_phase= started="$prev_started"; else st_rm "$n"; fi

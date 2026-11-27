@@ -20,6 +20,7 @@ cat > "$E/bin/lint-it" <<'EOF'
 #!/usr/bin/env bash
 echo "$*" > "$FAKE/lint.args"; printf '%s' "$CANCCU_CHANGED_FILES" > "$FAKE/lint.env"
 for i in $(seq 1 100); do echo "lint: checked line $i"; done
+for f; do [[ $f == -* ]] || set -- "$@" "$f"; shift; done
 if grep -l LINTERROR "$@" 2>/dev/null; then echo "lint: error: LINTERROR found"; exit 1; fi
 echo "lint: clean"
 EOF
@@ -35,7 +36,7 @@ wt=$E/wt/pkg-3-pages
 G -C "$cl" worktree add -q --detach "$wt" origin/main
 wrun pkg-3-pages "$wt" "WORKER_PRE_PUSH_CMD=lint-it --strict" WORKER_PRE_PUSH_MAX_SEC=60
 ok "set: the worktree gets a pre-push hook" test -x "$(G -C "$wt" rev-parse --absolute-git-dir)/canccu-hooks/pre-push"
-ok "… the clone does not: no hooks path of its own" eq "$(G -C "$cl" config --get core.hooksPath; ls "$cl/.git/hooks" | grep -c '^pre-push$')" 0
+ok "… the clone does not: no hooks path of its own" eq "$(G -C "$cl" config --get core.hooksPath; test -e "$cl/.git/hooks/pre-push" && echo hook)" ""
 
 # push <dir>: a push of the branch; its output in $E/push.out
 push() { (cd "$1" && PATH="$E/rg:$E/bin:$PATH" G push origin HEAD:refs/heads/pkg-3-pages > "$E/push.out" 2>&1); }
@@ -62,7 +63,7 @@ wrun pkg-3-pages "$wt"
 ok "unset again: the hook is gone" eq "$(G -C "$wt" config --get core.hooksPath; test -e "$(G -C "$wt" rev-parse --absolute-git-dir)/canccu-hooks" && echo left)" ""
 wt2=$E/wt/issue-9; G -C "$cl" worktree add -q --detach "$wt2" origin/main
 wrun 9 "$wt2"
-ok "unset: no hook installed" eq "$(G -C "$wt2" config --get core.hooksPath; ls "$(G -C "$wt2" rev-parse --absolute-git-dir)" | grep -c canccu-hooks)" 0
+ok "unset: no hook installed" eq "$(G -C "$wt2" config --get core.hooksPath; test -e "$(G -C "$wt2" rev-parse --absolute-git-dir)/canccu-hooks" && echo hook)" ""
 ok "… and no tool guard" not grep -q 'PreToolUse' "$FAKE/claude.args"
 
 # ---------------------------------------------------------------- --no-verify

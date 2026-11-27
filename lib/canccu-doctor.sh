@@ -107,6 +107,10 @@ _doc_project() {
   (( ${sz:-0} > 5 * 1024 ** 3 )) &&
     echo "run temp dirs use $(numfmt --to=iec --round=nearest --format=%.1f "$sz"); a run may leak, check $(canccu_tilde "$f")"
   notify_problem
+  # a check that cannot start refuses every worker push (#328): a script of the repo is found in the clone
+  l=${PRE_PUSH_CMD%% *}
+  [ -z "$l" ] || command -v "$l" >/dev/null 2>&1 || [ -x "$CLONE/$l" ] ||
+    echo "PRE_PUSH_CMD: $l is not on PATH nor in the clone: every worker push would be refused"
   for l in "$WORKERS_DIR"/*.lock; do
     [ -e "$l" ] && ! lock_alive "$l" &&
       echo "stale run lock $(canccu_tilde "$l") (no process or window of it; canccu-worker --unlock $(lock_get "$l" repo) $(lock_get "$l" key), or remove it)"

@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# libexec/canccu-guard-hook — a PreToolUse hook on Bash that libexec/canccu-worker gives a worker
+# run while PRE_PUSH_CMD is on (#328): `--no-verify` on git push or git commit skips the pre-push
+# check, so it is refused, and the dispatch log gets a warning with the run's key.
+set -uo pipefail
+cmd=$(jq -r '.tool_input.command // ""' 2>/dev/null) || exit 0
+# the words of each git push or commit, quoted strings dropped (a message may name the flag)
+words=$(sed -E "s/'[^']*'//g; s/\"[^\"]*\"//g" <<<"$cmd" | tr ';&|\n' '\n\n\n\n' |
+  grep -E '(^|[[:space:]])git([[:space:]]+-[^[:space:]]+([[:space:]]+[^-[:space:]][^[:space:]]*)?)*[[:space:]]+(push|commit)([[:space:]]|$)')
+hit=0
+grep -qE '(^|[[:space:]])--no-verify([[:space:]=]|$)' <<<"$words" && hit=1
+grep -E '[[:space:]]commit([[:space:]]|$)' <<<"$words" | grep -qE '[[:space:]]-[a-zA-Z]*n[a-zA-Z]*([[:space:]]|$)' && hit=1
+(( hit )) || exit 0
+[ -n "${CANCCU_HOME:-}" ] &&
+  printf '%s #%s: warning: the worker tried git --no-verify; refused\n' "$(date -u '+%FT%TZ')" "${CANCCU_RUN_KEY:-?}" >> "$CANCCU_HOME/dispatch.log"
+jq -nc --arg r 'Refused: --no-verify skips the pre-push check. A refused push means: fix what it shows first, then push again. Never use `--no-verify`.' \
+  '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: $r}}'

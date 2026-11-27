@@ -57,7 +57,7 @@ handoff() {
 # host's runs into full-suite runs. CI runs the full suite on every push at either tier.
 test_rule() {
   local t=targeted; [ "${TEST_TIER:-}" = full ] && t=full
-  case ${1:-worker}-$t in
+  { case ${1:-worker}-$t in
     worker-targeted) echo 'Tests (test tier targeted): while working and before marking the PR ready, run only the test files of the areas you touched (the affected-tests command CLAUDE.md names, when it has one), in the foreground; do not run the full suite locally: CI runs it on every push.' ;;
     worker-full) echo 'Tests (test tier full): while working, run only the tests of the files you change, in the foreground; before marking the PR ready, run the full suite once, in the foreground, bounded with timeout 9m (a foreground command may run 10 minutes at most; CI runs it on every push too).' ;;
     handoff-targeted) echo 'Tests (test tier targeted): run only the test files of the areas you touched and the repo checks, in the foreground; CI runs the full suite on every push. Never paste whole test logs; never run a command in the background.' ;;
@@ -65,6 +65,10 @@ test_rule() {
     fixcheck-targeted) echo 'Tests (test tier targeted): run at most the test files of the files the fix diff touches, in the foreground; never the full suite: CI runs it.' ;;
     fixcheck-full) echo 'Tests (test tier full): you may run the full suite once, in the foreground, bounded with timeout 9m; CI runs it too.' ;;
   esac
+  # the worktree's pre-push hook (#328) refuses a push its check fails: a worker must fix, not skip it
+  [ -z "${PRE_PUSH_CMD:-}" ] || [ "${1:-worker}" = fixcheck ] ||
+    printf ' A pre-push hook runs `%s` on the changed files before every push. A refused push means: fix what it shows first, then push again. Never use `--no-verify`.' "$PRE_PUSH_CMD"
+  } | tr -d '\n'; echo
 }
 
 

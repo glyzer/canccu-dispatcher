@@ -24,6 +24,8 @@ change a setting and the settings table are in [`config.md`](config.md); the rul
 | `WAVE_ROLLING` | `0` | `1`: the next wave is planned while this one runs, once no package of it waits to start and a run slot is free (`CAP`); `0`: the planner waits for the wave to be over ([`packages.md`](packages.md#waves)). Locked |
 | `REVIEW_MODEL` | empty | The full reviewer's model; empty: `MODEL` ([`reviews.md`](reviews.md), "Model by kind") |
 | `REVIEW_MODEL_LIGHT` | empty | The full reviewer's model for a light PR: every path docs, a test (`TEST_PATHS`) or a `LIGHT_REVIEW_PATHS` match, none gated; empty: `REVIEW_MODEL` ([`reviews.md`](reviews.md), "Model by kind") |
+| `PRE_PUSH_CMD` | empty | A quick check (lint, unit tests) that a worker worktree's pre-push hook runs on the changed files (as arguments and in `CANCCU_CHANGED_FILES`); a failure refuses the push and shows the last 80 lines; `--no-verify` is refused ([`engine.md`](engine.md#the-pre-push-check)); empty: off |
+| `PRE_PUSH_MAX_SEC` | 600 | Seconds `PRE_PUSH_CMD` may take before the push is refused |
 | `FIXCHECK_MODEL` | empty | The fix-check's model, for example a cheaper one (`claude-sonnet-5-5`); empty: `MODEL` |
 | `FIXCHECK_FULL_LINES` | `100` | A push after a passed review that changes more of the PR's own lines than this since the last full review gets a full review, not a fix-check |
 | `FIXCHECK_COUNT_MAIN` | `0` | `0`: with main merged in, that count is the PR's own commits only: no merge of main counts, resolved conflict or not; `1`: the whole diff counts, main's lines in the PR's files too ([`reviews.md`](reviews.md)) |

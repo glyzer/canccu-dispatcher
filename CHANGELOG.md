@@ -20,6 +20,11 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
   `.canccu/context.md` in the worktree (never committed); the build prompt says to read it before
   exploring. spend.log type `pack`; once per package; a failed pack is logged and the build goes on
   without it.
+- A pre-push check in worker worktrees, off by default: `PRE_PUSH_CMD` (#328), under
+  `PRE_PUSH_MAX_SEC` (600). Set, each worker worktree gets a `pre-push` hook that runs it on the
+  changed files; a failure refuses the push with the last 80 lines of its output, and a tool
+  guard refuses `--no-verify` (logged as a warning). The doctor shows the command and flags one
+  it cannot find.
 - A red-CI fix run gets a failure digest of every failing job, built by script, instead of the
   last 60 lines of the first one's log (#327): the lines `CI_DIGEST_PATTERN` matches with their
   next 8 lines, and the test and lint summaries, each job under its name; no ANSI codes,
