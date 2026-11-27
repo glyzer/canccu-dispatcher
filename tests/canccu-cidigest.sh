@@ -75,6 +75,15 @@ l=$(wline)
 ok "a log with no failure line → its tail, as before the digest: the last CI_LOG_LINES lines" \
   eq "$(grep -c 'No line of the failing jobs.* logs matched CI_DIGEST_PATTERN; the tail of each' <<<"$l") $(grep -c 'build step 41 ⏎' <<<"$l") $(grep -c 'build step 40 ⏎' <<<"$l") $(grep -c 'the build ended badly' <<<"$l")" "1 1 0 1"
 
+red composeonly "[$(check e2e 700 77)]"
+cp "$fx/composeonly.log" "$FAKE/log77"; route 'run view --job 77 *' log77
+dispatch --once
+l=$(wline)
+ok "failure lines only under a compose prefix → the tail of the raw log, not 'read the checks'" \
+  eq "$(grep -c 'the tail of each' <<<"$l") $(grep -oE 'FAIL +e2e/checkout.spec.ts > pays|expected 200, got 500|Tests +1 failed' <<<"$l" | wc -l)" "1 3"
+ok "… under its job's name, without the columns or timestamps" \
+  eq "$(grep -c '== e2e (https://github.com/example-org/web/actions/runs/700/job/77) == ⏎' <<<"$l") $(grep -c '2030-11-05T' <<<"$l")" "1 0"
+
 red nolog "[$(check build 700 77)]"
 route 'run view --job 77 *' FAIL
 dispatch --once
