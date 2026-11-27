@@ -72,6 +72,8 @@ PACKAGE_LINES	int:100:100000	project	open
 BUDGET_LINES	int:0:100000	project	open
 PACKAGE_MIN_ISSUES	int:1:20	rules	open
 PACKAGE_HOLD_SMALL	enum:0|1	rules	open
+CONTEXT_PACK_MODEL	name	project	open
+BUDGET_PACK	budget	project	open
 PLAN_MODEL	name	project	open
 WAVE_ROLLING	enum:0|1	project	locked
 REVIEW_MODEL	name	project	open

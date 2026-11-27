@@ -18,6 +18,8 @@ change a setting and the settings table are in [`config.md`](config.md); the rul
 | `BUDGET_LINES` | `300` | Above 0: a package's work, resume and review budgets are multiplied by its planned changed lines over this (rounded up) when that is more than its issue count, still capped by `BUDGET_PACKAGE_MAX`; the planner then gives each package `lines` ([`packages.md`](packages.md#the-planner)). `0`: the issue count only |
 | `PACKAGE_MIN_ISSUES` | `3` | Above 1, the planner aims for at least this many issues per package, where they fit together (never unrelated ones); `1`: no nudge |
 | `PACKAGE_HOLD_SMALL` | `0` | `1`: the planner may leave a lone small leftover (under about 300 changed lines) out of a wave while an earlier package of its area runs or other issues of its area wait, so it joins a later wave's package of its area ([`packages.md`](packages.md#the-planner)) |
+| `CONTEXT_PACK_MODEL` | empty | An experiment: before a package's first build a run on this model (for example a cheaper one) writes `.canccu/context.md` in its worktree, never committed, and the build prompt points to it; empty: off ([`packages.md`](packages.md#the-context-pack)) |
+| `BUDGET_PACK` | `30 1 15` | The context pack run: turns, USD, minutes |
 | `PLAN_MODEL` | empty | The planner's model; empty: `MODEL` |
 | `WAVE_ROLLING` | `0` | `1`: the next wave is planned while this one runs, once no package of it waits to start and a run slot is free (`CAP`); `0`: the planner waits for the wave to be over ([`packages.md`](packages.md#waves)). Locked |
 | `REVIEW_MODEL` | empty | The full reviewer's model; empty: `MODEL` ([`reviews.md`](reviews.md), "Model by kind") |

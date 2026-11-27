@@ -9,14 +9,14 @@
 
 env_new pack-engine
 wd=$E/wt; mkdir -p "$wd"
-"$FAKE_REAL_GIT" -C "$wd" -c init.defaultBranch=main init -q
+"$FAKE_REAL_GIT" -C "$wd" -c init.defaultBranch=main init -q; touch "$FAKE/realgit"
 # the pack run (its model in the arguments) writes the file, as the real one would
 printf 'cd "%s"; if tail -1 "$FAKE/claude.args" | grep -q -- "--model cheap-model"; then mkdir -p .canccu; echo "# context" > .canccu/context.md; fi\n' "$wd" > "$FAKE/claude.do"
 # prun [env...]: the first build of package pkg-3-pages in its worktree, with the fake claude
 prun() {
   : > "$FAKE/claude.args"
   printf 'repo=web\nkey=pkg-3-pages\nkind=worker\npid=\nwindow=\n' > "$WORKERS_DIR/web-pkg-3-pages.lock"
-  (cd "$wd" && env WORKER_RUN_TYPE=build "$@" PATH="$fb:$PATH" CODE_ROOT="$E/code" \
+  (cd "$wd" && env WORKER_RUN_TYPE=build PATH="$fb:$PATH" CODE_ROOT="$E/code" "$@" \
     "$root/libexec/canccu-worker" __run web pkg-3-pages 5 1 2 "" "build it" "$wd" "" 1 > /dev/null 2>&1)
 }
 types() { awk -F'\t' '$3 == "pkg-3-pages" { printf "%s%s", s, $5; s = " " }' "$WORKERS_DIR/spend.log"; }

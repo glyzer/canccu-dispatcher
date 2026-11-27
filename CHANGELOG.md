@@ -15,6 +15,11 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
   reviewer answers each in a `Criteria:` block (met with evidence, not met, or not this part); a
   `pass` with an item not met or unanswered becomes `changes`, with that item as a blocking
   `[criterion]` finding. No criteria: no change.
+- An experiment, off by default: `CONTEXT_PACK_MODEL` (#333). Set, a package's first build starts
+  with a short run on that model (`BUDGET_PACK`, default `30 1 15`) that writes
+  `.canccu/context.md` in the worktree (never committed); the build prompt says to read it before
+  exploring. spend.log type `pack`; once per package; a failed pack is logged and the build goes on
+  without it.
 - A red-CI fix run gets a failure digest of every failing job, built by script, instead of the
   last 60 lines of the first one's log (#327): the lines `CI_DIGEST_PATTERN` matches with their
   next 8 lines, and the test and lint summaries, each job under its name; no ANSI codes,

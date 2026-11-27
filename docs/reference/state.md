@@ -114,7 +114,7 @@ the rest were added after them. `-` is an unknown value.
 | 2 | repo | The repo's name |
 | 3 | key | The run's key: `<n>` or `pkg-<m>-<name>` (a worker), `review-<pr>` (a review or fix-check), `answer-<K>`, `plan-<m>` |
 | 4 | cost | The exact USD claude reported, or `?` (stopped at a budget, stalled, crashed, killed) |
-| 5 | type | `plan`, `build` (a new or resumed worker), `fix` (a worker's follow-up fixing review findings, a red CI or a `needs-work`), `merge` (a worker's follow-up bringing in main: after its contract PR merged, or a merge of main that conflicts), `review`, `fix-check`, `answer`, `health`, `deep` (the step's deep review) |
+| 5 | type | `plan`, `build` (a new or resumed worker), `fix` (a worker's follow-up fixing review findings, a red CI or a `needs-work`), `merge` (a worker's follow-up bringing in main: after its contract PR merged, or a merge of main that conflicts), `review`, `fix-check`, `answer`, `health`, `deep` (the step's deep review), `pack` (the context pack before a package's first build, [`packages.md`](packages.md#the-context-pack); its outcome `pack=ok` or `pack=failed`) |
 | 6 | model | The `--model` the run got; `-`: the account's default |
 | 7 | effort | The `--effort` the run got; for a review or fix-check, the code-review skill's effort it was told; `-`: none |
 | 8 | session | `fresh` or `resumed` |
