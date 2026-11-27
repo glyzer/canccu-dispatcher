@@ -61,6 +61,22 @@ ok "… and it gets ready" grep -q '^issue edit 30 .*--add-label ready' "$FAKE/g
 ok "a flaky: issue comes after every other ready issue in the queue" \
   eq "$(lib eval 'ISSUES=$(jq -n "[{number: 3, title: \"flaky: test\", labels: [{name: \"ready\"}], body: \"\", milestone: null}, {number: 9, title: \"Issue 9\", labels: [{name: \"ready\"}], body: \"\", milestone: null}]"); candidates' | tr '\n' ' ')" "9 3 "
 
+# the close fails once: the next pass retries the close only, the flaky: check is not counted again
+relenv closefails
+dispatch --once; ended success
+echo 'fail:issue close' >> "$FAKE/routes"
+dispatch --once
+ok "the close fails → the flaky: issue is filed, the release-red is not closed yet" \
+  eq "$(grep -c '^issue create .*--title flaky: test' "$FAKE/gh.log") $(rr rr)" "1 rerun"
+sed -i '/^fail:issue close$/d' "$FAKE/routes"
+{ issue 7 ready,release-red | jq '.title = "release red at abc1234"'
+  issue 900 "" "Failures: 1" | jq '.title = "flaky: test"'
+  issue 8 ready; } | issues
+dispatch --once
+ok "… the next pass closes it, the check counted once: no second comment, edit or ready" \
+  eq "$(grep -c '^issue create' "$FAKE/gh.log") $(grep -cE '^issue (comment|edit) 900' "$FAKE/gh.log") $(grep -c '^issue comment 7' "$FAKE/gh.log") $(grep -c '^issue close 7' "$FAKE/gh.log") $(rr rr)" "1 1 1 2 closed"
+ok "… its close comment still links the flaky: issue" grep -q '#900 (`flaky: test`)' "$FAKE/comment-7"
+
 relenv red
 dispatch --once; ended failure; dispatch --once
 ok "red then red → an ordinary issue: a comment with the digest, not closed, nothing filed" \

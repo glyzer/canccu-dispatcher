@@ -10,7 +10,8 @@
 # Per issue, release-red/<n> (key=value) holds rr: rerun (the failed runs rerun, waiting), ordinary
 # (work as any issue: red again, or nothing to rerun) or closed (green: closed by the dispatcher);
 # rr_runs "<run id>:<attempt>" pairs, rr_at, rr_sha and rr_infra (the first run's infrastructure
-# error line). release-red/<n>.jobs and .digest keep the first run's failed jobs and their digest.
+# error line), rr_filed (the flaky: links filed) and rr_said (the close comment posted).
+# release-red/<n>.jobs and .digest keep the first run's failed jobs and their digest.
 
 rr_file() { echo "$CANCCU_HOME/release-red/$1"; }
 rr_get() { kv_get "$(rr_file "$1")" "@rr$1" "$2"; }
@@ -115,18 +116,25 @@ release_red_ordinary() {
   log "#$n release-red: $(oneline 160 "$2") It stays an ordinary issue"
 }
 
-# release_red_close <n> <comment>: green after the rerun: said on the issue and closed
+# release_red_close <n> <comment>: green after the rerun: said on the issue and closed. A pass
+# that retries the close does not comment again (rr_said).
 release_red_close() {
-  mut gh issue comment "$1" -R "$REPO" --body "$(home_tilde "$2")"$'\n\n'"$CANCCU_MARK" &&
-    mut gh issue close "$1" -R "$REPO" || { log "#$1 release-red: closing it failed (gh); again next pass"; return 0; }
+  if [ -z "$(rr_get "$1" rr_said)" ]; then
+    mut gh issue comment "$1" -R "$REPO" --body "$(home_tilde "$2")"$'\n\n'"$CANCCU_MARK" || { log "#$1 release-red: its comment failed (gh); again next pass"; return 0; }
+    rr_set "$1" rr_said=1
+  fi
+  mut gh issue close "$1" -R "$REPO" || { log "#$1 release-red: closing it failed (gh); again next pass"; return 0; }
   rr_set "$1" rr=closed
   log "#$1 release-red: rerun green; closed ($(oneline 120 "$2"))"
 }
 
 # release_red_flaky <n>: green after the rerun, no infrastructure error: each failed check of the
-# first run goes to its flaky: issue, and the release-red is closed with links to them
+# first run goes to its flaky: issue, and the release-red is closed with links to them. rr_filed
+# keeps the links of the checks already filed, so a pass that retries after a failed gh call
+# neither counts nor comments them again.
 release_red_flaky() {
-  local n=$1 name jid url f links="" sha runs=""
+  local n=$1 name jid url f links sha runs=""
+  links=$(rr_get "$n" rr_filed)
   sha=$(rr_get "$n" rr_sha)
   for f in $(rr_get "$n" rr_runs); do runs+=" https://github.com/$REPO/actions/runs/${f%%:*}"; done
   while IFS=$'\t' read -r name jid url; do
@@ -134,6 +142,7 @@ release_red_flaky() {
     [[ $links == *"\`flaky: $name\`"* ]] && continue
     flaky_file "$name" "$n" "$sha" "${url:-${runs# }}" "${runs# }" || { log "#$n release-red: filing flaky: $name failed (gh); again next pass"; return 0; }
     links+="${links:+, }#$FLAKY_NO (\`flaky: $name\`)"
+    rr_set "$n" rr_filed="$links"
   done < "$(rr_file "$n").jobs"
   [ -n "$links" ] || links="no failed job could be read"
   release_red_close "$n" "The dispatcher reran the failed jobs at \`${sha:0:7}\` once: green, so the failure was a flaky check: $links. The next green push tags as usual."
