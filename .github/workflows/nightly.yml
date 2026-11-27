@@ -28,6 +28,9 @@ jobs:
       contents: read
     container:
       image: debian:12
+      # --init: tini as PID 1 reaps orphaned processes, as a host does; without it they stay as
+      # zombies and the full run hits the process limit (#353)
+      options: --init
     outputs:
       failed: ${{ steps.failed.outputs.failed }}
     steps:
