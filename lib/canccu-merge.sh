@@ -296,12 +296,16 @@ own_lines_over() { local s; s=$(own_change "$1" "$2") || { echo "the change cann
 
 # postpass_full <base> <head>: why the change base..head needs a full review, not a fix-check;
 # nothing when it does not: too many lines of the PR's own (own_change), or a gated or risky path
+# among its files or those a merge in it edits (merge_edit_files: a merge counts no line, #336, but
+# a resolution in such a path still gets a full review). Merges that cannot be read: a full review.
 postpass_full() {
-  local stats p re
+  local stats paths p re
   stats=$(own_change "$1" "$2") || { echo "the change cannot be read"; return; }
   p=$(lines_over "$stats"); [ -n "$p" ] && { echo "$p"; return; }
-  p=$(cut -f3- <<<"$stats" | grep -m1 -E "$(gated_re)") && { echo "gated path $p"; return; }
-  for re in "$RISKY_PATHS" "$FIXCHECK_RISKY"; do [ -n "$re" ] && p=$(cut -f3- <<<"$stats" | grep -m1 -iE "$re") && { echo "risky path $p"; return; }; done
+  p=$(merge_edit_files "$1" "$2") || { echo "the merges since the review cannot be read"; return; }
+  paths=$(cut -f3- <<<"$stats"; [ -z "$p" ] || printf '%s\n' "$p")
+  p=$(grep -m1 -E "$(gated_re)" <<<"$paths") && { echo "gated path $p"; return; }
+  for re in "$RISKY_PATHS" "$FIXCHECK_RISKY"; do [ -n "$re" ] && p=$(grep -m1 -iE "$re" <<<"$paths") && { echo "risky path $p"; return; }; done
   return 0
 }
 
