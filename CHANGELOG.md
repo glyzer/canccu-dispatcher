@@ -6,6 +6,12 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 
 ## Unreleased
 
+- `canccu-init --check <name>` checks the target repo too, read-only (#17): the repo's reach, the
+  bot's write access, the variable `REVIEWER_LOGIN`, the review-gate files, CI, the required
+  checks, auto-merge and the labels, each missing piece with its fix. It now exits 1 when a piece
+  is missing. `canccu-dispatcher doctor --project <name>` shows the missing pieces as problems.
+  The checklist `canccu-init` prints links each step to its docs and ends with the check.
+
 ## [0.5.0] — 2026-11-27
 
 Release 0.5: step 7's token cost work, the rest (CI digest, cheaper narrow runs, review checklist).

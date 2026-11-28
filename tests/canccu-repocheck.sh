@@ -68,7 +68,7 @@ ok "bot: admin passes" eq "$(check)" ""
 route 'api repos/example-org/web/collaborators/*' NOTFOUND
 ok "bot: a 404 is missing" grep -q '^review-bot has no write access' <<<"$(lines missing)"
 : > "$FAKE/routes"; route 'api repos/example-org/web/collaborators/*' FAIL
-ok "bot: another failure is unknown" eq "$(check)" "unknown	bot: unknown (fake gh: failing api repos/example-org/web/collaborators/review-bot/permission --j…)"
+ok "bot: another failure is unknown, gh's error cut to 80" eq "$(check)" "unknown	bot: unknown (fake gh: failing api repos/example-org/web/collaborators/review-bot/permission -…)"
 
 rc_env repocheck-var; route 'api repos/example-org/web/actions/variables/*' NOTFOUND
 ok "variable: a 404 is missing, word for word" eq "$(lines missing)" "the repo variable REVIEWER_LOGIN is not set: $D/repo-contract.md"
@@ -81,7 +81,7 @@ ok "--check: unknown lines never fail it" eq "$rc" 0
 
 rc_env repocheck-nobot REVIEWER_LOGIN=
 ok "REVIEWER_LOGIN empty: one missing line instead of bot and variable" eq "$(check)" \
-  "missing	REVIEWER_LOGIN is not set ($CANCCU_ROOT/config or $CANCCU_HOME/config): $D/getting-started.md"
+  "missing	REVIEWER_LOGIN is not set ($(lib login_where)): $D/getting-started.md"
 ok "… neither is read" not grep -qE 'collaborators|actions/variables' "$FAKE/gh.log"
 
 rc_env repocheck-gate; route 'api repos/example-org/web/contents/.github/scripts/*' NOTFOUND

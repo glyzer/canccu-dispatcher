@@ -86,7 +86,26 @@ Nothing running is stopped.
    - require CI and `review-gate` in a ruleset on the default branch;
    - clone the repo to `CLONE` and review the rules ([`rules.md`](rules.md));
    - create the project's narrow token and log its config dir in with it (below).
-3. `canccu-dispatch --project <name> --dry-run`, then `canccu-up --project <name>`.
+3. `canccu-init --check <name>` (below), then `canccu-dispatch --project <name> --dry-run`, then
+   `canccu-up --project <name>`.
+
+## Checking a project
+
+`canccu-init --check <name>` reads the target repo with the project's `gh` login (GET calls
+only: it never changes the repo) and prints one line `repo: <text>` per finding, then
+`repo <owner/repo>: <m> missing, <u> unknown`, then the Telegram check
+([`notify.md`](notify.md#setting-it-up)). It checks, in this order: the repo is reachable (if
+not, nothing else is checked); the bot has write access; the repo variable `REVIEWER_LOGIN` is
+the bot's login; each review-gate file of `templates/repo/.github/` is on `BASE_BRANCH`; a check
+named `CI` ran on its latest commit; `CI` and each word of `REVIEW_CHECKS` are required (in a
+ruleset, else in the branch protection); auto-merge; the dispatcher's labels.
+
+Each finding is `missing` (with its fix and a link), `unknown` (gh's error: the narrow token
+cannot read variables or the branch protection, a rate limit, no answer) or a note (a review-gate
+file that differs from this version's template, which a repo may adapt; auto-merge off, when the
+dispatcher merges directly). It exits 1 when a piece is missing or the Telegram check fails, else
+0: unknown lines and notes never fail it. `canccu-dispatcher doctor --project <name>` shows the
+missing lines as problems; plain `doctor` does not read the repo.
 
 **Merging without auto-merge.** The dispatcher uses auto-merge when the repo allows it
 (`allow_auto_merge`, read once per pass). Otherwise (for example a private repo on a free plan)

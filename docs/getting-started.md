@@ -134,7 +134,9 @@ GATED_PATHS='^\.github/|^deploy/|^migrations/'
 Accept each PR by labelling it `accepted` ([`reference/merging.md`](reference/merging.md)). After a few clean
 PRs, remove the `AUTO_MERGE_UNTIL` line; the gated paths keep waiting for you.
 
-Then check: `canccu-dispatcher doctor --project web` prints `no problems found`, and
+Then check: `canccu-init --check web` names each piece of the repo still missing, with its fix
+(its last checklist line says so too), `canccu-dispatcher doctor --project web` prints
+`no problems found`, and
 `canccu-dispatch --project web --dry-run` shows the queue without changing anything.
 
 ## 6. Start it

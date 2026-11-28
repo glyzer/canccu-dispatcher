@@ -118,6 +118,14 @@ _doc_project() {
   return 0
 }
 
+# _doc_repo <tree>: the repo's missing pieces (lib/canccu-repocheck.sh), for doctor --project only:
+# plain doctor makes no GitHub call per project. Unknown and notes are no problem; the unset
+# REVIEWER_LOGIN is _doc_project's line already.
+_doc_repo() {
+  repo_check "$1" | awk -F '\t' '$1 == "missing" && $2 !~ /^REVIEWER_LOGIN is not set / { sub(/^[^\t]*\t/, ""); print }'
+  return 0
+}
+
 # _doc_iec <KiB>: a size for people (GNU numfmt, which canccu_check_deps tests for)
 _doc_iec() { numfmt --from-unit=1024 --to=iec --round=nearest --format=%.1f "$1"; }
 # _doc_room: the host's /tmp and memory under 10% free, and the running containers no run tagged
@@ -162,7 +170,8 @@ canccu_doctor() {
       res=$( ( set --; CANCCU_PROJECT=$p
                # shellcheck source=canccu-common.sh
                . "$here/lib/canccu-common.sh" >/dev/null 2>&1 || exit 1
-               _doc_project ) 2>/dev/null ) ||
+               _doc_project
+               [ -z "$only" ] || _doc_repo "$here" ) 2>/dev/null ) ||
         res=$( ( set --; CANCCU_PROJECT=$p; . "$here/lib/canccu-common.sh" ) 2>&1 >/dev/null | sed 's/^canccu-dispatcher: //' | head -n1)
       tokens+=$(grep '^@token ' <<<"$res" | cut -d' ' -f2-)$'\n'
       out+=$(grep -v '^@token ' <<<"$res" | grep . | sed "s/^/project $p: /")$'\n'

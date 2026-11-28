@@ -23,7 +23,7 @@ Every command but `canccu-init` and `canccu-dispatcher` takes `--project <name>`
 
 | Command | What it does |
 |---|---|
-| `canccu-init [--profile <t>] <name> <owner/repo> [clone]` | Adds a project ([`projects.md`](projects.md)) |
+| `canccu-init [--profile <t>] <name> <owner/repo> [clone]` | Adds a project; `--check <name>` checks it ([`projects.md`](projects.md)) |
 | `canccu-init --leader <name>` | Writes the project's leader kit and sets `LEADER=on` ([`leader.md`](leader.md#the-leader-kit)) |
 | `canccu-up` | Creates the project's tmux session if it is missing: window `main` with `claude` (the leader in its kit with `LEADER=on`; without the kit, your own session) and the monitor, window `dispatch` with `canccu-dispatch`, window `shell`; then attaches. Never kills or rearranges a session that exists |
 | `canccu-dispatch` | The loop: one pass every `INTERVAL` seconds, one instance per project ([`pipeline.md`](pipeline.md)) |

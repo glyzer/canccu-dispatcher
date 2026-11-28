@@ -195,6 +195,10 @@ done
 ok "canccu-init checklist: never points at another project for the review-gate" not grep -q 'from a project that has them' <<<"$out"
 tdir=$(grep -oE '[^ ]*/templates/repo/\.github/' <<<"$out"); tdir=${tdir/#\~/$HOME}
 ok "canccu-init checklist: names this tree's review-gate templates" test -x "$tdir/scripts/review-gate"
+D=https://github.com/glyzer/canccu-dispatcher/blob/main/docs
+ok "canccu-init checklist: items 1 to 4 link the repo contract (#17)" eq "$(grep -c "($D/repo-contract.md)\$" <<<"$out")" 4
+ok "… item 6 the narrow token, item 7 getting started" eq "$(grep -c "($D/reference/projects.md)\$" <<<"$out") $(grep -c "($D/getting-started.md)\$" <<<"$out")" "1 1"
+ok "… the last line: how to check it" eq "$(tail -1 <<<"$out")" "Check it: canccu-init --check web"
 ok "canccu-init checklist: says REVIEWER_LOGIN is not set yet" grep -qF 'the reviewer bot (REVIEWER_LOGIN: not set yet' <<<"$out"
 ok "canccu-init: the new project resolves" eq "$(pick --project web)" "web canccu-web example-org/web"
 out=$(PATH="$fb:$PATH" "$root/bin/canccu-init" web example-org/other 2>&1); rc=$?
