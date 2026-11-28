@@ -150,11 +150,13 @@ owner_of() {
 }
 # need_owner <K> <kind>: the owner of a waiting item as shown and pinged: the one stored when the
 # unit entered accept or needs-you, else owner_of. LEADER=off wins over a stored leader (the
-# setting was switched off since).
+# setting was switched off since); so does rule 5, over an owner=leader stored before #361.
 need_owner() {
-  local o=""
+  local o="" r=""
   [ "${LEADER:-off}" = on ] || { echo po; return 0; }
-  [ -n "$1" ] && is_managed "$1" && o=$(st_get "$1" owner)
+  [ "$2" = plan ] && { echo po; return 0; }
+  [ -n "$1" ] && is_managed "$1" && { o=$(st_get "$1" owner); r=$(st_get "$1" reason); }
+  [ "$2" = accept ] && [ "${r#manual: }" = "plan tier" ] && { echo po; return 0; }
   echo "${o:-$(owner_of "$1" "$2")}"
 }
 # ny_item_kind <K>: the item kind of a unit in phase needs-you: plan, question or needs-you
