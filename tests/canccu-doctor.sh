@@ -197,5 +197,32 @@ mkdir -p "$H/code/web/bin"; printf '#!/bin/sh\n' > "$H/code/web/bin/lint"; chmod
 echo 'PRE_PUSH_CMD=bin/lint' >> "$C/projects/web/config"; doctor
 ok "… a script of the repo is found in the clone" eq "$(line 'PRE_PUSH_CMD')" 0
 
+# the repo check (#17): doctor --project shows its missing pieces, plain doctor never reads them.
+# This gh logs every call and answers the repo's reads: the bot not a collaborator (404), the
+# variable unreadable (403: unknown), a changed review-gate file (a note), no CI run; every other
+# read the toolbin's gh answers empty (no required check, no label).
+clean_host repo-doctor
+mkdir -p "$E/ghbin"; IPATH="$E/ghbin:$IPATH"
+cat > "$E/ghbin/gh" <<GH
+#!/bin/sh
+echo "\$*" >> "$E/gh.log"
+case "\$*" in
+  *collaborators/*) echo "gh: Not Found (HTTP 404)" >&2; exit 1 ;;
+  *actions/variables/*) echo "gh: Forbidden (HTTP 403)" >&2; exit 1 ;;
+  *contents/*) echo 0000 ;;
+  *check-runs*) echo 0 ;;
+  *) exec "$tb/gh" "\$@" ;;
+esac
+GH
+chmod +x "$E/ghbin/gh"
+doctor
+ok "plain doctor: no read of the repo's pieces" eq "$(grep -cE 'collaborators|variables|contents|check-runs|rules|protection|^label list' "$E/gh.log")" 0
+doctor --project web
+ok "doctor --project: a missing piece is a problem line" eq "$rc $(line '^project web: review-bot has no write access to example-org/web: add it as a collaborator')" "1 1"
+ok "… each one" eq "$(line '^project web: no check named CI on the latest commit of main') $(line '^project web: the check review-gate is not required on main') $(line '^project web: labels missing: ready')" "1 1 1"
+ok "… no unknown and no note" eq "$(line 'unknown') $(line 'differs from')" "0 0"
+sed -i '/^REVIEWER_LOGIN=/d' "$C/config"; doctor --project web
+ok "… REVIEWER_LOGIN unset: doctor's own line only" eq "$(line 'REVIEWER_LOGIN is not set')" 1
+
 echo "canccu-doctor tests: $npass passed, $nfail failed"
 (( nfail == 0 ))

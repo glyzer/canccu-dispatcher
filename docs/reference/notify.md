@@ -144,8 +144,9 @@ that is worker text, and fetching it would send the host to any URL. Other captu
    `canccu-dispatcher config set --project <name> TELEGRAM_CHAT_ID=<chat>`, the same for
    `TELEGRAM_USER_ID=<your id>` and `NOTIFY=telegram` (all three are locked: the leader and a run
    cannot change them).
-4. `canccu-init --check <name>` checks the token file, the chat id and the bot (`getMe`), and sends
-   one test message. `canccu-dispatcher doctor` names a missing token, an open one or a missing chat id.
+4. `canccu-init --check <name>` checks the target repo first, read-only
+   ([`projects.md`](projects.md#checking-a-project)), then the token file, the chat id and the bot
+   (`getMe`), and sends one test message. `canccu-dispatcher doctor` names a missing token, an open one or a missing chat id.
 
 The token reaches only `curl`, on its standard input (`--config -`): it is in no argument, log,
 record or process title, and the leader kit denies the leader any read of its file.

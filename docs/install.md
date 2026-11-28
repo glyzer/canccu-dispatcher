@@ -150,7 +150,9 @@ release current first (install one, or roll back), then install it again; `docto
 - the host profile, and `USER_LOGIN` and `REVIEWER_LOGIN`;
 - the reviewer token file: present, mode 600, and covered by a `Read` deny rule in
   `~/.claude/settings.json` (it is never read);
-- for each project: its config, rules, clone, gh credential and dispatcher lock;
+- for each project: its config, rules, clone, gh credential and dispatcher lock; with
+  `--project`, also the target repo's missing pieces (read-only, as `canccu-init --check` reads
+  them; plain `doctor` makes no such call);
 - the snapshot's age (while the dispatcher runs) and `ok`;
 - stale run locks, and run temp dirs (`workers/tmp`) over 5 GB.
 
