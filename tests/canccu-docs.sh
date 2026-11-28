@@ -129,6 +129,12 @@ for w in install.sh canccu-init canccu-up uninstall REVIEWER_LOGIN templates/rep
          "${tested:-?}" ruleset collaborator '~/.canccu'; do
   ok "README.md names $w" grep -qF -- "$w" README.md
 done
+# the superpowers plugin is optional (#43): only docs/hosts.md, the plans and the changelogs name it
+gs1=$(awk '/^## 1\./ { on = 1; next } /^## / { on = 0 } on' docs/getting-started.md)
+ok "getting-started section 1 is read" grep -qF Claude <<<"$gs1"
+ok "… it does not name the superpowers plugin" not grep -qi superpowers <<<"$gs1"
+ok "… nor README.md, nor the reference" eq "$(grep -lir superpowers README.md docs/reference | tr '\n' ' ')" ""
+ok "getting-started's Next points at the optional plugin" grep -qxF 'Optional: a skills plugin for the workers: [hosts.md](hosts.md#skills).' docs/getting-started.md
 ok "the CHANGELOG lists the docs" grep -qF 'docs/' CHANGELOG.md
 for w in tests/run 'Acceptance criteria' 'Out of scope' 'Risk:' 'type(scope)' 'run by canccu-dispatcher'; do
   ok "CONTRIBUTING.md covers $w" grep -qF -- "$w" CONTRIBUTING.md

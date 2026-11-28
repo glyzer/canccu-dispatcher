@@ -457,46 +457,71 @@ dispatch --once
 ok "reviewer prompt: only a blocking class with its Evidence: blocks (#190)" grep -qF 'A finding under Blocking: with a never-blocking class, no class, or no Evidence: line counts as non-blocking' "$FAKE/worker.log"
 ok "reviewer prompt: nits, style and wording never block" grep -qF 'Nits, style and wording never block.' "$FAKE/worker.log"
 
-# ---------------------------------------------------------------- skills (superpowers)
+# ---------------------------------------------------------------- skills (superpowers optional, #43)
 
-# today's sentence, as a host with the superpowers plugin sets it (docs/hosts.md, "Skills")
+# a host's own sentence, as one with the superpowers plugin sets it (docs/hosts.md, "Skills")
 SP='Use the superpowers skills test-driven-development, systematic-debugging and verification-before-completion. On the plan tier use writing-plans for the plan, and executing-plans after plan-ok.'
+METHOD='Work test first: write a test that fails for the right reason, then the code that makes it pass. When something fails, find the cause before you change code. Run the checks and read their output before you say a thing is done. Keep to the issue or the plan: build nothing it does not ask for.'
+RULES='Do not use a skill that brainstorms, makes worktrees, finishes branches, requests reviews, starts subagents or writes skills: the dispatcher owns worktrees, branches, reviews and questions, and the issue is the agreed spec.'
+NOWF='Do not use any workflow skill (brainstorming, planning, worktrees, branches, subagents)'
+# the plugin's name and the seven skill names the prompts used to forbid by name
+SEVEN='superpowers|using-git-worktrees|finishing-a-development-branch|requesting-code-review|subagent-driven-development|dispatching-parallel-agents|writing-skills|\bbrainstorming,'
 env_new skills-worker "WORKER_SKILLS='$SP'"
 { issue 30 ready; } | issues
 dispatch --once
 w=$(grep -- '--name #30 ' "$FAKE/worker.log")
-ok "worker prompt: the superpowers skills to use" grep -qF 'Use the superpowers skills test-driven-development, systematic-debugging and verification-before-completion.' <<<"$w"
-ok "worker prompt: writing-plans on the plan tier, executing-plans after plan-ok" grep -qF 'On the plan tier use writing-plans for the plan, and executing-plans after plan-ok.' <<<"$w"
-for sk in brainstorming using-git-worktrees finishing-a-development-branch requesting-code-review subagent-driven-development dispatching-parallel-agents writing-skills; do
-  ok "worker prompt: do NOT use $sk" grep -qE "Do NOT use [^.]*\\b$sk\\b" <<<"$w"
-done
-ok "worker prompt: why (the dispatcher owns them, the issue is the spec)" grep -qF 'the dispatcher owns worktrees, branches, reviews and questions, and the issue is the agreed spec' <<<"$w"
-# the forbidden list names requesting-code-review; apart from that the prompt has no review step
-ok "worker prompt: no review skill apart from the forbidden name" not grep -qiE 'code-review|security-review' <<<"${w//requesting-code-review/}"
+ok "WORKER_SKILLS set: the worker prompt has its sentence" grep -qF "$SP" <<<"$w"
+ok "… not the plain-words method" not grep -qF 'Work test first' <<<"$w"
+ok "worker prompt: the skills no worker uses, in plain words" grep -qF "$RULES" <<<"$w"
+ok "worker prompt: no review skill" not grep -qiE 'code-review|security-review' <<<"$w"
+state 30 pkg=a members=30 risk=normal 'risk_reason=plain code'
+pp=$(lib package_prompt 30)
+ok "WORKER_SKILLS set: the package prompt has its sentence, not the method" eq "$(grep -cF "$SP" <<<"$pp") $(grep -cF 'Work test first' <<<"$pp")" "1 0"
 env_new skills-none
 { issue 30 ready; } | issues
 dispatch --once
 w=$(grep -- '--name #30 ' "$FAKE/worker.log")
-ok "WORKER_SKILLS empty (the default): the worker prompt names no skill to use (#14)" not grep -qE 'Use the superpowers|writing-plans|executing-plans' <<<"$w"
-ok "… and reads on cleanly" grep -qF 'and stop. Do NOT use brainstorming' <<<"$w"
+ok "WORKER_SKILLS empty (the default): the worker prompt has the method in plain words" grep -qF "and stop. $METHOD $RULES" <<<"$w"
+ok "… and names neither superpowers nor any of the seven skills" not grep -qE "$SEVEN" <<<"$w"
+state 30 pkg=a members=30 risk=normal 'risk_reason=plain code'
+pp=$(lib package_prompt 30)
+ok "… the package prompt: the method, then the rules" grep -qF "afterwards. $METHOD $RULES" <<<"$pp"
+ok "… and no skill name" not grep -qE "$SEVEN" <<<"$pp"
 hp=$(lib eval 'health_prompt 12 pkg-12-health')
-ok "… nor does the health prompt, whose checklist is HEALTH_CHECKLIST's (#14)" eq "$(grep -cE 'Use the superpowers|test-driven-development' <<<"$hp") $(grep -cF 'The checklist, and nothing else: 1. files over the size limit' <<<"$hp")" "0 1"
+ok "… the health prompt: neither the method nor a skill, its checklist is HEALTH_CHECKLIST's (#14)" eq "$(grep -cE "Use the superpowers|test-driven-development|Work test first|$SEVEN" <<<"$hp") $(grep -cF 'The checklist, and nothing else: 1. files over the size limit' <<<"$hp") $(grep -cF "$RULES" <<<"$hp")" "0 1 1"
+dp=$(lib deep_prompt 12 deep-12 abc123 def456)
+ok "… the deep review prompt: the rules, no skill name" eq "$(grep -cF "$RULES" <<<"$dp") $(grep -cE "$SEVEN" <<<"$dp")" "1 0"
+lp=$(lib light_review_prompt 50 30 "$HA" /f)
+ok "… the light review prompt: no workflow skill, in plain words" eq "$(grep -cF "$NOWF; use the security-review skill as stated." <<<"$lp") $(grep -cE "$SEVEN" <<<"$lp")" "1 0"
+fp=$(lib fixcheck_prompt 50 30 "$HA" "$HB" /f low "1. [correctness] a.sh:1 — x")
+ok "… the fix-check prompt too" eq "$(grep -cF "$NOWF." <<<"$fp") $(grep -cE "$SEVEN" <<<"$fp")" "1 0"
+plp=$(lib eval 'planner_prompt 12 1 "101"')
+ok "… the planner prompt too" eq "$(grep -cF "$NOWF." <<<"$plp") $(grep -cE "$SEVEN" <<<"$plp")" "1 0"
 env_new skills-plan-ok "WORKER_SKILLS='$SP'"
 { issue 5 in-progress,needs-you,plan-ok; } | issues
 state 5 phase=needs-you pr=50 "ny_at=$NOW"
 json issue5.json '{"comments": []}'; route 'issue view 5 *' issue5.json; json pr50.json '{"comments": []}'; route 'pr view 50 *' pr50.json
 dispatch --once
-ok "plan-ok resume names executing-plans" grep -qF "web 5 The user approved the plan. Execute it. $SP Build it" "$FAKE/worker.log"
+ok "plan-ok resume: WORKER_SKILLS' sentence, not the method" eq "$(grep -cF "web 5 The user approved the plan. Execute it. $SP Build it" "$FAKE/worker.log") $(grep -c 'Work test first' "$FAKE/worker.log")" "1 0"
+env_new skills-plan-ok-none
+{ issue 5 in-progress,needs-you,plan-ok; } | issues
+state 5 phase=needs-you pr=50 "ny_at=$NOW"
+json issue5.json '{"comments": []}'; route 'issue view 5 *' issue5.json; json pr50.json '{"comments": []}'; route 'pr view 50 *' pr50.json
+dispatch --once
+ok "plan-ok resume, WORKER_SKILLS empty: the method in plain words" grep -qF "web 5 The user approved the plan. Execute it. $METHOD Build it" "$FAKE/worker.log"
+ok "… and no skill name" not grep -qE "$SEVEN" "$FAKE/worker.log"
 effenv skills-reviewer '[{"filename": "src/a.ts", "changes": 12}]' 'Tier: fix'
 dispatch --once
-ok "reviewer prompt: no superpowers workflow skill" grep -q 'review#50 .*Do not use any superpowers workflow skill; use the code-review and security-review skills as stated.' "$FAKE/worker.log"
+ok "reviewer prompt: no workflow skill, in plain words" grep -qF "$NOWF; use the code-review and security-review skills as stated." "$FAKE/worker.log"
+ok "… and no skill name" not grep -qE "review#50 .*($SEVEN)" "$FAKE/worker.log"
 effenv skills-reviewer-own '[{"filename": "src/a.ts", "changes": 12}]' 'Tier: fix'; pconf web "REVIEW_SKILLS='deep-review sec-audit'"
 dispatch --once
 ok "REVIEW_SKILLS: the host's two skills in the reviewer prompt (#14)" grep -q 'review#50 .*Run the deep-review skill at .*also run the sec-audit skill if .*use the deep-review and sec-audit skills as stated.' "$FAKE/worker.log"
 
 qenv skills-answerer $'Question: poll or subscribe?'
 dispatch --once
-ok "answerer prompt: no superpowers workflow skill" grep -q 'answer#5 .*Do not use any superpowers workflow skill.' "$FAKE/worker.log"
+ok "answerer prompt: no workflow skill, in plain words" grep -qF "$NOWF. Do not edit files" "$FAKE/worker.log"
+ok "… and no skill name" not grep -qE "answer#5 .*($SEVEN)" "$FAKE/worker.log"
 
 # ---------------------------------------------------------------- follow-ups
 
