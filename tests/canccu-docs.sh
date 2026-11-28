@@ -182,6 +182,60 @@ miss=""; for h in 'Always: the functional gate' 'Chosen per step' UX 'API or lib
 done
 ok "docs/gates.md has the functional gate and each gate chosen per step" eq "${miss# }" ""
 
+# ---------------------------------------------------------------- how it works, two paths (#40)
+
+H=docs/how-it-works.md
+ok "docs/how-it-works.md exists with its SPDX line" eq "$(head -1 "$H" 2>/dev/null)" "<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->"
+ok "… at most 250 lines" test "$(wc -l < "$H" 2>/dev/null || echo 999)" -le 250
+ok "… with its six sections, in order" eq "$(grep -E '^## ' "$H" 2>/dev/null | tr '\n' '|')" \
+  "## One issue|## When it needs someone|## Steps|## Without a leader|## With a leader|## Who accepts|"
+ok "… and three mermaid diagrams" eq "$(grep -cx '```mermaid' "$H" 2>/dev/null)" 3
+# section <file> <heading>: the lines under a ## heading, up to the next one
+section() { awk -v h="$2" '$0 == h { on = 1; next } /^## / { on = 0 } on' "$1" 2>/dev/null; }
+whowhat=$(section "$H" '## With a leader')
+ok "the \"Who does what\" table has the columns Task, Without a leader, With a leader" \
+  grep -qxF '| Task | Without a leader | With a leader |' <<<"$whowhat"
+miss=""
+for r in 'Write issues' 'Plan the steps (kickoff)' 'Answer an escalated question' 'Clear a failed run or red CI' \
+         'Accept a technical PR' 'Accept what users see' 'Accept a gated path' 'Accept a high-risk PR' \
+         'Checkpoint' 'Change a locked setting' 'Watch the pace'; do
+  grep -qF -- "| $r |" <<<"$whowhat" || miss+=" '$r'"
+done
+ok "… and its 11 rows" eq "${miss# }" ""
+ok "… and no other" eq "$(grep -cE '^\| [A-Z]' <<<"$whowhat")" 12
+matrix=$(section "$H" '## Who accepts')
+miss=""
+for r in '`LEADER=off`' '`on`, `LEADER_ACCEPTS=none`' '`on`, `LEADER_ACCEPTS=technical`' \
+         '`on`, `technical`, `LEADER_ACCEPTS_HIGH_RISK=1`'; do
+  grep -qF "| $r |" <<<"$matrix" || miss+=" $r"
+done
+ok "the \"Who accepts\" matrix has its 4 rows" eq "${miss# }" ""
+ok "… 4 settings rows under the header" eq "$(grep -cE '^\| `' <<<"$matrix")" 4
+ok "… and the 60-minute hand-over below it" grep -qF '60 minutes' <<<"$matrix"
+ok "the steps section links kickoff.md, gates.md and the pacing" \
+  eq "$(section "$H" '## Steps' | grep -oE '\]\((kickoff\.md|gates\.md|reference/usage\.md#pacing)\)' | sort -u | wc -l)" 3
+ok "how-it-works says leader and product owner, never lead or maintainer" \
+  eq "$(grep -ciwE 'the lead|maintainer' "$H" 2>/dev/null)" 0
+
+G=docs/getting-started.md
+ok "getting-started has sections 1 to 8 and Next" eq "$(grep -E '^## ' "$G" | sed -E 's/^## ([0-9]+\.|Next).*/\1/' | tr '\n' ' ')" \
+  "1. 2. 3. 4. 5. 6. 7. 8. Next "
+ok "… named 6. Notifications, 7. Without a leader, 8. With a leader" \
+  eq "$(grep -E '^## [678]\. ' "$G" | tr '\n' '|')" "## 6. Notifications|## 7. Without a leader|## 8. With a leader|"
+intro=$(awk '/^## 1\./ { exit } { print }' "$G")
+ok "… its intro's table names the two paths" \
+  eq "$(grep -cE '^\| (Without a leader \| 1 to 7|With a leader \| 1 to 6, then 8) ' <<<"$intro")" 2
+ok "… section 5 ends in canccu-init --check web" grep -qF 'canccu-init --check web' <<<"$(section "$G" '## 5. Add the project' | tail -8)"
+ok "… section 6 links Telegram's setup" grep -qF '](reference/notify.md#setting-it-up)' <<<"$(section "$G" '## 6. Notifications')"
+ok "… section 7 has no leader paragraph" not grep -qF 'canccu-init --leader' <<<"$(section "$G" '## 7. Without a leader')"
+s8=$(section "$G" '## 8. With a leader')
+ok "… section 8 sets up the leader and names LEADER_ACCEPTS" eq "$(grep -cE 'canccu-init --leader web|LEADER_ACCEPTS' <<<"$s8" | tr -d ' ')" 2
+above=$(awk '/^## Prerequisites/ { exit } { print }' README.md | grep -vE '^\s*$' | tail -1)
+ok "README.md links how-it-works and getting-started on the line above ## Prerequisites" \
+  eq "$(grep -oE '\]\(docs/(how-it-works|getting-started)\.md\)' <<<"$above" | wc -l)" 2
+ok "docs/README.md lists how-it-works right after getting-started" \
+  eq "$(grep -oE '^\| \[`[a-z-]+\.md`\]' docs/README.md | sed -n '1,2p' | tr -d '|[]` ' | tr '\n' ' ')" "getting-started.md how-it-works.md "
+
 # ---------------------------------------------------------------- PACE=pause drains (#216 D6)
 
 # PACE=pause holds new work only (draining), as the weekly drain: the docs say so, not "resumes
