@@ -115,8 +115,8 @@ Every `INTERVAL` seconds, under the project's lock:
    without a number after the numbered ones; no milestone last), then the position in an epic's
    `Order: #a → #b` line, then the issue number. It is labelled `in-progress`, assigned to
    `USER_LOGIN`, and its worker starts in window `#<n>`.
-4. **Resume.** `plan-ok` → "The user approved the plan. Execute it with the superpowers skill
-   executing-plans. Build it in this PR: replace each `Plan for #<n>` line with `Closes #<n>`…", followed by
+4. **Resume.** `plan-ok` → "The user approved the plan. Execute it." + the worker method (or
+   `WORKER_SKILLS`) + "Build it in this PR: replace each `Plan for #<n>` line with `Closes #<n>`…", followed by
    your comments on the issue and PR since the `needs-you` (your answers to the plan's questions;
    a `gh` error reading them keeps `plan-ok` for next pass). `needs-work` → your comments since the newest of the accept request, the
    arming of the merge and the verdict. A `needs-work` on a `needs-you` the fix-check's open

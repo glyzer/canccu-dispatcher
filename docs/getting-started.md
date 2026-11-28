@@ -13,10 +13,8 @@ A Linux host (a VM or a spare machine: workers run code as your user, see
 - `gh`, the GitHub CLI;
 - Claude Code 2.1.319 or newer (`claude update`), logged in to a Claude subscription (`claude`,
   then `/login`). The usage throttle reads the subscription's usage shares; pick the host profile
-  that matches the plan (`max` for a Max plan);
-- the superpowers plugin in Claude Code (`/plugin`): the worker prompts name its skills
-  (test-driven-development, systematic-debugging, verification-before-completion, writing-plans,
-  executing-plans). The reviewer uses the `code-review` and `security-review` skills.
+  that matches the plan (`max` for a Max plan). The reviewer uses Claude Code's own
+  `code-review` and `security-review` skills; the workers need no plugin.
 
 `./install.sh --check` checks all of it and names what is missing with how to get it.
 
@@ -193,3 +191,5 @@ explains each message.
 - Roadmap steps and work packages: [`reference/leader.md`](reference/leader.md),
   [`reference/packages.md`](reference/packages.md).
 - Upgrading: [`upgrading.md`](upgrading.md). Every setting: [`reference/config.md`](reference/config.md).
+
+Optional: a skills plugin for the workers: [hosts.md](hosts.md#skills).

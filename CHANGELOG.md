@@ -6,6 +6,13 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 
 ## Unreleased
 
+- The superpowers plugin is optional (#43). With `WORKER_SKILLS` empty (the default), the
+  worker and package prompts and the plan-OK resume carry the method in plain words (test first,
+  find the cause, read the checks, keep to the issue); a set `WORKER_SKILLS` replaces it. No run
+  prompt names a superpowers skill unless `WORKER_SKILLS` does: the skills a worker must not use
+  are described, not named. `canccu-dispatcher doctor` prints a `host: skills:` line. A host that
+  sets the old Max preset can append the new sentence from [`docs/hosts.md`](docs/hosts.md#a-max-host).
+
 ## [0.5.0] — 2026-11-27
 
 Release 0.5: step 7's token cost work, the rest (CI digest, cheaper narrow runs, review checklist).

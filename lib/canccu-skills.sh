@@ -9,5 +9,10 @@
 review_skill() { local a=(); read -ra a <<<"${REVIEW_SKILLS:-}"; echo "${a[0]:-code-review}"; }
 security_skill() { local a=(); read -ra a <<<"${REVIEW_SKILLS:-}"; echo "${a[1]:-security-review}"; }
 
-# worker_skills: WORKER_SKILLS with a leading space, nothing when it is empty
-worker_skills() { [ -z "${WORKER_SKILLS:-}" ] || printf ' %s' "$WORKER_SKILLS"; }
+# WORKER_METHOD: what the workers do without a skills plugin, in plain words; fixed text, not a
+# setting: a host with a plugin replaces it whole with WORKER_SKILLS (docs/hosts.md, "Skills")
+WORKER_METHOD='Work test first: write a test that fails for the right reason, then the code that makes it pass. When something fails, find the cause before you change code. Run the checks and read their output before you say a thing is done. Keep to the issue or the plan: build nothing it does not ask for.'
+
+# worker_skills: WORKER_SKILLS, else WORKER_METHOD, with a leading space. The health prompt reads
+# WORKER_SKILLS itself, so it never gets the method: a pass that changes no behaviour has no test to write
+worker_skills() { printf ' %s' "${WORKER_SKILLS:-$WORKER_METHOD}"; }

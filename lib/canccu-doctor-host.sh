@@ -23,12 +23,25 @@ _doc_tier() {
   if [ "$v" = full ]; then echo full; else echo targeted; fi
 }
 
+# _doc_skills: what the worker prompts carry instead of a skill sentence, and whether the superpowers
+# plugin is on; information only, never a problem: no plugin is needed (#43)
+_doc_skills() {
+  local ws on="not installed"
+  ws=$(cfg_values "" 2>/dev/null | awk -F '\t' '$1 == "WORKER_SKILLS" { print $2 }')
+  # a missing or unreadable settings file is a host without the plugin, not an error
+  jq -e '[.enabledPlugins // {} | to_entries[] | select(.key | startswith("superpowers@")) | .value] | any(. == true)' \
+    "$HOME/.claude/settings.json" >/dev/null 2>&1 && on=installed
+  if [ -z "$ws" ]; then echo "host: skills: worker method in plain words (WORKER_SKILLS is empty); superpowers plugin $on"
+  else echo "host: skills: WORKER_SKILLS is set; superpowers plugin $on"; fi
+}
+
 # canccu_doctor_host <project or empty>: the report; never fails
 canccu_doctor_host() {
   local hp k v base p f since n c s u tier
   local -A was=()
   hp=$(canccu_host_profile)
   echo "host: profile ${hp:-none (the defaults apply)}"
+  _doc_skills
   # what each key would be without ~/.canccu/config: the defaults and the profile alone
   # (cut: a tab is IFS whitespace, so read would skip an empty value)
   while IFS=$'\t' read -r k v; do was[$k]=$v; done < <(CANCCU_ROOT=/nonexistent CANCCU_HOST_PROFILE=$hp cfg_values "" 2>/dev/null | cut -f1,2)

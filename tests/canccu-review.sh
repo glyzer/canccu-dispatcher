@@ -464,8 +464,10 @@ SP='Use the superpowers skills test-driven-development, systematic-debugging and
 METHOD='Work test first: write a test that fails for the right reason, then the code that makes it pass. When something fails, find the cause before you change code. Run the checks and read their output before you say a thing is done. Keep to the issue or the plan: build nothing it does not ask for.'
 RULES='Do not use a skill that brainstorms, makes worktrees, finishes branches, requests reviews, starts subagents or writes skills: the dispatcher owns worktrees, branches, reviews and questions, and the issue is the agreed spec.'
 NOWF='Do not use any workflow skill (brainstorming, planning, worktrees, branches, subagents)'
-# the plugin's name and the seven skill names the prompts used to forbid by name
-SEVEN='superpowers|using-git-worktrees|finishing-a-development-branch|requesting-code-review|subagent-driven-development|dispatching-parallel-agents|writing-skills|\bbrainstorming,'
+# the plugin's name and the skill names the prompts used to forbid by name; brainstorming is left
+# out on purpose: the reviewers' plain words name it as a kind of skill, and the other names
+# catch the old list
+SEVEN='superpowers|using-git-worktrees|finishing-a-development-branch|requesting-code-review|subagent-driven-development|dispatching-parallel-agents|writing-skills|Do NOT use brainstorming'
 env_new skills-worker "WORKER_SKILLS='$SP'"
 { issue 30 ready; } | issues
 dispatch --once
