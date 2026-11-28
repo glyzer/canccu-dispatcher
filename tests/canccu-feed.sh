@@ -160,8 +160,8 @@ HO='#5 passed to the product owner: the leader did not acknowledge it in 60 min'
 ho_unit() {
   { issue 5 in-progress,awaiting-accept; } | issues
   pr 50 5 "$HA" green | prs
-  lib feed leader ask accept 5 50 https://example.invalid/50 "#5 accept: plan tier" >/dev/null
-  state 5 phase=accept pr=50 accept_sha="$HA" "accept_at=$NOW" "reason=manual: plan tier" owner=leader ev_id=1 \
+  lib feed leader ask accept 5 50 https://example.invalid/50 "#5 accept: on or after AUTO_MERGE_UNTIL (2030-01-01)" >/dev/null
+  state 5 phase=accept pr=50 accept_sha="$HA" "accept_at=$NOW" "reason=manual: on or after AUTO_MERGE_UNTIL (2030-01-01)" owner=leader ev_id=1 \
     "phase_at=$((NOW - $1 * 60))"
 }
 

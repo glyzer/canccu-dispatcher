@@ -174,7 +174,8 @@ rsn 5 "manual: risk high (plan)"
 ok "owner: LEADER=on, technical: risk high → po while LEADER_ACCEPTS_HIGH_RISK=0" eq "$(ow 5 accept "$L")" po
 ok "… LEADER_ACCEPTS_HIGH_RISK=1 → leader" eq "$(ow 5 accept "$L LEADER_ACCEPTS_HIGH_RISK=1")" leader
 rsn 5 "manual: users see it: x"; ok "… users see it → po" eq "$(ow 5 accept "$L")" po
-rsn 5 "manual: plan tier"; ok "… plan tier → leader" eq "$(ow 5 accept "$L")" leader
+rsn 5 "manual: plan tier"
+ok "… plan tier → po, whatever LEADER_ACCEPTS* say (rule 5)" eq "$(ow 5 accept "$L") $(ow 5 accept "$L LEADER_ACCEPTS_HIGH_RISK=1")" "po po"
 ok "… LEADER_ACCEPTS=none: plan tier → po" eq "$(ow 5 accept "LEADER=on LEADER_ACCEPTS=none")" po
 rows=""
 for r in "manual: changes agent config (CLAUDE.md)" "manual: changes a gated path (a/infra/x)" "manual: changes .github/ (.github/x.yml)" \
@@ -193,7 +194,7 @@ rsn 5 "the worker's question needs the product owner"
 ok "… an escalated question whose comment link was not found → po" eq "$(ow 5 question "$L")" po
 rsn 5 "the worker stopped: crashed (exit 1)"
 ok "… a needs-you, a PR's needs-you → leader (rule 6)" eq "$(ow 5 needs-you "$L") $(ow 5 pr-needs-you "$L")" "leader leader"
-rsn 6 "x"; ok "… a plan of a unit with an issue labelled manual-accept → po (rule 5)" eq "$(ow 6 plan "$L") $(ow 5 plan "$L")" "po leader"
+rsn 6 "x"; ok "… a plan → po, with or without manual-accept (rule 5)" eq "$(ow 6 plan "$L") $(ow 5 plan "$L") $(ow 5 plan "$L LEADER_ACCEPTS_HIGH_RISK=1") $(ow 5 plan "LEADER=on LEADER_ACCEPTS=none")" "po po po po"
 
 # ---------------------------------------------------------------- finishing a package (task 6)
 
