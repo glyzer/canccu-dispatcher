@@ -23,6 +23,10 @@ pr 50 5 $HA green | prs
 state 5 phase=accept pr=50 accept_sha=$HA pass_sha=$HA "reason=manual: users see it: @scope/pkg www.evil.example"
 OUT=$(form "ask_form 5 accept 50")
 ok "Why you: the stored accept reason is stripped of mentions and links" eq "$(grep '^Why you:' <<<"$OUT")" "Why you: users see it: /pkg"
+env_new ask-why-plan LEADER=on LEADER_ACCEPTS=technical
+state 5 phase=needs-you ny_kind=plan
+OUT=$(form "ask_form 5 plan -")
+ok "Why you: a plan with a leader and no manual-accept → the product owner's by rule 5" eq "$(grep '^Why you:' <<<"$OUT")" "Why you: a plan is always the product owner's"
 
 env_new ask-head-file
 pr 50 5 $HB green | prs

@@ -121,7 +121,7 @@ tg notify-owner LEADER=on LEADER_ACCEPTS=technical
 { issue 5 in-progress,awaiting-accept; } | issues
 pr 50 5 "$HA" green | prs
 state 5 phase=check pr=50 "check_at=$NOW"
-lib st_set 5 phase=accept pr=50 accept_sha="$HA" "accept_at=$NOW" "reason=manual: plan tier"
+lib st_set 5 phase=accept pr=50 accept_sha="$HA" "accept_at=$NOW" "reason=manual: on or after AUTO_MERGE_UNTIL (2030-01-01)"
 ok "an item of owner leader: not sent (the leader reads the feed)" eq "$(cut -f3 "$(EV)") $(calls sendMessage)" "leader 0"
 
 tg notify-kinds

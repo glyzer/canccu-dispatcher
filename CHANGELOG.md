@@ -6,6 +6,10 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
 
 ## Unreleased
 
+- A plan-tier plan is always the product owner's (#361): with `LEADER=on`, its `plan` item and
+  the accept of its plan PR (reason `plan tier`) go to `po` whatever `LEADER_ACCEPTS*` say, not
+  only when an issue of the unit has `manual-accept` (contracts §1, rule 5). The ask form's
+  `Why you:` says `a plan is always the product owner's`.
 - The superpowers plugin is optional (#43). With `WORKER_SKILLS` empty (the default), the
   worker and package prompts and the plan-OK resume carry the method in plain words (test first,
   find the cause, read the checks, keep to the issue); a set `WORKER_SKILLS` replaces it. No run

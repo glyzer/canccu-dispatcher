@@ -118,8 +118,8 @@ the default, every item is `po`. With `LEADER=on`, the first matching rule decid
 2. an accept whose reason is `users see it:`, `changes agent config`, a gated path or directory,
    `maintainer accept:` or `the issue has manual-accept`; a `risk high` accept while
    `LEADER_ACCEPTS_HIGH_RISK=0`; any accept while `LEADER_ACCEPTS=none` → `po`;
-3. a plan (its needs-you, or the accept of a plan-tier PR) of a unit with an issue labelled
-   `manual-accept` → `po`;
+3. a plan-tier plan (its needs-you, or the accept of its plan PR, reason `plan tier`) → `po`,
+   whatever the `LEADER_ACCEPTS*` settings: a plan sets the scope, and the scope is yours;
 4. everything else → `leader`.
 
 The dispatcher works it out from its own state and settings, never from a label the leader sets,

@@ -57,8 +57,9 @@ product owner. These accepts are always theirs (rule 4):
 - the risk is high and `LEADER_ACCEPTS_HIGH_RISK=0`;
 - `LEADER_ACCEPTS=none`.
 
-So are checkpoints, questions the answerer escalated to the product owner, and anything you are
-not sure of: pass it on, in the ask form below.
+So are plan-tier plans (their `plan-ok` and the accept of their plan PR: rule 5; pass them on,
+never clear them), checkpoints, questions the answerer escalated to the product owner, and
+anything you are not sure of: pass it on, in the ask form below.
 
 ## Your commands
 

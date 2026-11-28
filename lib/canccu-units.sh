@@ -128,6 +128,9 @@ owner_of() {
   [ "${LEADER:-off}" = on ] || { echo po; return 0; }
   case $kind in checkpoint|budget|plan-invalid|dispatcher) echo po; return 0 ;; esac
   r=$(st_get "$k" reason 2>/dev/null); r=${r#manual: }
+  # rule 5: a plan sets the scope, and the scope is the product owner's, whatever LEADER_ACCEPTS*
+  [ "$kind" = plan ] && { echo po; return 0; }
+  [ "$kind" = accept ] && [ "$r" = "plan tier" ] && { echo po; return 0; }
   # rule 3: a plan-tier question, or one the answerer escalated (needs_you names its "Needs the
   # product owner:" comment's link, or the answerer finished without one); an answerer that
   # stopped without escalating leaves it to the leader
@@ -143,18 +146,7 @@ owner_of() {
     [[ $r == "risk high"* ]] && [ "${LEADER_ACCEPTS_HIGH_RISK:-0}" != 1 ] && { echo po; return 0; }
     [ "${LEADER_ACCEPTS:-none}" = technical ] || { echo po; return 0; }
   fi
-  # rule 5: a plan (its needs-you, or the accept of its plan PR) of a unit marked manual-accept
-  if [ "$kind" = plan ] || [ "$r" = "plan tier" ]; then unit_manual_accept "$k" && { echo po; return 0; }; fi
   echo leader
-}
-# unit_manual_accept <K>: an issue of the unit is labelled manual-accept (the pass's issue list)
-unit_manual_accept() {
-  local m
-  for m in $(members_of "$1"); do
-    jqr --argjson n "$m" 'any(.[]; .number == $n and any(.labels[]?; .name == "manual-accept"))' <<<"${ISSUES:-[]}" 2>/dev/null |
-      grep -qx true && return 0
-  done
-  return 1
 }
 # need_owner <K> <kind>: the owner of a waiting item as shown and pinged: the one stored when the
 # unit entered accept or needs-you, else owner_of. LEADER=off wins over a stored leader (the
