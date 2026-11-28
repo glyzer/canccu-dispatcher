@@ -140,8 +140,7 @@ rm_tree() {
 # dir is a short one under /tmp, not in the run's temp dir: a unix socket path holds 107 bytes at
 # most, which workers/tmp/<repo>-<key>.<pid>/tmux-<uid>/default can pass. The run's temp dir names
 # it in .tmux, so the sweep ends the server of a run killed before its EXIT trap.
-run_tmux=""
-# run_tmux_start [run_tmp]: TMUX_TMPDIR a new dir of the run's own. TMUX goes too: a client inside
+# run_tmux_start [run_tmp]: TMUX_TMPDIR a new dir of the run's own, in the global run_tmux. TMUX goes too: a client inside
 # a pane (the run's window) takes TMUX's socket before TMUX_TMPDIR.
 run_tmux_start() {
   unset TMUX TMUX_PANE
