@@ -96,7 +96,7 @@ HOST_PROFILE=max
 TOTAL_CAP=2                          # the profile's; lower it when another host shares the account
 CLONE_ROOT=$HOME/code
 EXTRA_PATH=$HOME/.local/bin:$HOME/.bun/bin
-WORKER_SKILLS='Use the superpowers skills test-driven-development, systematic-debugging and verification-before-completion. On the plan tier use writing-plans for the plan, and executing-plans after plan-ok.'
+WORKER_SKILLS='Use the superpowers skills test-driven-development, systematic-debugging and verification-before-completion. On the plan tier use writing-plans for the plan, and executing-plans after plan-ok. Do NOT use brainstorming, using-git-worktrees, finishing-a-development-branch, requesting-code-review, subagent-driven-development, dispatching-parallel-agents or writing-skills.'
 ```
 
 ### A Pro host
@@ -111,12 +111,20 @@ GUARD_VMEM_KB=1500000                # a small machine
 
 ### Skills
 
-The prompts name a skill only when the host has it. `WORKER_SKILLS` (default empty) is the
-sentence the worker, package and health prompts and the plan-OK resume carry: empty, they name
-none. A host with the [superpowers](https://github.com/obra/superpowers) plugin sets the sentence
-the Max example shows, which is what every prompt said before the setting existed. The list of
-skills a worker must not use (brainstorming, worktrees, subagents and the like) stays in every
-prompt either way: the dispatcher owns those steps.
+No plugin is needed, and the prompts name a skill only when the host has it. With
+`WORKER_SKILLS` empty (the default), the worker and package prompts and the plan-OK resume carry
+the method in plain words: work test first, find the cause of a failure before changing code,
+read the checks' output before calling a thing done, build nothing the issue or plan does not
+ask for. The health prompt carries nothing (it changes no behaviour). Every worker prompt also
+says, in plain words, not to use a skill that brainstorms, makes worktrees, finishes branches,
+requests reviews, starts subagents or writes skills: the dispatcher owns those steps. The review,
+fix-check, answerer and planner prompts say not to use any workflow skill.
+
+A host with a skills plugin sets `WORKER_SKILLS` to the sentence its workers get instead of the
+method. The Max example is the preset for the
+[superpowers](https://github.com/obra/superpowers) plugin: the skills to use, then the ones
+the dispatcher owns, by name. `canccu-dispatcher doctor` prints which applies, and whether
+that plugin is enabled in `~/.claude/settings.json`.
 
 `REVIEW_SKILLS` (default `code-review security-review`) names the reviewer's two skills: the
 first reviews the diff, in the full review and the fix-check; the second is the security review

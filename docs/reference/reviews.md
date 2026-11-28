@@ -186,11 +186,10 @@ and the `<n>` / `execute` / `finish` flow in `CLAUDE.md`, with these overrides:
 
 - propose a tier and go on without waiting on fix and feature (the feature plan goes in the PR
   description); on the plan tier write `docs/plans/issue-<n>.md`, open a draft PR and stop;
-- use the superpowers skills test-driven-development, systematic-debugging and
-  verification-before-completion (writing-plans and executing-plans on the plan tier), never
-  brainstorming, using-git-worktrees, finishing-a-development-branch, requesting-code-review,
-  subagent-driven-development, dispatching-parallel-agents or writing-skills (the dispatcher owns
-  those; the issue is the spec);
+- work test first, find a failure's cause, read the checks, keep to the issue (or the host's
+  `WORKER_SKILLS` instead, [`hosts.md`](../hosts.md#skills)); no skill that brainstorms, makes
+  worktrees, finishes branches, requests reviews, starts subagents or writes skills (the
+  dispatcher owns those; the issue is the spec);
 - create the branch `<n>-<slug>` from `origin/main`; run only the tests of the changed files,
   in the foreground, `tests/run repo` before each push, the full suite only if `TEST_TIER` is `full`
   ([`hosts.md`](hosts.md#the-test-tier)); nothing in the background; push early (tests-first, then passing); do not review its own work;

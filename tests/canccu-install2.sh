@@ -205,7 +205,7 @@ D=$E/checkout; src_copy "$D" 9.9.0
 inst "$D" --dev --no-monitor
 ok "a symlinked HOME, --dev: current is the checkout" eq "$rc $(cur)" "0 $D"
 hrun "$P/bin/canccu-dispatcher" doctor
-ok "… doctor (run from the checkout) finds the links and PATH as they are" eq "$(grep -cE 'links to|not linked|not on PATH|on PATH is|not installed' "$E/out")" 0
+ok "… doctor (run from the checkout) finds the links and PATH as they are" eq "$(grep -cE 'links to|not linked|not on PATH|on PATH is|not installed in' "$E/out")" 0
 # a link written through the symlinked form of the prefix (an older install, or by hand): ours
 ln -s "$B/current/bin/canccu-status" "$P/bin/canccu-old-form"
 ln -sfn "$B/current/bin/canccu-up" "$P/bin/canccu-up"

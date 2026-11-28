@@ -37,8 +37,8 @@ here; interfaces may still change between releases ([`CHANGELOG.md`](CHANGELOG.m
 - **Linux** with bash ≥ 5.0, git ≥ 2.30, jq ≥ 1.6, tmux ≥ 3.2, python3 ≥ 3.10 (the monitor), GNU
   coreutils, `flock` and procps.
 - **gh**, the GitHub CLI.
-- **Claude Code** 2.1.319 or newer, logged in to a Claude subscription, with the superpowers
-  plugin (the worker prompts name its skills).
+- **Claude Code** 2.1.319 or newer, logged in to a Claude subscription. No plugin is needed: the
+  worker prompts give their method in plain words ([`docs/hosts.md`](docs/hosts.md#skills)).
 - **A second GitHub account** for the reviewer bot, with a token (mode 600 in
   `~/.canccu/reviewer-token`). It must accept each repo's collaborator invitation.
 
