@@ -316,6 +316,50 @@ ok "… its message lists them as information" \
 ok "… and no longer says blocked" not grep -q 'Blocked by the permission classifier' "$WORKERS_DIR/web-46.last"
 cp "$T/claude.orig" "$fb/claude"
 
+# ---------------------------------------------------------------- the run's own tmux server (#344)
+
+# the caller is a pane of a tmux server of its own (the real one stands in for the host's): a run
+# whose tool calls `tmux new-session` must leave that server alone, and its own server must end
+# the real tmux in place of the harness's failing one, for this section only
+rtmux=$(PATH=/usr/local/bin:/usr/bin:/bin command -v tmux)
+cp "$fb/tmux" "$T/tmux.orig"; ln -sf "$rtmux" "$fb/tmux"
+# a socket path holds 107 bytes at most: the servers' dirs are short ones under /tmp
+hdir=$(mktemp -d /tmp/canccu-t.XXXXXX)
+host() { env -u TMUX TMUX_TMPDIR="$hdir" tmux "$@"; }
+host new-session -d -s canccu-t 'sleep 300'
+hsock=$(host display-message -p '#{socket_path}')
+cat > "$fb/claude" <<'EOF2'
+#!/bin/bash
+tmux new-session -d -s x 'sleep 300' && tmux display-message -p -t x '#{socket_path}' > "$FAKE/run.sock"
+echo '{"type":"result","subtype":"success","is_error":false,"num_turns":1,"total_cost_usd":0,"result":"ok"}'
+EOF2
+chmod +x "$fb/claude"
+eng 47 "$E" "" TMUX="$hsock,1,0" TMUX_TMPDIR="$hdir" > /dev/null
+ok "tmux: the run's tmux new-session works" test -s "$FAKE/run.sock"
+ok "… on a server of its own, not the caller's" not eq "$(cat "$FAKE/run.sock" 2>/dev/null)" "$hsock"
+ok "… the caller's server has no session x" not host has-session -t =x
+ok "… the caller's server lives on" host has-session -t =canccu-t
+ok "… the run's server is gone after the run" not tmux -S "$(cat "$FAKE/run.sock" 2>/dev/null)" list-sessions
+ok "… and its socket dir with it" test ! -e "$(dirname "$(dirname "$(cat "$FAKE/run.sock" 2>/dev/null)")")"
+host kill-server
+# a run killed hard leaves its server behind: the sweep ends it with the run's temp dir, which
+# names its socket dir
+odir=$(mktemp -d /tmp/canccu-tmux.XXXXXX); mkdir -p "$WORKERS_DIR/tmp/web-48.999999"
+echo "$odir" > "$WORKERS_DIR/tmp/web-48.999999/.tmux"
+env -u TMUX TMUX_TMPDIR="$odir" tmux -L other new-session -d -s y 'sleep 300'
+osock=$(env -u TMUX TMUX_TMPDIR="$odir" tmux -L other display-message -p '#{socket_path}')
+touch -d '2 hours ago' "$WORKERS_DIR/tmp/web-48.999999"
+lib run_tmp_sweep > /dev/null
+ok "sweep: a dead run's tmux server goes with its temp dir, whatever its socket's name" not tmux -S "$osock" list-sessions
+ok "… and its socket dir" test ! -e "$odir"
+# a run writes its own temp dir: a .tmux naming any other dir is never removed
+mkdir -p "$WORKERS_DIR/tmp/web-49.999998" "$E/keep"; echo "$E/keep" > "$WORKERS_DIR/tmp/web-49.999998/.tmux"
+touch -d '2 hours ago' "$WORKERS_DIR/tmp/web-49.999998"
+lib run_tmp_sweep > /dev/null
+ok "… a .tmux naming another dir leaves that dir alone" test -d "$E/keep"
+rm -rf "$hdir"
+cp "$T/claude.orig" "$fb/claude"; rm -f "$fb/tmux"; cp "$T/tmux.orig" "$fb/tmux"
+
 # ---------------------------------------------------------------- a pause holds the engine (#215)
 
 env_new pause-engine

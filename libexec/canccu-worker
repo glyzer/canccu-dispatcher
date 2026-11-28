@@ -66,8 +66,7 @@ WORKER_RULES='Never match your own command line: pgrep -f / pkill -f with text t
 # ---------------------------------------------------------------- inner run (in the tmux window)
 
 # Globals, not locals: the EXIT/TERM traps fire after run() has returned.
-lock="" errf="" sumf="" stallf="" cpid="" wpid="" run_repo="" run_key="" spend_logged="" run_tmp=""
-run_model="" run_session="" run_t0=0
+lock="" errf="" sumf="" stallf="" cpid="" wpid="" run_repo="" run_key="" spend_logged="" run_tmp="" run_tmux="" run_model="" run_session="" run_t0=0
 # spend_unknown: a run killed (canccu-stop, worker --kill) before its report still cost money: its
 # spend.log line has the cost "?" (the TERM trap; once, never after report wrote one)
 spend_unknown() {
@@ -124,7 +123,7 @@ run() {
   CANCCU_RUN=$(run_tag "$key"); export CANCCU_RUN COMPOSE_PROJECT_NAME=$CANCCU_RUN
   sed -i -e "s/^pid=.*/pid=$$/" -e '/^pstart=/d' "$lock"
   echo "pstart=$(proc_start $$)" >> "$lock"
-  trap '[ -n "$wpid" ] && kill "$wpid" 2>/dev/null; rm -f "$lock" "$errf" "$sumf" "$stallf"; rm_tree "$run_tmp"' EXIT
+  trap '[ -n "$wpid" ] && kill "$wpid" 2>/dev/null; rm -f "$lock" "$errf" "$sumf" "$stallf"; tmux_dir_end "$run_tmux"; rm_tree "$run_tmp"' EXIT
   # the spend line first: kill_tree (canccu-stop, worker --kill) sends KILL 3 s after TERM. Then
   # claude and its tools stop (1 s to end, well inside those 3 s) before their temp dir goes: the
   # EXIT trap removes it, else (the run killed first) the dispatcher's sweep at its start (run_tmp_sweep)
@@ -137,6 +136,7 @@ run() {
     if mkdir -p "$WORKERS_DIR/tmp" && mkdir -m 700 "$run_tmp"; then export TMPDIR=$run_tmp TMP=$run_tmp TEMP=$run_tmp
     else echo "could not make the run's temp dir $run_tmp; the run uses the inherited TMPDIR" >> "$base.log"; run_tmp=""; fi
   fi
+  run_tmux_start "$run_tmp" || echo "could not make the run's tmux dir; its tmux is the inherited server" >> "$base.log"   # before the pack's claude
   prepush_setup "$dir" "$(dirname "$self")"; export CANCCU_RUN_KEY=$key   # the guard hook's log line names it
   pack_run "$repo" "$key" "$dir" "$base.log"; run_t0=$(date +%s)   # the build's seconds start after it
   [[ ($key =~ ^[0-9]+$ || $keep == 1) && $fresh != 1 ]] || rm -f "$base.id"
