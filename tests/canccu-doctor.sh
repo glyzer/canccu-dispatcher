@@ -199,16 +199,16 @@ ok "… a script of the repo is found in the clone" eq "$(line 'PRE_PUSH_CMD')" 
 
 # the skills line (#43): the worker method or the host's WORKER_SKILLS, and whether the plugin is on
 clean_host skills; doctor
-ok "skills: right after the profile line" eq "$(grep -A1 '^host: profile max$' "$E/out" | tail -1)" 'host: skills: worker method in plain words (WORKER_SKILLS is empty); superpowers plugin not installed'
+ok "skills: right after the profile line" eq "$(grep -A1 '^host: profile max$' "$E/out" | tail -1)" 'host: skills: worker method in plain words (WORKER_SKILLS is empty); superpowers plugin: off'
 ok "… never a problem line" eq "$rc $(probs)" "0 no problems found"
 echo '{"enabledPlugins": {"superpowers@claude-plugins-official": true}}' > "$H/.claude/settings.json"; doctor
-ok "… the plugin enabled: installed" eq "$(hline '^host: skills: worker method in plain words (WORKER_SKILLS is empty); superpowers plugin installed$')" 1
+ok "… the plugin enabled: on" eq "$(hline '^host: skills: worker method in plain words (WORKER_SKILLS is empty); superpowers plugin: on$')" 1
 echo "WORKER_SKILLS='Use the superpowers skills.'" >> "$C/config"; doctor
-ok "… WORKER_SKILLS set, the plugin installed" eq "$(hline '^host: skills: WORKER_SKILLS is set; superpowers plugin installed$')" 1
+ok "… WORKER_SKILLS set, the plugin installed" eq "$(hline '^host: skills: WORKER_SKILLS is set; superpowers plugin: on$')" 1
 echo '{"enabledPlugins": {"superpowers@claude-plugins-official": false, "other@x": true}}' > "$H/.claude/settings.json"; doctor
-ok "… WORKER_SKILLS set, the plugin disabled: not installed" eq "$(hline '^host: skills: WORKER_SKILLS is set; superpowers plugin not installed$')" 1
+ok "… WORKER_SKILLS set, the plugin disabled: off" eq "$(hline '^host: skills: WORKER_SKILLS is set; superpowers plugin: off$')" 1
 rm "$H/.claude/settings.json"; doctor
-ok "… no settings file: not installed" eq "$(hline '^host: skills: WORKER_SKILLS is set; superpowers plugin not installed$')" 1
+ok "… no settings file: off" eq "$(hline '^host: skills: WORKER_SKILLS is set; superpowers plugin: off$')" 1
 
 echo "canccu-doctor tests: $npass passed, $nfail failed"
 (( nfail == 0 ))
