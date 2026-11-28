@@ -641,7 +641,7 @@ ok "canccu-status: a PR waiting to merge directly says so" \
 owner_env() {
   env_new "$@"
   { issue 5 in-progress; issue 6 in-progress; issue 7 in-progress; issue 8 in-progress; } | issues
-  state 5 phase=accept pr=50 "reason=manual: plan tier" owner=leader
+  state 5 phase=accept pr=50 "reason=manual: on or after AUTO_MERGE_UNTIL (2030-01-01)" owner=leader
   state 6 phase=accept pr=60 "reason=manual: users see it: web/a.tsx" owner=po
   state 7 phase=needs-you "reason=the worker stopped: crashed" "ny_at=$NOW" owner=leader
   state 8 phase=needs-you "reason=the worker finished without an open PR" "ny_at=$NOW" owner=po
@@ -652,7 +652,7 @@ owner_env status-owner LEADER=on LEADER_ACCEPTS=technical
 ok "canccu-status: the product owner's items first, the leader's under 'leader has it:'" eq "$(waits)" "awaiting accept (label the PR \`accepted\`, or canccu-ship <n>):
   #6 · PR #60 · manual: users see it: web/a.tsx
   leader has it:
-    #5 · PR #50 · manual: plan tier
+    #5 · PR #50 · manual: on or after AUTO_MERGE_UNTIL (2030-01-01)
 needs you:
   #8 · the worker finished without an open PR · $a
   leader has it:
@@ -662,7 +662,7 @@ fix runs:
   #6 · PR #60 · fixes: ci 0/2 · review 0/1"
 owner_env status-owner-off
 ok "canccu-status: LEADER=off: the lists of today, whatever owner a state holds" eq "$(waits)" "awaiting accept (label the PR \`accepted\`, or canccu-ship <n>):
-  #5 · PR #50 · manual: plan tier
+  #5 · PR #50 · manual: on or after AUTO_MERGE_UNTIL (2030-01-01)
   #6 · PR #60 · manual: users see it: web/a.tsx
 needs you:
   #7 · the worker stopped: crashed · $a

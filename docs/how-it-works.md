@@ -171,7 +171,7 @@ The owner of each waiting item, from
 waiting item"); `po` is you, the product owner. `LEADER_ACCEPTS_HIGH_RISK=1` counts only with
 `LEADER_ACCEPTS=technical`.
 
-| `LEADER` and its settings | A technical PR that waits | High risk | Users see it, gated path or agent config | An escalated question, a checkpoint, an invalid plan, the step budget |
+| `LEADER` and its settings | A technical PR that waits | High risk | Users see it, gated path or agent config | An escalated question, a plan, a checkpoint, an invalid plan, the step budget |
 |---|---|---|---|---|
 | `LEADER=off` | po | po | po | po |
 | `on`, `LEADER_ACCEPTS=none` | po | po | po | po |

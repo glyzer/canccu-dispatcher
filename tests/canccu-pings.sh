@@ -45,7 +45,7 @@ ok "… a second pass: none" eq "$(pings '^(issue|pr) comment')" 1
 env_new ping-owner PING_KINDS=all LEADER=on LEADER_ACCEPTS=technical
 { issue 5 in-progress,awaiting-accept; issue 6 in-progress,awaiting-accept; } | issues
 { pr 50 5 $HA green; pr 60 6 $HB green; } | prs
-state 5 phase=accept pr=50 accept_sha=$HA "accept_at=$((NOW - 60))" "reason=manual: plan tier"
+state 5 phase=accept pr=50 accept_sha=$HA "accept_at=$((NOW - 60))" "reason=manual: on or after AUTO_MERGE_UNTIL (2030-01-01)"
 state 6 phase=accept pr=60 accept_sha=$HB "accept_at=$((NOW - 60))" "reason=manual: users see it: web/pages/a.tsx"
 dispatch --once
 ok "owner: an accept of owner leader is not pinged" eq "$(pings '^issue comment 5 ') $(test -e "$CANCCU_HOME/pings/5"; echo $?)" "0 1"

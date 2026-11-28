@@ -20,7 +20,7 @@ matching line decides:
    - an issue of the unit is labelled `manual-accept`;
    - the risk is high and `LEADER_ACCEPTS_HIGH_RISK=0`;
    - `LEADER_ACCEPTS=none`.
-5. A plan PR of a unit with an issue labelled `manual-accept` → `po`.
+5. A plan-tier plan (its `plan` item) or the accept of its plan PR (reason `plan tier`) → `po`.
 6. Everything else → `leader`.
 7. An item of owner `leader` that the leader has not acknowledged for 60 minutes becomes
    `po` (one new feed line, kind `handover`).

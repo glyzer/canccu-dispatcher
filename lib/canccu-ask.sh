@@ -84,7 +84,7 @@ ask_why() {
   [ "${LEADER:-off}" = on ] || { echo "no leader runs for this project (LEADER=off)"; return 0; }
   [ "$2" = question ] && [[ $r == *"needs the product owner"* || $r == *"always for the product owner"* ]] &&
     { echo "the answerer escalated this question to the product owner"; return 0; }
-  [ "$2" = plan ] && unit_manual_accept "$1" && { echo "an issue of the unit is labelled manual-accept"; return 0; }
+  [ "$2" = plan ] && { echo "a plan is always the product owner's"; return 0; }
   echo "it waits for the product owner"
 }
 
