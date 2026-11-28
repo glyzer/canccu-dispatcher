@@ -228,7 +228,11 @@ ok "… its intro's table names the two paths" \
 ok "… section 5 ends in canccu-init --check web" grep -qF 'canccu-init --check web' <<<"$(section "$G" '## 5. Add the project' | tail -8)"
 ok "… section 6 links Telegram's setup" grep -qF '](reference/notify.md#setting-it-up)' <<<"$(section "$G" '## 6. Notifications')"
 ok "… section 7 has no leader paragraph" not grep -qF 'canccu-init --leader' <<<"$(section "$G" '## 7. Without a leader')"
+ok "… section 7's worker stops once its PR is open" grep -qF 'stops once its PR is open' <<<"$(section "$G" '## 7. Without a leader')"
+ok "… section 4 does the steps as the repo's admin" grep -qF "as the repo's admin" <<<"$(section "$G" '## 4. Prepare the repo')"
 s8=$(section "$G" '## 8. With a leader')
+ok "… section 8 passes a manual-accept or Maintainer accept: PR to you" grep -qF '`manual-accept` label or a review'"'"'s `Maintainer accept:` line' <<<"$s8"
+ok "… and a high-risk one without LEADER_ACCEPTS_HIGH_RISK=1" grep -qF 'without `LEADER_ACCEPTS_HIGH_RISK=1`' <<<"$s8"
 ok "… section 8 sets up the leader" grep -qxF 'canccu-init --leader web' <<<"$s8"
 ok "… and says who sets LEADER_ACCEPTS" grep -qF 'config set --project web LEADER_ACCEPTS=technical' <<<"$s8"
 above=$(awk '/^## Prerequisites/ { exit } { print }' README.md | grep -vE '^\s*$' | tail -1)

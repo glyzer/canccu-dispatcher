@@ -98,7 +98,7 @@ run two dispatchers on one repo (#15).
 
 ## 4. Prepare the repo
 
-In `example-org/web`, as its maintainer ([`repo-contract.md`](repo-contract.md) has the details):
+In `example-org/web`, as the repo's admin ([`repo-contract.md`](repo-contract.md) has the details):
 
 1. Add `review-bot` as a collaborator with write access; as the bot, accept the invitation.
 2. Set the repo variable `REVIEWER_LOGIN=review-bot` (Settings → Secrets and variables →
@@ -195,7 +195,7 @@ Risk: low — one component and its test
 Label it `ready`. Within a minute the dispatcher labels it `in-progress` and starts a worker in a
 window `#<n>`. Then, with nothing more from you:
 
-1. the worker opens a PR on `<n>-<slug>` and stops once CI is green;
+1. the worker opens a PR on `<n>-<slug>` and stops once its PR is open; the dispatcher watches CI;
 2. a fresh Claude session (`review#<pr>`) reviews it; `review-bot` only posts that review,
    ending in `Review verdict: pass <sha>`;
 3. `review-gate` turns green; the dispatcher arms auto-merge and the PR merges, or, under
@@ -220,8 +220,8 @@ canccu-up --project web
 `canccu-init --leader` writes the leader kit (its instructions and Claude permissions) to
 `~/.canccu/projects/web/leader/` and sets `LEADER=on`. `canccu-up` then creates the tmux session
 as in section 7, with the leader in the left pane, titled `leader`
-([`reference/leader.md`](reference/leader.md#the-leader-kit)). A session that runs already
-shows it only once `canccu-up` creates the session again.
+([`reference/leader.md`](reference/leader.md#the-leader-kit)). A tmux session that already runs
+keeps its old left pane; the leader appears the next time `canccu-up` creates the session.
 
 Tell the leader what you want, for example: "Read your brief. Then write an issue: the page
 footer shows the current year instead of a fixed one; risk low. Show it to me before you label
@@ -233,8 +233,10 @@ leader follows the feed of waiting items:
   a comment or `needs-work`; with `LEADER_ACCEPTS=technical`, the accept of a technical PR whose
   review passed and CI is green (`canccu-ship <n>`).
 - **It passes to you**, in the ask form, and the dispatcher pings you: every checkpoint, a
-  question the answerer escalated, a PR that users see, that touches a gated path or agent
-  configuration, or of high risk, and any item it leaves unacknowledged for 60 minutes.
+  question the answerer escalated, a PR that users see or that touches a gated path or agent
+  configuration, a PR of high risk without `LEADER_ACCEPTS_HIGH_RISK=1`, and any item it leaves
+  unacknowledged for 60 minutes. A `manual-accept` label or a review's `Maintainer accept:` line
+  always makes the accept yours.
 
 The first issue is done when its PR merged: by itself, by the leader's `canccu-ship`, or by your
 `accepted` ([`how-it-works.md`](how-it-works.md#who-accepts)).
