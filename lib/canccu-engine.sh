@@ -134,6 +134,30 @@ rm_tree() {
   rm -rf --one-file-system "$1"
 }
 
+# --- the run's own tmux server (#344)
+# A tool the run starts that calls tmux (canccu-up under test, a dev server in a session) would
+# otherwise land on the host's server, the dispatcher's own, and outlive the run there. The socket
+# dir is a short one under /tmp, not in the run's temp dir: a unix socket path holds 107 bytes at
+# most, which workers/tmp/<repo>-<key>.<pid>/tmux-<uid>/default can pass. The run's temp dir names
+# it in .tmux, so the sweep ends the server of a run killed before its EXIT trap.
+run_tmux=""
+# run_tmux_start [run_tmp]: TMUX_TMPDIR a new dir of the run's own. TMUX goes too: a client inside
+# a pane (the run's window) takes TMUX's socket before TMUX_TMPDIR.
+run_tmux_start() {
+  unset TMUX TMUX_PANE
+  run_tmux=$(mktemp -d /tmp/canccu-tmux.XXXXXX) || { run_tmux=""; return 1; }
+  export TMUX_TMPDIR=$run_tmux
+  [ -z "${1:-}" ] || printf '%s\n' "$run_tmux" > "$1/.tmux"
+}
+# tmux_dir_end <dir>: end every tmux server with a socket in dir (a run may name its own, -L x),
+# then remove it. Only a dir run_tmux_start makes: a run writes its .tmux and may name any path.
+tmux_dir_end() {
+  local s
+  [[ $1 =~ ^/tmp/canccu-tmux\.[A-Za-z0-9]+$ ]] && [ -d "$1" ] && [ ! -L "$1" ] || return 0
+  for s in "$1"/tmux-*/*; do [ -S "$s" ] && timeout 10 tmux -S "$s" kill-server >/dev/null 2>&1; done
+  rm -rf "$1"
+}
+
 # run_tmp_sweep: remove the temp dirs workers/tmp/<repo>-<key>.<pid> that their run left behind
 # (killed before its EXIT trap finished); prints how many went. A dir stays while the lock
 # <repo>-<key>.lock names its pid and that pid lives, and while it is younger than an hour: the
@@ -145,6 +169,7 @@ run_tmp_sweep() {
     [ -n "$(find "$d" -maxdepth 0 -mmin +60 2>/dev/null)" ] || continue
     name=${d##*/} l=$WORKERS_DIR/${name%.*}.lock
     [ -e "$l" ] && [ "$(lock_get "$l" pid)" = "${name##*.}" ] && lock_pid_alive "$l" && continue
+    tmux_dir_end "$(head -n1 "$d/.tmux" 2>/dev/null)"
     rm_tree "$d" && n=$((n + 1))
   done
   echo "$n"

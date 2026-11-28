@@ -47,6 +47,13 @@ canccu-worker --kill <repo> <key>
   stale run temp dirs`; `canccu-dispatcher doctor` warns when `workers/tmp` holds over 5 GB.
   `RUN_TMPDIR=system`: the run keeps the inherited `TMPDIR`. Caches a tool keeps in the home
   directory are not cleaned. The run's rules tell it to use `$TMPDIR`, never `/tmp`.
+- **tmux**: every run (worker, reviewer, fix-check, answerer) has a tmux server of its own: its
+  `TMUX_TMPDIR` is a new dir `/tmp/canccu-tmux.<random>` (short, since a socket path holds 107
+  bytes at most) and `TMUX`/`TMUX_PANE` are unset, so a `tmux new-session` a tool of the run
+  calls never lands on the host's server. When the run ends, also when it is stopped, every
+  server with a socket in that dir is killed and the dir removed. A run killed before it could
+  clean up leaves the dir's path in its temp dir (`.tmux`): the sweep above ends its servers
+  and removes the dir with it.
 - **Containers**: a run's tag, `canccu_<project>_<key>` (lowercased; any other character but
   `a-z0-9_-` in the project, and but `a-z0-9-` in the key, a `-`, so `web`, `web_x` and `web-x`
   never share a tag), reaches it as `CANCCU_RUN` and as `COMPOSE_PROJECT_NAME`; its rules tell it to
