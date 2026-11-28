@@ -26,7 +26,9 @@ licence (`templates/LICENSE`): copy it freely, it does not bring the AGPL into y
    General) if your plan offers it; without it the dispatcher merges directly, under the same pins.
 
 `canccu-init` creates the dispatcher's labels ([`reference/commands.md`](reference/commands.md));
-it never changes rulesets, secrets, variables or collaborators.
+it never changes rulesets, secrets, variables or collaborators. `canccu-init --check <name>`
+reads each of these pieces and names the ones missing, with their fix
+([`reference/projects.md`](reference/projects.md#checking-a-project)).
 
 ## The review gate
 

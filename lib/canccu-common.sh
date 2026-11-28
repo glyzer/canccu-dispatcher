@@ -370,8 +370,8 @@ run_progress() {
 . "$_canccu_lib/canccu-skills.sh"
 # shellcheck source=canccu-share.sh
 . "$_canccu_lib/canccu-share.sh"
-# shellcheck source=/dev/null  # canccu-claim.sh, canccu-upgrade.sh (#15, #20): each is linted on its own
-for _canccu_f in claim upgrade; do . "$_canccu_lib/canccu-$_canccu_f.sh"; done
+# shellcheck source=/dev/null  # canccu-claim.sh, canccu-upgrade.sh, canccu-repocheck.sh (#15, #20, #17): each is linted on its own
+for _canccu_f in claim upgrade repocheck; do . "$_canccu_lib/canccu-$_canccu_f.sh"; done
 # shellcheck source=canccu-answer.sh
 . "$_canccu_lib/canccu-answer.sh"
 # shellcheck source=canccu-github.sh

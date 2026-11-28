@@ -12,6 +12,11 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
   prompt names a superpowers skill unless `WORKER_SKILLS` does: the skills a worker must not use
   are described, not named. `canccu-dispatcher doctor` prints a `host: skills:` line. A host that
   sets the old Max preset can append the new sentence from [`docs/hosts.md`](docs/hosts.md#a-max-host).
+- `canccu-init --check <name>` checks the target repo too, read-only (#17): the repo's reach, the
+  bot's write access, the variable `REVIEWER_LOGIN`, the review-gate files, CI, the required
+  checks, auto-merge and the labels, each missing piece with its fix. It now exits 1 when a piece
+  is missing. `canccu-dispatcher doctor --project <name>` shows the missing pieces as problems.
+  The checklist `canccu-init` prints links each step to its docs and ends with the check.
 
 ## [0.5.0] — 2026-11-27
 

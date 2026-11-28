@@ -12,8 +12,11 @@
 # canccu-init --leader <name> — give an existing project a leader: its kit (CLAUDE.md and
 # .claude/settings.json) in ~/.canccu/projects/<name>/leader/, and LEADER=on in its config
 # (docs/reference/leader.md, "The leader kit").
-# canccu-init --check <name> — check a project's notify setup: with NOTIFY telegram or both, the
-# bot token file, the chat id, the bot (getMe) and one test message (docs/reference/notify.md).
+# canccu-init --check <name> — check a project's repo, read-only: the repo, the bot's access, the
+# variable REVIEWER_LOGIN, the review gate, CI, the required checks, auto-merge and the labels,
+# each missing piece with its fix (docs/repo-contract.md); then its notify setup: with NOTIFY
+# telegram or both, the bot token file, the chat id, the bot (getMe) and one test message
+# (docs/reference/notify.md). Exits 1 when a piece is missing or Telegram fails.
 set -uo pipefail
 self=$(realpath "$0")
 here=$(dirname "$self")/..
@@ -21,8 +24,8 @@ die() { echo "canccu-init: $*" >&2; exit 1; }
 # shellcheck source=../lib/canccu-projects.sh
 . "$here/lib/canccu-projects.sh"
 
-usage() { sed -n '3,16s/^# \{0,1\}//p' "$self" >&2; exit 2; }
-[ "${1:-}" = --help ] && { sed -n '3,16s/^# \{0,1\}//p' "$self"; exit 0; }
+usage() { sed -n '3,19s/^# \{0,1\}//p' "$self" >&2; exit 2; }
+[ "${1:-}" = --help ] && { sed -n '3,19s/^# \{0,1\}//p' "$self"; exit 0; }
 
 if [ "${1:-}" = --leader ]; then
   [ $# -eq 2 ] || usage
@@ -56,30 +59,44 @@ if [ "${1:-}" = --check ]; then
   [ $# -eq 2 ] || usage
   canccu_valid_name "$2" && [ -f "$CANCCU_ROOT/projects/$2/config" ] || die "no project '$2'"
   # shellcheck disable=SC2034  # read by the lib
-  CANCCU_PROJECT=$2
+  CANCCU_PROJECT=$2 name=$2
   # shellcheck source=../lib/canccu-common.sh
   . "$here/lib/canccu-common.sh"
-  notify_on telegram || { echo "NOTIFY=${NOTIFY:-github}: nothing to check for Telegram"; exit 0; }
-  p=$(notify_ready)
-  if [ -n "$p" ]; then
-    echo "Telegram: $p"
-    # the /newbot steps only where they are the fix: a missing token or chat; a wrong mode or a
-    # bad token shape has its own one-line fix in the message above
-    case $p in *"not set"*|*"no Telegram bot token file"*) ;; *) exit 1 ;; esac
-    cat <<EOT
+  # tg_check: the Telegram half; fails when Telegram is on and does not work
+  tg_check() {
+    notify_on telegram || { echo "NOTIFY=${NOTIFY:-github}: nothing to check for Telegram"; return 0; }
+    p=$(notify_ready)
+    if [ -n "$p" ]; then
+      echo "Telegram: $p"
+      # the /newbot steps only where they are the fix: a missing token or chat; a wrong mode or a
+      # bad token shape has its own one-line fix in the message above
+      case $p in *"not set"*|*"no Telegram bot token file"*) ;; *) return 1 ;; esac
+      cat <<EOT
 To set it up:
   1. In Telegram, ask @BotFather for /newbot; put the token it gives in $(canccu_tilde "${TELEGRAM_TOKEN_FILE:-~/.config/canccu/telegram-token}") (one line, chmod 600).
   2. Write to the bot, or add it to a group with topics on (as an admin that manages topics) and write there.
-  3. canccu-notify --project $2 ids lists the chats and senders it saw: set TELEGRAM_CHAT_ID and
-     TELEGRAM_USER_ID (canccu-dispatcher config set --project $2 ...), then run this check again.
+  3. canccu-notify --project $name ids lists the chats and senders it saw: set TELEGRAM_CHAT_ID and
+     TELEGRAM_USER_ID (canccu-dispatcher config set --project $name ...), then run this check again.
 EOT
-    exit 1
-  fi
-  b=$(tg_call getMe) || { echo "Telegram: the bot does not answer ($b): check the token"; exit 1; }
-  m=$(tg_send "canccu: the setup check of project $2 reaches this chat" - -) || { echo "Telegram: the test message to chat $TELEGRAM_CHAT_ID failed ($m)"; exit 1; }
-  echo "Telegram: the bot @$(jq -r '.username' <<<"$b") reaches chat $TELEGRAM_CHAT_ID (test message $m)"
-  [ -n "${TELEGRAM_USER_ID:-}" ] || echo "Telegram: TELEGRAM_USER_ID is not set: no reply reaches the inbox (canccu-notify --project $2 ids)"
-  exit 0
+      return 1
+    fi
+    b=$(tg_call getMe) || { echo "Telegram: the bot does not answer ($b): check the token"; return 1; }
+    m=$(tg_send "canccu: the setup check of project $name reaches this chat" - -) || { echo "Telegram: the test message to chat $TELEGRAM_CHAT_ID failed ($m)"; return 1; }
+    echo "Telegram: the bot @$(jq -r '.username' <<<"$b") reaches chat $TELEGRAM_CHAT_ID (test message $m)"
+    [ -n "${TELEGRAM_USER_ID:-}" ] || echo "Telegram: TELEGRAM_USER_ID is not set: no reply reaches the inbox (canccu-notify --project $name ids)"
+    return 0
+  }
+  nm=0 nu=0
+  while IFS=$'\t' read -r s t; do
+    [ -n "$s" ] || continue
+    echo "repo: $t"
+    case $s in missing) nm=$((nm + 1)) ;; unknown) nu=$((nu + 1)) ;; esac
+  done < <(repo_check "$here")
+  echo "repo $REPO: $nm missing, $nu unknown"
+  # unknown and notes never fail it: the narrow token cannot read every piece
+  tg_check; rc=$?
+  (( nm == 0 && rc == 0 ))
+  exit
 fi
 
 profile=default
@@ -176,7 +193,7 @@ else
   echo "labels: gh could not list the labels of $REPO; canccu-dispatch creates them on its first run"
 fi
 
-def=$(canccu_default_profile)
+def=$(canccu_default_profile) d=$RC_DOCS
 bot=${REVIEWER_LOGIN:-"(REVIEWER_LOGIN: not set yet; set it in ${CANCCU_ROOT/#$HOME/\~}/config)"}
 gdir=${CANCCU_HOME/#$HOME/\~}/gh gtok=${CANCCU_HOME/#$HOME/\~}/gh-token
 [ -n "$CANCCU_GH_DIR" ] && gdir=${CANCCU_GH_DIR/#$HOME/\~}
@@ -187,13 +204,15 @@ secrets, variables or collaborators):
   1. Add the reviewer bot $bot as a collaborator with write access to $REPO (Settings →
      Collaborators; the bot accepts the invite). A private repo needs a token with the repo scope
      in ${REVIEWER_TOKEN_FILE/#$HOME/\~} (one token for all projects).
+     ($d/repo-contract.md)
   2. Set the repo variable REVIEWER_LOGIN to ${REVIEWER_LOGIN:-that login} (Settings → Secrets and variables →
-     Actions → Variables): the review-gate check reads it.
+     Actions → Variables): the review-gate check reads it. ($d/repo-contract.md)
   3. Add the review-gate workflow and its script to $REPO through a PR: copy the files under
      $(canccu_tilde "$(realpath -m "$here/templates/repo/.github")")/ to the same paths in the
-     repo (templates/README.md says what they check).
+     repo (templates/README.md says what they check). ($d/repo-contract.md)
   4. Set the required checks (a ruleset on $BASE_BRANCH): CI and ${REVIEW_CHECKS:-review-gate}. A merge
      queue is optional: without one, accepted PRs merge with MERGE_METHOD (default squash).
+     ($d/repo-contract.md)
   5. Clone the repo to $CLONE if it is not there, and review ${CANCCU_HOME/#$HOME/\~}/rules
      (risky and gated paths, extra reviewer and worker text, AUTO_MERGE_UNTIL, one-at-a-time lock,
      ADD_DIRS, the review-gate checks).
@@ -216,6 +235,8 @@ secrets, variables or collaborators):
      (--insecure-storage keeps the token in that dir's hosts.yml, mode 600: a keyring entry is
      per account, so two projects would overwrite each other's.) From then on every gh and git
      call of this project, and of every run it starts, uses it; canccu-status shows TOKEN MISSING
-     or TOKEN CANNOT REACH $REPO when it does not work.
+     or TOKEN CANNOT REACH $REPO when it does not work. ($d/reference/projects.md)
   7. Start it: canccu-up --project $name   (tmux session $(canccu_session "$name"); the default project is ${def:-none})
+     ($d/getting-started.md)
+Check it: canccu-init --check $name
 EOT
