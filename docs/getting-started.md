@@ -2,7 +2,15 @@
 # Getting started
 
 From nothing to a first merged PR. The examples use the invented project `web` for the repo
-`example-org/web`, your login `octo` and the reviewer bot `review-bot`; use your own.
+`example-org/web`, your login `octo` and the reviewer bot `review-bot`; use your own. How the
+pieces fit together: [`how-it-works.md`](how-it-works.md).
+
+Pick a path; sections 1 to 6 are the same for both:
+
+| Path | Sections | For |
+|---|---|---|
+| Without a leader | 1 to 7 | You clear every item that waits: a first project, a small repo |
+| With a leader | 1 to 6, then 8 | A leader session clears the technical items; scope and what users see stay yours |
 
 ## 1. The host
 
@@ -132,31 +140,43 @@ GATED_PATHS='^\.github/|^deploy/|^migrations/'
 Accept each PR by labelling it `accepted` ([`reference/merging.md`](reference/merging.md)). After a few clean
 PRs, remove the `AUTO_MERGE_UNTIL` line; the gated paths keep waiting for you.
 
-Then check: `canccu-init --check web` names each piece of the repo still missing, with its fix
-(its last checklist line says so too), `canccu-dispatcher doctor --project web` prints
-`no problems found`, and
-`canccu-dispatch --project web --dry-run` shows the queue without changing anything.
+Then check: `canccu-dispatcher doctor --project web` prints `no problems found`,
+`canccu-dispatch --project web --dry-run` shows the queue without changing anything, and the
+check the checklist ends with names each piece of the repo still missing, with its fix:
 
-## 6. Start it
+```sh
+canccu-init --check web
+```
+
+## 6. Notifications
+
+The dispatcher tells your phone when something waits for you. Pick one:
+
+- **GitHub pings** (the default, nothing to set): `review-bot` posts a comment that @mentions
+  `octo` on the issue, so install the GitHub mobile app, sign in as `octo` and allow its push
+  notifications ([`reference/pings.md`](reference/pings.md)).
+- **Telegram**: one message per item, with optional quiet hours and a daily cap. Set up the bot, the chat
+  and `NOTIFY=telegram` as in
+  [`reference/notify.md`](reference/notify.md#setting-it-up); `canccu-init --check web` then
+  sends a test message.
+
+Either way the monitor's NEEDS YOU box and `canccu-status --project web` list every item.
+
+## 7. Without a leader
+
+Start it:
 
 ```sh
 canccu-up --project web
 ```
 
 This creates the tmux session (`canccu` for the first project) and attaches: window `main` holds
-an interactive `claude` on the left (your own session; the leader with `LEADER=on`) and the
-monitor on the right, window `dispatch` runs the dispatcher, window `shell` is yours. Detach with
-`Ctrl-b d`; `canccu-up` attaches again.
+an interactive `claude` on the left (your own session) and the monitor on the right, window
+`dispatch` runs the dispatcher, window `shell` is yours. Detach with `Ctrl-b d`; `canccu-up`
+attaches again.
 
-A leader is optional. `canccu-init --leader web` writes the leader kit (its instructions and
-Claude permissions) to `~/.canccu/projects/web/leader/` and sets `LEADER=on`; the next time
-`canccu-up` creates the session, the left pane, titled `leader`, runs `claude` in that kit. The
-leader clears the technical items the owner rule gives it and passes everything else to you
-([`reference/leader.md`](reference/leader.md#the-leader-kit)).
-
-## 7. A first issue
-
-Write a small issue, alone or with the leader ([`reference/leader.md`](reference/leader.md)):
+Then write a small issue, in the left pane or on GitHub
+([`reference/leader.md`](reference/leader.md#writing-issues)):
 
 ```markdown
 ## Goal
@@ -187,6 +207,47 @@ A review that asks for changes sends the worker back once, then a fix-check. Any
 you shows in the monitor's NEEDS YOU box, and `review-bot` @mentions you on the issue
 ([`reference/pings.md`](reference/pings.md)). If it stops, [`troubleshooting.md`](troubleshooting.md)
 explains each message.
+
+## 8. With a leader
+
+Give the project its leader, then start it:
+
+```sh
+canccu-init --leader web
+canccu-up --project web
+```
+
+`canccu-init --leader` writes the leader kit (its instructions and Claude permissions) to
+`~/.canccu/projects/web/leader/` and sets `LEADER=on`. `canccu-up` then creates the tmux session
+as in section 7, with the leader in the left pane, titled `leader`
+([`reference/leader.md`](reference/leader.md#the-leader-kit)). A session that runs already
+shows it only once `canccu-up` creates the session again.
+
+Tell the leader what you want, for example: "Read your brief. Then write an issue: the page
+footer shows the current year instead of a fixed one; risk low. Show it to me before you label
+it `ready`." It starts with `canccu-dispatcher leader brief`, drafts the issue (section 7's
+shape), and labels it `ready` once you agree. From there the issue runs as in section 7, and the
+leader follows the feed of waiting items:
+
+- **It clears** what the owner rule gives it: a failed run, red CI, a fix-check's open items, by
+  a comment or `needs-work`; with `LEADER_ACCEPTS=technical`, the accept of a technical PR whose
+  review passed and CI is green (`canccu-ship <n>`).
+- **It passes to you**, in the ask form, and the dispatcher pings you: every checkpoint, a
+  question the answerer escalated, a PR that users see, that touches a gated path or agent
+  configuration, or of high risk, and any item it leaves unacknowledged for 60 minutes.
+
+The first issue is done when its PR merged: by itself, by the leader's `canccu-ship`, or by your
+`accepted` ([`how-it-works.md`](how-it-works.md#who-accepts)).
+
+`LEADER_ACCEPTS` is `none` by default: the leader accepts nothing and every accept stays yours.
+It is locked, so only you set it, once you trust the leader:
+
+```sh
+canccu-dispatcher config set --project web LEADER_ACCEPTS=technical --why "the leader accepts technical PRs"
+```
+
+`LEADER_ACCEPTS_HIGH_RISK=1` gives it the high-risk technical PRs too; `LEADER_ACCEPTS=none`
+takes the accepts back.
 
 ## Next
 

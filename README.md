@@ -32,6 +32,8 @@ here; interfaces may still change between releases ([`CHANGELOG.md`](CHANGELOG.m
 - It does not write your issues or decide scope: you (with the leader, an interactive Claude
   session) do. It does not deploy, and it is no hosted service: it runs on your Linux host.
 
+How it works, with or without a leader: [`docs/how-it-works.md`](docs/how-it-works.md); from install to a first merged PR: [`docs/getting-started.md`](docs/getting-started.md).
+
 ## Prerequisites
 
 - **Linux** with bash ≥ 5.0, git ≥ 2.30, jq ≥ 1.6, tmux ≥ 3.2, python3 ≥ 3.10 (the monitor), GNU

@@ -93,7 +93,9 @@ applies:
    after `plan-ok`, a PR that does not close exactly the unit's issues (the build must close them);
 6. a path the rules' `GATED_PATHS` match, or agent configuration at any depth: `.claude/`,
    `.mcp.json`, `CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md`; and the root's `REVIEW.md` (the only
-   one the reviewer reads, [`reviews.md`](reviews.md)). A rename counts by its old path too;
+   one the reviewer reads, [`reviews.md`](reviews.md)). A rename counts by its old path too.
+   Then a path the rules' `USER_VISIBLE_PATHS` match, less the `TEST_PATHS` ones (`users see it:
+   <path>`, [`rules.md`](rules.md#user-visible-paths));
 7. an issue (any issue of a package) labelled `manual-accept`;
 8. a package's risk class is `high`: from the plan, the PR's `Risk:` line or the reviewer,
    whichever is highest; for the health pass, a diff that touches `HIGH_RISK_PATHS`

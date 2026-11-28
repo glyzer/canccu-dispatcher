@@ -17,6 +17,12 @@ Every release of canccu-dispatcher, newest first. The version is in `VERSION`;
   checks, auto-merge and the labels, each missing piece with its fix. It now exits 1 when a piece
   is missing. `canccu-dispatcher doctor --project <name>` shows the missing pieces as problems.
   The checklist `canccu-init` prints links each step to its docs and ends with the check.
+- New guide [`docs/how-it-works.md`](docs/how-it-works.md) (#40): one issue, what needs
+  someone and a step as diagrams, the work with and without a leader, and who accepts what.
+  [`docs/getting-started.md`](docs/getting-started.md) has two paths: section 6 picks the
+  notifications (GitHub pings or Telegram), section 7 runs without a leader, the new section 8
+  with one. [`docs/reference/merging.md`](docs/reference/merging.md)'s manual rules name
+  `USER_VISIBLE_PATHS`, as the classifier checks it.
 
 ## [0.5.0] — 2026-11-27
 
