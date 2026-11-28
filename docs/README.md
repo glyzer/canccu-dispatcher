@@ -5,7 +5,8 @@
 
 | Guide | For |
 |---|---|
-| [`getting-started.md`](getting-started.md) | From nothing to a first merged PR, step by step |
+| [`getting-started.md`](getting-started.md) | From nothing to a first merged PR, without or with a leader, step by step |
+| [`how-it-works.md`](how-it-works.md) | One issue, what needs someone, steps and pacing; with or without a leader, and who accepts |
 | [`install.md`](install.md) | Requirements, the installer, releases, rollback, uninstall, `doctor` |
 | [`repo-contract.md`](repo-contract.md) | What a target repo needs: the bot, the variable, CI, the review gate, the ruleset, the `CLAUDE.md` and `AGENTS.md` snippets |
 | [`upgrading.md`](upgrading.md) | The pause → stop → wait → install → restart → resume sequence |
